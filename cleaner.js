@@ -122,16 +122,15 @@ class RequestManager {
  */
 async function archiveInactiveThreads(logger) {
     const requestManager = new RequestManager();
-    // 初始化统计对象
     let statistics = {
-        totalActive: 0,    // 当前活跃线程总数
-        zombieCount: 0,    // 超过指定时间未活动的线程数
-        archiveCount: 0,   // 计划归档的线程数
-        actualArchived: 0, // 实际成功归档的线程数
+        totalActive: 0,
+        zombieCount: 0,
+        archiveCount: 0,
+        actualArchived: 0,
         timing: {
-            fetchTime: 0,    // 获取数据耗时
-            archiveTime: 0,  // 归档操作耗时
-            totalTime: 0     // 总耗时
+            fetchTime: 0,
+            archiveTime: 0,
+            totalTime: 0
         }
     };
 
@@ -149,44 +148,75 @@ async function archiveInactiveThreads(logger) {
 
         statistics.totalActive = threads.size;
 
-        // 获取所有线程的最后活动时间信息
-        logger.diagnostic('开始获取所有线程的最后活动时间...');
-        const threadInfoArray = await Promise.all(
-            Array.from(threads.values()).map(async thread => {
-                return await requestManager.track(async () => {
-                    try {
-                        // 获取线程最后一条消息
-                        const messages = await thread.messages.fetch({ limit: 1 });
-                        const lastMessage = messages.first();
-                        const lastMessageTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
-                        const timeDiff = (Date.now() - lastMessageTime) / (1000 * 60 * 60);
+        // 收集线程信息
+        const threadInfoArray = [];
+        let processedCount = 0;
+        const totalThreads = threads.size;
 
-                        return {
-                            thread,
-                            timeDiff,
-                            isZombie: timeDiff >= zombieHours,
-                            isPinned: pinnedThreads.includes(thread.id)
-                        };
-                    } catch (error) {
-                        // 如果无法获取消息，则使用线程创建时间
-                        const timeDiff = (Date.now() - thread.createdTimestamp) / (1000 * 60 * 60);
-                        return {
-                            thread,
-                            timeDiff,
-                            isZombie: timeDiff >= zombieHours,
-                            isPinned: pinnedThreads.includes(thread.id)
-                        };
-                    }
+        for (const thread of threads.values()) {
+            try {
+                // 添加进度日志
+                processedCount++;
+                if (processedCount % 100 === 0) {
+                    logger.diagnostic(`正在处理线程 ${processedCount}/${totalThreads}`);
+                }
+
+                // 设置消息获取的超时
+                const messagePromise = thread.messages.fetch({ limit: 1 })
+                    .catch(error => {
+                        logger.diagnostic(`获取消息失败 (${thread.name}): ${error.message}`);
+                        return null;
+                    });
+
+                // 添加5秒超时
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('获取消息超时')), 5000));
+
+                // 使用 Promise.race 来实现超时机制
+                const messages = await Promise.race([messagePromise, timeoutPromise])
+                    .catch(error => {
+                        logger.diagnostic(`线程 ${thread.name} 处理超时或错误: ${error.message}`);
+                        return null;
+                    });
+
+                const lastMessage = messages?.first();
+                const lastMessageTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
+                const timeDiff = (Date.now() - lastMessageTime) / (1000 * 60 * 60);
+
+                threadInfoArray.push({
+                    thread,
+                    timeDiff,
+                    isZombie: timeDiff >= zombieHours,
+                    isPinned: thread.id in pinnedThreads
                 });
-            })
-        );
+            } catch (error) {
+                logger.diagnostic(`处理线程 ${thread.name} 时出错: ${error.message}`);
+                const timeDiff = (Date.now() - thread.createdTimestamp) / (1000 * 60 * 60);
+                threadInfoArray.push({
+                    thread,
+                    timeDiff,
+                    isZombie: timeDiff >= zombieHours,
+                    isPinned: thread.id in pinnedThreads
+                });
+            }
+
+            // 每处理10个线程暂停100ms，避免API限制
+            if (processedCount % 10 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+        }
+
+        logger.diagnostic(`完成线程信息收集，共处理 ${processedCount} 个线程`);
 
         // 计算僵尸线程数量
         statistics.zombieCount = threadInfoArray.filter(info => info.isZombie).length;
         logger.diagnostic(`扫描完成，发现 ${statistics.zombieCount} 个僵尸线程`);
 
-        // 过滤出需要处理的线程（排除置顶线程）
-        const activeThreadsInfo = threadInfoArray.filter(info => !info.isPinned);
+        // 过滤和排序需要处理的线程
+        const activeThreadsInfo = threadInfoArray
+            .filter(info => !info.isPinned)
+            .sort((a, b) => b.timeDiff - a.timeDiff);
+
         const excessThreads = activeThreadsInfo.length - threshold;
 
         if (excessThreads <= 0) {
@@ -195,12 +225,8 @@ async function archiveInactiveThreads(logger) {
             return statistics;
         }
 
-        // 按最后活动时间排序并选择需要归档的线程
-        activeThreadsInfo.sort((a, b) => a.timeDiff - b.timeDiff);
-        const toArchive = activeThreadsInfo
-            .slice(0, excessThreads)
-            .map(info => info.thread);
-
+        // 选择需要归档的线程
+        const toArchive = activeThreadsInfo.slice(0, excessThreads);
         statistics.archiveCount = toArchive.length;
 
         if (toArchive.length > 0) {
@@ -208,42 +234,34 @@ async function archiveInactiveThreads(logger) {
             logger.diagnostic('开始执行归档操作...');
 
             const archiveStart = Date.now();
-                        // 创建归档任务执行函数
-            const createArchiveTask = async (thread) => {
-                return await requestManager.track(async () => {
-                    try {
-                        await thread.setArchived(true);
-                        statistics.actualArchived++;
-                        logger.diagnostic(`成功归档: ${thread.name}`);
-                    } catch (error) {
-                        if (error instanceof DiscordAPIError) {
-                            switch (error.code) {
-                                case 403:
-                                    logger.log(`权限错误 - ${thread.name}`);
-                                    break;
-                                case 404:
-                                    logger.log(`找不到目标 - ${thread.name}`);
-                                    break;
-                                default:
-                                    logger.log(`Discord API错误 - ${thread.name}: [${error.code}] ${error.message}`);
-                            }
-                        } else {
-                            logger.log(`未知错误 - ${thread.name}: ${error.message}`);
+
+            // 逐个处理归档
+            for (const threadInfo of toArchive) {
+                const thread = threadInfo.thread;
+                try {
+                    await thread.setArchived(true);
+                    statistics.actualArchived++;
+                    logger.diagnostic(`成功归档: ${thread.name} (已归档 ${statistics.actualArchived}/${toArchive.length})`);
+                    // 添加延迟以避免请求过于频繁
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                    if (error instanceof DiscordAPIError) {
+                        switch (error.code) {
+                            case 403:
+                                logger.log(`权限错误 - ${thread.name}`);
+                                break;
+                            case 404:
+                                logger.log(`找不到目标 - ${thread.name}`);
+                                break;
+                            default:
+                                logger.log(`Discord API错误 - ${thread.name}: [${error.code}] ${error.message}`);
                         }
+                    } else {
+                        logger.log(`未知错误 - ${thread.name}: ${error.message}`);
                     }
-                });
-            };
+                }
+            }
 
-            // 创建并执行归档任务，每个任务间隔30ms以避免请求过于密集
-            const archiveTasks = toArchive.map((thread, index) => {
-                return new Promise(resolve =>
-                    setTimeout(() => {
-                        createArchiveTask(thread).then(resolve);
-                    }, index * 30)
-                );
-            });
-
-            await Promise.all(archiveTasks);
             statistics.timing.archiveTime = Date.now() - archiveStart;
             logger.diagnostic(`归档操作完成，耗时 ${statistics.timing.archiveTime}ms`);
         }
@@ -281,7 +299,7 @@ async function main() {
 
         // 发送启动通知
         await logThread.send({
-            content: `🤖 Thread Archive Bot 已启动\n\`\`\`\n登录耗时: ${loginTime}ms\n诊断模式: ${diagnosticMode ? '开启' : '关闭'}\n阈值设定: ${threshold}\n僵尸帖时间: ${zombieHours}小时\n\`\`\``
+            content: `\`\`\`\n登录耗时: ${loginTime}ms\n诊断模式: ${diagnosticMode ? '开启' : '关闭'}\n阈值设定: ${threshold}\n当前激活间隔：30min\n终于可以睡觉了！\n\`\`\``
         });
 
         // 定义清理任务
@@ -316,13 +334,12 @@ async function main() {
         await cleanup();
         logger.diagnostic('首次清理任务完成');
 
-        // 设置定时清理任务（每15分钟执行一次）
+        // 设置定时清理任务（每30分钟执行一次）
         const interval = setInterval(cleanup, 30 * 60 * 1000);
 
         // 处理程序关闭的函数
         const handleShutdown = async () => {
             clearInterval(interval);
-            await logThread.send('🔄 Bot服务正在关闭...');
             await client.destroy();
             process.exit(0);
         };

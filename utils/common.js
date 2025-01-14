@@ -1,6 +1,6 @@
 /**
- * 性能统计函数
- * @returns {Function} 返回一个计算经过时间的函数
+ * 计算执行时间的工具函数
+ * @returns {Function} 返回一个函数，调用时返回从开始到现在的秒数（保留两位小数）
  */
 const measureTime = () => {
     const start = process.hrtime();
@@ -28,10 +28,10 @@ const logTime = (message, error = false) => {
 };
 
 /**
- * 检查权限
- * @param {Member} member - 成员对象
- * @param {Array<string>} allowedRoleIds - 允许的角色ID数组
- * @returns {boolean} 是否具有权限
+ * 检查用户是否具有执行命令的权限
+ * @param {GuildMember} member - Discord服务器成员对象
+ * @param {string[]} allowedRoleIds - 允许执行命令的角色ID数组
+ * @returns {boolean} 如果用户拥有允许的角色则返回true
  */
 const checkPermission = (member, allowedRoleIds) => {
     return member.roles.cache.some(role => allowedRoleIds.includes(role.id));

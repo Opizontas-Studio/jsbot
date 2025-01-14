@@ -3,7 +3,11 @@ const { logTime } = require('../utils/common');
 const { analyzeThreads } = require('../utils/threadAnalyzer');
 const config = require('../config.json');
 
-// 定时分析任务设置
+/**
+ * 设置定时分析任务
+ * 在每天9点和21点执行论坛主题分析
+ * @param {Client} client - Discord.js客户端实例
+ */
 const scheduleAnalysis = (client) => {
     const INTERVAL = 12 * 60 * 60 * 1000; // 12小时
     
@@ -32,14 +36,14 @@ const scheduleAnalysis = (client) => {
         setInterval(runAnalysis, INTERVAL);
     }, timeUntilNextRun);
     
-    logTime(`首次定时分析将在 ${nextRun.toLocaleString()} 执行`);
+    logTime(`下次分析: ${nextRun.toLocaleTimeString()}`);
 };
 
 module.exports = {
     name: Events.ClientReady,
     once: true,
     execute(client) {
-        logTime(`准备就绪! 已登录为 ${client.user.tag}`);
+        logTime(`已登录: ${client.user.tag}`);
         scheduleAnalysis(client);
     },
 }; 

@@ -5,8 +5,8 @@ const { codeBlock, ChannelFlags } = require('discord.js');
 const { logTime, delay, measureTime } = require('./common');
 
 /**
- * Discord日志发送器类
- * 用于处理向指定频道发送分析报告的逻辑
+ * Discord分析报告发送器类
+ * 用于处理分析结果的格式化和发送
  */
 class DiscordLogger {
     /**
@@ -140,12 +140,17 @@ const handleDiscordError = (error) => {
 };
 
 /**
- * 主要分析函数
+ * 分析Discord论坛主题的活跃度
+ * @param {Client} client - Discord.js客户端实例
  * @param {Object} config - 配置对象
  * @param {string} config.guildId - 服务器ID
  * @param {string} config.logThreadId - 日志频道ID
- * @param {string} config.proxyUrl - 代理URL
- * @returns {Promise<void>}
+ * @param {string} config.proxyUrl - 代理URL（可选）
+ * @param {Object} options - 可选配置
+ * @param {boolean} options.clean - 是否执行清理操作
+ * @param {number} options.threshold - 清理阈值
+ * @param {Collection} activeThreads - 预先获取的活跃主题集合（可选）
+ * @returns {Promise<Object>} 返回统计结果和失败操作记录
  */
 async function analyzeThreads(client, config, options = {}, activeThreads = null) {
     const totalTimer = measureTime();
@@ -181,7 +186,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
                 .catch(error => {
                     throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
                 });
-            console.log(`获取活跃主题列表用时: ${fetchThreadsTimer()}秒`);
+            logTime(`获取活跃主题列表用时: ${fetchThreadsTimer()}秒`);
         }
 
         statistics.totalThreads = activeThreads.threads.size;
@@ -229,7 +234,13 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
                 })
             );
             threadInfoArray.push(...batchResults);
-            logTime(`已处理 ${Math.min((i + batchSize), threadArray.length)}/${threadArray.length} 个主题 (${((i + batchSize) / threadArray.length * 100).toFixed(1)}%)`);
+            const progress = ((i + batchSize) / threadArray.length * 100);
+            if (progress >= 25 && progress < 26 || 
+                progress >= 50 && progress < 51 || 
+                progress >= 75 && progress < 76 || 
+                progress >= 99) {
+                logTime(`已处理 ${Math.min((i + batchSize), threadArray.length)}/${threadArray.length} 个主题 (${progress.toFixed(1)}%)`);
+            }
         }
         console.log(`处理所有主题信息用时: ${processThreadsTimer()}秒`);
 
@@ -256,7 +267,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
                         await delay(50); // 归档操作保持50ms延迟
                         await threadInfo.thread.setArchived(true, '自动清理不活跃主题');
                         statistics.archivedThreads++;
-                        if (statistics.archivedThreads % 10 === 0) {
+                        if (statistics.archivedThreads % 25 === 0) {
                             logTime(`已归档 ${statistics.archivedThreads}/${threadsToArchive.length} 个主题`);
                         }
                     } catch (error) {

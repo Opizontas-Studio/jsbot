@@ -1,6 +1,10 @@
 const { Events } = require('discord.js');
 const { logTime } = require('../utils/common');
 
+/**
+ * 处理Discord斜杠命令交互
+ * @param {Interaction} interaction - Discord交互对象
+ */
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {

@@ -2,6 +2,7 @@ const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { token } = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
+<<<<<<< Updated upstream
 
 // 添加性能统计函数
 const measureTime = () => {
@@ -17,6 +18,10 @@ if (!token) {
     console.error('错误: 配置文件中缺少token');
     process.exit(1);
 }
+=======
+const { measureTime, logTime } = require('./utils/common');
+const { loadCommandFiles } = require('./utils/commandLoader');
+>>>>>>> Stashed changes
 
 const client = new Client({
     intents: [
@@ -29,22 +34,9 @@ const client = new Client({
 client.commands = new Collection();
 
 // 加载命令
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    try {
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-            console.log(`已加载命令: ${command.data.name}`);
-        } else {
-            console.log(`[警告] 命令 ${filePath} 缺少必要的 "data" 或 "execute" 属性`);
-        }
-    } catch (error) {
-        console.error(`[错误] 加载命令 ${filePath} 时出错:`, error);
-    }
+const commands = loadCommandFiles();
+for (const [name, command] of commands) {
+    client.commands.set(name, command);
 }
 
 client.on(Events.InteractionCreate, async interaction => {

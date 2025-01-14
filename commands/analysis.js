@@ -1,25 +1,20 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { analyzeThreads } = require('../utils/threadAnalyzer');
 const config = require('../config.json');
+const { checkPermission, handlePermissionResult, measureTime } = require('../utils/common');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('analyze')
-        .setDescription('分析服务器主题活跃度')
+        .setDescription('分析论坛主题活跃度统计')
         .setDefaultMemberPermissions(PermissionFlagsBits.ViewAuditLog),
 
     async execute(interaction) {
         // 权限检查
-        const hasPermission = interaction.member.roles.cache.some(role =>
-            config.allowedRoleIds.includes(role.id)
-        );
+        const hasPermission = checkPermission(interaction.member, config.allowedRoleIds);
+        if (!await handlePermissionResult(interaction, hasPermission)) return;
 
-        if (!hasPermission) {
-            return await interaction.reply({
-                content: '你没有权限使用此命令。需要具有指定的身份组权限。',
-                ephemeral: true
-            });
-        }
+        const executionTimer = measureTime();
 
         try {
             // 发送初始响应
@@ -28,25 +23,27 @@ module.exports = {
             // 执行分析
             const result = await analyzeThreads(interaction.client, config);
 
+            const executionTime = executionTimer();
+
             // 根据分析结果回复
             const replyContent = [
                 '✅ 分析完成！',
                 `📊 总计分析了 ${result.statistics.totalThreads} 个主题`,
                 `⚠️ 处理失败: ${result.failedOperations.length} 个`,
-                '',
-                '详细报告已发送至指定频道。'
+                `⏱️ 总执行时间: ${executionTime}秒`
             ].join('\n');
 
             await interaction.editReply({
-                content: replyContent
+                content: replyContent,
+                flags: ['Ephemeral']
             });
 
         } catch (error) {
             console.error('分析执行错误:', error);
-
+            const executionTime = executionTimer();
             await interaction.editReply({
                 content: `执行分析时出现错误: ${error.message}`,
-                ephemeral: true
+                flags: ['Ephemeral']
             });
         }
     },

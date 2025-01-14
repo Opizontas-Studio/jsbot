@@ -2,6 +2,7 @@ const { ProxyAgent } = require('undici');
 const { DiscordAPIError } = require('@discordjs/rest');
 const { RESTJSONErrorCodes } = require('discord-api-types/v10');
 const { codeBlock, ChannelFlags } = require('discord.js');
+const { logTime, delay, measureTime } = require('./common');
 
 /**
  * Discord日志发送器类
@@ -139,35 +140,6 @@ const handleDiscordError = (error) => {
 };
 
 /**
- * 记录时间日志
- * @param {string} message - 日志消息
- * @param {boolean} [error=false] - 是否为错误日志
- */
-const logTime = (message, error = false) => {
-    const prefix = error ? '❌ ' : '';
-    console.log(`[${new Date().toLocaleString()}] ${prefix}${message}`);
-};
-
-/**
- * 添加延迟函数
- * @param {number} ms - 延迟时间（毫秒）
- * @returns {Promise<void>}
- */
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * 添加性能统计函数
- * @returns {Function} 性能统计函数
- */
-const measureTime = () => {
-    const start = process.hrtime();
-    return () => {
-        const [seconds, nanoseconds] = process.hrtime(start);
-        return (seconds + nanoseconds / 1e9).toFixed(2);
-    };
-};
-
-/**
  * 主要分析函数
  * @param {Object} config - 配置对象
  * @param {string} config.guildId - 服务器ID
@@ -175,7 +147,7 @@ const measureTime = () => {
  * @param {string} config.proxyUrl - 代理URL
  * @returns {Promise<void>}
  */
-async function analyzeThreads(client, config, options = {}) {
+async function analyzeThreads(client, config, options = {}, activeThreads = null) {
     const totalTimer = measureTime();
     const statistics = {
         totalThreads: 0,
@@ -197,19 +169,20 @@ async function analyzeThreads(client, config, options = {}) {
         await logger.initialize();
         logTime('日志系统已初始化');
 
-        // 获取服务器
-        const guild = await client.guilds.fetch(config.guildId)
-            .catch(error => {
-                throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
-            });
+        // 如果没有传入 activeThreads，则获取
+        if (!activeThreads) {
+            const guild = await client.guilds.fetch(config.guildId)
+                .catch(error => {
+                    throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
+                });
 
-        // 获取活跃主题计时
-        const fetchThreadsTimer = measureTime();
-        const activeThreads = await guild.channels.fetchActiveThreads()
-            .catch(error => {
-                throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
-            });
-        console.log(`获取活跃主题列表用时: ${fetchThreadsTimer()}秒`);
+            const fetchThreadsTimer = measureTime();
+            activeThreads = await guild.channels.fetchActiveThreads()
+                .catch(error => {
+                    throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
+                });
+            console.log(`获取活跃主题列表用时: ${fetchThreadsTimer()}秒`);
+        }
 
         statistics.totalThreads = activeThreads.threads.size;
         logTime(`已找到 ${statistics.totalThreads} 个活跃主题`);
@@ -217,7 +190,7 @@ async function analyzeThreads(client, config, options = {}) {
         // 收集主题信息计时
         const processThreadsTimer = measureTime();
         const currentTime = Date.now();
-        const batchSize = 30; // 批处理大小
+        const batchSize = 50; // 批处理大小
         const threadArray = Array.from(activeThreads.threads.values());
         const threadInfoArray = [];
 
@@ -226,7 +199,7 @@ async function analyzeThreads(client, config, options = {}) {
             const batchResults = await Promise.all(
                 batch.map(async (thread) => {
                     try {
-                        await delay(5); // 减少延迟到5ms
+                        await delay(5); // 延迟5ms
                         const messages = await thread.messages.fetch({ limit: 1 });
                         const lastMessage = messages.first();
                         const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;

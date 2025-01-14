@@ -130,7 +130,6 @@ async function main() {
         const commands = await deployCommands();
         // 直接设置命令集合
         client.commands = new Collection(commands);
-        logTime('命令部署完成');
 
         // 加载事件
         loadEvents();

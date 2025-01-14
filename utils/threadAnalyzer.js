@@ -1,4 +1,3 @@
-const { ProxyAgent } = require('undici');
 const { DiscordAPIError } = require('@discordjs/rest');
 const { RESTJSONErrorCodes } = require('discord-api-types/v10');
 const { codeBlock, ChannelFlags } = require('discord.js');
@@ -277,7 +276,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
                 const threadsToArchive = nonPinnedThreads
                     .slice(0, nonPinnedThreads.length - targetCount);
 
-                console.log(`开始归档 ${threadsToArchive.length} 个主题...`);
+                    logTime(`开始归档 ${threadsToArchive.length} 个主题...`);
                 for (const threadInfo of threadsToArchive) {
                     try {
                         await delay(50); // 归档操作保持50ms延迟
@@ -296,7 +295,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
                     }
                 }
             }
-            console.log(`归档操作用时: ${archiveTimer()}秒`);
+            logTime(`归档操作用时: ${archiveTimer()}秒`);
         }
 
         // 统计不活跃时间
@@ -325,7 +324,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
             await logger.sendStatisticsReport(statistics, failedOperations);
         }
 
-        console.log(`总执行时间: ${totalTimer()}秒`);
+        logTime(`总执行时间: ${totalTimer()}秒`);
         return {
             statistics,
             failedOperations

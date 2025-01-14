@@ -1,16 +1,27 @@
-const { Client, Events, GatewayIntentBits, codeBlock } = require('discord.js');
 const { ProxyAgent } = require('undici');
 const { DiscordAPIError } = require('@discordjs/rest');
 const { RESTJSONErrorCodes } = require('discord-api-types/v10');
+const { codeBlock } = require('discord.js');
 
-// Discord日志发送器类
+/**
+ * Discord日志发送器类
+ * 用于处理向指定频道发送分析报告的逻辑
+ */
 class DiscordLogger {
+    /**
+     * @param {Client} client - Discord.js客户端实例
+     * @param {string} logChannelId - 日志频道ID
+     */
     constructor(client, logChannelId) {
         this.client = client;
         this.logChannelId = logChannelId;
         this.logChannel = null;
     }
 
+    /**
+     * 初始化日志频道
+     * @throws {Error} 如果无法获取日志频道
+     */
     async initialize() {
         try {
             this.logChannel = await this.client.channels.fetch(this.logChannelId);
@@ -19,7 +30,11 @@ class DiscordLogger {
         }
     }
 
-    // 发送不活跃帖子列表
+    /**
+     * 发送不活跃帖子列表
+     * @param {Array<Object>} threadInfoArray - 帖子信息数组
+     * @throws {Error} 如果日志频道未初始化
+     */
     async sendInactiveThreadsList(threadInfoArray) {
         if (!this.logChannel) throw new Error('日志频道未初始化');
 
@@ -38,7 +53,12 @@ class DiscordLogger {
         await this.logChannel.send(codeBlock('md', inactiveThreadsMessage));
     }
 
-    // 发送统计报告
+    /**
+     * 发送统计报告
+     * @param {Object} statistics - 统计数据对象
+     * @param {Array<Object>} failedOperations - 失败操作记录
+     * @throws {Error} 如果日志频道未初始化
+     */
     async sendStatisticsReport(statistics, failedOperations) {
         if (!this.logChannel) throw new Error('日志频道未初始化');
 
@@ -69,58 +89,48 @@ class DiscordLogger {
     }
 }
 
-// 主函数
-async function analyzeThreads(config) {
-    const proxyAgent = new ProxyAgent({
-        uri: config.proxyUrl,
-        connect: {
-            timeout: 20000,
-            rejectUnauthorized: false
-        }
-    });
+/**
+ * 处理Discord API错误
+ * @param {Error} error - 错误对象
+ * @returns {string} 格式化的错误信息
+ */
+const handleDiscordError = (error) => {
+    if (error instanceof DiscordAPIError) {
+        const errorMessages = {
+            [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
+            [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
+            [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
+            [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
+            [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道'
+        };
+        return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
+    }
+    return error.message || '未知错误';
+};
 
-    const client = new Client({
-        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
-        rest: {
-            timeout: 20000,
-            retries: 3
-        },
-        makeRequest: (url, options) => {
-            options.dispatcher = proxyAgent;
-            return fetch(url, options);
-        }
-    });
+/**
+ * 记录时间日志
+ * @param {string} message - 日志消息
+ * @param {boolean} [error=false] - 是否为错误日志
+ */
+const logTime = (message, error = false) => {
+    const prefix = error ? '❌ ' : '';
+    console.log(`[${new Date().toLocaleString()}] ${prefix}${message}`);
+};
 
-    const logTime = (message, error = false) => {
-        const prefix = error ? '❌ ' : '';
-        console.log(`[${new Date().toLocaleString()}] ${prefix}${message}`);
-    };
-
-    const handleDiscordError = (error) => {
-        if (error instanceof DiscordAPIError) {
-            const errorMessages = {
-                [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
-                [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
-                [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
-                [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
-                [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道'
-            };
-            return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
-        }
-        return error.message || '未知错误';
-    };
-
+/**
+ * 主要分析函数
+ * @param {Object} config - 配置对象
+ * @param {string} config.guildId - 服务器ID
+ * @param {string} config.logThreadId - 日志频道ID
+ * @param {string} config.proxyUrl - 代理URL
+ * @returns {Promise<void>}
+ */
+async function analyzeThreads(client, config) {
     const failedOperations = [];
     const logger = new DiscordLogger(client, config.logThreadId);
 
     try {
-        // 登录客户端
-        await new Promise((resolve) => {
-            client.once(Events.ClientReady, resolve);
-            client.login(config.token);
-        });
-        logTime('Bot已登录');
-
         await logger.initialize();
         logTime('日志系统已初始化');
 
@@ -213,19 +223,19 @@ async function analyzeThreads(config) {
         await logger.sendStatisticsReport(statistics, failedOperations);
         logTime('已发送统计报告');
 
+        return {
+            success: true,
+            statistics,
+            failedOperations
+        };
+
     } catch (error) {
         logTime(`执行过程出错: ${error.message}`, true);
         throw error;
-    } finally {
-        await client.destroy();
-        logTime('已断开连接');
     }
 }
 
-// 执行分析
-const config = require('./config.json');
-console.log('开始分析...');
-analyzeThreads(config).catch(error => {
-    console.error('严重错误:', error);
-    process.exit(1);
-});
+module.exports = {
+    analyzeThreads,
+    DiscordLogger
+};

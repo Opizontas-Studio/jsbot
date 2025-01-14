@@ -1,7 +1,7 @@
 const { ProxyAgent } = require('undici');
 const { DiscordAPIError } = require('@discordjs/rest');
 const { RESTJSONErrorCodes } = require('discord-api-types/v10');
-const { codeBlock } = require('discord.js');
+const { codeBlock, ChannelFlags } = require('discord.js');
 
 /**
  * Discord日志发送器类
@@ -87,6 +87,36 @@ class DiscordLogger {
 
         await this.logChannel.send(codeBlock('md', summaryMessage));
     }
+
+    /**
+     * 发送清理报告
+     * @param {Object} statistics - 统计数据对象
+     * @param {Array<Object>} failedOperations - 失败操作记录
+     * @param {number} threshold - 清理阈值
+     * @throws {Error} 如果日志频道未初始化
+     */
+    async sendCleanReport(statistics, failedOperations, threshold) {
+        if (!this.logChannel) throw new Error('日志频道未初始化');
+
+        const cleanReport = [
+            '# 主题清理报告',
+            '',
+            '## 清理统计',
+            `- 总活跃主题数: ${statistics.totalThreads}`,
+            `- 已清理主题数: ${statistics.archivedThreads}`,
+            `- 跳过置顶主题: ${statistics.skippedPinnedThreads}`,
+            `- 清理阈值: ${threshold}`,
+            '',
+            failedOperations.length > 0 ? [
+                '## 清理失败记录',
+                ...failedOperations.map(fail =>
+                    `- ${fail.threadName}: ${fail.operation} (${fail.error})`
+                )
+            ].join('\n') : ''
+        ].join('\n');
+
+        await this.logChannel.send(codeBlock('md', cleanReport));
+    }
 }
 
 /**
@@ -119,6 +149,25 @@ const logTime = (message, error = false) => {
 };
 
 /**
+ * 添加延迟函数
+ * @param {number} ms - 延迟时间（毫秒）
+ * @returns {Promise<void>}
+ */
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * 添加性能统计函数
+ * @returns {Function} 性能统计函数
+ */
+const measureTime = () => {
+    const start = process.hrtime();
+    return () => {
+        const [seconds, nanoseconds] = process.hrtime(start);
+        return (seconds + nanoseconds / 1e9).toFixed(2);
+    };
+};
+
+/**
  * 主要分析函数
  * @param {Object} config - 配置对象
  * @param {string} config.guildId - 服务器ID
@@ -126,7 +175,21 @@ const logTime = (message, error = false) => {
  * @param {string} config.proxyUrl - 代理URL
  * @returns {Promise<void>}
  */
-async function analyzeThreads(client, config) {
+async function analyzeThreads(client, config, options = {}) {
+    const totalTimer = measureTime();
+    const statistics = {
+        totalThreads: 0,
+        archivedThreads: 0,
+        skippedPinnedThreads: 0,
+        processedWithErrors: 0,
+        inactiveThreads: {
+            over72h: 0,
+            over48h: 0,
+            over24h: 0
+        },
+        forumDistribution: {}
+    };
+    
     const failedOperations = [];
     const logger = new DiscordLogger(client, config.logThreadId);
 
@@ -140,72 +203,111 @@ async function analyzeThreads(client, config) {
                 throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
             });
 
-        // 获取活跃主题
+        // 获取活跃主题计时
+        const fetchThreadsTimer = measureTime();
         const activeThreads = await guild.channels.fetchActiveThreads()
             .catch(error => {
                 throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
             });
+        console.log(`获取活跃主题列表用时: ${fetchThreadsTimer()}秒`);
 
-        logTime(`已找到 ${activeThreads.threads.size} 个活跃主题`);
+        statistics.totalThreads = activeThreads.threads.size;
+        logTime(`已找到 ${statistics.totalThreads} 个活跃主题`);
 
-        // 收集主题信息
+        // 收集主题信息计时
+        const processThreadsTimer = measureTime();
         const currentTime = Date.now();
-        const threadInfoArray = await Promise.all(
-            Array.from(activeThreads.threads.values()).map(async (thread) => {
-                try {
-                    const messages = await thread.messages.fetch({ limit: 1 });
-                    const lastMessage = messages.first();
-                    const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
-                    const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
+        const batchSize = 30; // 批处理大小
+        const threadArray = Array.from(activeThreads.threads.values());
+        const threadInfoArray = [];
 
-                    return {
-                        threadId: thread.id,
-                        name: thread.name,
-                        parentId: thread.parentId,
-                        parentName: thread.parent?.name || '未知论坛',
-                        lastMessageTime: lastActiveTime,
-                        inactiveHours: inactiveHours,
-                        messageCount: thread.messageCount || 0
-                    };
-                } catch (error) {
-                    failedOperations.push({
-                        threadId: thread.id,
-                        threadName: thread.name,
-                        operation: '获取消息历史',
-                        error: handleDiscordError(error)
-                    });
+        for (let i = 0; i < threadArray.length; i += batchSize) {
+            const batch = threadArray.slice(i, i + batchSize);
+            const batchResults = await Promise.all(
+                batch.map(async (thread) => {
+                    try {
+                        await delay(5); // 减少延迟到5ms
+                        const messages = await thread.messages.fetch({ limit: 1 });
+                        const lastMessage = messages.first();
+                        const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
+                        const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
 
-                    return {
-                        threadId: thread.id,
-                        name: thread.name,
-                        parentId: thread.parentId,
-                        parentName: thread.parent?.name || '未知论坛',
-                        lastMessageTime: thread.createdTimestamp,
-                        inactiveHours: (currentTime - thread.createdTimestamp) / (1000 * 60 * 60),
-                        messageCount: thread.messageCount || 0,
-                        error: true
-                    };
+                        return {
+                            thread: thread,
+                            threadId: thread.id,
+                            name: thread.name,
+                            parentId: thread.parentId,
+                            parentName: thread.parent?.name || '未知论坛',
+                            lastMessageTime: lastActiveTime,
+                            inactiveHours: inactiveHours,
+                            messageCount: thread.messageCount || 0,
+                            isPinned: thread.flags.has(ChannelFlags.Pinned)
+                        };
+                    } catch (error) {
+                        failedOperations.push({
+                            threadId: thread.id,
+                            threadName: thread.name,
+                            operation: '获取消息历史',
+                            error: handleDiscordError(error)
+                        });
+                        statistics.processedWithErrors++;
+                        return null;
+                    }
+                })
+            );
+            threadInfoArray.push(...batchResults);
+            logTime(`已处理 ${Math.min((i + batchSize), threadArray.length)}/${threadArray.length} 个主题 (${((i + batchSize) / threadArray.length * 100).toFixed(1)}%)`);
+        }
+        console.log(`处理所有主题信息用时: ${processThreadsTimer()}秒`);
+
+        // 在清理操作之前就处理有效的线程数组
+        const validThreads = threadInfoArray.filter(t => t !== null)
+            .sort((a, b) => b.inactiveHours - a.inactiveHours);
+
+        // 清理操作计时
+        if (options.clean && options.threshold) {
+            const archiveTimer = measureTime();
+
+            // 计算需要归档的数量，考虑置顶帖
+            const pinnedCount = validThreads.filter(t => t.isPinned).length;
+            const targetCount = Math.max(options.threshold - pinnedCount, 0);
+            const nonPinnedThreads = validThreads.filter(t => !t.isPinned);
+            
+            if (nonPinnedThreads.length > targetCount) {
+                const threadsToArchive = nonPinnedThreads
+                    .slice(0, nonPinnedThreads.length - targetCount);
+
+                console.log(`开始归档 ${threadsToArchive.length} 个主题...`);
+                for (const threadInfo of threadsToArchive) {
+                    try {
+                        await delay(50); // 归档操作保持50ms延迟
+                        await threadInfo.thread.setArchived(true, '自动清理不活跃主题');
+                        statistics.archivedThreads++;
+                        if (statistics.archivedThreads % 10 === 0) {
+                            logTime(`已归档 ${statistics.archivedThreads}/${threadsToArchive.length} 个主题`);
+                        }
+                    } catch (error) {
+                        failedOperations.push({
+                            threadId: threadInfo.threadId,
+                            threadName: threadInfo.name,
+                            operation: '归档主题',
+                            error: handleDiscordError(error)
+                        });
+                    }
                 }
-            })
-        );
+            }
+            console.log(`归档操作用时: ${archiveTimer()}秒`);
+        }
 
-        // 按不活跃时间排序
-        threadInfoArray.sort((a, b) => b.inactiveHours - a.inactiveHours);
-
-        // 计算统计数据
-        const statistics = {
-            totalThreads: threadInfoArray.length,
-            processedWithErrors: threadInfoArray.filter(t => t.error).length,
-            inactiveThreads: {
-                over72h: threadInfoArray.filter(t => t.inactiveHours >= 72).length,
-                over48h: threadInfoArray.filter(t => t.inactiveHours >= 48).length,
-                over24h: threadInfoArray.filter(t => t.inactiveHours >= 24).length
-            },
-            forumDistribution: {}
-        };
+        // 统计不活跃时间
+        validThreads.forEach(thread => {
+            if (thread.inactiveHours >= 72) statistics.inactiveThreads.over72h++;
+            if (thread.inactiveHours >= 48) statistics.inactiveThreads.over48h++;
+            if (thread.inactiveHours >= 24) statistics.inactiveThreads.over24h++;
+        });
 
         // 统计论坛分布
-        threadInfoArray.forEach(thread => {
+        validThreads.forEach(thread => {
             if (!statistics.forumDistribution[thread.parentId]) {
                 statistics.forumDistribution[thread.parentId] = {
                     name: thread.parentName,
@@ -215,16 +317,16 @@ async function analyzeThreads(client, config) {
             statistics.forumDistribution[thread.parentId].count++;
         });
 
-        // 发送不活跃帖子列表
-        await logger.sendInactiveThreadsList(threadInfoArray);
-        logTime('已发送不活跃帖子列表');
+        // 发送报告
+        if (options.clean) {
+            await logger.sendCleanReport(statistics, failedOperations, options.threshold);
+        } else {
+            await logger.sendInactiveThreadsList(validThreads);
+            await logger.sendStatisticsReport(statistics, failedOperations);
+        }
 
-        // 发送完整统计报告
-        await logger.sendStatisticsReport(statistics, failedOperations);
-        logTime('已发送统计报告');
-
+        console.log(`总执行时间: ${totalTimer()}秒`);
         return {
-            success: true,
             statistics,
             failedOperations
         };

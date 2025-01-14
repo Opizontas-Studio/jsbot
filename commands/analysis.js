@@ -23,7 +23,7 @@ module.exports = {
 
         try {
             // 发送初始响应
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: ['Ephemeral'] });
 
             // 执行分析
             const result = await analyzeThreads(interaction.client, config);
@@ -38,8 +38,7 @@ module.exports = {
             ].join('\n');
 
             await interaction.editReply({
-                content: replyContent,
-                ephemeral: true
+                content: replyContent
             });
 
         } catch (error) {

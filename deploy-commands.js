@@ -13,13 +13,20 @@ const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
+// 添加日志以确认命令加载
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-    if ('data' in command && 'execute' in command) {
-        commands.push(command.data.toJSON());
-    } else {
-        console.log(`[警告] 命令文件 ${filePath} 缺少必要的 "data" 或 "execute" 属性`);
+    console.log(`正在加载命令文件: ${file}`);
+    try {
+        const command = require(filePath);
+        if ('data' in command && 'execute' in command) {
+            commands.push(command.data.toJSON());
+            console.log(`✅ 成功加载命令: ${command.data.name}`);
+        } else {
+            console.log(`⚠️ 警告: 命令文件 ${filePath} 缺少必要的 "data" 或 "execute" 属性`);
+        }
+    } catch (error) {
+        console.log(`❌ 加载命令文件 ${file} 时出错:`, error);
     }
 }
 

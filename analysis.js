@@ -1,18 +1,84 @@
 const { Client, Events, GatewayIntentBits, codeBlock } = require('discord.js');
-const { token, guildId, logThreadId, proxyUrl } = require('./config.json');
 const { ProxyAgent } = require('undici');
 const { DiscordAPIError } = require('@discordjs/rest');
 const { RESTJSONErrorCodes } = require('discord-api-types/v10');
 
-const proxyAgent = new ProxyAgent({
-    uri: proxyUrl,
-    connect: {
-        timeout: 20000,
-        rejectUnauthorized: false
+// Discord日志发送器类
+class DiscordLogger {
+    constructor(client, logChannelId) {
+        this.client = client;
+        this.logChannelId = logChannelId;
+        this.logChannel = null;
     }
-});
 
-async function analyzeThreads(guildId) {
+    async initialize() {
+        try {
+            this.logChannel = await this.client.channels.fetch(this.logChannelId);
+        } catch (error) {
+            throw new Error(`无法初始化日志频道: ${error.message}`);
+        }
+    }
+
+    // 发送不活跃帖子列表
+    async sendInactiveThreadsList(threadInfoArray) {
+        if (!this.logChannel) throw new Error('日志频道未初始化');
+
+        const inactiveThreadsMessage = [
+            '# 最不活跃的帖子 (TOP 10)',
+            '',
+            ...threadInfoArray.slice(0, 10).map((thread, index) => [
+                `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
+                `   📌 所属论坛: ${thread.parentName}`,
+                `   💬 消息数量: ${thread.messageCount}`,
+                `   ⏰ 不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`,
+                ''
+            ].join('\n'))
+        ].join('\n');
+
+        await this.logChannel.send(codeBlock('md', inactiveThreadsMessage));
+    }
+
+    // 发送统计报告
+    async sendStatisticsReport(statistics, failedOperations) {
+        if (!this.logChannel) throw new Error('日志频道未初始化');
+
+        const summaryMessage = [
+            '# 论坛活跃度分析报告',
+            '',
+            '## 总体统计',
+            `- 总活跃主题数: ${statistics.totalThreads}`,
+            `- 处理出错数量: ${statistics.processedWithErrors}`,
+            `- 72小时以上不活跃: ${statistics.inactiveThreads.over72h}`,
+            `- 48小时以上不活跃: ${statistics.inactiveThreads.over48h}`,
+            `- 24小时以上不活跃: ${statistics.inactiveThreads.over24h}`,
+            '',
+            '## 论坛分布',
+            ...Object.values(statistics.forumDistribution)
+                .sort((a, b) => b.count - a.count)
+                .map(forum => `- ${forum.name}: ${forum.count}个活跃主题`),
+            '',
+            failedOperations.length > 0 ? [
+                '## 处理失败记录',
+                ...failedOperations.map(fail =>
+                    `- ${fail.threadName}: ${fail.operation} (${fail.error})`
+                )
+            ].join('\n') : ''
+        ].join('\n');
+
+        await this.logChannel.send(codeBlock('md', summaryMessage));
+    }
+}
+
+// 主函数
+async function analyzeThreads(config) {
+    const proxyAgent = new ProxyAgent({
+        uri: config.proxyUrl,
+        connect: {
+            timeout: 20000,
+            rejectUnauthorized: false
+        }
+    });
+
     const client = new Client({
         intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
         rest: {
@@ -30,54 +96,49 @@ async function analyzeThreads(guildId) {
         console.log(`[${new Date().toLocaleString()}] ${prefix}${message}`);
     };
 
-    // 解析Discord API错误
-    const handleDiscordError = (error, context) => {
+    const handleDiscordError = (error) => {
         if (error instanceof DiscordAPIError) {
-            switch (error.code) {
-                case RESTJSONErrorCodes.UnknownChannel:
-                    return '频道不存在或无法访问';
-                case RESTJSONErrorCodes.MissingAccess:
-                    return '缺少访问权限';
-                case RESTJSONErrorCodes.UnknownMessage:
-                    return '消息不存在或已被删除';
-                case RESTJSONErrorCodes.MissingPermissions:
-                    return '缺少所需权限';
-                case RESTJSONErrorCodes.InvalidThreadChannel:
-                    return '无效的主题频道';
-                default:
-                    return `Discord API错误 (${error.code}): ${error.message}`;
-            }
+            const errorMessages = {
+                [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
+                [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
+                [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
+                [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
+                [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道'
+            };
+            return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
         }
         return error.message || '未知错误';
     };
 
     const failedOperations = [];
+    const logger = new DiscordLogger(client, config.logThreadId);
 
     try {
+        // 登录客户端
         await new Promise((resolve) => {
             client.once(Events.ClientReady, resolve);
-            client.login(token);
+            client.login(config.token);
         });
         logTime('Bot已登录');
 
-        let guild;
-        try {
-            guild = await client.guilds.fetch(guildId);
-        } catch (error) {
-            logTime(`获取服务器失败: ${handleDiscordError(error)}`, true);
-            throw error;
-        }
+        await logger.initialize();
+        logTime('日志系统已初始化');
 
-        let activeThreads;
-        try {
-            activeThreads = await guild.channels.fetchActiveThreads();
-            logTime(`已找到 ${activeThreads.threads.size} 个活跃主题`);
-        } catch (error) {
-            logTime(`获取活跃主题列表失败: ${handleDiscordError(error)}`, true);
-            throw error;
-        }
+        // 获取服务器
+        const guild = await client.guilds.fetch(config.guildId)
+            .catch(error => {
+                throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
+            });
 
-        // 获取每个帖子的详细信息
+        // 获取活跃主题
+        const activeThreads = await guild.channels.fetchActiveThreads()
+            .catch(error => {
+                throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
+            });
+
+        logTime(`已找到 ${activeThreads.threads.size} 个活跃主题`);
+
+        // 收集主题信息
         const currentTime = Date.now();
         const threadInfoArray = await Promise.all(
             Array.from(activeThreads.threads.values()).map(async (thread) => {
@@ -121,17 +182,7 @@ async function analyzeThreads(guildId) {
         // 按不活跃时间排序
         threadInfoArray.sort((a, b) => b.inactiveHours - a.inactiveHours);
 
-        // 输出最不活跃的10个帖子
-        console.log('\n最不活跃的10个帖子:');
-        threadInfoArray.slice(0, 10).forEach((thread, index) => {
-            console.log(`${index + 1}. ${thread.name}${thread.error ? ' (⚠️数据可能不完整)' : ''}`);
-            console.log(`   所属论坛: ${thread.parentName}`);
-            console.log(`   消息数量: ${thread.messageCount}`);
-            console.log(`   不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`);
-            console.log('');
-        });
-
-        // 统计数据
+        // 计算统计数据
         const statistics = {
             totalThreads: threadInfoArray.length,
             processedWithErrors: threadInfoArray.filter(t => t.error).length,
@@ -143,7 +194,7 @@ async function analyzeThreads(guildId) {
             forumDistribution: {}
         };
 
-        // 仅统计论坛分布
+        // 统计论坛分布
         threadInfoArray.forEach(thread => {
             if (!statistics.forumDistribution[thread.parentId]) {
                 statistics.forumDistribution[thread.parentId] = {
@@ -154,40 +205,16 @@ async function analyzeThreads(guildId) {
             statistics.forumDistribution[thread.parentId].count++;
         });
 
-        // 发送简化的统计结果到日志频道
-        try {
-            const logChannel = await client.channels.fetch(logThreadId);
-            const summaryMessage = [
-                '# 论坛活跃度分析报告',
-                '',
-                '## 总体统计',
-                `- 总活跃主题数: ${statistics.totalThreads}`,
-                `- 处理出错数量: ${statistics.processedWithErrors}`,
-                `- 72小时以上不活跃: ${statistics.inactiveThreads.over72h}`,
-                `- 48小时以上不活跃: ${statistics.inactiveThreads.over48h}`,
-                `- 24小时以上不活跃: ${statistics.inactiveThreads.over24h}`,
-                '',
-                '## 论坛分布',
-                ...Object.values(statistics.forumDistribution)
-                    .sort((a, b) => b.count - a.count) // 按活跃数量降序排序
-                    .map(forum => `- ${forum.name}: ${forum.count}个活跃主题`),
-                '',
-                failedOperations.length > 0 ? [
-                    '## 处理失败记录',
-                    ...failedOperations.map(fail =>
-                        `- ${fail.threadName}: ${fail.operation} (${fail.error})`
-                    )
-                ].join('\n') : ''
-            ].join('\n');
+        // 发送不活跃帖子列表
+        await logger.sendInactiveThreadsList(threadInfoArray);
+        logTime('已发送不活跃帖子列表');
 
-            await logChannel.send(codeBlock('md', summaryMessage));
-            logTime('分析报告已发送到日志频道');
-        } catch (error) {
-            logTime(`发送分析报告失败: ${handleDiscordError(error)}`, true);
-        }
+        // 发送完整统计报告
+        await logger.sendStatisticsReport(statistics, failedOperations);
+        logTime('已发送统计报告');
 
     } catch (error) {
-        logTime(`执行过程出错: ${handleDiscordError(error)}`, true);
+        logTime(`执行过程出错: ${error.message}`, true);
         throw error;
     } finally {
         await client.destroy();
@@ -196,9 +223,9 @@ async function analyzeThreads(guildId) {
 }
 
 // 执行分析
+const config = require('./config.json');
 console.log('开始分析...');
-analyzeThreads(guildId)
-    .catch(error => {
-        console.error('严重错误:', error);
-        process.exit(1);
-    });
+analyzeThreads(config).catch(error => {
+    console.error('严重错误:', error);
+    process.exit(1);
+});

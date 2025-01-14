@@ -72,7 +72,9 @@ async function deployCommands() {
     }
 
     const rest = new REST().setToken(token);
-    const commands = Array.from(loadCommandFiles().values()).map(cmd => cmd.data.toJSON());
+    const commands = loadCommandFiles();
+    // 只序列化命令数据用于API注册
+    const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
 
     try {
         // 清理并注册新命令
@@ -83,10 +85,11 @@ async function deployCommands() {
         
         const data = await rest.put(
             Routes.applicationGuildCommands(clientId, guildId),
-            { body: commands }
+            { body: commandData }
         );
 
         logTime(`已注册 ${data.length} 个命令: ${data.map(cmd => cmd.name).join(', ')}`);
+        // 返回原始命令对象Map，而不是序列化后的数据
         return commands;
     } catch (error) {
         throw new Error(`部署命令失败: ${error.message}`);
@@ -125,7 +128,8 @@ async function main() {
         // 部署命令并加载到客户端
         logTime('开始部署命令...');
         const commands = await deployCommands();
-        commands.forEach(cmd => client.commands.set(cmd.name, cmd));
+        // 直接设置命令集合
+        client.commands = new Collection(commands);
         logTime('命令部署完成');
 
         // 加载事件

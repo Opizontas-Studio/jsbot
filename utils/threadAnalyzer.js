@@ -199,6 +199,16 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
         const threadArray = Array.from(activeThreads.threads.values());
         const threadInfoArray = [];
 
+        // 添加进度输出函数
+        const logProgress = (current, total) => {
+            const progress = (current / total * 100).toFixed(1);
+            logTime(`已处理 ${current}/${total} 个主题 (${progress}%)`);
+        };
+
+        // 设置进度报告的间隔
+        const progressIntervals = [25, 50, 75, 100];
+        let lastProgressIndex = -1;
+
         for (let i = 0; i < threadArray.length; i += batchSize) {
             const batch = threadArray.slice(i, i + batchSize);
             const batchResults = await Promise.all(
@@ -234,15 +244,21 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
                 })
             );
             threadInfoArray.push(...batchResults);
-            const progress = ((i + batchSize) / threadArray.length * 100);
-            if (progress >= 25 && progress < 26 || 
-                progress >= 50 && progress < 51 || 
-                progress >= 75 && progress < 76 || 
-                progress >= 99) {
-                logTime(`已处理 ${Math.min((i + batchSize), threadArray.length)}/${threadArray.length} 个主题 (${progress.toFixed(1)}%)`);
+
+            // 计算当前进度百分比
+            const currentProgress = ((i + batchSize) / threadArray.length * 100);
+            
+            // 检查是否达到下一个进度间隔点
+            const progressIndex = progressIntervals.findIndex(interval => 
+                currentProgress >= interval && interval > (lastProgressIndex >= 0 ? progressIntervals[lastProgressIndex] : 0)
+            );
+
+            if (progressIndex !== -1 && progressIndex > lastProgressIndex) {
+                logProgress(Math.min(i + batchSize, threadArray.length), threadArray.length);
+                lastProgressIndex = progressIndex;
             }
         }
-        console.log(`处理所有主题信息用时: ${processThreadsTimer()}秒`);
+        logTime(`处理所有主题信息用时: ${processThreadsTimer()}秒`);
 
         // 在清理操作之前就处理有效的线程数组
         const validThreads = threadInfoArray.filter(t => t !== null)

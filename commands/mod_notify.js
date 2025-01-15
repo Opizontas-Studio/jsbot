@@ -27,7 +27,7 @@ module.exports = {
     async execute(interaction, guildConfig) {
         try {
             // 立即发送延迟响应
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: ['Ephemeral'] });
 
             // 检查用户是否有管理消息的权限
             const channel = interaction.channel;

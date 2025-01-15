@@ -118,13 +118,7 @@ class DiscordLogger {
         const embed = {
             color: 0x0099ff,
             title: '最不活跃的子区 (TOP 10)',
-            description: [
-                `上次更新: ${new Date().toLocaleString('zh-CN', {
-                    timeZone: 'Asia/Shanghai',
-                    hour12: false
-                })}`,
-                '注：此列表不包含置顶子区'
-            ].join('\n'),
+            description: '注：此列表不包含置顶子区',
             timestamp: new Date(),
             fields: nonPinnedThreads.slice(0, 10).map((thread, index) => ({
                 name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
@@ -153,10 +147,6 @@ class DiscordLogger {
         const embed = {
             color: 0x00ff99,
             title: '子区活跃度分析报告',
-            description: `上次更新: ${new Date().toLocaleString('zh-CN', {
-                timeZone: 'Asia/Shanghai',
-                hour12: false
-            })}`,
             timestamp: new Date(),
             fields: [
                 {
@@ -209,10 +199,6 @@ class DiscordLogger {
         const embed = {
             color: 0xff9900,
             title: '子区清理报告',
-            description: `上次更新: ${new Date().toLocaleString('zh-CN', {
-                timeZone: 'Asia/Shanghai',
-                hour12: false
-            })}`,
             timestamp: new Date(),
             fields: [
                 {

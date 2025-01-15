@@ -2,16 +2,16 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('disco
 const { checkPermission, handlePermissionResult, logTime, checkChannelPermission } = require('../utils/common');
 
 /**
- * 锁定命令 - 锁定当前论坛帖子
- * 仅在论坛帖子中可用，锁定后帖子将无法继续回复
+ * 锁定命令 - 锁定并归档当前论坛帖子
+ * 仅在论坛帖子中可用，锁定后帖子将无法继续回复且会被归档
  */
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('锁定此贴')
-        .setDescription('锁定当前论坛帖子')
+        .setName('一键锁定关贴')
+        .setDescription('锁定并归档当前论坛帖子')
         .addStringOption(option =>
             option.setName('理由')
-                .setDescription('锁定原因')
+                .setDescription('处理原因')
                 .setRequired(true)
         ),
 
@@ -54,15 +54,16 @@ module.exports = {
         const thread = interaction.channel;
 
         try {
-            // 锁定主题
+            // 锁定并归档主题
             await thread.setLocked(true, reason);
+            await thread.setArchived(true, reason);
 
             // 发送操作日志到管理频道
             const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
             await moderationChannel.send({
                 embeds: [{
                     color: 0xff0000,
-                    title: '管理员锁定帖子',
+                    title: '管理员锁定并归档帖子',
                     fields: [
                         {
                             name: '操作人',
@@ -91,7 +92,7 @@ module.exports = {
             await thread.send({
                 embeds: [{
                     color: 0xff0000,
-                    title: '管理员锁定了此帖子',
+                    title: '管理员锁定并归档了此帖子',
                     fields: [
                         {
                             name: '操作人',
@@ -110,11 +111,11 @@ module.exports = {
 
             // 回复操作者
             await interaction.reply({
-                content: `✅ 已成功锁定帖子 "${thread.name}"`,
+                content: `✅ 已成功锁定并归档帖子 "${thread.name}"`,
                 flags: ['Ephemeral']
             });
 
-            logTime(`用户 ${interaction.user.tag} 锁定了帖子 ${thread.name}`);
+            logTime(`用户 ${interaction.user.tag} 锁定并归档了帖子 ${thread.name}`);
 
         } catch (error) {
             logTime(`锁定帖子时出错: ${error}`, true);

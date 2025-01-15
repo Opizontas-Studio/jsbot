@@ -1,9 +1,10 @@
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { REST, Routes } = require('discord.js');
-const { token, clientId, guildId } = require('./config.json');
+const config = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
 const { measureTime, logTime } = require('./utils/common');
+const GuildManager = require('./utils/guildManager');
 
 // 初始化客户端
 const client = new Client({
@@ -15,6 +16,7 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+client.guildManager = new GuildManager();
 
 // 加载命令文件
 function loadCommandFiles() {
@@ -67,29 +69,75 @@ function loadEvents() {
 
 // 部署命令
 async function deployCommands() {
-    if (!token || !clientId || !guildId) {
+    if (!config.token || !config.clientId) {
         throw new Error('配置文件缺少必要参数');
     }
 
-    const rest = new REST().setToken(token);
+    const rest = new REST({
+        version: '10',
+        timeout: 15000 // 设置15秒超时
+    }).setToken(config.token);
+    
     const commands = loadCommandFiles();
-    // 只序列化命令数据用于API注册
     const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
 
     try {
-        // 清理并注册新命令
-        await Promise.all([
-            rest.put(Routes.applicationCommands(clientId), { body: [] }),
-            rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [] })
-        ]);
-        
-        const data = await rest.put(
-            Routes.applicationGuildCommands(clientId, guildId),
-            { body: commandData }
+        // 清理全局命令
+        logTime('清理全局命令...');
+        await rest.put(
+            Routes.applicationCommands(config.clientId),
+            { body: [] }
         );
 
-        logTime(`已注册 ${data.length} 个命令: ${data.map(cmd => cmd.name).join(', ')}`);
-        // 返回原始命令对象Map，而不是序列化后的数据
+        // 并行处理所有服务器的命令部署
+        const guildIds = client.guildManager.getGuildIds();
+        const deployPromises = guildIds.map(async (guildId) => {
+            try {
+                const timer = measureTime();
+                logTime(`开始处理服务器 ${guildId} 的命令...`);
+
+                // 清理命令
+                await rest.put(
+                    Routes.applicationGuildCommands(config.clientId, guildId),
+                    { body: [] }
+                ).catch(error => {
+                    throw new Error(`清理命令失败: ${error.message}`);
+                });
+
+                // 部署新命令
+                await rest.put(
+                    Routes.applicationGuildCommands(config.clientId, guildId),
+                    { body: commandData }
+                ).catch(error => {
+                    throw new Error(`部署命令失败: ${error.message}`);
+                });
+
+                logTime(`服务器 ${guildId} 命令处理完成，用时: ${timer()}秒`);
+                return true;
+            } catch (error) {
+                logTime(`服务器 ${guildId} 命令部署失败: ${error.message}`, true);
+                return false;
+            }
+        });
+
+        // 等待所有服务器的命令部署完成
+        const results = await Promise.allSettled(deployPromises);
+        
+        // 检查部署结果
+        const failedGuilds = results
+            .map((result, index) => ({ result, guildId: guildIds[index] }))
+            .filter(({ result }) => result.status === 'rejected' || !result.value);
+
+        if (failedGuilds.length > 0) {
+            logTime(`${failedGuilds.length} 个服务器的命令部署失败:`, true);
+            failedGuilds.forEach(({ guildId }) => {
+                logTime(`- 服务器 ${guildId}`, true);
+            });
+        }
+
+        const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
+        logTime(`命令部署完成: ${successCount}/${guildIds.length} 个服务器成功`);
+
         return commands;
     } catch (error) {
         throw new Error(`部署命令失败: ${error.message}`);
@@ -125,10 +173,12 @@ async function main() {
     try {
         setupProcessHandlers();
 
+        // 初始化服务器管理器
+        client.guildManager.initialize(config);
+
         // 部署命令并加载到客户端
         logTime('开始部署命令...');
         const commands = await deployCommands();
-        // 直接设置命令集合
         client.commands = new Collection(commands);
 
         // 加载事件
@@ -137,7 +187,7 @@ async function main() {
         // 登录
         logTime('正在登录...');
         const loginTimer = measureTime();
-        await client.login(token);
+        await client.login(config.token);
         logTime(`登录完成，用时: ${loginTimer()}秒`);
 
     } catch (error) {

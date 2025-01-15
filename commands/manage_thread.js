@@ -1,0 +1,150 @@
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { checkPermission, handlePermissionResult, logTime } = require('../utils/common');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('管理帖子')
+        .setDescription('管理论坛主题')
+        .addStringOption(option =>
+            option.setName('帖子id')
+                .setDescription('要管理的主题ID')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('操作')
+                .setDescription('处理方针')
+                .setRequired(true)
+                .addChoices(
+                    { name: '锁定', value: 'lock' },
+                    { name: '解锁', value: 'unlock' },
+                    { name: '归档', value: 'archive' }
+                )
+        )
+        .addStringOption(option =>
+            option.setName('理由')
+                .setDescription('处理原因')
+                .setRequired(true)
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageThreads),
+
+    async execute(interaction, guildConfig) {
+        // 权限检查
+        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
+        if (!await handlePermissionResult(interaction, hasPermission)) return;
+
+        const threadId = interaction.options.getString('帖子id');
+        const action = interaction.options.getString('操作');
+        const reason = interaction.options.getString('理由');
+
+        try {
+            // 获取目标主题
+            const thread = await interaction.guild.channels.fetch(threadId);
+            
+            // 检查是否为论坛主题
+            if (!thread || !thread.isThread()) {
+                await interaction.reply({
+                    content: '❌ 指定的ID不是有效的帖子',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            // 检查父频道是否为论坛
+            const parentChannel = thread.parent;
+            if (!parentChannel || parentChannel.type !== ChannelType.GuildForum) {
+                await interaction.reply({
+                    content: '❌ 此主题不属于论坛频道',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            // 执行操作
+            let actionResult;
+            switch (action) {
+                case 'lock':
+                    actionResult = await thread.setLocked(true, reason);
+                    break;
+                case 'unlock':
+                    actionResult = await thread.setLocked(false, reason);
+                    break;
+                case 'archive':
+                    actionResult = await thread.setArchived(true, reason);
+                    break;
+            }
+
+            // 构建操作描述
+            const actionDesc = {
+                lock: '锁定',
+                unlock: '解锁',
+                archive: '归档'
+            }[action];
+
+            // 发送操作日志到管理频道
+            const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
+            await moderationChannel.send({
+                embeds: [{
+                    color: 0x0099ff,
+                    title: `管理员${actionDesc}帖子`,
+                    fields: [
+                        {
+                            name: '操作人',
+                            value: `<@${interaction.user.id}>`,
+                            inline: true
+                        },
+                        {
+                            name: '主题',
+                            value: `[${thread.name}](${thread.url})`,
+                            inline: true
+                        },
+                        {
+                            name: '原因',
+                            value: reason,
+                            inline: false
+                        }
+                    ],
+                    timestamp: new Date(),
+                    footer: {
+                        text: '论坛管理系统'
+                    }
+                }]
+            });
+
+            // 在主题中发送通知
+            await thread.send({
+                embeds: [{
+                    color: 0xffcc00,
+                    title: `管理员${actionDesc}了此帖`,
+                    fields: [
+                        {
+                            name: '操作人',
+                            value: `<@${interaction.user.id}>`,
+                            inline: true
+                        },
+                        {
+                            name: '原因',
+                            value: reason,
+                            inline: true
+                        }
+                    ],
+                    timestamp: new Date()
+                }]
+            });
+
+            // 回复操作者
+            await interaction.reply({
+                content: `✅ 已成功${actionDesc}帖子 "${thread.name}"`,
+                flags: ['Ephemeral']
+            });
+
+            logTime(`用户 ${interaction.user.tag} ${actionDesc}了帖子 ${thread.name}`);
+
+        } catch (error) {
+            logTime(`管理帖子时出错: ${error}`, true);
+            await interaction.reply({
+                content: `❌ 执行操作时出错: ${error.message}`,
+                flags: ['Ephemeral']
+            });
+        }
+    },
+}; 

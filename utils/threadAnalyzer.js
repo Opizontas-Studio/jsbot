@@ -10,11 +10,13 @@ const { logTime, delay, measureTime } = require('./common');
 class DiscordLogger {
     /**
      * @param {Client} client - Discord.js客户端实例
-     * @param {string} logChannelId - 日志频道ID
+     * @param {string} guildId - 服务器ID
+     * @param {Object} guildConfig - 服务器配置
      */
-    constructor(client, logChannelId) {
+    constructor(client, guildId, guildConfig) {
         this.client = client;
-        this.logChannelId = logChannelId;
+        this.guildId = guildId;
+        this.logChannelId = guildConfig.logThreadId;
         this.logChannel = null;
     }
 
@@ -26,7 +28,7 @@ class DiscordLogger {
         try {
             this.logChannel = await this.client.channels.fetch(this.logChannelId);
         } catch (error) {
-            throw new Error(`无法初始化日志频道: ${error.message}`);
+            throw new Error(`无法初始化服务器 ${this.guildId} 的日志频道: ${error.message}`);
         }
     }
 
@@ -141,17 +143,15 @@ const handleDiscordError = (error) => {
 /**
  * 分析Discord论坛主题的活跃度
  * @param {Client} client - Discord.js客户端实例
- * @param {Object} config - 配置对象
- * @param {string} config.guildId - 服务器ID
- * @param {string} config.logThreadId - 日志频道ID
- * @param {string} config.proxyUrl - 代理URL（可选）
+ * @param {Object} guildConfig - 服务器配置对象
+ * @param {string} guildId - 服务器ID
  * @param {Object} options - 可选配置
  * @param {boolean} options.clean - 是否执行清理操作
  * @param {number} options.threshold - 清理阈值
  * @param {Collection} activeThreads - 预先获取的活跃主题集合（可选）
  * @returns {Promise<Object>} 返回统计结果和失败操作记录
  */
-async function analyzeThreads(client, config, options = {}, activeThreads = null) {
+async function analyzeThreads(client, guildConfig, guildId, options = {}, activeThreads = null) {
     const totalTimer = measureTime();
     const statistics = {
         totalThreads: 0,
@@ -167,7 +167,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
     };
     
     const failedOperations = [];
-    const logger = new DiscordLogger(client, config.logThreadId);
+    const logger = new DiscordLogger(client, guildId, guildConfig);
 
     try {
         await logger.initialize();
@@ -175,7 +175,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
 
         // 如果没有传入 activeThreads，则获取
         if (!activeThreads) {
-            const guild = await client.guilds.fetch(config.guildId)
+            const guild = await client.guilds.fetch(guildId)
                 .catch(error => {
                     throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
                 });
@@ -189,7 +189,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
         }
 
         statistics.totalThreads = activeThreads.threads.size;
-        logTime(`已找到 ${statistics.totalThreads} 个活跃主题`);
+        logTime(`服务器 ${guildId} 已找到 ${statistics.totalThreads} 个活跃主题`);
 
         // 收集主题信息计时
         const processThreadsTimer = measureTime();
@@ -264,12 +264,13 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
             .sort((a, b) => b.inactiveHours - a.inactiveHours);
 
         // 清理操作计时
-        if (options.clean && options.threshold) {
+        if (options.clean) {
             const archiveTimer = measureTime();
-
+            const threshold = options.threshold || guildConfig.analysisSchedule.threshold;
+            
             // 计算需要归档的数量，考虑置顶帖
             const pinnedCount = validThreads.filter(t => t.isPinned).length;
-            const targetCount = Math.max(options.threshold - pinnedCount, 0);
+            const targetCount = Math.max(threshold - pinnedCount, 0);
             const nonPinnedThreads = validThreads.filter(t => !t.isPinned);
             
             if (nonPinnedThreads.length > targetCount) {
@@ -331,7 +332,7 @@ async function analyzeThreads(client, config, options = {}, activeThreads = null
         };
 
     } catch (error) {
-        logTime(`执行过程出错: ${error.message}`, true);
+        logTime(`服务器 ${guildId} 执行过程出错: ${error.message}`, true);
         throw error;
     }
 }

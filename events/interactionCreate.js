@@ -10,6 +10,16 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.isChatInputCommand()) return;
 
+        // 获取服务器特定配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig) {
+            await interaction.reply({ 
+                content: '此服务器尚未配置，无法使用命令。',
+                flags: ['Ephemeral']
+            });
+            return;
+        }
+
         const command = interaction.client.commands.get(interaction.commandName);
         if (!command) {
             logTime(`未找到命令 ${interaction.commandName}`, true);
@@ -17,14 +27,15 @@ module.exports = {
         }
 
         try {
-            await command.execute(interaction);
+            // 传入服务器配置
+            await command.execute(interaction, guildConfig);
         } catch (error) {
             logTime(`执行命令 ${interaction.commandName} 时出错: ${error}`, true);
             const message = '执行此命令时出现错误。';
             if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: message, ephemeral: true });
+                await interaction.followUp({ content: message, flags: ['Ephemeral'] });
             } else {
-                await interaction.reply({ content: message, ephemeral: true });
+                await interaction.reply({ content: message, flags: ['Ephemeral'] });
             }
         }
     },

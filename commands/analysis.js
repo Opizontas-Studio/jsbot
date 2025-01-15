@@ -1,17 +1,16 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { analyzeThreads } = require('../utils/threadAnalyzer');
-const config = require('../config.json');
 const { checkPermission, handlePermissionResult, measureTime } = require('../utils/common');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('analyze')
+        .setName('更新分析报告')
         .setDescription('分析论坛主题活跃度统计')
         .setDefaultMemberPermissions(PermissionFlagsBits.ViewAuditLog),
 
-    async execute(interaction) {
+    async execute(interaction, guildConfig) {
         // 权限检查
-        const hasPermission = checkPermission(interaction.member, config.allowedRoleIds);
+        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
         const executionTimer = measureTime();
@@ -21,7 +20,7 @@ module.exports = {
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
             // 执行分析
-            const result = await analyzeThreads(interaction.client, config);
+            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId);
 
             const executionTime = executionTimer();
 
@@ -40,7 +39,6 @@ module.exports = {
 
         } catch (error) {
             console.error('分析执行错误:', error);
-            const executionTime = executionTimer();
             await interaction.editReply({
                 content: `执行分析时出现错误: ${error.message}`,
                 flags: ['Ephemeral']

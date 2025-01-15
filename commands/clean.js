@@ -1,14 +1,13 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { analyzeThreads } = require('../utils/threadAnalyzer');
-const config = require('../config.json');
 const { checkPermission, handlePermissionResult, measureTime } = require('../utils/common');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('clean')
+        .setName('清理活跃贴')
         .setDescription('清理不活跃的主题')
         .addIntegerOption(option =>
-            option.setName('threshold')
+            option.setName('阈值')
                 .setDescription('活跃主题数量阈值 (750-950)')
                 .setRequired(true)
                 .setMinValue(750)
@@ -16,9 +15,9 @@ module.exports = {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageThreads),
 
-    async execute(interaction) {
+    async execute(interaction, guildConfig) {
         // 权限检查
-        const hasPermission = checkPermission(interaction.member, config.allowedRoleIds);
+        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
         const threshold = interaction.options.getInteger('threshold');
@@ -28,7 +27,7 @@ module.exports = {
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
             // 先获取当前活跃主题数量
-            const guild = await interaction.client.guilds.fetch(config.guildId);
+            const guild = interaction.guild;
             const activeThreads = await guild.channels.fetchActiveThreads();
             const currentThreadCount = activeThreads.threads.size;
 
@@ -47,7 +46,7 @@ module.exports = {
             }
 
             // 执行分析和清理
-            const result = await analyzeThreads(interaction.client, config, {
+            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
                 clean: true,
                 threshold: threshold
             }, activeThreads);
@@ -70,7 +69,6 @@ module.exports = {
 
         } catch (error) {
             console.error('清理执行错误:', error);
-            const executionTime = executionTimer();
             await interaction.editReply({
                 content: `执行清理时出现错误: ${error.message}`,
                 flags: ['Ephemeral']

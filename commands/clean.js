@@ -2,42 +2,46 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { analyzeThreads } = require('../utils/threadAnalyzer');
 const { checkPermission, handlePermissionResult, measureTime } = require('../utils/common');
 
+/**
+ * 清理命令 - 归档不活跃的子区
+ * 当活跃子区数量超过阈值时，自动归档最不活跃的子区
+ */
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('清理活跃贴')
-        .setDescription('清理不活跃的主题')
+        .setDescription('清理不活跃的子区')
         .addIntegerOption(option =>
             option.setName('阈值')
-                .setDescription('活跃主题数量阈值 (750-950)')
+                .setDescription('活跃子区数量阈值 (500-1000)')
                 .setRequired(true)
-                .setMinValue(750)
-                .setMaxValue(950)
-        )
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageThreads),
+                .setMinValue(500)
+                .setMaxValue(1000)
+        ),
 
     async execute(interaction, guildConfig) {
-        // 权限检查
+        // 检查用户是否有执行权限
         const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
-        const threshold = interaction.options.getInteger('threshold');
+        const threshold = interaction.options.getInteger('阈值');
         const executionTimer = measureTime();
 
         try {
+            // 发送临时响应，避免交互超时
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
-            // 先获取当前活跃主题数量
+            // 获取当前活跃子区数量并检查是否需要清理
             const guild = interaction.guild;
             const activeThreads = await guild.channels.fetchActiveThreads();
             const currentThreadCount = activeThreads.threads.size;
 
-            // 如果当前活跃主题数已经小于等于阈值，则无需清理
+            // 如果当前活跃子区数已经小于等于阈值，则无需清理
             if (currentThreadCount <= threshold) {
                 const executionTime = executionTimer();
                 await interaction.editReply({
                     content: [
                         '⚠️ 无需清理！',
-                        `📊 当前活跃主题数 (${currentThreadCount}) 已经小于或等于目标阈值 (${threshold})`,
+                        `📊 当前活跃子区数 (${currentThreadCount}) 已经小于或等于目标阈值 (${threshold})`,
                         `⏱️ 检查用时: ${executionTime}秒`
                     ].join('\n'),
                     flags: ['Ephemeral']
@@ -48,7 +52,7 @@ module.exports = {
             // 执行分析和清理
             const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
                 clean: true,
-                threshold: threshold
+                threshold: threshold || 960
             }, activeThreads);
 
             const executionTime = executionTimer();
@@ -56,9 +60,9 @@ module.exports = {
             // 构建回复消息
             const replyContent = [
                 '✅ 清理操作完成！',
-                `📊 当前活跃主题总数: ${result.statistics.totalThreads}`,
-                `🧹 已清理主题数: ${result.statistics.archivedThreads || 0}`,
-                `📌 已跳过置顶主题: ${result.statistics.skippedPinnedThreads || 0}`,
+                `📊 当前活跃子区总数: ${result.statistics.totalThreads}`,
+                `🧹 已清理子区数: ${result.statistics.archivedThreads || 0}`,
+                `�� 已跳过置顶子区: ${result.statistics.skippedPinnedThreads || 0}`,
                 `⏱️ 总执行时间: ${executionTime}秒`
             ].join('\n');
 

@@ -4,23 +4,25 @@ const { analyzeThreads } = require('../utils/threadAnalyzer');
 
 /**
  * 设置定时分析任务
- * 在每天9点和21点执行论坛主题分析
+ * 每半小时执行一次论坛子区分析
  * @param {Client} client - Discord.js客户端实例
  */
 const scheduleAnalysis = (client) => {
     // 为每个服务器设置定时任务
     for (const [guildId, guildConfig] of client.guildManager.guilds) {
-        const { times } = guildConfig.analysisSchedule;
-        
         // 计算下次执行时间
         const now = new Date();
         const nextRun = new Date(now);
-        const nextTime = times.find(time => time > now.getHours()) || times[0];
         
-        nextRun.setHours(nextTime, 0, 0, 0);
-        if (nextTime <= now.getHours()) {
-            nextRun.setDate(nextRun.getDate() + 1);
+        // 设置为下一个半小时
+        if (nextRun.getMinutes() >= 30) {
+            nextRun.setHours(nextRun.getHours() + 1);
+            nextRun.setMinutes(0);
+        } else {
+            nextRun.setMinutes(30);
         }
+        nextRun.setSeconds(0);
+        nextRun.setMilliseconds(0);
         
         const timeUntilNextRun = nextRun - now;
         
@@ -31,10 +33,10 @@ const scheduleAnalysis = (client) => {
                 .catch(error => logTime(`服务器 ${guildId} 定时分析失败: ${error}`, true));
         };
 
-        // 设置首次执行和定期执行
+        // 设置首次执行和定期执行（每30分钟）
         setTimeout(() => {
             runAnalysis();
-            setInterval(runAnalysis, 24 * 60 * 60 * 1000 / times.length);
+            setInterval(runAnalysis, 30 * 60 * 1000);
         }, timeUntilNextRun);
         
         logTime(`服务器 ${guildId} 下次分析: ${nextRun.toLocaleTimeString()}`);

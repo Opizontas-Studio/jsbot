@@ -1,13 +1,17 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { checkPermission, handlePermissionResult, logTime } = require('../utils/common');
 
+/**
+ * 管理命令 - 管理论坛帖子
+ * 提供锁定、解锁、归档等管理功能
+ */
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('管理帖子')
-        .setDescription('管理论坛主题')
+        .setDescription('管理论坛帖子')
         .addStringOption(option =>
             option.setName('帖子id')
-                .setDescription('要管理的主题ID')
+                .setDescription('要管理的帖子ID')
                 .setRequired(true)
         )
         .addStringOption(option =>
@@ -28,7 +32,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageThreads),
 
     async execute(interaction, guildConfig) {
-        // 权限检查
+        // 检查用户是否有执行权限
         const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
@@ -37,13 +41,13 @@ module.exports = {
         const reason = interaction.options.getString('理由');
 
         try {
-            // 获取目标主题
+            // 获取并验证目标帖子
             const thread = await interaction.guild.channels.fetch(threadId);
             
-            // 检查是否为论坛主题
+            // 检查是否为论坛帖子
             if (!thread || !thread.isThread()) {
                 await interaction.reply({
-                    content: '❌ 指定的ID不是有效的帖子',
+                    content: '❌ 指定的ID不是有效的子区或帖子',
                     flags: ['Ephemeral']
                 });
                 return;
@@ -53,7 +57,7 @@ module.exports = {
             const parentChannel = thread.parent;
             if (!parentChannel || parentChannel.type !== ChannelType.GuildForum) {
                 await interaction.reply({
-                    content: '❌ 此主题不属于论坛频道',
+                    content: '❌ 此子区不属于论坛频道',
                     flags: ['Ephemeral']
                 });
                 return;

@@ -1,26 +1,29 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { checkPermission, handlePermissionResult, logTime } = require('../utils/common');
 
+/**
+ * 锁定命令 - 锁定当前论坛帖子
+ * 仅在论坛帖子中可用，锁定后帖子将无法继续回复
+ */
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('锁定帖子')
-        .setDescription('锁定当前帖子')
+        .setName('锁定此贴')
+        .setDescription('锁定当前论坛帖子')
         .addStringOption(option =>
             option.setName('理由')
                 .setDescription('锁定原因')
                 .setRequired(true)
-        )
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageThreads),
+        ),
 
     async execute(interaction, guildConfig) {
-        // 权限检查
+        // 检查用户是否有执行权限
         const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
-        // 检查是否在主题中执行
+        // 验证当前频道是否为论坛帖子
         if (!interaction.channel.isThread()) {
             await interaction.reply({
-                content: '❌ 指定的ID不是有效的帖子',
+                content: '❌ 当前频道不是子区或帖子',
                 flags: ['Ephemeral']
             });
             return;
@@ -30,7 +33,7 @@ module.exports = {
         const parentChannel = interaction.channel.parent;
         if (!parentChannel || parentChannel.type !== ChannelType.GuildForum) {
             await interaction.reply({
-                content: '❌ 此主题不属于论坛频道',
+                content: '❌ 此子区不属于论坛频道',
                 flags: ['Ephemeral']
             });
             return;

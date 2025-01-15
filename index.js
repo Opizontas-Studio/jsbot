@@ -3,9 +3,11 @@ const { REST, Routes } = require('discord.js');
 const config = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
-const { measureTime, logTime } = require('./utils/common');
-const GuildManager = require('./utils/guildManager');
+const { measureTime, logTime } = require('./utils/helper');
+const GuildManager = require('./utils/guild_config');
 
+//注意！项目中任何需要等待用户操作的地方，都需要使用deferReply()，否则会报错！
+//注意！项目中任何报错都应该使用flags: ['Ephemeral']，否则会报错，不要使用Ephemeral = true
 // 初始化客户端
 const client = new Client({
     intents: [
@@ -40,7 +42,8 @@ function loadCommandFiles() {
 
                 commands.set(command.data.name, command);
             } catch (error) {
-                logTime(`❌ 加载 ${file} 失败: ${error}`, true);
+                logTime(`❌ 加载命令文件 ${file} 失败:`, true);
+                console.error(error.stack);
             }
         });
         
@@ -67,80 +70,76 @@ function loadEvents() {
     }
 }
 
+// 在文件顶部添加重试相关的常量
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 10000;
+
+// 修改 REST 客户端的配置
+const rest = new REST({
+    version: '10',
+    timeout: 20000,
+    retries: 3
+}).setToken(config.token);
+
+// 添加重试函数
+async function retryOperation(operation, attempts = MAX_RETRY_ATTEMPTS) {
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await operation();
+        } catch (error) {
+            if (i === attempts - 1) throw error;
+            logTime(`操作失败，${attempts - i - 1}次重试机会remaining: ${error.message}`, true);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        }
+    }
+}
+
 // 部署命令
 async function deployCommands() {
     if (!config.token || !config.clientId) {
         throw new Error('配置文件缺少必要参数');
     }
 
-    const rest = new REST({
-        version: '10',
-        timeout: 15000 // 设置15秒超时
-    }).setToken(config.token);
-    
+    const deployTimer = measureTime();
     const commands = loadCommandFiles();
     const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
 
     try {
-        // 清理全局命令
-        logTime('清理全局命令...');
-        await rest.put(
-            Routes.applicationCommands(config.clientId),
-            { body: [] }
-        );
+        logTime('开始同步命令...');
+        
+        // 创建 REST 实例
+        const rest = new REST({ version: '10' }).setToken(config.token);
 
-        // 并行处理所有服务器的命令部署
+        // 获取所有服务器ID
         const guildIds = client.guildManager.getGuildIds();
-        const deployPromises = guildIds.map(async (guildId) => {
+        
+        for (const guildId of guildIds) {
             try {
-                const timer = measureTime();
-                logTime(`开始处理服务器 ${guildId} 的命令...`);
-
-                // 清理命令
-                await rest.put(
-                    Routes.applicationGuildCommands(config.clientId, guildId),
-                    { body: [] }
-                ).catch(error => {
-                    throw new Error(`清理命令失败: ${error.message}`);
-                });
-
-                // 部署新命令
-                await rest.put(
+                // 直接部署到服务器，不需要先清理
+                const result = await rest.put(
                     Routes.applicationGuildCommands(config.clientId, guildId),
                     { body: commandData }
-                ).catch(error => {
-                    throw new Error(`部署命令失败: ${error.message}`);
-                });
+                );
 
-                logTime(`服务器 ${guildId} 命令处理完成，用时: ${timer()}秒`);
-                return true;
+                logTime(`服务器 ${guildId} 命令同步完成，共 ${result.length} 个命令`);
+                
+                // 添加短暂延迟避免速率限制
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
             } catch (error) {
-                logTime(`服务器 ${guildId} 命令部署失败: ${error.message}`, true);
-                return false;
+                logTime(`服务器 ${guildId} 命令同步失败: ${error.message}`, true);
+                if (error.code === 50001) {
+                    logTime('错误原因: Bot缺少必要权限', true);
+                }
             }
-        });
-
-        // 等待所有服务器的命令部署完成
-        const results = await Promise.allSettled(deployPromises);
-        
-        // 检查部署结果
-        const failedGuilds = results
-            .map((result, index) => ({ result, guildId: guildIds[index] }))
-            .filter(({ result }) => result.status === 'rejected' || !result.value);
-
-        if (failedGuilds.length > 0) {
-            logTime(`${failedGuilds.length} 个服务器的命令部署失败:`, true);
-            failedGuilds.forEach(({ guildId }) => {
-                logTime(`- 服务器 ${guildId}`, true);
-            });
         }
 
-        const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
-        logTime(`命令部署完成: ${successCount}/${guildIds.length} 个服务器成功`);
-
+        logTime(`命令同步完成，总用时: ${deployTimer()}秒`);
         return commands;
+
     } catch (error) {
-        throw new Error(`部署命令失败: ${error.message}`);
+        logTime(`命令同步时发生错误: ${error.message}`, true);
+        throw error;
     }
 }
 
@@ -161,9 +160,22 @@ function setupProcessHandlers() {
 
     process.on('SIGINT', () => exitHandler('退出'));
     process.on('SIGTERM', () => exitHandler('终止'));
-    process.on('unhandledRejection', (error) => errorHandler(error, '未处理的Promise拒绝'));
+    process.on('unhandledRejection', (error) => {
+        logTime('未处理的Promise拒绝:', true);
+        console.error('错误详情:', error);
+        if (error.requestBody) {
+            console.error('请求数据:', error.requestBody);
+        }
+        if (error.response) {
+            console.error('Discord API响应:', error.response);
+        }
+    });
     process.on('uncaughtException', (error) => {
-        errorHandler(error, '未捕获的异常');
+        logTime('未捕获的异常:', true);
+        console.error('错误详情:', error);
+        if (error.stack) {
+            console.error('堆栈跟踪:', error.stack);
+        }
         process.exit(1);
     });
 }
@@ -176,25 +188,31 @@ async function main() {
         // 初始化服务器管理器
         client.guildManager.initialize(config);
 
-        // 部署命令并加载到客户端
-        logTime('开始部署命令...');
-        const commands = await deployCommands();
-        client.commands = new Collection(commands);
-
-        // 加载事件
-        loadEvents();
-
-        // 登录
+        // 先登录
         logTime('正在登录...');
         const loginTimer = measureTime();
         await client.login(config.token);
         logTime(`登录完成，用时: ${loginTimer()}秒`);
 
+        // 加载事件
+        loadEvents();
+
+        // 等待客户端完全就绪
+        if (!client.isReady()) {
+            logTime('等待客户端就绪...');
+            await new Promise(resolve => {
+                client.once(Events.ClientReady, resolve);
+            });
+        }
+
+        // 部署命令并加载到客户端
+        logTime('开始部署命令...');
+        const commands = await deployCommands();
+        client.commands = new Collection(commands);
+
     } catch (error) {
         logTime(error.message, true);
-        if (error.stack) {
-            console.error(error.stack);
-        }
+        console.error('Stack trace:', error.stack);
         process.exit(1);
     }
 }

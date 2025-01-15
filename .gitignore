@@ -1,1 +1,11 @@
-/config.json
+# Log files
+*.log
+
+# Environment variables
+.env
+
+# Runtime data
+data/
+
+# config
+config.json

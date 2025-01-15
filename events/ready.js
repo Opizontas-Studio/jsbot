@@ -1,6 +1,6 @@
 const { Events } = require('discord.js');
-const { logTime } = require('../utils/common');
-const { analyzeThreads } = require('../utils/threadAnalyzer');
+const { logTime } = require('../utils/helper');
+const { analyzeThreads } = require('../utils/analyzers');
 
 /**
  * 设置定时分析任务

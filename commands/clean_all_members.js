@@ -38,27 +38,36 @@ module.exports = {
             
             // 并行获取所有子区的成员数量
             logTime('开始检查各子区成员数量...');
-            const memberCountPromises = Array.from(threads.values()).map(async thread => {
-                try {
-                    const members = await thread.members.fetch();
-                    return {
-                        thread,
-                        memberCount: members.size
-                    };
-                } catch (error) {
-                    logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
-                    return null;
-                }
-            });
+            const memberCountPromises = Array.from(threads.values())
+                .filter(thread => !guildConfig.whitelistedThreads?.includes(thread.id))
+                .map(async thread => {
+                    try {
+                        const members = await thread.members.fetch();
+                        return {
+                            thread,
+                            memberCount: members.size
+                        };
+                    } catch (error) {
+                        logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
+                        return null;
+                    }
+                });
 
             const memberCounts = (await Promise.all(memberCountPromises))
                 .filter(result => result && result.memberCount > threshold);
-            
-            logTime(`检查完成，发现 ${memberCounts.length} 个超过 ${threshold} 人的子区`);
+
+            logTime(`检查完成，发现 ${memberCounts.length} 个需要处理的子区`);
 
             if (memberCounts.length === 0) {
+                const whitelistedCount = guildConfig.whitelistedThreads?.length || 0;
+                let message = '✅ 检查完成，';
+                if (whitelistedCount > 0) {
+                    message += `已跳过 ${whitelistedCount} 个白名单子区，`;
+                }
+                message += '没有发现需要清理的子区。';
+                
                 await interaction.editReply({
-                    content: `✅ 检查完成，没有发现超过 ${threshold} 人的子区。`,
+                    content: message,
                     flags: ['Ephemeral']
                 });
                 return;

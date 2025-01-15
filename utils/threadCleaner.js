@@ -48,6 +48,16 @@ async function sendThreadReport(thread, result) {
  */
 async function cleanThreadMembers(thread, threshold, options = {}, progressCallback = () => {}) {
     try {
+        // 检查是否在白名单中 - 直接返回，不执行任何成员获取操作
+        if (options.whitelistedThreads?.includes(thread.id)) {
+            return {
+                status: 'skipped',
+                reason: 'whitelisted',
+                threadId: thread.id,
+                threadName: thread.name
+            };
+        }
+
         // 获取完整的成员列表
         const members = await thread.members.fetch();
         const memberCount = members.size;

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { checkPermission, handlePermissionResult, logTime } = require('../utils/common');
+const { checkPermission, handlePermissionResult, logTime, checkChannelPermission } = require('../utils/common');
 
 /**
  * 管理命令 - 管理论坛帖子
@@ -32,19 +32,12 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageThreads),
 
     async execute(interaction, guildConfig) {
-        // 检查用户是否有执行权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
-
         const threadId = interaction.options.getString('帖子id');
-        const action = interaction.options.getString('操作');
-        const reason = interaction.options.getString('理由');
-
+        
         try {
-            // 获取并验证目标帖子
+            // 获取目标帖子
             const thread = await interaction.guild.channels.fetch(threadId);
             
-            // 检查是否为论坛帖子
             if (!thread || !thread.isThread()) {
                 await interaction.reply({
                     content: '❌ 指定的ID不是有效的子区或帖子',
@@ -52,6 +45,24 @@ module.exports = {
                 });
                 return;
             }
+
+            // 检查用户是否有执行权限
+            const hasPermission = checkChannelPermission(
+                interaction.member,
+                thread,
+                guildConfig.allowedRoleIds
+            );
+            
+            if (!hasPermission) {
+                await interaction.reply({
+                    content: '你没有权限管理此帖子。需要具有该论坛的消息管理权限。',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            const action = interaction.options.getString('操作');
+            const reason = interaction.options.getString('理由');
 
             // 检查父频道是否为论坛
             const parentChannel = thread.parent;

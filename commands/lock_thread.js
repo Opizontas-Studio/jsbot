@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { checkPermission, handlePermissionResult, logTime } = require('../utils/common');
+const { checkPermission, handlePermissionResult, logTime, checkChannelPermission } = require('../utils/common');
 
 /**
  * 锁定命令 - 锁定当前论坛帖子
@@ -17,8 +17,19 @@ module.exports = {
 
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        const hasPermission = checkChannelPermission(
+            interaction.member, 
+            interaction.channel,
+            guildConfig.allowedRoleIds
+        );
+        
+        if (!hasPermission) {
+            await interaction.reply({
+                content: '你没有权限锁定此帖子。需要具有该论坛的消息管理权限。',
+                flags: ['Ephemeral']
+            });
+            return;
+        }
 
         // 验证当前频道是否为论坛帖子
         if (!interaction.channel.isThread()) {
@@ -39,7 +50,7 @@ module.exports = {
             return;
         }
 
-        const reason = interaction.options.getString('reason');
+        const reason = interaction.options.getString('理由');
         const thread = interaction.channel;
 
         try {

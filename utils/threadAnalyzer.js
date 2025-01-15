@@ -106,21 +106,27 @@ class DiscordLogger {
 
     /**
      * 发送不活跃子区列表
-     * 展示最不活跃的前10个子区
+     * 展示最不活跃的前10个非置顶子区
      * @param {Array<Object>} threadInfoArray - 子区信息数组
      */
     async sendInactiveThreadsList(threadInfoArray) {
         if (!this.logChannel) throw new Error('日志频道未初始化');
 
+        // 过滤掉置顶的子区
+        const nonPinnedThreads = threadInfoArray.filter(thread => !thread.isPinned);
+
         const embed = {
             color: 0x0099ff,
             title: '最不活跃的子区 (TOP 10)',
-            description: `上次更新: ${new Date().toLocaleString('zh-CN', {
-                timeZone: 'Asia/Shanghai',
-                hour12: false
-            })}`,
+            description: [
+                `上次更新: ${new Date().toLocaleString('zh-CN', {
+                    timeZone: 'Asia/Shanghai',
+                    hour12: false
+                })}`,
+                '注：此列表不包含置顶子区'
+            ].join('\n'),
             timestamp: new Date(),
-            fields: threadInfoArray.slice(0, 10).map((thread, index) => ({
+            fields: nonPinnedThreads.slice(0, 10).map((thread, index) => ({
                 name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
                 value: [
                     `所属频道: ${thread.parentName}`,

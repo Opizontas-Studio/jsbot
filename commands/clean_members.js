@@ -33,14 +33,27 @@ module.exports = {
         }
 
         try {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
             const thread = interaction.channel;
+            
+            // 提前检查白名单
+            if (guildConfig.whitelistedThreads?.includes(thread.id)) {
+                await interaction.reply({
+                    content: '✅ 此子区在白名单中，已跳过清理。',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            await interaction.deferReply({ flags: ['Ephemeral'] });
             const threshold = interaction.options.getInteger('阈值') || 950;
 
             const result = await cleanThreadMembers(
                 thread,
                 threshold,
-                { sendThreadReport: true },
+                { 
+                    sendThreadReport: true,
+                    whitelistedThreads: guildConfig.whitelistedThreads || [] 
+                },
                 async (progress) => {
                     if (progress.type === 'message_scan') {
                         await interaction.editReply({
@@ -57,8 +70,14 @@ module.exports = {
             );
 
             if (result.status === 'skipped') {
+                let message = '';
+                if (result.reason === 'whitelisted') {
+                    message = '✅ 此子区在白名单中，已跳过清理。';
+                } else {
+                    message = `✅ 当前子区人数(${result.memberCount})已经在限制范围内，无需重整。`;
+                }
                 await interaction.editReply({
-                    content: `✅ 当前子区人数(${result.memberCount})已经在限制范围内，无需重整。`,
+                    content: message,
                     flags: ['Ephemeral']
                 });
                 return;

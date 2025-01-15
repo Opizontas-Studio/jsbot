@@ -54,10 +54,36 @@ const handlePermissionResult = async (interaction, hasPermission) => {
     return true;
 };
 
+/**
+ * 检查用户是否具有特定频道的权限
+ * @param {GuildMember} member - Discord服务器成员对象
+ * @param {Channel} channel - Discord频道对象
+ * @param {string[]} allowedRoleIds - 允许执行命令的角色ID数组
+ * @returns {boolean} 如果用户拥有权限则返回true
+ */
+const checkChannelPermission = (member, channel, allowedRoleIds) => {
+    // 检查用户是否有全局身份组权限
+    const hasGlobalPermission = member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+    if (hasGlobalPermission) return true;
+
+    // 获取用户在该频道的权限
+    const channelPermissions = channel.permissionsFor(member);
+    
+    // 如果是论坛帖子，检查父频道的权限
+    if (channel.isThread()) {
+        const parentPermissions = channel.parent.permissionsFor(member);
+        return parentPermissions.has('ManageMessages');
+    }
+    
+    // 检查频道的权限
+    return channelPermissions.has('ManageMessages');
+};
+
 module.exports = {
     measureTime,
     delay,
     logTime,
     checkPermission,
-    handlePermissionResult
+    handlePermissionResult,
+    checkChannelPermission
 }; 

@@ -278,6 +278,44 @@ async function sendCleanupReport(interaction, guildConfig, result) {
     });
 }
 
+const fs = require('node:fs');
+const path = require('node:path');
+
+/**
+ * 加载命令文件
+ * @param {string} commandsDir - 命令文件目录的路径
+ * @param {string[]} [excludeFiles=[]] - 要排除的文件名数组
+ * @returns {Map<string, Object>} 命令映射
+ */
+function loadCommandFiles(commandsDir, excludeFiles = []) {
+    const commands = new Map();
+    
+    fs.readdirSync(commandsDir)
+        .filter(file => file.endsWith('.js') && !excludeFiles.includes(file))
+        .forEach(file => {
+            try {
+                const command = require(path.join(commandsDir, file));
+                if (!command.data?.name || !command.execute) {
+                    logTime(`⚠️ ${file} 缺少必要属性`);
+                    return;
+                }
+                
+                if (commands.has(command.data.name)) {
+                    logTime(`⚠️ 重复命令名称 "${command.data.name}"`);
+                    return;
+                }
+
+                commands.set(command.data.name, command);
+            } catch (error) {
+                logTime(`❌ 加载命令文件 ${file} 失败:`, true);
+                console.error(error.stack);
+            }
+        });
+        
+    logTime(`已加载 ${commands.size} 个命令: ${Array.from(commands.keys()).join(', ')}`);
+    return commands;
+}
+
 module.exports = {
     measureTime,
     delay,
@@ -292,4 +330,5 @@ module.exports = {
     handleBatchProgress,
     handleCommandError,
     sendCleanupReport,
+    loadCommandFiles,
 }; 

@@ -291,7 +291,7 @@ function loadCommandFiles(commandsDir, excludeFiles = []) {
     const commands = new Map();
     
     fs.readdirSync(commandsDir)
-        .filter(file => file.endsWith('.js') && !excludeFiles.includes(file))
+        .filter(file => file.endsWith('.js'))
         .forEach(file => {
             try {
                 const command = require(path.join(commandsDir, file));

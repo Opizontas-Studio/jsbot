@@ -1,9 +1,9 @@
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const { REST } = require('discord.js');
+const { REST, Routes } = require('discord.js');
 const config = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
-const { measureTime, logTime, loadCommandFiles } = require('./utils/helper');
+const { measureTime, logTime, loadCommandFiles, delay } = require('./utils/helper');
 const GuildManager = require('./utils/guild_config');
 
 // 初始化客户端
@@ -100,7 +100,7 @@ async function main() {
 
         // 检查并部署未部署命令的服务器
         const commandsPath = path.join(__dirname, 'commands');
-        const commands = loadCommandFiles(commandsPath, ['sync_commands.js']);
+        const commands = loadCommandFiles(commandsPath);
         const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
         
         const rest = new REST({ version: '10' }).setToken(config.token);

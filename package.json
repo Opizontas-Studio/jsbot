@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "discord.js": "^14.17.3",
+    "node-cron": "^3.0.3",
     "undici": "^7.2.1"
   },
   "devDependencies": {

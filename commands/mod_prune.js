@@ -78,6 +78,21 @@ async function handleSingleThread(interaction, guildConfig) {
         return;
     }
 
+    // 提前检查成员数量
+    const members = await thread.members.fetch();
+    const memberCount = members.size;
+    
+    if (memberCount < threshold) {
+        await interaction.editReply({
+            embeds: [{
+                color: 0x808080,
+                title: '❌ 无需清理',
+                description: `当前子区人数(${memberCount})未达到清理阈值(${threshold})`
+            }]
+        });
+        return;
+    }
+
     const result = await cleanThreadMembers(
         thread,
         threshold,
@@ -104,11 +119,23 @@ async function handleAllThreads(interaction, guildConfig) {
     
     // 获取需要处理的子区
     const threadsToClean = [];
+    let skippedCount = 0;
+
+    await interaction.editReply({
+        content: '⏳ 正在检查所有子区人数...',
+        flags: ['Ephemeral']
+    });
+
     for (const thread of threads.values()) {
         try {
             const members = await thread.members.fetch();
             if (members.size > threshold) {
-                threadsToClean.push(thread);
+                threadsToClean.push({
+                    thread,
+                    memberCount: members.size
+                });
+            } else {
+                skippedCount++;
             }
         } catch (error) {
             logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
@@ -117,11 +144,33 @@ async function handleAllThreads(interaction, guildConfig) {
 
     if (threadsToClean.length === 0) {
         await interaction.editReply({
-            content: '✅ 检查完成，没有发现需要清理的子区。',
+            content: [
+                '✅ 检查完成，没有发现需要清理的子区',
+                `📊 已检查: ${threads.size} 个子区`,
+                `⏭️ 已跳过: ${skippedCount} 个子区(人数未超限)`
+            ].join('\n'),
             flags: ['Ephemeral']
         });
         return;
     }
+
+    // 显示待处理列表
+    await interaction.editReply({
+        embeds: [{
+            color: 0xff9900,
+            title: '🔍 子区清理检查结果',
+            description: [
+                `共发现 ${threadsToClean.length} 个需要清理的子区:`,
+                '',
+                ...threadsToClean.map(({ thread, memberCount }) => 
+                    `• ${thread.name}: ${memberCount}人 (需清理${memberCount - threshold}人)`
+                ),
+                '',
+                '即将开始清理...'
+            ].join('\n')
+        }],
+        flags: ['Ephemeral']
+    });
 
     // 处理结果存储
     const results = [];

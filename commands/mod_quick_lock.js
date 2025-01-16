@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { logTime, handleCommandError, lockAndArchiveThreadWithLog } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/globalRequestQueue');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {
     cooldown: 10, // 设置10秒冷却时间

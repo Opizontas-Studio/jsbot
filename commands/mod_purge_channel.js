@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { checkPermission, handlePermissionResult, measureTime, logTime, delay } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/globalRequestQueue');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {
     cooldown: 10,

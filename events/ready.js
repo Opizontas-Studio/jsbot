@@ -1,41 +1,58 @@
 const { Events } = require('discord.js');
 const { logTime } = require('../utils/helper');
 const { analyzeThreads } = require('../utils/analyzers');
+const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
 
 /**
- * 执行自动清理
+ * 执行定时任务
  * @param {Client} client - Discord客户端实例
  * @param {Object} guildConfig - 服务器配置
  * @param {string} guildId - 服务器ID
  */
-const runAutoCleanup = async (client, guildConfig, guildId) => {
-    if (!guildConfig.autoCleanup?.enabled) return;
-    
+const runScheduledTasks = async (client, guildConfig, guildId) => {
     try {
-        logTime(`开始执行服务器 ${guildId} 的自动清理...`);
-        await analyzeThreads(client, guildConfig, guildId, {
-            clean: true,
-            threshold: guildConfig.autoCleanup.threshold || 960
-        });
-        logTime(`服务器 ${guildId} 的自动清理完成`);
+        // 使用请求队列和速率限制
+        await globalRequestQueue.add(async () => {
+            await globalRateLimiter.withRateLimit(async () => {
+                // 总是执行分析任务
+                logTime(`开始执行服务器 ${guildId} 的定时分析...`);
+                await analyzeThreads(client, guildConfig, guildId);
+                logTime(`服务器 ${guildId} 的定时分析完成`);
+
+                // 只在启用自动清理时执行清理
+                if (guildConfig.autoCleanup?.enabled) {
+                    logTime(`开始执行服务器 ${guildId} 的自动清理...`);
+                    await analyzeThreads(client, guildConfig, guildId, {
+                        clean: true,
+                        threshold: guildConfig.autoCleanup.threshold || 960
+                    });
+                    logTime(`服务器 ${guildId} 的自动清理完成`);
+                }
+            });
+        }, 0); // 使用最低优先级
     } catch (error) {
-        logTime(`服务器 ${guildId} 的自动清理失败: ${error.message}`, true);
+        logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
     }
 };
 
 /**
  * 设置定时分析任务
- * 每半小时执行一次论坛子区分析和清理
  * @param {Client} client - Discord.js客户端实例
  */
 const scheduleAnalysis = (client) => {
-    // 为每个服务器设置定时任务
-    for (const [guildId, guildConfig] of client.guildManager.guilds) {
+    // 存储每个服务器的定时器ID
+    const timers = new Map();
+
+    const scheduleNextRun = (guildId, guildConfig) => {
+        // 清除已存在的定时器
+        if (timers.has(guildId)) {
+            clearTimeout(timers.get(guildId));
+        }
+
         // 计算下次执行时间
         const now = new Date();
         const nextRun = new Date(now);
         
-        // 设置为下一个半小时
         if (nextRun.getMinutes() >= 30) {
             nextRun.setHours(nextRun.getHours() + 1);
             nextRun.setMinutes(0);
@@ -47,28 +64,32 @@ const scheduleAnalysis = (client) => {
         
         const timeUntilNextRun = nextRun - now;
         
-        // 设置定时执行
-        const runTasks = async () => {
-            // 执行分析任务
+        // 设置新的定时器
+        const timer = setTimeout(async () => {
             try {
-                await analyzeThreads(client, guildConfig, guildId)
-                    .then(() => logTime(`服务器 ${guildId} 定时分析完成`))
-                    .catch(error => logTime(`服务器 ${guildId} 定时分析失败: ${error}`, true));
+                await runScheduledTasks(client, guildConfig, guildId);
             } catch (error) {
-                logTime(`服务器 ${guildId} 定时分析出错: ${error}`, true);
+                logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
+            } finally {
+                // 无论成功失败，都重新调度下一次执行
+                scheduleNextRun(guildId, guildConfig);
             }
-
-            // 执行自动清理任务
-            await runAutoCleanup(client, guildConfig, guildId);
-        };
-
-        // 设置首次执行和定期执行（每30分钟）
-        setTimeout(() => {
-            runTasks();
-            setInterval(runTasks, 30 * 60 * 1000);
         }, timeUntilNextRun);
+
+        // 存储定时器ID
+        timers.set(guildId, timer);
         
-        logTime(`服务器 ${guildId} 下次执行时间: ${nextRun.toLocaleTimeString()}`);
+        // 输出下次执行时间和任务类型
+        const taskTypes = ['分析'];
+        if (guildConfig.autoCleanup?.enabled) {
+            taskTypes.push('清理');
+        }
+        logTime(`服务器 ${guildId} 下次${taskTypes.join('和')}时间: ${nextRun.toLocaleTimeString()}`);
+    };
+
+    // 为每个服务器设置定时任务
+    for (const [guildId, guildConfig] of client.guildManager.guilds) {
+        scheduleNextRun(guildId, guildConfig);
     }
 };
 

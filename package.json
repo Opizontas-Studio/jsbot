@@ -1,6 +1,6 @@
 {
   "name": "jsbot",
-  "version": "1.7.10",
+  "version": "1.8.9",
   "main": "start.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

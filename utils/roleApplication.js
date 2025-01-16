@@ -31,12 +31,40 @@ async function createApplicationMessage(client) {
         return;
     }
 
-    // 为每个配置了 addRoleThread 的服务器创建申请消息
+    // 为每个配置了身份组申请功能的服务器创建申请消息
     for (const [guildId, guildConfig] of client.guildManager.guilds) {
-        if (!guildConfig.addRoleThread || !guildConfig.creatorRoleId) continue;
+        // 检查功能是否启用
+        if (!guildConfig.roleApplication?.enabled) {
+            // 如果功能被禁用，删除旧的申请消息（如果存在）
+            const oldMessageId = messageIds.roleApplicationMessages[guildId];
+            if (oldMessageId) {
+                try {
+                    const channel = await client.channels.fetch(guildConfig.roleApplication.threadId);
+                    if (channel) {
+                        const oldMessage = await channel.messages.fetch(oldMessageId);
+                        if (oldMessage) {
+                            await oldMessage.delete();
+                            logTime(`已删除服务器 ${guildId} 的旧申请消息（功能已禁用）`);
+                        }
+                    }
+                    // 清除消息ID记录
+                    delete messageIds.roleApplicationMessages[guildId];
+                    fs.writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
+                } catch (error) {
+                    logTime(`删除旧申请消息失败: ${error}`, true);
+                }
+            }
+            continue;
+        }
+
+        // 检查必要的配置是否存在
+        if (!guildConfig.roleApplication?.threadId || !guildConfig.roleApplication?.roleId) {
+            logTime(`服务器 ${guildId} 的身份组申请配置不完整`, true);
+            continue;
+        }
 
         try {
-            const channel = await client.channels.fetch(guildConfig.addRoleThread);
+            const channel = await client.channels.fetch(guildConfig.roleApplication.threadId);
             if (!channel) continue;
 
             // 删除旧的申请消息
@@ -89,11 +117,20 @@ async function createApplicationMessage(client) {
 async function handleButtonInteraction(interaction) {
     if (interaction.customId !== 'apply_creator_role') return;
 
-    // 检查用户是否已有创作者身份组
+    // 检查功能是否启用
     const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+    if (!guildConfig?.roleApplication?.enabled) {
+        await interaction.reply({
+            content: '❌ 此服务器未启用身份组申请功能',
+            flags: ['Ephemeral']
+        });
+        return;
+    }
+
+    // 检查用户是否已有创作者身份组
     const member = await interaction.guild.members.fetch(interaction.user.id);
     
-    if (member.roles.cache.has(guildConfig.creatorRoleId)) {
+    if (member.roles.cache.has(guildConfig.roleApplication.roleId)) {
         await interaction.reply({
             content: '❌ 您已经拥有创作者身份组',
             flags: ['Ephemeral']
@@ -155,14 +192,20 @@ async function handleModalSubmit(interaction) {
         const [, guildId, threadId] = matches;
         const guildConfig = interaction.client.guildManager.getGuildConfig(guildId);
 
-        if (!guildConfig || !guildConfig.creatorRoleId) {
+        // 检查功能是否启用
+        if (!guildConfig?.roleApplication?.enabled) {
+            await interaction.editReply('❌ 此服务器未启用身份组申请功能');
+            return;
+        }
+
+        if (!guildConfig?.roleApplication?.roleId) {
             await interaction.editReply('❌ 服务器配置错误');
             return;
         }
 
         // 再次检查用户是否已有身份组（防止在申请过程中被手动添加）
         const member = await interaction.guild.members.fetch(interaction.user.id);
-        if (member.roles.cache.has(guildConfig.creatorRoleId)) {
+        if (member.roles.cache.has(guildConfig.roleApplication.roleId)) {
             await interaction.editReply('❌ 您已经拥有创作者身份组');
             return;
         }
@@ -222,7 +265,7 @@ async function handleModalSubmit(interaction) {
 
         if (maxReactions >= 5) {
             // 添加身份组
-            await member.roles.add(guildConfig.creatorRoleId);
+            await member.roles.add(guildConfig.roleApplication.roleId);
             await interaction.editReply('✅ 审核通过，已为您添加创作者身份组。');
             
             // 只有通过审核才发送日志

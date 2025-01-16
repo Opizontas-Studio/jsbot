@@ -242,20 +242,23 @@ async function handleModalSubmit(interaction) {
     }
 }
 
-module.exports = [
-    {
-        name: Events.ClientReady,
-        once: true,
-        execute: createApplicationMessage
-    },
-    {
-        name: Events.InteractionCreate,
-        execute: async (interaction) => {
-            if (interaction.isButton()) {
-                await handleButtonInteraction(interaction);
-            } else if (interaction.isModalSubmit()) {
-                await handleModalSubmit(interaction);
-            }
+// 初始化功能
+let initialized = false;
+
+module.exports = {
+    name: Events.InteractionCreate,
+    async execute(interaction) {
+        // 首次执行时初始化
+        if (!initialized && interaction.client.isReady()) {
+            await createApplicationMessage(interaction.client);
+            initialized = true;
+        }
+
+        // 处理交互
+        if (interaction.isButton()) {
+            await handleButtonInteraction(interaction);
+        } else if (interaction.isModalSubmit()) {
+            await handleModalSubmit(interaction);
         }
     }
-]; 
+}; 

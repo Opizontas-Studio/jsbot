@@ -57,14 +57,16 @@ module.exports = {
                 .setRequired(true);
 
             // 创建输入框行并指定正确的类型
-            const firstActionRow = new ActionRowBuilder().addComponents(titleInput);
-            const secondActionRow = new ActionRowBuilder().addComponents(contentInput);
+            const firstActionRow = new ActionRowBuilder({
+                components: [titleInput]
+            });
 
-            // 添加输入框到模态框（需要转换类型）
-            modal.addComponents(
-                firstActionRow.toJSON(),
-                secondActionRow.toJSON()
-            );
+            const secondActionRow = new ActionRowBuilder({
+                components: [contentInput]
+            });
+
+            // 添加输入框到模态框
+            modal.addComponents(firstActionRow, secondActionRow);
 
             // 显示模态框
             await interaction.showModal(modal);
@@ -88,7 +90,7 @@ module.exports = {
             // 创建并发送embed消息
             await channel.send({
                 embeds: [{
-                    color: 0x0099ff, // 蓝色
+                    color: 0x0099ff,
                     title: title,
                     description: description,
                     timestamp: new Date(),

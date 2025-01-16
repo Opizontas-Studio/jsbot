@@ -43,7 +43,7 @@ function loadEvents() {
 // 设置进程事件处理
 function setupProcessHandlers() {
     const exitHandler = (signal) => {
-        logTime(`收到${signal}信号，正在关闭...`);
+        logTime(`收到${signal}信号，正在关闭`);
         client.destroy();
         process.exit(0);
     };
@@ -95,7 +95,6 @@ async function main() {
 
         // 等待客户端完全就绪
         if (!client.isReady()) {
-            logTime('等待客户端就绪...');
             await new Promise(resolve => {
                 client.once(Events.ClientReady, resolve);
             });
@@ -111,7 +110,7 @@ async function main() {
         for (const [guildId, guildConfig] of Object.entries(config.guilds)) {
             if (!guildConfig.commandsDeployed) {
                 try {
-                    logTime(`正在为服务器 ${guildId} 部署命令...`);
+                    logTime(`正在为服务器 ${guildId} 部署命令`);
                     const result = await rest.put(
                         Routes.applicationGuildCommands(client.application.id, guildId),
                         { body: commandData }
@@ -120,9 +119,8 @@ async function main() {
                     // 更新配置文件
                     config.guilds[guildId].commandsDeployed = true;
                     fs.writeFileSync('./config.json', JSON.stringify(config, null, 4));
-                    
                     logTime(`服务器 ${guildId} 命令部署完成，共 ${result.length} 个命令`);
-                    
+
                     // 添加延迟避免速率限制
                     await delay(500);
                 } catch (error) {

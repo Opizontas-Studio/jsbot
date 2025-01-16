@@ -15,7 +15,6 @@ const runScheduledTasks = async (client, guildConfig, guildId) => {
         await globalRequestQueue.add(async () => {
             await globalRateLimiter.withRateLimit(async () => {
                 // 总是执行分析任务
-                logTime(`开始执行服务器 ${guildId} 的定时分析...`);
                 await analyzeThreads(client, guildConfig, guildId);
                 logTime(`服务器 ${guildId} 的定时分析完成`);
 

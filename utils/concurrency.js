@@ -47,7 +47,6 @@ class RequestQueue {
             try {
                 const result = await task();
                 resolve(result);
-                logTime(`请求处理完成，等待时间: ${waitTime}ms`);
             } catch (error) {
                 reject(error);
                 logTime(`请求处理失败，等待时间: ${waitTime}ms，错误: ${error.message}`, true);

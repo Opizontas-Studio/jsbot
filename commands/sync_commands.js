@@ -1,6 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { REST, Routes } = require('discord.js');
 const { logTime, measureTime, loadCommandFiles, checkPermission, handlePermissionResult } = require('../utils/helper');
+const path = require('node:path');
+const { Collection } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,7 +14,7 @@ module.exports = {
         const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: ['Ephemeral'] });
         
         try {
             const deployTimer = measureTime();

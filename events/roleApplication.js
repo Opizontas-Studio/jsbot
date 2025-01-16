@@ -120,7 +120,7 @@ async function handleButtonInteraction(interaction) {
     cooldowns.set(cooldownKey, now + 60000);
     setTimeout(() => cooldowns.delete(cooldownKey), 60000);
 
-    // 显示申请表单...
+    // 显示申请表单
     const modal = new ModalBuilder()
         .setCustomId('creator_role_modal')
         .setTitle('创作者身份组申请');
@@ -158,6 +158,13 @@ async function handleModalSubmit(interaction) {
 
         if (!guildConfig || !guildConfig.creatorRoleId) {
             await interaction.editReply('❌ 服务器配置错误');
+            return;
+        }
+
+        // 再次检查用户是否已有身份组（防止在申请过程中被手动添加）
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (member.roles.cache.has(guildConfig.creatorRoleId)) {
+            await interaction.editReply('❌ 您已经拥有创作者身份组');
             return;
         }
 

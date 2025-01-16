@@ -47,15 +47,26 @@ function loadEvents() {
 
     logTime(`开始加载 ${eventFiles.length} 个事件处理器`);
     for (const file of eventFiles) {
-        const event = require(path.join(eventsPath, file));
-        const eventHandler = (...args) => event.execute(...args);
+        const events = require(path.join(eventsPath, file));
         
-        if (event.once) {
-            client.once(event.name, eventHandler);
-        } else {
-            client.on(event.name, eventHandler);
+        // 处理导出的单个事件或事件数组
+        const eventList = Array.isArray(events) ? events : [events];
+        
+        for (const event of eventList) {
+            if (!event || !event.name || !event.execute) {
+                logTime(`警告: ${file} 中的事件格式无效`, true);
+                continue;
+            }
+
+            const eventHandler = (...args) => event.execute(...args);
+            
+            if (event.once) {
+                client.once(event.name, eventHandler);
+            } else {
+                client.on(event.name, eventHandler);
+            }
+            logTime(`已加载事件: ${event.name}`);
         }
-        logTime(`已加载事件: ${event.name}`);
     }
 }
 

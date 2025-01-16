@@ -22,14 +22,6 @@ module.exports = {
                         .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('打开并解锁')
-                .setDescription('打开并解锁一个帖子')
-                .addStringOption(option =>
-                    option.setName('帖子链接')
-                        .setDescription('要打开的帖子链接')
-                        .setRequired(true)))
-        .addSubcommand(subcommand =>
-            subcommand
                 .setName('标注信息')
                 .setDescription('标注或取消标注一条消息')
                 .addStringOption(option =>
@@ -53,55 +45,6 @@ module.exports = {
 
     async execute(interaction, guildConfig) {
         const subcommand = interaction.options.getSubcommand();
-
-        // 特殊处理：打开并解锁命令（允许跨帖子操作）
-        if (subcommand === '打开并解锁') {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-            
-            try {
-                const threadUrl = interaction.options.getString('帖子链接');
-                const matches = threadUrl.match(/channels\/(\d+)\/(\d+)(?:\/threads\/(\d+))?/);
-                
-                if (!matches) {
-                    await interaction.editReply({
-                        content: '❌ 无效的帖子链接格式'
-                    });
-                    return;
-                }
-
-                const [, guildId, channelId, threadId] = matches;
-                const targetThreadId = threadId || channelId;
-                
-                const thread = await interaction.client.channels.fetch(targetThreadId);
-
-                if (!thread || !thread.isThread()) {
-                    await interaction.editReply({
-                        content: '❌ 找不到指定的帖子'
-                    });
-                    return;
-                }
-
-                // 检查是否为帖子作者
-                if (thread.ownerId !== interaction.user.id) {
-                    await interaction.editReply({
-                        content: '❌ 只有帖子作者才能管理此帖子'
-                    });
-                    return;
-                }
-
-                await thread.setArchived(false);
-                await thread.setLocked(false);
-                
-                await interaction.editReply({
-                    content: '✅ 帖子已成功打开并解锁'
-                });
-                logTime(`楼主 ${interaction.user.tag} 打开并解锁了帖子 ${thread.name}`);
-
-            } catch (error) {
-                await handleCommandError(interaction, error, '打开帖子');
-            }
-            return;
-        }
 
         // 检查是否在论坛帖子中使用
         if (!interaction.channel.isThread() || 

@@ -286,14 +286,12 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
     try {
         await logger.initialize();
 
-        // 如果没有传入 activeThreads，则获取
         if (!activeThreads) {
             const guild = await client.guilds.fetch(guildId)
                 .catch(error => {
                     throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
                 });
 
-            const fetchThreadsTimer = measureTime();
             activeThreads = await guild.channels.fetchActiveThreads()
                 .catch(error => {
                     throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
@@ -301,24 +299,15 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
         }
 
         statistics.totalThreads = activeThreads.threads.size;
+        const processThreadsTimer = measureTime();
+        
+        // 开始分析的日志
         logTime(`开始分析服务器 ${guildId} 的 ${statistics.totalThreads} 个活跃子区`);
 
-        // 收集主题信息计时
-        const processThreadsTimer = measureTime();
         const currentTime = Date.now();
         const batchSize = 50; // 批处理大小
         const threadArray = Array.from(activeThreads.threads.values());
         const threadInfoArray = [];
-
-        // 添加进度输出函数
-        const logProgress = (current, total) => {
-            const progress = (current / total * 100).toFixed(1);
-            logTime(`处理进度: ${current}/${total} (${progress}%)`);
-        };
-
-        // 设置进度报告的间隔
-        const progressIntervals = [25, 50, 75, 100];
-        let lastProgressIndex = -1;
 
         for (let i = 0; i < threadArray.length; i += batchSize) {
             const batch = threadArray.slice(i, i + batchSize);
@@ -368,21 +357,10 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
                 })
             );
             threadInfoArray.push(...batchResults);
-
-            // 计算当前进度百分比
-            const currentProgress = ((i + batchSize) / threadArray.length * 100);
-            
-            // 检查是否达到下一个进度间隔点
-            const progressIndex = progressIntervals.findIndex(interval => 
-                currentProgress >= interval && interval > (lastProgressIndex >= 0 ? progressIntervals[lastProgressIndex] : 0)
-            );
-
-            if (progressIndex !== -1 && progressIndex > lastProgressIndex) {
-                logProgress(Math.min(i + batchSize, threadArray.length), threadArray.length);
-                lastProgressIndex = progressIndex;
-            }
         }
-        logTime(`处理所有主题信息用时: ${processThreadsTimer()}秒`);
+
+        // 在处理完成后只输出一条总结日志
+        logTime(`分析完成 - 处理用时: ${processThreadsTimer()}秒, 总执行时间: ${totalTimer()}秒`);
 
         // 在清理操作之前就处理有效的线程数组
         const validThreads = threadInfoArray.filter(t => t !== null)
@@ -402,15 +380,13 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
                 const threadsToArchive = nonPinnedThreads
                     .slice(0, nonPinnedThreads.length - targetCount);
 
-                logTime(`开始归档 ${threadsToArchive.length} 个主题...`);
+                logTime(`开始清理 ${threadsToArchive.length} 个不活跃主题`);
+                
                 for (const threadInfo of threadsToArchive) {
                     try {
                         await delay(50); // 归档操作保持50ms延迟
                         await threadInfo.thread.setArchived(true, '自动清理不活跃主题');
                         statistics.archivedThreads++;
-                        if (statistics.archivedThreads % 25 === 0) {
-                            logTime(`已归档 ${statistics.archivedThreads}/${threadsToArchive.length} 个主题`);
-                        }
                     } catch (error) {
                         failedOperations.push({
                             threadId: threadInfo.threadId,
@@ -420,8 +396,10 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
                         });
                     }
                 }
+                
+                // 清理完成后只输出一条总结日志
+                logTime(`清理完成 - 归档用时: ${archiveTimer()}秒, 总执行时间: ${totalTimer()}秒`);
             }
-            logTime(`归档操作用时: ${archiveTimer()}秒`);
         }
 
         // 统计不活跃时间

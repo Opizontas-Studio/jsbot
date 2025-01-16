@@ -8,7 +8,7 @@ class RequestQueue {
     constructor() {
         this.queue = [];
         this.processing = false;
-        this.maxConcurrent = 5;
+        this.maxConcurrent = 10;
         this.currentProcessing = 0;
         this.maxWaitTime = 30000; // 最大等待时间
         this.maxRetries = 3; // 最大重试次数

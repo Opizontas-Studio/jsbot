@@ -35,10 +35,6 @@ module.exports = {
                 .addStringOption(option =>
                     option.setName('消息链接')
                         .setDescription('要标注的消息链接')
-                        .setRequired(true))
-                .addStringOption(option =>
-                    option.setName('操作')
-                        .setDescription('选择要执行的操作')
                         .setRequired(true)
                         .addChoices(
                             { name: '标注', value: 'pin' },
@@ -99,7 +95,7 @@ module.exports = {
                 await interaction.editReply({
                     content: '✅ 帖子已成功打开并解锁'
                 });
-                logTime(`用户 ${interaction.user.tag} 打开并解锁了帖子 ${thread.name}`);
+                logTime(`楼主 ${interaction.user.tag} 打开并解锁了帖子 ${thread.name}`);
 
             } catch (error) {
                 await handleCommandError(interaction, error, '打开帖子');
@@ -165,13 +161,13 @@ module.exports = {
                         await interaction.editReply({
                             content: '✅ 消息已标注'
                         });
-                        logTime(`用户 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+                        logTime(`楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
                     } else {
                         await message.unpin();
                         await interaction.editReply({
                             content: '✅ 消息已取消标注'
                         });
-                        logTime(`用户 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+                        logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
                     }
                 });
 
@@ -212,35 +208,59 @@ module.exports = {
                 });
 
                 if (confirmation.customId === 'confirm_delete') {
-                    await confirmation.deferUpdate();
-                    await interaction.editReply({
+                    await confirmation.update({
                         content: '⏳ 正在删除帖子...',
                         components: [],
                         embeds: []
                     });
 
-                    await globalRateLimiter.withRateLimit(async () => {
-                        await thread.delete('作者自行删除');
-                        await interaction.editReply({
-                            content: '✅ 帖子已成功删除',
-                            components: [],
-                            embeds: []
+                    try {
+                        const threadName = thread.name;
+                        const userTag = interaction.user.tag;
+                        
+                        await globalRateLimiter.withRateLimit(async () => {
+                            await thread.delete('作者自行删除');
                         });
-                        logTime(`用户 ${interaction.user.tag} 删除了自己的帖子 ${thread.name}`);
-                    });
+                        
+                        // 记录日志但不再尝试编辑交互
+                        logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
+                        
+                        // 不需要再发送确认消息，因为帖子和交互都已经被删除
+                        return;
+                    } catch (error) {
+                        // 如果删除过程中出现错误，尝试通知用户
+                        if (!thread.deleted) {
+                            await confirmation.editReply({
+                                content: `❌ 删除失败: ${error.message}`,
+                                components: [],
+                                embeds: []
+                            }).catch(() => {
+                                // 忽略编辑回复时的错误
+                                logTime(`删除帖子失败: ${error.message}`, true);
+                            });
+                        }
+                        throw error;
+                    }
                 }
             } catch (error) {
-                if (error.code === 'InteractionCollectorError') {
-                    await interaction.editReply({
-                        embeds: [{
-                            color: 0x808080,
-                            title: '❌ 确认已超时',
-                            description: '删帖操作已取消。如需删除请重新执行命令。',
-                        }],
-                        components: []
-                    });
-                } else {
-                    await handleCommandError(interaction, error, '删除帖子');
+                // 只处理未被删除的情况
+                if (!thread.deleted) {
+                    if (error.code === 'InteractionCollectorError') {
+                        await interaction.editReply({
+                            embeds: [{
+                                color: 0x808080,
+                                title: '❌ 确认已超时',
+                                description: '删帖操作已取消。如需删除请重新执行命令。',
+                            }],
+                            components: []
+                        }).catch(() => {
+                            // 忽略编辑回复时的错误
+                        });
+                    } else {
+                        await handleCommandError(interaction, error, '删除帖子').catch(() => {
+                            // 忽略错误处理时的错误
+                        });
+                    }
                 }
             }
         } 
@@ -290,7 +310,6 @@ module.exports = {
                             components: [],
                             embeds: []
                         });
-                        logTime(`用户 ${interaction.user.tag} 锁定并关闭了帖子 ${thread.name}`);
                     });
                 }
             } catch (error) {
@@ -359,7 +378,7 @@ module.exports = {
 
                         await globalRateLimiter.withRateLimit(async () => {
                             await handleSingleThread(interaction, guildConfig);
-                            logTime(`用户 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
+                            logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                         });
                     }
                 } catch (error) {

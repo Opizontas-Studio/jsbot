@@ -10,16 +10,8 @@ const { execSync } = require('child_process');
 // 添加获取 Git 版本信息的函数
 function getVersionInfo() {
     try {
-        let version;
-        try {
-            // 尝试从 git tag 获取版本
-            version = execSync('git describe --tags --abbrev=0').toString().trim();
-        } catch (error) {
-            // 如果获取 git tag 失败，从 package.json 读取版本号
-            const packageJson = require('./package.json');
-            version = 'v' + packageJson.version;
-        }
-
+        const packageJson = require('./package.json');
+        const version = 'v' + packageJson.version;
         const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
         const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
         return {
@@ -110,8 +102,7 @@ async function main() {
         // 在开始时记录版本信息
         const versionInfo = getVersionInfo();
         if (versionInfo) {
-            logTime(`Discord Bot ${versionInfo.version}`);
-            logTime(`提交: ${versionInfo.commitHash}`);
+            logTime(`GateKeeper in Odysseia ${versionInfo.version} (${versionInfo.commitHash})`);
             logTime(`提交时间: ${versionInfo.commitDate}`);
         }
 

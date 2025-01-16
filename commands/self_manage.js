@@ -34,6 +34,10 @@ module.exports = {
                 .addStringOption(option =>
                     option.setName('消息链接')
                         .setDescription('要标注的消息链接')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('操作')
+                        .setDescription('选择要执行的操作')
                         .setRequired(true)
                         .addChoices(
                             { name: '标注', value: 'pin' },

@@ -3,8 +3,29 @@ const { logTime } = require('../utils/helper');
 const { analyzeThreads } = require('../utils/analyzers');
 
 /**
+ * 执行自动清理
+ * @param {Client} client - Discord客户端实例
+ * @param {Object} guildConfig - 服务器配置
+ * @param {string} guildId - 服务器ID
+ */
+const runAutoCleanup = async (client, guildConfig, guildId) => {
+    if (!guildConfig.autoCleanup?.enabled) return;
+    
+    try {
+        logTime(`开始执行服务器 ${guildId} 的自动清理...`);
+        await analyzeThreads(client, guildConfig, guildId, {
+            clean: true,
+            threshold: guildConfig.autoCleanup.threshold || 960
+        });
+        logTime(`服务器 ${guildId} 的自动清理完成`);
+    } catch (error) {
+        logTime(`服务器 ${guildId} 的自动清理失败: ${error.message}`, true);
+    }
+};
+
+/**
  * 设置定时分析任务
- * 每半小时执行一次论坛子区分析
+ * 每半小时执行一次论坛子区分析和清理
  * @param {Client} client - Discord.js客户端实例
  */
 const scheduleAnalysis = (client) => {
@@ -27,19 +48,27 @@ const scheduleAnalysis = (client) => {
         const timeUntilNextRun = nextRun - now;
         
         // 设置定时执行
-        const runAnalysis = () => {
-            analyzeThreads(client, guildConfig, guildId)
-                .then(() => logTime(`服务器 ${guildId} 定时分析完成`))
-                .catch(error => logTime(`服务器 ${guildId} 定时分析失败: ${error}`, true));
+        const runTasks = async () => {
+            // 执行分析任务
+            try {
+                await analyzeThreads(client, guildConfig, guildId)
+                    .then(() => logTime(`服务器 ${guildId} 定时分析完成`))
+                    .catch(error => logTime(`服务器 ${guildId} 定时分析失败: ${error}`, true));
+            } catch (error) {
+                logTime(`服务器 ${guildId} 定时分析出错: ${error}`, true);
+            }
+
+            // 执行自动清理任务
+            await runAutoCleanup(client, guildConfig, guildId);
         };
 
         // 设置首次执行和定期执行（每30分钟）
         setTimeout(() => {
-            runAnalysis();
-            setInterval(runAnalysis, 30 * 60 * 1000);
+            runTasks();
+            setInterval(runTasks, 30 * 60 * 1000);
         }, timeUntilNextRun);
         
-        logTime(`服务器 ${guildId} 下次分析: ${nextRun.toLocaleTimeString()}`);
+        logTime(`服务器 ${guildId} 下次执行时间: ${nextRun.toLocaleTimeString()}`);
     }
 };
 

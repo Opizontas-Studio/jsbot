@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { logTime, handleCommandError, checkPermission, handlePermissionResult } = require('../utils/helper');
+const { logTime, handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } = require('../utils/helper');
 const { globalRateLimiter } = require('../utils/concurrency');
 
 module.exports = {
@@ -14,7 +14,11 @@ module.exports = {
                 .addChoices(
                     { name: '闭关锁国', value: 'enable' },
                     { name: '开闸放水', value: 'disable' }
-                )),
+                ))
+        .addStringOption(option =>
+            option.setName('理由')
+                .setDescription('执行此操作的原因')
+                .setRequired(true)),
 
     async execute(interaction, guildConfig) {
         // 权限检查
@@ -28,6 +32,7 @@ module.exports = {
 
         await interaction.deferReply({ flags: ['Ephemeral'] });
         const action = interaction.options.getString('操作');
+        const reason = interaction.options.getString('理由');
         const guild = interaction.guild;
 
         // 检查机器人权限
@@ -55,6 +60,23 @@ module.exports = {
                 description: action === 'enable' ? 
                     '你确定要暂停服务器的邀请功能吗？\n\n**⚠️ 警告：开启后将无法使用邀请链接！**' :
                     '你确定要恢复服务器的邀请功能吗？',
+                fields: [
+                    {
+                        name: '操作',
+                        value: action === 'enable' ? '暂停邀请' : '恢复邀请',
+                        inline: true
+                    },
+                    {
+                        name: '执行人',
+                        value: `<@${interaction.user.id}>`,
+                        inline: true
+                    },
+                    {
+                        name: '原因',
+                        value: reason,
+                        inline: false
+                    }
+                ],
                 footer: {
                     text: '此确认按钮将在5分钟后失效'
                 }
@@ -84,6 +106,16 @@ module.exports = {
                             await guild.edit({
                                 features: [...features, 'INVITES_DISABLED']
                             });
+                            
+                            // 发送管理日志
+                            await sendModerationLog(interaction.client, guildConfig.moderationThreadId, {
+                                title: '🔒 服务器邀请功能已暂停',
+                                executorId: interaction.user.id,
+                                threadName: '服务器邀请管理',
+                                threadUrl: interaction.channel.url,
+                                reason: reason
+                            });
+
                             logTime(`管理员 ${interaction.user.tag} 暂停了服务器 ${guild.name} 的邀请功能`);
                             await interaction.editReply({
                                 content: '✅ 已成功暂停服务器邀请功能',
@@ -103,6 +135,16 @@ module.exports = {
                             await guild.edit({
                                 features: features.filter(f => f !== 'INVITES_DISABLED')
                             });
+
+                            // 发送管理日志
+                            await sendModerationLog(interaction.client, guildConfig.moderationThreadId, {
+                                title: '🔓 服务器邀请功能已恢复',
+                                executorId: interaction.user.id,
+                                threadName: '服务器邀请管理',
+                                threadUrl: interaction.channel.url,
+                                reason: reason
+                            });
+
                             logTime(`管理员 ${interaction.user.tag} 恢复了服务器 ${guild.name} 的邀请功能`);
                             await interaction.editReply({
                                 content: '✅ 已成功恢复服务器邀请功能',

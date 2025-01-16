@@ -1,7 +1,7 @@
 const { Events, Collection } = require('discord.js');
 const { logTime } = require('../utils/helper');
 const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
-const { handleButtonInteraction, handleModalSubmit } = require('./roleApplication');
+const { handleButtonInteraction, handleModalSubmit } = require('../utils/roleApplication');
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();

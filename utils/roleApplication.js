@@ -1,5 +1,4 @@
 const { 
-    Events, 
     ActionRowBuilder, 
     ButtonBuilder, 
     ButtonStyle, 
@@ -10,7 +9,7 @@ const {
     ChannelType,
     Collection 
 } = require('discord.js');
-const { logTime } = require('../utils/helper');
+const { logTime } = require('./helper');
 const fs = require('node:fs');
 const path = require('node:path');
 

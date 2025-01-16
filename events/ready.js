@@ -2,7 +2,7 @@ const { Events } = require('discord.js');
 const { logTime } = require('../utils/helper');
 const { analyzeThreads } = require('../utils/analyzers');
 const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
-const { createApplicationMessage } = require('./roleApplication');
+const { createApplicationMessage } = require('../utils/roleApplication');
 
 /**
  * 执行定时任务

@@ -1,5 +1,6 @@
 const { Events, Collection } = require('discord.js');
 const { logTime } = require('../utils/helper');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
@@ -60,8 +61,14 @@ module.exports = {
         setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
 
         try {
-            // 传入服务器配置
-            await command.execute(interaction, guildConfig);
+            // 使用全局请求队列处理命令
+            await globalRequestQueue.add(
+                async () => {
+                    await command.execute(interaction, guildConfig);
+                },
+                // 设置优先级：管理命令优先级更高
+                command.data.name.startsWith('mod_') ? 1 : 0
+            );
         } catch (error) {
             logTime(`执行命令 ${interaction.commandName} 时出错: ${error}`, true);
             const message = '执行此命令时出现错误。';

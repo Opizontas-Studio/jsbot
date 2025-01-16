@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { logTime, lockAndArchiveThread, handleCommandError } = require('../utils/helper');
 const { handleSingleThread } = require('./mod_prune');
+const { globalRateLimiter } = require('../utils/concurrency');
 
 module.exports = {
     cooldown: 10,
@@ -153,17 +154,23 @@ module.exports = {
                     return;
                 }
 
-                if (action === 'pin') {
-                    await message.pin();
-                    await interaction.editReply({
-                        content: '✅ 消息已标注'
-                    });
-                } else {
-                    await message.unpin();
-                    await interaction.editReply({
-                        content: '✅ 消息已取消标注'
-                    });
-                }
+                await interaction.editReply({
+                    content: '⏳ 正在处理...'
+                });
+
+                await globalRateLimiter.withRateLimit(async () => {
+                    if (action === 'pin') {
+                        await message.pin();
+                        await interaction.editReply({
+                            content: '✅ 消息已标注'
+                        });
+                    } else {
+                        await message.unpin();
+                        await interaction.editReply({
+                            content: '✅ 消息已取消标注'
+                        });
+                    }
+                });
 
             } catch (error) {
                 await handleCommandError(interaction, error, '标注消息');
@@ -202,13 +209,22 @@ module.exports = {
                 });
 
                 if (confirmation.customId === 'confirm_delete') {
-                    await thread.delete('作者自行删除');
+                    await confirmation.deferUpdate();
                     await interaction.editReply({
-                        content: '✅ 帖子已成功删除',
+                        content: '⏳ 正在删除帖子...',
                         components: [],
                         embeds: []
                     });
-                    logTime(`用户 ${interaction.user.tag} 删除了自己的帖子 ${thread.name}`);
+
+                    await globalRateLimiter.withRateLimit(async () => {
+                        await thread.delete('作者自行删除');
+                        await interaction.editReply({
+                            content: '✅ 帖子已成功删除',
+                            components: [],
+                            embeds: []
+                        });
+                        logTime(`用户 ${interaction.user.tag} 删除了自己的帖子 ${thread.name}`);
+                    });
                 }
             } catch (error) {
                 if (error.code === 'InteractionCollectorError') {
@@ -242,7 +258,7 @@ module.exports = {
                 embeds: [{
                     color: 0xff0000,
                     title: '⚠️ 锁定确认',
-                    description: `你确定要锁定并关闭帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：锁定后其他人将无法回复！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}\n锁定原因：${reason}`,
+                    description: `你确定要锁定并关闭帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：锁定后其他人将无法回复！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}\n锁定原因：${reason || '未提供'}`,
                     footer: {
                         text: '此确认按钮将在5分钟后失效'
                     }
@@ -257,11 +273,20 @@ module.exports = {
                 });
 
                 if (confirmation.customId === 'confirm_lock') {
-                    await lockAndArchiveThreadBase(thread, interaction.user, reason);
+                    await confirmation.deferUpdate();
                     await interaction.editReply({
-                        content: '✅ 帖子已成功锁定并归档',
+                        content: '⏳ 正在锁定帖子...',
                         components: [],
                         embeds: []
+                    });
+
+                    await globalRateLimiter.withRateLimit(async () => {
+                        await lockAndArchiveThread(thread, interaction.user, reason || '作者自行锁定', guildConfig);
+                        await interaction.editReply({
+                            content: '✅ 帖子已成功锁定并关闭',
+                            components: [],
+                            embeds: []
+                        });
                     });
                 }
             } catch (error) {
@@ -321,13 +346,16 @@ module.exports = {
                     });
 
                     if (confirmation.customId === 'confirm_clean') {
+                        await confirmation.deferUpdate();
                         await interaction.editReply({
-                            content: '正在开始清理...',
+                            content: '⏳ 正在开始清理...',
                             components: [],
                             embeds: []
                         });
 
-                        await handleSingleThread(interaction, guildConfig);
+                        await globalRateLimiter.withRateLimit(async () => {
+                            await handleSingleThread(interaction, guildConfig);
+                        });
                     }
                 } catch (error) {
                     if (error.code === 'InteractionCollectorError') {

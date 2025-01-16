@@ -1,4 +1,5 @@
 const { logTime } = require('./helper');
+const { globalBatchProcessor, globalRateLimiter } = require('./concurrency');
 
 /**
  * 发送子区清理报告
@@ -76,38 +77,55 @@ async function cleanThreadMembers(thread, threshold, options = {}, progressCallb
         let lastId;
         let messagesProcessed = 0;
 
-        // 使用并行批处理获取消息历史
+        // 使用并发控制的批量处理获取消息历史
         async function fetchMessagesBatch(beforeId) {
             const options = { limit: 100 };
             if (beforeId) options.before = beforeId;
             
-            try {
-                const messages = await thread.messages.fetch(options);
-                return messages;
-            } catch (error) {
-                logTime(`获取消息批次失败: ${error.message}`, true);
-                return null;
-            }
+            return await globalRateLimiter.withRateLimit(async () => {
+                try {
+                    const messages = await thread.messages.fetch(options);
+                    return messages;
+                } catch (error) {
+                    logTime(`获取消息批次失败: ${error.message}`, true);
+                    return null;
+                }
+            });
         }
 
         let totalBatches = 0;
         while (true) {
             totalBatches++;
-            // 创建10个并行批次
-            const batchPromises = [];
+            
+            // 创建批次任务
+            const batchTasks = [];
             for (let i = 0; i < 10; i++) {
                 if (i === 0) {
-                    batchPromises.push(fetchMessagesBatch(lastId));
+                    batchTasks.push(() => fetchMessagesBatch(lastId));
                 } else {
-                    const prevBatch = await batchPromises[i - 1];
+                    const prevBatch = await batchTasks[i - 1]();
                     if (!prevBatch || prevBatch.size === 0) break;
-                    batchPromises.push(fetchMessagesBatch(prevBatch.last().id));
+                    batchTasks.push(() => fetchMessagesBatch(prevBatch.last().id));
                 }
             }
 
-            if (batchPromises.length === 0) break;
+            if (batchTasks.length === 0) break;
 
-            const results = await Promise.all(batchPromises);
+            // 使用批处理器处理消息批次
+            const results = await globalBatchProcessor.processBatch(
+                batchTasks,
+                task => task(),
+                (progress) => {
+                    progressCallback({
+                        type: 'message_scan',
+                        thread,
+                        messagesProcessed,
+                        totalBatches,
+                        batchProgress: progress
+                    });
+                }
+            );
+
             let batchMessagesCount = 0;
             
             for (const messages of results) {

@@ -10,8 +10,16 @@ const { execSync } = require('child_process');
 // 添加获取 Git 版本信息的函数
 function getVersionInfo() {
     try {
-        // 获取最新的tag
-        const version = execSync('git describe --tags --abbrev=0').toString().trim();
+        let version;
+        try {
+            // 尝试从 git tag 获取版本
+            version = execSync('git describe --tags --abbrev=0').toString().trim();
+        } catch (error) {
+            // 如果获取 git tag 失败，从 package.json 读取版本号
+            const packageJson = require('./package.json');
+            version = 'v' + packageJson.version;
+        }
+
         const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
         const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
         return {

@@ -1,6 +1,7 @@
 const { Events, Collection } = require('discord.js');
 const { logTime } = require('../utils/helper');
 const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
+const { handleButtonInteraction, handleModalSubmit } = require('./roleApplication');
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
@@ -15,6 +16,16 @@ const DEFAULT_COOLDOWN = 5;
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
+        // 处理身份组申请相关的交互
+        if (interaction.isButton()) {
+            await handleButtonInteraction(interaction);
+            return;
+        } else if (interaction.isModalSubmit()) {
+            await handleModalSubmit(interaction);
+            return;
+        }
+
+        // 只处理斜杠命令
         if (!interaction.isChatInputCommand()) return;
 
         // 获取服务器特定配置

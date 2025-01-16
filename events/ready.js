@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const { logTime } = require('../utils/helper');
 const { analyzeThreads } = require('../utils/analyzers');
 const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
+const { createApplicationMessage } = require('./roleApplication');
 
 /**
  * 执行定时任务
@@ -105,6 +106,9 @@ module.exports = {
     async execute(client) {
         logTime(`已登录: ${client.user.tag}`);
         scheduleAnalysis(client);
+        
+        // 初始化身份组申请消息
+        await createApplicationMessage(client);
         
         // 监听分片断开连接事件
         client.on('shardDisconnect', (event, id) => {

@@ -44,7 +44,6 @@ client.guildManager = new GuildManager();
 function loadEvents() {
     const eventsPath = path.join(__dirname, 'events');
     const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-    const loadedEvents = new Set(); // 用于跟踪已加载的事件
 
     logTime(`开始加载 ${eventFiles.length} 个事件处理器`);
     for (const file of eventFiles) {
@@ -59,13 +58,6 @@ function loadEvents() {
                 continue;
             }
 
-            // 检查是否已经加载过相同的事件
-            const eventKey = `${event.name}${event.once ? ':once' : ''}`;
-            if (loadedEvents.has(eventKey)) {
-                logTime(`警告: 跳过重复事件 ${event.name} (在文件 ${file} 中)`, true);
-                continue;
-            }
-
             const eventHandler = (...args) => event.execute(...args);
             
             if (event.once) {
@@ -73,8 +65,6 @@ function loadEvents() {
             } else {
                 client.on(event.name, eventHandler);
             }
-
-            loadedEvents.add(eventKey);
             logTime(`已加载事件: ${event.name}`);
         }
     }

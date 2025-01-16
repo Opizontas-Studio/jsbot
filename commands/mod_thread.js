@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { checkPermission, handlePermissionResult, logTime, checkChannelPermission, sendModerationLog, sendThreadNotification } = require('../utils/helper');
+const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
 
 /**
  * 管理命令 - 管理论坛帖子
@@ -93,26 +94,30 @@ module.exports = {
 
             // 执行操作
             let actionResult;
-            switch (action) {
-                case 'lock':
-                    actionResult = await thread.setLocked(true, reason);
-                    break;
-                case 'unlock':
-                    actionResult = await thread.setLocked(false, reason);
-                    break;
-                case 'archive':
-                    actionResult = await thread.setArchived(true, reason);
-                    break;
-                case 'unarchive':
-                    actionResult = await thread.setArchived(false, reason);
-                    break;
-                case 'pin':
-                    actionResult = await thread.pin(reason);
-                    break;
-                case 'unpin':
-                    actionResult = await thread.unpin(reason);
-                    break;
-            }
+            await globalRequestQueue.add(async () => {
+                await globalRateLimiter.withRateLimit(async () => {
+                    switch (action) {
+                        case 'lock':
+                            actionResult = await thread.setLocked(true, reason);
+                            break;
+                        case 'unlock':
+                            actionResult = await thread.setLocked(false, reason);
+                            break;
+                        case 'archive':
+                            actionResult = await thread.setArchived(true, reason);
+                            break;
+                        case 'unarchive':
+                            actionResult = await thread.setArchived(false, reason);
+                            break;
+                        case 'pin':
+                            actionResult = await thread.pin(reason);
+                            break;
+                        case 'unpin':
+                            actionResult = await thread.unpin(reason);
+                            break;
+                    }
+                });
+            }, 1);
 
             // 构建操作描述
             const actionDesc = {

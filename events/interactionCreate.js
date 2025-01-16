@@ -1,12 +1,12 @@
 const { Events, Collection } = require('discord.js');
 const { logTime } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
 
 // 默认冷却时间（秒）
-const DEFAULT_COOLDOWN = 3;
+const DEFAULT_COOLDOWN = 5;
 
 /**
  * 处理Discord斜杠命令交互
@@ -61,13 +61,27 @@ module.exports = {
         setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
 
         try {
+            // 根据命令类型设置不同的优先级
+            let priority = 0;
+            if (command.data.name.startsWith('mod_')) {
+                priority = 2; // 管理命令最高优先级
+            } else if (command.data.name === 'self_manage') {
+                priority = 1; // 自助管理次高优先级
+            }
+
             // 使用全局请求队列处理命令
             await globalRequestQueue.add(
                 async () => {
-                    await command.execute(interaction, guildConfig);
+                    // 对于高频操作命令使用速率限制
+                    if (['self_manage', 'mod_thread'].includes(command.data.name)) {
+                        return await globalRateLimiter.withRateLimit(async () => {
+                            await command.execute(interaction, guildConfig);
+                        });
+                    } else {
+                        await command.execute(interaction, guildConfig);
+                    }
                 },
-                // 设置优先级：管理命令优先级更高
-                command.data.name.startsWith('mod_') ? 1 : 0
+                priority
             );
         } catch (error) {
             logTime(`执行命令 ${interaction.commandName} 时出错: ${error}`, true);

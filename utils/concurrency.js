@@ -8,6 +8,8 @@ class RequestQueue {
     constructor() {
         this.queue = [];
         this.processing = false;
+        this.maxConcurrent = 5; // 添加最大并发数限制
+        this.currentProcessing = 0;
     }
 
     async add(task, priority = 0) {
@@ -36,9 +38,11 @@ class RequestQueue {
         if (this.processing) return;
         this.processing = true;
 
-        while (this.queue.length > 0) {
+        while (this.queue.length > 0 && this.currentProcessing < this.maxConcurrent) {
             const { task, resolve, reject, timestamp } = this.queue.shift();
             const waitTime = Date.now() - timestamp;
+            
+            this.currentProcessing++;
 
             try {
                 const result = await task();
@@ -47,13 +51,18 @@ class RequestQueue {
             } catch (error) {
                 reject(error);
                 logTime(`请求处理失败，等待时间: ${waitTime}ms，错误: ${error.message}`, true);
+            } finally {
+                this.currentProcessing--;
             }
 
-            // 添加小延迟避免API限制
-            await new Promise(r => setTimeout(r, 50));
+            // 增加延迟以避免API限制
+            await new Promise(r => setTimeout(r, 100));
         }
 
-        this.processing = false;
+        this.processing = this.currentProcessing > 0;
+        if (this.queue.length > 0) {
+            this.process();
+        }
     }
 }
 
@@ -129,8 +138,8 @@ class RateLimiter {
 
 // 创建单例实例
 const globalRequestQueue = new RequestQueue();
-const globalRateLimiter = new RateLimiter();
-const globalBatchProcessor = new BatchProcessor();
+const globalRateLimiter = new RateLimiter(10, 1000); // 每秒最多10个请求
+const globalBatchProcessor = new BatchProcessor(5, 200); // 每批5个请求，间隔200ms
 
 module.exports = {
     RequestQueue,

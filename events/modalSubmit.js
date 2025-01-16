@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, ChannelType } = require('discord.js');
 const { logTime } = require('../utils/helper');
 
 module.exports = {

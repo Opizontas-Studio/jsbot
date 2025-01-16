@@ -1,4 +1,4 @@
-const { Events, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { logTime } = require('../utils/helper');
 
 module.exports = {

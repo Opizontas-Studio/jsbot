@@ -1,14 +1,17 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { REST, Routes } = require('discord.js');
-const { logTime, measureTime, loadCommandFiles } = require('../utils/helper');
+const { logTime, measureTime, loadCommandFiles, checkPermission, handlePermissionResult } = require('../utils/helper');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('同步指令')
-        .setDescription('清除并重新同步所有Discord指令')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // 仅管理员可用
+        .setDescription('清除并重新同步所有Discord指令'),
 
     async execute(interaction, guildConfig) {
+        // 检查用户是否有执行权限
+        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
+        if (!await handlePermissionResult(interaction, hasPermission)) return;
+
         await interaction.deferReply({ ephemeral: true });
         
         try {

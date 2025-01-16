@@ -1,6 +1,6 @@
 const { DiscordAPIError } = require('@discordjs/rest');
 const { RESTJSONErrorCodes } = require('discord-api-types/v10');
-const { codeBlock, ChannelFlags } = require('discord.js');
+const { ChannelFlags } = require('discord.js');
 const { logTime, delay, measureTime } = require('./helper');
 const fs = require('fs').promises;
 const path = require('path');

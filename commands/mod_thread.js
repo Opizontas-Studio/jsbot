@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { checkPermission, handlePermissionResult, logTime, checkChannelPermission, sendModerationLog, sendThreadNotification } = require('../utils/helper');
+const { logTime, checkChannelPermission, sendModerationLog, sendThreadNotification } = require('../utils/helper');
 const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
 
 /**
@@ -117,7 +117,7 @@ module.exports = {
                             break;
                     }
                 });
-            }, 1);
+            }, 2);
 
             // 构建操作描述
             const actionDesc = {

@@ -124,7 +124,8 @@ async function cleanThreadMembers(thread, threshold, options = {}, progressCallb
                             totalBatches,
                             batchProgress: progress
                         });
-                    }
+                    },
+                    'messageHistory'
                 );
 
                 let batchMessagesCount = 0;
@@ -177,14 +178,22 @@ async function cleanThreadMembers(thread, threshold, options = {}, progressCallb
                 ];
             }
 
-            // 使用5个一组的并行批处理来移除成员
-            let removedCount = 0;
-            let removeBatchCount = 0;
+            const result = {
+                status: 'completed',
+                name: thread.name,
+                url: thread.url,
+                originalCount: memberCount,
+                removedCount: 0,
+                inactiveCount: inactiveMembers.size,
+                lowActivityCount: needToRemove - inactiveMembers.size > 0 ? needToRemove - inactiveMembers.size : 0,
+                messagesProcessed,
+                messagesBatches: totalBatches
+            };
 
-            for (let i = 0; i < toRemove.length; i += 5) {
-                removeBatchCount++;
-                const batch = toRemove.slice(i, i + 5);
-                const removePromises = batch.map(async member => {
+            // 使用 BatchProcessor 处理成员移除
+            const removedResults = await globalBatchProcessor.processBatch(
+                toRemove,
+                async (member) => {
                     try {
                         await thread.members.remove(member.id);
                         return true;
@@ -192,34 +201,22 @@ async function cleanThreadMembers(thread, threshold, options = {}, progressCallb
                         logTime(`移除成员失败 ${member.id}: ${error.message}`, true);
                         return false;
                     }
-                });
+                },
+                async (progress, processed, total) => {
+                    result.removedCount = processed;
+                    await progressCallback({
+                        type: 'member_remove',
+                        thread,
+                        removedCount: processed,
+                        totalToRemove: total,
+                        batchCount: Math.ceil(processed / 5)
+                    });
+                },
+                'memberRemove'
+            );
 
-                const results = await Promise.all(removePromises);
-                const batchRemoved = results.filter(success => success).length;
-                removedCount += batchRemoved;
+            result.removedCount = removedResults.filter(success => success).length;
 
-                await progressCallback({
-                    type: 'member_remove',
-                    thread,
-                    removedCount,
-                    totalToRemove: toRemove.length,
-                    batchCount: removeBatchCount
-                });
-            }
-
-            const result = {
-                status: 'completed',
-                name: thread.name,
-                url: thread.url,
-                originalCount: memberCount,
-                removedCount,
-                inactiveCount: inactiveMembers.size,
-                lowActivityCount: needToRemove - inactiveMembers.size > 0 ? needToRemove - inactiveMembers.size : 0,
-                messagesProcessed,
-                messagesBatches: totalBatches
-            };
-
-            // 如果配置了发送子区报告，则发送
             if (options.sendThreadReport) {
                 await sendThreadReport(thread, result);
             }

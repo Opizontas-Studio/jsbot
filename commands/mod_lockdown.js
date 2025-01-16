@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { logTime, handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } = require('../utils/helper');
-const { globalRateLimiter } = require('../utils/concurrency');
 const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {

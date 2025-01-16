@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { checkPermission, handlePermissionResult, logTime, generateProgressReport, handleCommandError } = require('../utils/helper');
 const { cleanThreadMembers } = require('../utils/cleaner');
-const { globalBatchProcessor, globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
+const { globalBatchProcessor, globalRateLimiter } = require('../utils/concurrency');
 
 /**
  * 清理子区不活跃用户命令
@@ -153,7 +153,8 @@ async function handleAllThreads(interaction, guildConfig) {
                     content: `⏳ 正在检查子区人数... (${processed}/${total})`,
                     flags: ['Ephemeral']
                 });
-            }
+            },
+            'threadCheck'  // 指定任务类型为子区检查
         );
 
         // 处理结果
@@ -198,17 +199,13 @@ async function handleAllThreads(interaction, guildConfig) {
 
         // 处理结果存储
         const cleanupResults = [];
-        let processedCount = 0;
 
-        // 每批处理5个子区
-        const batchSize = 5;
-        for (let i = 0; i < threadsToClean.length; i += batchSize) {
-            const batch = threadsToClean.slice(i, i + batchSize);
-            
-            const batchPromises = batch.map(async ({ thread }) => {
-                processedCount++;
+        // 使用 BatchProcessor 处理子区清理
+        const cleanupBatchResults = await globalBatchProcessor.processBatch(
+            threadsToClean,
+            async ({ thread }) => {
                 await interaction.editReply({
-                    content: generateProgressReport(processedCount, threadsToClean.length, `正在处理 - ${thread.name}\n`),
+                    content: generateProgressReport(cleanupResults.length + 1, threadsToClean.length, `正在处理 - ${thread.name}\n`),
                     flags: ['Ephemeral']
                 });
 
@@ -224,11 +221,16 @@ async function handleAllThreads(interaction, guildConfig) {
                         }
                     }
                 );
-            });
+            },
+            async (progress, processed, total) => {
+                if (processed % 5 === 0) {
+                    logTime(`已完成 ${processed}/${total} 个子区的清理`);
+                }
+            },
+            'memberRemove'  // 使用较小批次处理子区清理
+        );
 
-            const batchResults = await Promise.all(batchPromises);
-            cleanupResults.push(...batchResults.filter(result => result.status === 'completed'));
-        }
+        cleanupResults.push(...cleanupBatchResults.filter(result => result.status === 'completed'));
 
         // 发送总结报告
         await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);

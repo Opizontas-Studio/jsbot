@@ -121,17 +121,39 @@ class RequestQueue {
  * 用于控制批量操作的并发和延迟
  */
 class BatchProcessor {
-    constructor(batchSize = 10, delayMs = 100) {
-        this.batchSize = batchSize;
-        this.delayMs = delayMs;
+    constructor() {
+        // 不同任务类型的批处理配置
+        this.configs = {
+            // 子区检查 - 较大批次，较短延迟
+            threadCheck: {
+                batchSize: 15,
+                delayMs: 100
+            },
+            // 消息历史 - 中等批次，较长延迟
+            messageHistory: {
+                batchSize: 10,
+                delayMs: 300
+            },
+            // 成员移除 - 小批次，较长延迟
+            memberRemove: {
+                batchSize: 5,
+                delayMs: 500
+            },
+            // 默认配置
+            default: {
+                batchSize: 10,
+                delayMs: 200
+            }
+        };
     }
 
-    async processBatch(items, processor, progressCallback = null) {
+    async processBatch(items, processor, progressCallback = null, taskType = 'default') {
+        const config = this.configs[taskType] || this.configs.default;
         const results = [];
         const totalItems = items.length;
 
-        for (let i = 0; i < items.length; i += this.batchSize) {
-            const batch = items.slice(i, i + this.batchSize);
+        for (let i = 0; i < items.length; i += config.batchSize) {
+            const batch = items.slice(i, i + config.batchSize);
             const batchResults = await Promise.all(
                 batch.map(item => processor(item))
             );
@@ -145,8 +167,8 @@ class BatchProcessor {
             }
 
             // 添加延迟，除非是最后一批
-            if (i + this.batchSize < items.length) {
-                await new Promise(r => setTimeout(r, this.delayMs));
+            if (i + config.batchSize < items.length) {
+                await new Promise(r => setTimeout(r, config.delayMs));
             }
         }
 
@@ -189,7 +211,7 @@ class RateLimiter {
 // 创建单例实例
 const globalRequestQueue = new RequestQueue();
 const globalRateLimiter = new RateLimiter(10, 1000); // 每秒最多10个请求
-const globalBatchProcessor = new BatchProcessor(5, 200); // 每批5个请求，间隔200ms
+const globalBatchProcessor = new BatchProcessor();
 
 module.exports = {
     RequestQueue,

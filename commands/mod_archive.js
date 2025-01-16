@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { analyzeThreads } = require('../utils/analyzers');
 const { checkPermission, handlePermissionResult, measureTime } = require('../utils/helper');
 

@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { logTime, lockAndArchiveThread, handleCommandError } = require('../utils/helper');
 const { handleSingleThread } = require('./mod_prune');
-const { globalRateLimiter, globalRequestQueue } = require('../utils/concurrency');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {
     cooldown: 10,
@@ -116,7 +116,7 @@ module.exports = {
                         });
                         logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
                     }
-                }, 1);
+                }, 2);
 
             } catch (error) {
                 await handleCommandError(interaction, error, '标注消息');
@@ -167,12 +167,10 @@ module.exports = {
                         
                         await globalRequestQueue.add(async () => {
                             await thread.delete('作者自行删除');
-                        }, 2);
+                        }, 3);
                         
-                        // 记录日志但不再尝试编辑交互
+                        // 记录日志
                         logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
-                        
-                        // 不需要再发送确认消息，因为帖子和交互都已经被删除
                         return;
                     } catch (error) {
                         // 如果删除过程中出现错误，尝试通知用户
@@ -257,7 +255,7 @@ module.exports = {
                             components: [],
                             embeds: []
                         });
-                    }, 2);
+                    }, 3);
                 }
             } catch (error) {
                 if (error.code === 'InteractionCollectorError') {

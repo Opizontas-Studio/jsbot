@@ -25,7 +25,7 @@ module.exports = {
         // 设置命令需要的默认权限为管理消息
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-    async execute(interaction, guildConfig) {
+    async execute(interaction) {
         try {
             // 立即发送延迟响应
             await interaction.deferReply({ flags: ['Ephemeral'] });

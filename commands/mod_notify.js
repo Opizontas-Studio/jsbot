@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { handleCommandError } = require('../utils/helper');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {
     // 设置命令冷却时间为5秒
@@ -44,23 +45,24 @@ module.exports = {
             const title = interaction.options.getString('标题');
             const description = interaction.options.getString('内容');
 
-            // 创建并发送embed消息
-            await channel.send({
-                embeds: [{
-                    color: 0x0099ff, // 蓝色
-                    title: title,
-                    description: description,
-                    timestamp: new Date(),
-                    footer: {
-                        text: `由 ${interaction.user.tag} 发送`
-                    }
-                }]
-            });
+            // 加入队列发送通知
+            await globalRequestQueue.add(async () => {
+                await channel.send({
+                    embeds: [{
+                        color: 0x0099ff,
+                        title: title,
+                        description: description,
+                        timestamp: new Date(),
+                        footer: {
+                            text: `由 ${interaction.user.tag} 发送`
+                        }
+                    }]
+                });
 
-            // 回复成功消息
-            await interaction.editReply({
-                content: '✅ 通知已发送'
-            });
+                await interaction.editReply({
+                    content: '✅ 通知已发送'
+                });
+            }, 2); // 高优先级
 
         } catch (error) {
             await handleCommandError(interaction, error, '发送通知');

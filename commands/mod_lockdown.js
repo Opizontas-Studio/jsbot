@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { logTime, handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } = require('../utils/helper');
 const { globalRateLimiter } = require('../utils/concurrency');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {
     cooldown: 10,
@@ -98,7 +99,7 @@ module.exports = {
                     embeds: []
                 });
 
-                await globalRateLimiter.withRateLimit(async () => {
+                await globalRequestQueue.add(async () => {
                     const features = guild.features;
                     if (action === 'enable') {
                         // 启用邀请暂停
@@ -159,7 +160,7 @@ module.exports = {
                             });
                         }
                     }
-                });
+                }, 3); // 高优先级，影响全服务器
             }
         } catch (error) {
             if (error.code === 'InteractionCollectorError') {

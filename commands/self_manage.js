@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { logTime, lockAndArchiveThread, handleCommandError } = require('../utils/helper');
 const { handleSingleThread } = require('./mod_prune');
-const { globalRateLimiter } = require('../utils/concurrency');
+const { globalRateLimiter, globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {
     cooldown: 10,
@@ -102,7 +102,7 @@ module.exports = {
                     content: '⏳ 正在处理...'
                 });
 
-                await globalRateLimiter.withRateLimit(async () => {
+                await globalRequestQueue.add(async () => {
                     if (action === 'pin') {
                         await message.pin();
                         await interaction.editReply({
@@ -116,7 +116,7 @@ module.exports = {
                         });
                         logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
                     }
-                });
+                }, 1);
 
             } catch (error) {
                 await handleCommandError(interaction, error, '标注消息');
@@ -165,9 +165,9 @@ module.exports = {
                         const threadName = thread.name;
                         const userTag = interaction.user.tag;
                         
-                        await globalRateLimiter.withRateLimit(async () => {
+                        await globalRequestQueue.add(async () => {
                             await thread.delete('作者自行删除');
-                        });
+                        }, 2);
                         
                         // 记录日志但不再尝试编辑交互
                         logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
@@ -250,14 +250,14 @@ module.exports = {
                         embeds: []
                     });
 
-                    await globalRateLimiter.withRateLimit(async () => {
+                    await globalRequestQueue.add(async () => {
                         await lockAndArchiveThread(thread, interaction.user, reason || '作者自行锁定', guildConfig);
                         await interaction.editReply({
                             content: '✅ 帖子已成功锁定并关闭',
                             components: [],
                             embeds: []
                         });
-                    });
+                    }, 2);
                 }
             } catch (error) {
                 if (error.code === 'InteractionCollectorError') {
@@ -340,10 +340,10 @@ module.exports = {
                             embeds: []
                         });
 
-                        await globalRateLimiter.withRateLimit(async () => {
+                        await globalRequestQueue.add(async () => {
                             await handleSingleThread(interaction, guildConfig);
                             logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
-                        });
+                        }, 0);
                     }
                 } catch (error) {
                     if (error.code === 'InteractionCollectorError') {

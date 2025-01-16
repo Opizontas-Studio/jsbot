@@ -18,17 +18,14 @@ const runScheduledTasks = async (client, guildConfig, guildId) => {
                 // 只在启用自动分析时执行分析任务
                 if (guildConfig.automation?.analysis) {
                     await analyzeThreads(client, guildConfig, guildId);
-                    logTime(`服务器 ${guildId} 的定时分析完成`);
                 }
 
                 // 只在启用自动清理时执行清理
                 if (guildConfig.automation?.cleanup?.enabled) {
-                    logTime(`开始执行服务器 ${guildId} 的自动清理...`);
                     await analyzeThreads(client, guildConfig, guildId, {
                         clean: true,
                         threshold: guildConfig.automation.cleanup.threshold || 960
                     });
-                    logTime(`服务器 ${guildId} 的自动清理完成`);
                 }
             });
         }, 0); // 使用最低优先级

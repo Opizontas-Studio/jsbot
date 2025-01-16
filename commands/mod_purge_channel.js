@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { checkPermission, handlePermissionResult, measureTime, logTime, delay } = require('../utils/helper');
+const { globalRequestQueue } = require('../utils/globalRequestQueue');
 
 module.exports = {
     cooldown: 10,
@@ -116,11 +117,9 @@ module.exports = {
 
                         // 批量删除新消息
                         if (recentMessages.size > 0) {
-                            await channel.bulkDelete(recentMessages)
-                                .catch(async error => {
-                                    logTime(`批量删除失败: ${error.message}`, true);
-                                });
-                            await delay(5000);
+                            await globalRequestQueue.add(async () => {
+                                await channel.bulkDelete(recentMessages);
+                            }, 1);
                         }
 
                         // 逐个删除旧消息

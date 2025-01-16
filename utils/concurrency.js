@@ -8,8 +8,15 @@ class RequestQueue {
     constructor() {
         this.queue = [];
         this.processing = false;
-        this.maxConcurrent = 5; // 添加最大并发数限制
+        this.maxConcurrent = 5;
         this.currentProcessing = 0;
+        this.maxWaitTime = 30000; // 最大等待时间
+        this.maxRetries = 3; // 最大重试次数
+        this.stats = {
+            processed: 0,
+            failed: 0,
+            retried: 0
+        };
     }
 
     async add(task, priority = 0) {
@@ -19,9 +26,14 @@ class RequestQueue {
                 priority,
                 resolve,
                 reject,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                retries: 0,
+                originalPriority: priority // 保存原始优先级
             };
 
+            // 动态提升等待过久的任务优先级
+            this.adjustQueuePriorities();
+            
             // 根据优先级插入队列
             const index = this.queue.findIndex(item => item.priority < priority);
             if (index === -1) {
@@ -34,34 +46,73 @@ class RequestQueue {
         });
     }
 
+    adjustQueuePriorities() {
+        const now = Date.now();
+        this.queue.forEach(item => {
+            const waitTime = now - item.timestamp;
+            if (waitTime > this.maxWaitTime) {
+                // 等待时间过长的任务逐步提升优先级
+                const priorityIncrease = Math.floor(waitTime / this.maxWaitTime);
+                item.priority = Math.min(item.originalPriority + priorityIncrease, 3);
+            }
+        });
+    }
+
     async process() {
         if (this.processing) return;
         this.processing = true;
 
-        while (this.queue.length > 0 && this.currentProcessing < this.maxConcurrent) {
-            const { task, resolve, reject, timestamp } = this.queue.shift();
-            const waitTime = Date.now() - timestamp;
-            
-            this.currentProcessing++;
+        try {
+            while (this.queue.length > 0 && this.currentProcessing < this.maxConcurrent) {
+                const item = this.queue.shift();
+                this.currentProcessing++;
 
-            try {
-                const result = await task();
-                resolve(result);
-            } catch (error) {
-                reject(error);
-                logTime(`请求处理失败，等待时间: ${waitTime}ms，错误: ${error.message}`, true);
-            } finally {
-                this.currentProcessing--;
+                this.executeTask(item).catch(error => {
+                    logTime(`队列处理错误: ${error.message}`, true);
+                });
             }
+        } finally {
+            this.processing = false;
+            if (this.queue.length > 0) {
+                setImmediate(() => this.process());
+            }
+        }
+    }
 
-            // 增加延迟以避免API限制
+    async executeTask(item) {
+        const { task, resolve, reject, timestamp } = item;
+        const waitTime = Date.now() - timestamp;
+
+        try {
+            const result = await task();
+            this.stats.processed++;
+            resolve(result);
+        } catch (error) {
+            if (item.retries < this.maxRetries) {
+                item.retries++;
+                this.stats.retried++;
+                this.queue.unshift(item); // 重新加入队列头部
+                logTime(`任务重试 (${item.retries}/${this.maxRetries}): ${error.message}`);
+            } else {
+                this.stats.failed++;
+                reject(error);
+                logTime(`任务最终失败，等待时间: ${waitTime}ms，错误: ${error.message}`, true);
+            }
+        } finally {
+            this.currentProcessing--;
             await new Promise(r => setTimeout(r, 100));
         }
+    }
 
-        this.processing = this.currentProcessing > 0;
-        if (this.queue.length > 0) {
-            this.process();
-        }
+    getStats() {
+        return {
+            ...this.stats,
+            queueLength: this.queue.length,
+            currentProcessing: this.currentProcessing,
+            averageWaitTime: this.queue.length > 0 
+                ? this.queue.reduce((acc, item) => acc + (Date.now() - item.timestamp), 0) / this.queue.length 
+                : 0
+        };
     }
 }
 

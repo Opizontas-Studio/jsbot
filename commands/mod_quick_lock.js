@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { logTime, handleCommandError, lockAndArchiveThreadWithLog } = require('../utils/helper');
+const { globalRequestQueue } = require('../utils/globalRequestQueue');
 
 module.exports = {
     cooldown: 10, // 设置10秒冷却时间
@@ -51,7 +52,9 @@ module.exports = {
             const thread = interaction.channel;
 
             // 执行锁定操作
-            await lockAndArchiveThreadWithLog(thread, interaction.user, reason, guildConfig);
+            await globalRequestQueue.add(async () => {
+                await lockAndArchiveThreadWithLog(thread, interaction.user, reason, guildConfig);
+            }, 2); // 高优先级，破坏性操作
 
             await interaction.editReply({
                 content: `✅ 已成功锁定并归档帖子 "${thread.name}"`

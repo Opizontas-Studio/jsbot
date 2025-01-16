@@ -99,6 +99,7 @@ module.exports = {
                 await interaction.editReply({
                     content: '✅ 帖子已成功打开并解锁'
                 });
+                logTime(`用户 ${interaction.user.tag} 打开并解锁了帖子 ${thread.name}`);
 
             } catch (error) {
                 await handleCommandError(interaction, error, '打开帖子');
@@ -164,11 +165,13 @@ module.exports = {
                         await interaction.editReply({
                             content: '✅ 消息已标注'
                         });
+                        logTime(`用户 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
                     } else {
                         await message.unpin();
                         await interaction.editReply({
                             content: '✅ 消息已取消标注'
                         });
+                        logTime(`用户 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
                     }
                 });
 
@@ -287,6 +290,7 @@ module.exports = {
                             components: [],
                             embeds: []
                         });
+                        logTime(`用户 ${interaction.user.tag} 锁定并关闭了帖子 ${thread.name}`);
                     });
                 }
             } catch (error) {
@@ -355,6 +359,7 @@ module.exports = {
 
                         await globalRateLimiter.withRateLimit(async () => {
                             await handleSingleThread(interaction, guildConfig);
+                            logTime(`用户 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                         });
                     }
                 } catch (error) {

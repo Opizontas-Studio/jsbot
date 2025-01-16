@@ -3,7 +3,7 @@ const { logTime } = require('../utils/helper');
 const cron = require('node-cron');
 
 module.exports = {
-    name: Events.ClientReady,
+    name: 'lockdownCheck',
     once: true,
     async execute(client) {
         // 处理单个服务器的lockdown
@@ -14,11 +14,14 @@ module.exports = {
                     return;
                 }
 
-                // 设置24小时的邀请暂停
-                await guild.edit({
-                    invitesDisabled: true
-                });
-                logTime(`服务器 ${guild.name} (${guild.id}) 已设置24小时邀请暂停`);
+                // 使用正确的API设置邀请暂停
+                const features = guild.features;
+                if (!features.includes('INVITES_DISABLED')) {
+                    await guild.edit({
+                        features: [...features, 'INVITES_DISABLED']
+                    });
+                    logTime(`服务器 ${guild.name} (${guild.id}) 已启用邀请暂停`);
+                }
 
             } catch (error) {
                 logTime(`设置服务器 ${guild.name} (${guild.id}) 的lockdown状态时出错: ${error.message}`, true);
@@ -46,15 +49,16 @@ module.exports = {
                         if (!guild) continue;
 
                         // 先解除当前的邀请暂停
+                        const features = guild.features.filter(f => f !== 'INVITES_DISABLED');
                         await guild.edit({
-                            invitesDisabled: false
+                            features: features
                         });
                         logTime(`服务器 ${guild.name} (${guild.id}) 已解除邀请暂停`);
 
                         // 等待一小段时间后重新设置
                         await new Promise(resolve => setTimeout(resolve, 1000));
 
-                        // 重新设置24小时的邀请暂停
+                        // 重新设置邀请暂停
                         await handleGuildLockdown(guild, guildConfig);
 
                     } catch (error) {
@@ -63,7 +67,7 @@ module.exports = {
                 }
             }
         }, {
-            timezone: "Asia/Shanghai"  // 使用中国时区
+            timezone: "Asia/Shanghai"
         });
     },
 }; 

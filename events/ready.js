@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const { logTime } = require('../utils/helper');
 const { analyzeThreads } = require('../utils/analyzers');
 const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
+const lockdownManager = require('./lockdownManager');
 
 /**
  * 执行定时任务
@@ -102,7 +103,7 @@ const scheduleAnalysis = (client) => {
 module.exports = {
     name: Events.ClientReady,
     once: true,
-    execute(client) {
+    async execute(client) {
         logTime(`已登录: ${client.user.tag}`);
         scheduleAnalysis(client);
         
@@ -120,5 +121,7 @@ module.exports = {
         client.on('shardResumed', (id) => {
             logTime(`分片 ${id} 已恢复连接。`);
         });
+
+        await lockdownManager.execute(client);
     },
 }; 

@@ -7,18 +7,18 @@ module.exports = {
         if (!interaction.isModalSubmit()) return;
         if (interaction.customId !== 'creator_role_modal') return;
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: ['Ephemeral'] });
 
         try {
             const threadLink = interaction.fields.getTextInputValue('thread_link');
-            const matches = threadLink.match(/channels\/(\d+)\/(\d+)\/(\d+)/);
+            const matches = threadLink.match(/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/);
 
             if (!matches) {
                 await interaction.editReply('❌ 无效的帖子链接格式');
                 return;
             }
 
-            const [, guildId, channelId, threadId] = matches;
+            const [, guildId, threadId] = matches;
             const guildConfig = interaction.client.guildManager.getGuildConfig(guildId);
 
             if (!guildConfig || !guildConfig.creatorRoleId) {
@@ -28,7 +28,7 @@ module.exports = {
 
             const thread = await interaction.client.channels.fetch(threadId);
             
-            if (!thread || !thread.isThread() || !thread.parent?.type === ChannelType.GuildForum) {
+            if (!thread || !thread.isThread() || thread.parent?.type !== ChannelType.GuildForum) {
                 await interaction.editReply('❌ 提供的链接不是论坛帖子');
                 return;
             }

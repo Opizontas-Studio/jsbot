@@ -5,6 +5,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { measureTime, logTime, loadCommandFiles, delay } = require('./utils/helper');
 const GuildManager = require('./utils/guild_config');
+const { execSync } = require('child_process');
+
+// 添加获取 Git 版本信息的函数
+function getVersionInfo() {
+    try {
+        // 获取最新的tag
+        const version = execSync('git describe --tags --abbrev=0').toString().trim();
+        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+        const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
+        return {
+            version,
+            commitHash,
+            commitDate
+        };
+    } catch (error) {
+        logTime('获取版本信息失败: ' + error.message, true);
+        return null;
+    }
+}
 
 //注意！项目中任何需要等待用户操作的地方，都需要使用deferReply()，否则会报错！
 //注意！项目中任何报错都应该使用flags: ['Ephemeral']，否则会报错，不要使用Ephemeral = true
@@ -80,6 +99,14 @@ function setupProcessHandlers() {
 // 主函数
 async function main() {
     try {
+        // 在开始时记录版本信息
+        const versionInfo = getVersionInfo();
+        if (versionInfo) {
+            logTime(`Discord Bot ${versionInfo.version}`);
+            logTime(`提交: ${versionInfo.commitHash}`);
+            logTime(`提交时间: ${versionInfo.commitDate}`);
+        }
+
         setupProcessHandlers();
 
         // 初始化服务器管理器

@@ -1,3 +1,6 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
 /**
  * 计算执行时间的工具函数
  * @returns {Function} 返回一个函数，调用时返回从开始到现在的秒数（保留两位小数）
@@ -303,9 +306,6 @@ async function sendCleanupReport(interaction, guildConfig, result) {
         }]
     });
 }
-
-const fs = require('node:fs');
-const path = require('node:path');
 
 /**
  * 加载命令文件

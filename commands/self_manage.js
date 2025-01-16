@@ -275,6 +275,27 @@ module.exports = {
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
             try {
+                const threshold = interaction.options.getInteger('阈值') || 950;
+                
+                // 先获取当前成员数量
+                const members = await thread.members.fetch();
+                const memberCount = members.size;
+                
+                // 如果人数低于阈值,直接返回
+                if (memberCount < threshold) {
+                    await interaction.editReply({
+                        embeds: [{
+                            color: 0x808080,
+                            title: '❌ 无需清理',
+                            description: [
+                                `当前帖子人数(${memberCount})未达到清理阈值(${threshold})`
+                            ].join('\n')
+                        }]
+                    });
+                    return;
+                }
+
+                // 以下是原有的确认逻辑
                 const confirmButton = new ButtonBuilder()
                     .setCustomId('confirm_clean')
                     .setLabel('确认清理')
@@ -283,8 +304,6 @@ module.exports = {
                 const row = new ActionRowBuilder()
                     .addComponents(confirmButton);
 
-                const threshold = interaction.options.getInteger('阈值') || 950;
-
                 const response = await interaction.editReply({
                     embeds: [{
                         color: 0xff0000,
@@ -292,11 +311,9 @@ module.exports = {
                         description: [
                             `你确定要清理帖子 "${thread.name}" 中的不活跃用户吗？`,
                             '',
-                            '**⚠️ 此操作将：**',
-                            `- 移除未发言成员，直到人数低于 ${threshold}`,
-                            '- 如果未发言成员不足，则会移除发言最少的成员',
-                            '',
-                            '**注意：被移除的成员可以随时重新加入讨论**'
+                            `**⚠️ 此操作将：至少清理：${memberCount - threshold} 人**`,
+                            '- 优先移除未发言成员，若不足则会移除发言最少的成员',
+                            '- 被移除的成员可以随时重新加入讨论'
                         ].join('\n'),
                         footer: {
                             text: '此确认按钮将在5分钟后失效'

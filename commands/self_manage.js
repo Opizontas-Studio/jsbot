@@ -18,7 +18,7 @@ module.exports = {
                 .addStringOption(option =>
                     option.setName('理由')
                         .setDescription('锁定原因')
-                        .setRequired(true)))
+                        .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('打开并解锁')
@@ -253,7 +253,7 @@ module.exports = {
                 });
 
                 if (confirmation.customId === 'confirm_lock') {
-                    await lockAndArchiveThread(thread, interaction.user, reason, guildConfig);
+                    await lockAndArchiveThreadBase(thread, interaction.user, reason);
                     await interaction.editReply({
                         content: '✅ 帖子已成功锁定并归档',
                         components: [],

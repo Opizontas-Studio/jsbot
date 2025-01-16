@@ -80,35 +80,61 @@ const checkChannelPermission = (member, channel, allowedRoleIds) => {
 };
 
 /**
- * 锁定并归档帖子
+ * 锁定并归档帖子（基础操作）
+ * @param {ThreadChannel} thread - Discord帖子对象
+ * @param {User} executor - 执行操作的用户
+ * @param {string} [reason] - 操作原因（可选）
+ * @returns {Promise<void>}
+ */
+const lockAndArchiveThreadBase = async (thread, executor, reason) => {
+    // 发送通知到帖子中
+    await sendThreadNotification(thread, {
+        title: '帖子已被锁定并归档',
+        executorId: executor.id,
+        reason: reason || '楼主已结束讨论'  // 如果没有提供原因，使用默认原因
+    });
+
+    // 执行锁定和归档操作
+    await thread.setLocked(true, reason || '楼主已结束讨论');
+    await thread.setArchived(true, reason || '楼主已结束讨论');
+    
+    logTime(`楼主 ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
+};
+
+/**
+ * 锁定并归档帖子（带管理日志）
  * @param {ThreadChannel} thread - Discord帖子对象
  * @param {User} executor - 执行操作的用户
  * @param {string} reason - 操作原因
  * @param {Object} guildConfig - 服务器配置
  * @returns {Promise<void>}
  */
-const lockAndArchiveThread = async (thread, executor, reason, guildConfig) => {
+const lockAndArchiveThreadWithLog = async (thread, executor, reason, guildConfig) => {
+    if (!reason) {
+        throw new Error('管理员必须提供锁定原因');
+    }
+
     // 发送通知
     await sendThreadNotification(thread, {
-        title: '帖子已被锁定并归档',
+        title: '管理员锁定并归档了此帖子',
         executorId: executor.id,
         reason: reason
     });
 
     // 发送操作日志
     await sendModerationLog(thread.client, guildConfig.moderationThreadId, {
-        title: '帖子已被锁定并归档',
+        title: '管理员锁定并归档帖子',
         executorId: executor.id,
         threadName: thread.name,
         threadUrl: thread.url,
         reason: reason
     });
 
-    // 3. 执行锁定和归档操作
+    // 执行锁定和归档操作
     await thread.setLocked(true, reason);
     await thread.setArchived(true, reason);
     
-    logTime(`用户 ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
+    logTime(`管理员 ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
 };
 
 /**
@@ -323,7 +349,8 @@ module.exports = {
     checkPermission,
     handlePermissionResult,
     checkChannelPermission,
-    lockAndArchiveThread,
+    lockAndArchiveThreadBase,
+    lockAndArchiveThreadWithLog,
     sendModerationLog,
     sendThreadNotification,
     generateProgressReport,
@@ -331,4 +358,5 @@ module.exports = {
     handleCommandError,
     sendCleanupReport,
     loadCommandFiles,
+    lockAndArchiveThread: lockAndArchiveThreadBase
 }; 

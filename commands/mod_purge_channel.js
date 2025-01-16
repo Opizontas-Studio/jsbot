@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { checkPermission, handlePermissionResult, measureTime, logTime } = require('../utils/helper');
+const { checkPermission, handlePermissionResult, measureTime, logTime, delay } = require('../utils/helper');
 
 module.exports = {
     cooldown: 10,
@@ -96,7 +96,7 @@ module.exports = {
                     let batchSize = 100;
                     
                     while (true) {
-                        // 并行获取多个批次的消息
+                        // 获取消息批次
                         const messageBatch = await channel.messages.fetch({ 
                             limit: batchSize,
                             before: lastId 
@@ -104,18 +104,47 @@ module.exports = {
 
                         if (messageBatch.size === 0) break;
                         
-                        // 记录最后一条消息的ID用于下次查询
+                        // 记录最后一条消息的ID
                         lastId = messageBatch.last().id;
 
-                        // 批量删除消息
-                        await channel.bulkDelete(messageBatch, true)
-                            .catch(async error => {
-                                // 如果批量删除失败，尝试逐条删除
-                                const deletePromises = messageBatch.map(msg => 
-                                    msg.delete().catch(() => null)
-                                );
-                                await Promise.all(deletePromises);
-                            });
+                        // 过滤出14天内的消息用于批量删除
+                        const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+                        const recentMessages = messageBatch.filter(msg => msg.createdTimestamp > twoWeeksAgo);
+                        const oldMessages = messageBatch.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
+
+                        // 在批量删除前添加日志
+                        logTime(`开始批量删除 ${recentMessages.size} 条新消息`);
+                        // 在单条删除前添加日志
+                        logTime(`开始删除 ${oldMessages.size} 条旧消息`);
+
+                        // 批量删除新消息
+                        if (recentMessages.size > 0) {
+                            await channel.bulkDelete(recentMessages)
+                                .catch(async error => {
+                                    logTime(`批量删除失败: ${error.message}`, true);
+                                });
+                            // bulkDelete后等待5秒
+                            await delay(5000);
+                        }
+
+                        // 逐个删除旧消息，遵守速率限制
+                        if (oldMessages.size > 0) {
+                            // 每批5条消息
+                            const batchSize = 5;
+                            for (let i = 0; i < oldMessages.size; i += batchSize) {
+                                const batch = Array.from(oldMessages.values()).slice(i, i + batchSize);
+                                
+                                // 逐个删除消息，每条等待200ms
+                                for (const message of batch) {
+                                    await message.delete()
+                                        .catch(error => logTime(`删除旧消息失败: ${error.message}`, true));
+                                    await delay(200);
+                                }
+                                
+                                // 每批5条后等待1秒
+                                await delay(1000);
+                            }
+                        }
 
                         deletedCount += messageBatch.size;
 
@@ -127,7 +156,7 @@ module.exports = {
                         }
 
                         // 添加短暂延迟避免触发限制
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await delay(100);
                     }
 
                     const executionTime = executionTimer();

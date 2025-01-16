@@ -285,7 +285,6 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
     
     try {
         await logger.initialize();
-        logTime('日志系统已初始化');
 
         // 如果没有传入 activeThreads，则获取
         if (!activeThreads) {
@@ -299,11 +298,10 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
                 .catch(error => {
                     throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
                 });
-            logTime(`获取活跃主题列表用时: ${fetchThreadsTimer()}秒`);
         }
 
         statistics.totalThreads = activeThreads.threads.size;
-        logTime(`服务器 ${guildId} 已找到 ${statistics.totalThreads} 个活跃子区`);
+        logTime(`开始分析服务器 ${guildId} 的 ${statistics.totalThreads} 个活跃子区`);
 
         // 收集主题信息计时
         const processThreadsTimer = measureTime();
@@ -315,7 +313,7 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
         // 添加进度输出函数
         const logProgress = (current, total) => {
             const progress = (current / total * 100).toFixed(1);
-            logTime(`已处理 ${current}/${total} 个主题 (${progress}%)`);
+            logTime(`处理进度: ${current}/${total} (${progress}%)`);
         };
 
         // 设置进度报告的间隔
@@ -329,7 +327,20 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
                     try {
                         await delay(5); // 延迟5ms
                         const messages = await thread.messages.fetch({ limit: 1 });
-                        const lastMessage = messages.first();
+                        let lastMessage = messages.first();
+                        
+                        // 如果第一次获取为空，尝试获取更多消息
+                        if (!lastMessage) {
+                            const moreMessages = await thread.messages.fetch({ limit: 5 });
+                            lastMessage = moreMessages.find(msg => msg !== null);
+                            
+                            // 如果5条消息都获取失败，输出详细信息
+                            if (!lastMessage) {
+                                logTime(`[警告] 子区消息获取异常: ${thread.name} 消息计数: ${thread.messageCount}`);
+                            }
+                        }
+                        
+                        // 如果仍然没有找到任何消息，使用创建时间
                         const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
                         const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
 

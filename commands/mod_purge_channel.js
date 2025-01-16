@@ -111,10 +111,7 @@ module.exports = {
                         const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
                         const recentMessages = messageBatch.filter(msg => msg.createdTimestamp > twoWeeksAgo);
                         const oldMessages = messageBatch.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
-
-                        // 在批量删除前添加日志
                         logTime(`开始批量删除 ${recentMessages.size} 条新消息`);
-                        // 在单条删除前添加日志
                         logTime(`开始删除 ${oldMessages.size} 条旧消息`);
 
                         // 批量删除新消息
@@ -123,18 +120,17 @@ module.exports = {
                                 .catch(async error => {
                                     logTime(`批量删除失败: ${error.message}`, true);
                                 });
-                            // bulkDelete后等待5秒
                             await delay(5000);
                         }
 
-                        // 逐个删除旧消息，遵守速率限制
+                        // 逐个删除旧消息
                         if (oldMessages.size > 0) {
                             // 每批5条消息
                             const batchSize = 5;
                             for (let i = 0; i < oldMessages.size; i += batchSize) {
                                 const batch = Array.from(oldMessages.values()).slice(i, i + batchSize);
                                 
-                                // 逐个删除消息，每条等待200ms
+                                // 每条等待200ms
                                 for (const message of batch) {
                                     await message.delete()
                                         .catch(error => logTime(`删除旧消息失败: ${error.message}`, true));

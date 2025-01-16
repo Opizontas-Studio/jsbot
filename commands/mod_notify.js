@@ -56,12 +56,15 @@ module.exports = {
                 .setMaxLength(4096)
                 .setRequired(true);
 
-            // 创建输入框行
-            const titleRow = new ActionRowBuilder().addComponents(titleInput);
-            const contentRow = new ActionRowBuilder().addComponents(contentInput);
+            // 创建输入框行并指定正确的类型
+            const firstActionRow = new ActionRowBuilder().addComponents(titleInput);
+            const secondActionRow = new ActionRowBuilder().addComponents(contentInput);
 
-            // 添加输入框到模态框
-            modal.addComponents(titleRow, contentRow);
+            // 添加输入框到模态框（需要转换类型）
+            modal.addComponents(
+                firstActionRow.toJSON(),
+                secondActionRow.toJSON()
+            );
 
             // 显示模态框
             await interaction.showModal(modal);

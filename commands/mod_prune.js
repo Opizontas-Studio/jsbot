@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { checkPermission, handlePermissionResult, logTime, generateProgressReport, handleCommandError } = require('../utils/helper');
 const { cleanThreadMembers } = require('../utils/cleaner');
+const { globalBatchProcessor, globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
 
 /**
  * 清理子区不活跃用户命令
@@ -117,97 +118,125 @@ async function handleAllThreads(interaction, guildConfig) {
 
     logTime(`已获取活跃子区列表，共 ${threads.size} 个子区`);
     
-    // 获取需要处理的子区
-    const threadsToClean = [];
-    let skippedCount = 0;
-
     await interaction.editReply({
         content: '⏳ 正在检查所有子区人数...',
         flags: ['Ephemeral']
     });
 
-    for (const thread of threads.values()) {
-        try {
-            const members = await thread.members.fetch();
-            if (members.size > threshold) {
-                threadsToClean.push({
-                    thread,
-                    memberCount: members.size
+    // 使用Map存储结果
+    const threadStats = new Map();
+    let skippedCount = 0;
+
+    try {
+        // 使用批处理器处理子区检查
+        const results = await globalBatchProcessor.processBatch(
+            Array.from(threads.values()),
+            async (thread) => {
+                try {
+                    // 使用速率限制器包装API调用
+                    return await globalRateLimiter.withRateLimit(async () => {
+                        const members = await thread.members.fetch();
+                        return {
+                            thread,
+                            memberCount: members.size,
+                            needsCleanup: members.size > threshold
+                        };
+                    });
+                } catch (error) {
+                    logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
+                    return null;
+                }
+            },
+            async (progress, processed, total) => {
+                // 更新进度显示
+                await interaction.editReply({
+                    content: `⏳ 正在检查子区人数... (${processed}/${total})`,
+                    flags: ['Ephemeral']
                 });
-            } else {
+            }
+        );
+
+        // 处理结果
+        const threadsToClean = [];
+        for (const result of results) {
+            if (result && result.needsCleanup) {
+                threadsToClean.push(result);
+            } else if (result) {
                 skippedCount++;
             }
-        } catch (error) {
-            logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
         }
-    }
 
-    if (threadsToClean.length === 0) {
-        await interaction.editReply({
-            content: [
-                '✅ 检查完成，没有发现需要清理的子区',
-                `📊 已检查: ${threads.size} 个子区`,
-                `⏭️ 已跳过: ${skippedCount} 个子区(人数未超限)`
-            ].join('\n'),
-            flags: ['Ephemeral']
-        });
-        return;
-    }
-
-    // 显示待处理列表
-    await interaction.editReply({
-        embeds: [{
-            color: 0xff9900,
-            title: '🔍 子区清理检查结果',
-            description: [
-                `共发现 ${threadsToClean.length} 个需要清理的子区:`,
-                '',
-                ...threadsToClean.map(({ thread, memberCount }) => 
-                    `• ${thread.name}: ${memberCount}人 (需清理${memberCount - threshold}人)`
-                ),
-                '',
-                '即将开始清理...'
-            ].join('\n')
-        }],
-        flags: ['Ephemeral']
-    });
-
-    // 处理结果存储
-    const results = [];
-    let processedCount = 0;
-
-    // 每批处理5个子区
-    const batchSize = 5;
-    for (let i = 0; i < threadsToClean.length; i += batchSize) {
-        const batch = threadsToClean.slice(i, i + batchSize);
-        
-        const batchPromises = batch.map(async (thread) => {
-            processedCount++;
+        if (threadsToClean.length === 0) {
             await interaction.editReply({
-                content: generateProgressReport(processedCount, threadsToClean.length, `正在处理 - ${thread.name}\n`),
+                content: [
+                    '✅ 检查完成，没有发现需要清理的子区',
+                    `📊 已检查: ${threads.size} 个子区`,
+                    `⏭️ 已跳过: ${skippedCount} 个子区(人数未超限)`
+                ].join('\n'),
                 flags: ['Ephemeral']
             });
+            return;
+        }
 
-            return await cleanThreadMembers(
-                thread,
-                threshold,
-                { sendThreadReport: true },
-                (progress) => {
-                    if (progress.type === 'message_scan' && progress.messagesProcessed % 1000 === 0) {
-                        logTime(`[${thread.name}] 已处理 ${progress.messagesProcessed} 条消息`);
-                    } else if (progress.type === 'member_remove' && progress.batchCount % 5 === 0) {
-                        logTime(`[${thread.name}] 已移除 ${progress.removedCount}/${progress.totalToRemove} 个成员`);
-                    }
-                }
-            );
+        // 显示待处理列表
+        await interaction.editReply({
+            embeds: [{
+                color: 0xff9900,
+                title: '🔍 子区清理检查结果',
+                description: [
+                    `共发现 ${threadsToClean.length} 个需要清理的子区:`,
+                    '',
+                    ...threadsToClean.map(({ thread, memberCount }) => 
+                        `• ${thread.name}: ${memberCount}人 (需清理${memberCount - threshold}人)`
+                    ),
+                    '',
+                    '即将开始清理...'
+                ].join('\n')
+            }],
+            flags: ['Ephemeral']
         });
 
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults.filter(result => result.status === 'completed'));
-    }
+        // 处理结果存储
+        const cleanupResults = [];
+        let processedCount = 0;
 
-    // 发送总结报告
-    await sendSummaryReport(interaction, results, threshold, guildConfig);
+        // 每批处理5个子区
+        const batchSize = 5;
+        for (let i = 0; i < threadsToClean.length; i += batchSize) {
+            const batch = threadsToClean.slice(i, i + batchSize);
+            
+            const batchPromises = batch.map(async ({ thread }) => {
+                processedCount++;
+                await interaction.editReply({
+                    content: generateProgressReport(processedCount, threadsToClean.length, `正在处理 - ${thread.name}\n`),
+                    flags: ['Ephemeral']
+                });
+
+                return await cleanThreadMembers(
+                    thread,
+                    threshold,
+                    { sendThreadReport: true },
+                    (progress) => {
+                        if (progress.type === 'message_scan' && progress.messagesProcessed % 1000 === 0) {
+                            logTime(`[${thread.name}] 已处理 ${progress.messagesProcessed} 条消息`);
+                        } else if (progress.type === 'member_remove' && progress.batchCount % 5 === 0) {
+                            logTime(`[${thread.name}] 已移除 ${progress.removedCount}/${progress.totalToRemove} 个成员`);
+                        }
+                    }
+                );
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            cleanupResults.push(...batchResults.filter(result => result.status === 'completed'));
+        }
+
+        // 发送总结报告
+        await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);
+
+    } catch (error) {
+        logTime(`执行全服清理时出错: ${error.message}`, true);
+        throw error;
+    }
 }
 
 /**

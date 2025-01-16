@@ -14,16 +14,18 @@ const runScheduledTasks = async (client, guildConfig, guildId) => {
         // 使用请求队列和速率限制
         await globalRequestQueue.add(async () => {
             await globalRateLimiter.withRateLimit(async () => {
-                // 总是执行分析任务
-                await analyzeThreads(client, guildConfig, guildId);
-                logTime(`服务器 ${guildId} 的定时分析完成`);
+                // 只在启用自动分析时执行分析任务
+                if (guildConfig.automation?.analysis) {
+                    await analyzeThreads(client, guildConfig, guildId);
+                    logTime(`服务器 ${guildId} 的定时分析完成`);
+                }
 
                 // 只在启用自动清理时执行清理
-                if (guildConfig.autoCleanup?.enabled) {
+                if (guildConfig.automation?.cleanup?.enabled) {
                     logTime(`开始执行服务器 ${guildId} 的自动清理...`);
                     await analyzeThreads(client, guildConfig, guildId, {
                         clean: true,
-                        threshold: guildConfig.autoCleanup.threshold || 960
+                        threshold: guildConfig.automation.cleanup.threshold || 960
                     });
                     logTime(`服务器 ${guildId} 的自动清理完成`);
                 }
@@ -79,11 +81,16 @@ const scheduleAnalysis = (client) => {
         timers.set(guildId, timer);
         
         // 输出下次执行时间和任务类型
-        const taskTypes = ['分析'];
-        if (guildConfig.autoCleanup?.enabled) {
+        const taskTypes = [];
+        if (guildConfig.automation?.analysis) {
+            taskTypes.push('分析');
+        }
+        if (guildConfig.automation?.cleanup?.enabled) {
             taskTypes.push('清理');
         }
-        logTime(`服务器 ${guildId} 下次${taskTypes.join('和')}时间: ${nextRun.toLocaleTimeString()}`);
+        if (taskTypes.length > 0) {
+            logTime(`服务器 ${guildId} 下次${taskTypes.join('和')}时间: ${nextRun.toLocaleTimeString()}`);
+        }
     };
 
     // 为每个服务器设置定时任务

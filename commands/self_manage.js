@@ -25,8 +25,12 @@ module.exports = {
                 .setName('标注信息')
                 .setDescription('标注或取消标注一条消息')
                 .addStringOption(option =>
-                    option.setName('消息链接')
+                    option.setName('消息链接') // 消息链接参数是必要的，不可以和操作参数合并！
                         .setDescription('要标注的消息链接')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('操作') // 操作参数是必要的，不可以删除！
+                        .setDescription('选择标注或取消标注')
                         .setRequired(true)
                         .addChoices(
                             { name: '标注', value: 'pin' },

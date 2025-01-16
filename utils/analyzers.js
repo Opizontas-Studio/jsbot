@@ -280,7 +280,6 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
     // 添加默认阈值处理
     if (options.clean) {
         options.threshold = options.threshold || 960;
-        logTime(`清理阈值设置为: ${options.threshold}`);
     }
     
     try {
@@ -428,7 +427,6 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
             await logger.sendStatisticsReport(statistics, failedOperations);
         }
 
-        logTime(`总执行时间: ${totalTimer()}秒`);
         return {
             statistics,
             failedOperations

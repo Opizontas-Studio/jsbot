@@ -80,18 +80,6 @@ const scheduleAnalysis = (client) => {
 
         // 存储定时器ID
         timers.set(guildId, timer);
-        
-        // 输出下次执行时间和任务类型
-        const taskTypes = [];
-        if (guildConfig.automation?.analysis) {
-            taskTypes.push('分析');
-        }
-        if (guildConfig.automation?.cleanup?.enabled) {
-            taskTypes.push('清理');
-        }
-        if (taskTypes.length > 0) {
-            logTime(`服务器 ${guildId} 下次${taskTypes.join('和')}时间: ${nextRun.toLocaleTimeString()}`);
-        }
     };
 
     // 为每个服务器设置定时任务

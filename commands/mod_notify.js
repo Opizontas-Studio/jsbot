@@ -32,6 +32,11 @@ module.exports = {
                 .setMaxLength(4096) // Discord embed描述最大长度
         )
         .addStringOption(option =>
+            option.setName('图片')
+                .setDescription('要显示的图片URL（可选）')
+                .setRequired(false)
+        )
+        .addStringOption(option =>
             option.setName('颜色')
                 .setDescription('通知的颜色（默认蓝色）')
                 .setRequired(false)
@@ -59,6 +64,7 @@ module.exports = {
             // 获取参数
             const title = interaction.options.getString('标题');
             const description = interaction.options.getString('内容');
+            const imageUrl = interaction.options.getString('图片');
             const isAnonymous = interaction.options.getBoolean('匿名') ?? false;
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
 
@@ -70,6 +76,11 @@ module.exports = {
                     description: description,
                     timestamp: new Date(),
                 };
+                
+                // 如果提供了图片URL，添加图片
+                if (imageUrl) {
+                    embed.image = { url: imageUrl };
+                }
                 
                 // 如果不是匿名，添加发送者信息
                 if (!isAnonymous) {

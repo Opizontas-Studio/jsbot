@@ -17,37 +17,60 @@ export class RequestQueue {
             failed: 0,
             retried: 0
         };
-        this.paused = false; // 新增：队列暂停状态
-        this.shardStatus = new Map(); // 新增：分片状态追踪
+        this.paused = false; // 队列暂停状态
+        this.shardStatus = new Map(); // 分片状态追踪
+        // 定义有效的状态集合
+        this.validStates = new Set(['ready', 'disconnected', 'reconnecting', 'error', 'resumed']);
     }
 
-    // 新增：设置分片状态
+    // 设置分片状态
     setShardStatus(shardId, status) {
+        if (!this.validStates.has(status)) {
+            throw new Error(`无效的分片状态: ${status}`);
+        }
+
         this.shardStatus.set(shardId, status);
-        if (status === 'disconnected') {
-            this.pause();
-        } else if (status === 'ready') {
-            this.resume();
+        
+        // 更新队列状态
+        switch (status) {
+            case 'disconnected':
+            case 'error':
+                this.pause();
+                break;
+            case 'reconnecting':
+                break;
+            case 'ready':
+            case 'resumed':
+                // 只有在没有其他错误状态时才恢复
+                if (this.isAllShardsHealthy()) {
+                    this.resume();
+                }
+                break;
         }
     }
 
-    // 新增：暂停队列处理
+    // 暂停队列处理
     pause() {
         this.paused = true;
         logTime('请求队列已暂停处理');
     }
 
-    // 新增：恢复队列处理
+    // 恢复队列处理
     resume() {
         this.paused = false;
         logTime('请求队列已恢复处理');
         this.process(); // 恢复处理
     }
 
-    // 新增：检查是否所有分片都准备就绪
-    isAllShardsReady() {
+    // 检查是否分片处于健康状态
+    isAllShardsHealthy() {
+        if (this.shardStatus.size === 0) {
+            return true;
+        }
+
+        // 检查所有分片是否都处于健康状态
         for (const [_, status] of this.shardStatus) {
-            if (status !== 'ready') {
+            if (status !== 'ready' && status !== 'resumed') {
                 return false;
             }
         }

@@ -14,9 +14,6 @@ const config = JSON.parse(
   readFileSync(join(currentDir, 'config.json'), 'utf8')
 );
 
-// 读取package.json获取版本号
-const packageJson = JSON.parse(readFileSync(join(currentDir, 'package.json'), 'utf8'));
-
 // 添加获取 Git 版本信息的函数
 function getVersionInfo() {
     try {
@@ -45,11 +42,10 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers
     ],
-    // 添加分片配置
-    shards: 'auto',
-    shardCount: 1, // 根据需要调整分片数量
+    // 分片配置
+    shards: [0],  // 使用单分片
     failIfNotExists: false,
-    // 添加重连配置
+    // 重连配置
     presence: {
         status: 'online'
     },
@@ -58,10 +54,10 @@ const client = new Client({
         compress: true
     },
     // 重连策略
-    restWsBridgeTimeout: 5000,
+    restWsBridgeTimeout: 10000,
     restTimeOffset: 750,
     restRequestTimeout: 15000,
-    retryLimit: 3,
+    retryLimit: 5,
     waitGuildTimeout: 15000
 });
 

@@ -317,7 +317,7 @@ export const analyzeThreads = async (client, guildConfig, guildId, options = {},
             logTime(`开始分析服务器 ${guildId} 的 ${statistics.totalThreads} 个活跃子区`);
 
             const currentTime = Date.now();
-            const batchSize = 50; // 批处理大小
+            const batchSize = 40; // 批处理大小
             const threadArray = Array.from(activeThreads.threads.values());
             const threadInfoArray = [];
 
@@ -326,7 +326,7 @@ export const analyzeThreads = async (client, guildConfig, guildId, options = {},
                 const batchResults = await Promise.all(
                     batch.map(async (thread) => {
                         try {
-                            await delay(5); // 延迟5ms
+                            await delay(50); // 延迟50ms
                             const messages = await thread.messages.fetch({ limit: 1 });
                             let lastMessage = messages.first();
                             

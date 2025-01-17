@@ -98,34 +98,25 @@ export default {
         // 初始化分片状态
         globalRequestQueue.setShardStatus(0, 'ready');
         
-        // 监听分片断开连接事件
-        client.on('shardDisconnect', (event, id) => {
-            logTime(`分片 ${id} 断开连接: ${event.reason}`, true);
-            globalRequestQueue.setShardStatus(id, 'disconnected');
-        });
-        
-        // 监听分片重新连接事件
-        client.on('shardReconnecting', (id) => {
-            logTime(`分片 ${id} 正在重新连接...`);
-            globalRequestQueue.setShardStatus(id, 'reconnecting');
-        });
-        
-        // 监听分片恢复连接事件
-        client.on('shardResumed', (id) => {
-            logTime(`分片 ${id} 已恢复连接。`);
-            globalRequestQueue.setShardStatus(id, 'ready');
-        });
+        // 分片状态变化
+        const handleShardStatus = (status, id, reason = '') => {
+            const statusMessages = {
+                'disconnected': `分片断开连接: ${reason}`,
+                'reconnecting': '正在重新连接...',
+                'resumed': '已恢复连接',
+                'error': `发生错误: ${reason}`,
+                'ready': '已就绪'
+            };
+            
+            logTime(`分片 ${id} ${statusMessages[status]}`, status === 'error');
+            globalRequestQueue.setShardStatus(id, status);
+        };
 
-        // 监听分片错误事件
-        client.on('shardError', (error, id) => {
-            logTime(`分片 ${id} 发生错误: ${error.message}`, true);
-            globalRequestQueue.setShardStatus(id, 'error');
-        });
-
-        // 监听分片就绪事件
-        client.on('shardReady', (id) => {
-            logTime(`分片 ${id} 已就绪。`);
-            globalRequestQueue.setShardStatus(id, 'ready');
-        });
+        // 事件监听
+        client.on('shardDisconnect', (event, id) => handleShardStatus('disconnected', id, event.reason));
+        client.on('shardReconnecting', (id) => handleShardStatus('reconnecting', id));
+        client.on('shardResumed', (id) => handleShardStatus('resumed', id));
+        client.on('shardError', (error, id) => handleShardStatus('error', id, error.message));
+        client.on('shardReady', (id) => handleShardStatus('ready', id));
     },
 }; 

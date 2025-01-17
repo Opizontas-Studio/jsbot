@@ -84,7 +84,7 @@ module.exports = {
                 await interaction.editReply({
                     content: '✅ 通知已发送'
                 });
-            }, 2); // 高优先级
+            }, 2); // 中优先级
 
         } catch (error) {
             await handleCommandError(interaction, error, '发送通知');

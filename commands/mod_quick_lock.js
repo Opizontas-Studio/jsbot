@@ -54,7 +54,7 @@ module.exports = {
             // 执行锁定操作
             await globalRequestQueue.add(async () => {
                 await lockAndArchiveThreadWithLog(thread, interaction.user, reason, guildConfig);
-            }, 2); // 高优先级，破坏性操作
+            }, 3); // 高优先级，破坏性操作
 
             await interaction.editReply({
                 content: `✅ 已成功锁定并归档帖子 "${thread.name}"`

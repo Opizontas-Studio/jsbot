@@ -117,7 +117,7 @@ module.exports = {
                             break;
                     }
                 });
-            }, 2);
+            }, 2); // 中优先级
 
             // 构建操作描述
             const actionDesc = {

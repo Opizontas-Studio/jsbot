@@ -116,7 +116,7 @@ module.exports = {
                         });
                         logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
                     }
-                }, 2);
+                }, 2); // 中优先级
 
             } catch (error) {
                 await handleCommandError(interaction, error, '标注消息');
@@ -341,7 +341,7 @@ module.exports = {
                         await globalRequestQueue.add(async () => {
                             await handleSingleThread(interaction, guildConfig);
                             logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
-                        }, 0);
+                        }, 0); // 低优先级
                     }
                 } catch (error) {
                     if (error.code === 'InteractionCollectorError') {

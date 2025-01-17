@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { analyzeThreads } = require('../utils/analyzers');
 const { checkPermission, handlePermissionResult, measureTime } = require('../utils/helper');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 /**
  * 分析命令 - 生成子区活跃度统计报告
@@ -24,8 +25,10 @@ module.exports = {
             // 发送临时响应
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
-            // 执行子区分析
-            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId);
+            // 将分析操作加入队列
+            const result = await globalRequestQueue.add(async () => {
+                return await analyzeThreads(interaction.client, guildConfig, interaction.guildId);
+            }, 1); // 使用较低优先级，因为这是后台分析任务
 
             const executionTime = executionTimer();
 

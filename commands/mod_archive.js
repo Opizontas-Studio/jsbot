@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { analyzeThreads } = require('../utils/analyzers');
 const { checkPermission, handlePermissionResult, measureTime } = require('../utils/helper');
+const { globalRequestQueue } = require('../utils/concurrency');
 
 /**
  * 清理命令 - 归档不活跃的子区
@@ -50,11 +51,13 @@ module.exports = {
                 return;
             }
 
-            // 执行分析和清理
-            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
-                clean: true,
-                threshold: threshold || 960
-            }, activeThreads);
+            // 将清理操作加入队列
+            const result = await globalRequestQueue.add(async () => {
+                return await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
+                    clean: true,
+                    threshold: threshold || 960
+                }, activeThreads);
+            }, 2); // 使用中等优先级，因为这是管理员主动触发的清理操作
 
             const executionTime = executionTimer();
 
@@ -63,7 +66,7 @@ module.exports = {
                 '✅ 清理操作完成！',
                 `📊 当前活跃子区总数: ${result.statistics.totalThreads}`,
                 `🧹 已清理子区数: ${result.statistics.archivedThreads || 0}`,
-                `�� 已跳过置顶子区: ${result.statistics.skippedPinnedThreads || 0}`,
+                `📌 已跳过置顶子区: ${result.statistics.skippedPinnedThreads || 0}`,
                 `⏱️ 总执行时间: ${executionTime}秒`
             ].join('\n');
 

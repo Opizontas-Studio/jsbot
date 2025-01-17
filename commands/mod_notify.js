@@ -47,11 +47,6 @@ module.exports = {
                     { name: '粉色', value: '粉色' },
                     { name: '青色', value: '青色' },
                 )
-        )
-        .addBooleanOption(option =>
-            option.setName('匿名')
-                .setDescription('是否匿名发送（不显示发送者）')
-                .setRequired(false)
         ),
 
     async execute(interaction) {
@@ -65,7 +60,6 @@ module.exports = {
             const title = interaction.options.getString('标题');
             const description = interaction.options.getString('内容');
             const imageUrl = interaction.options.getString('图片');
-            const isAnonymous = interaction.options.getBoolean('匿名') ?? false;
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
 
             // 加入队列发送通知
@@ -75,18 +69,14 @@ module.exports = {
                     title: title,
                     description: description,
                     timestamp: new Date(),
+                    footer: {
+                        text: `由 ${interaction.member.displayName} 发送`
+                    }
                 };
                 
                 // 如果提供了图片URL，添加图片
                 if (imageUrl) {
                     embed.image = { url: imageUrl };
-                }
-                
-                // 如果不是匿名，添加发送者信息
-                if (!isAnonymous) {
-                    embed.footer = {
-                        text: `由 ${interaction.user.tag} 发送`
-                    };
                 }
 
                 await channel.send({ embeds: [embed] });

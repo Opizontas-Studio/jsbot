@@ -4,7 +4,7 @@ import { globalRequestQueue } from '../utils/concurrency.js';
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('分片状态')
+        .setName('系统状态')
         .setDescription('查看当前系统运行状态'),
 
     async execute(interaction, guildConfig) {

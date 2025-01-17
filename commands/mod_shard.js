@@ -17,11 +17,18 @@ export default {
         // 状态检查
         await globalRequestQueue.add(async () => {
             const client = interaction.client;
-            const ping = Math.round(client.ws.ping);
+            let ping = Math.round(client.ws.ping);
             const guildCount = client.guilds.cache.size;
             const status = globalRequestQueue.shardStatus.get(0) || '未知';
             const queueStats = globalRequestQueue.getStats();
 
+            // 如果延迟为-1，等待后再获取
+            if (ping === -1) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                ping = Math.round(client.ws.ping);
+            }
+
+            // 只执行一次回复
             await interaction.editReply({
                 embeds: [{
                     color: 0x0099ff,
@@ -29,7 +36,7 @@ export default {
                     fields: [
                         {
                             name: '网络延迟',
-                            value: ping === -1 ? '正在测量...' : `${ping}ms`,
+                            value: ping === -1 ? '无法获取' : `${ping}ms`,
                             inline: true
                         },
                         {
@@ -70,19 +77,6 @@ export default {
                     }
                 }]
             });
-
-            // 如果延迟为-1，等待一会儿后重新获取并更新消息
-            if (ping === -1) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                const updatedPing = Math.round(client.ws.ping);
-                if (updatedPing !== -1) {
-                    const reply = await interaction.fetchReply();
-                    const updatedEmbed = reply.embeds[0];
-                    updatedEmbed.fields[0].value = `${updatedPing}ms`;
-                    await interaction.editReply({ embeds: [updatedEmbed] });
-                }
-            }
         }, 3); // 极高优先级
     }
 }; 

@@ -21,7 +21,7 @@ module.exports = {
         const executionTimer = measureTime();
 
         try {
-            // 发送临时响应，避免交互超时
+            // 发送临时响应
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
             // 执行子区分析

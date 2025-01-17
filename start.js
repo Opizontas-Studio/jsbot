@@ -26,7 +26,7 @@ function getVersionInfo() {
 }
 
 //注意！项目中任何需要等待用户操作的地方，都需要使用deferReply()，否则会报错！
-//注意！项目中任何报错都应该使用flags: ['Ephemeral']，否则会报错，不要使用Ephemeral = true
+//注意！项目中任何对Reply的调用都应该使用flags: ['Ephemeral']，不要使用Ephemeral = true，否则会报错！
 // 初始化客户端
 const client = new Client({
     intents: [

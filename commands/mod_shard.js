@@ -5,7 +5,7 @@ import { globalRequestQueue } from '../utils/concurrency.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('分片状态')
-        .setDescription('查看当前分片的状态'),
+        .setDescription('查看当前系统运行状态'),
 
     async execute(interaction, guildConfig) {
         // 检查权限
@@ -15,29 +15,18 @@ export default {
         await interaction.deferReply({ flags: ['Ephemeral'] });
 
         const client = interaction.client;
-        const shardId = client.shard?.ids[0] ?? 0;
-        const shardCount = client.shard?.count ?? 1;
         const shardPing = client.ws.ping;
         const guildCount = client.guilds.cache.size;
-        const status = globalRequestQueue.shardStatus.get(shardId) || '未知';
+        const status = globalRequestQueue.shardStatus.get(0) || '未知';
+        const queueStats = globalRequestQueue.getStats();
 
         await interaction.editReply({
             embeds: [{
                 color: 0x0099ff,
-                title: '分片状态信息',
+                title: '系统运行状态',
                 fields: [
                     {
-                        name: '分片ID',
-                        value: `${shardId}`,
-                        inline: true
-                    },
-                    {
-                        name: '总分片数',
-                        value: `${shardCount}`,
-                        inline: true
-                    },
-                    {
-                        name: '延迟',
+                        name: '网络延迟',
                         value: `${shardPing}ms`,
                         inline: true
                     },
@@ -47,17 +36,36 @@ export default {
                         inline: true
                     },
                     {
-                        name: '分片状态',
+                        name: '系统状态',
                         value: status,
                         inline: true
                     },
                     {
-                        name: '请求队列状态',
-                        value: globalRequestQueue.paused ? '已暂停' : '运行中',
+                        name: '队列状态',
+                        value: globalRequestQueue.paused ? '🔴 已暂停' : '🟢 运行中',
+                        inline: true
+                    },
+                    {
+                        name: '队列统计',
+                        value: [
+                            `📥 等待处理: ${queueStats.queueLength}`,
+                            `⚡ 正在处理: ${queueStats.currentProcessing}`,
+                            `✅ 已完成: ${queueStats.processed}`,
+                            `🔄 重试: ${queueStats.retried}`,
+                            `❌ 失败: ${queueStats.failed}`
+                        ].join('\n'),
+                        inline: false
+                    },
+                    {
+                        name: '平均等待时间',
+                        value: `${Math.round(queueStats.averageWaitTime)}ms`,
                         inline: true
                     }
                 ],
-                timestamp: new Date()
+                timestamp: new Date(),
+                footer: {
+                    text: '系统监控'
+                }
             }]
         });
     }

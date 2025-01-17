@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { checkPermission, handlePermissionResult, measureTime, logTime, delay } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
+import { checkPermission, handlePermissionResult, measureTime, logTime, delay } from '../utils/helper.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
-module.exports = {
+export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('频道完全清理')

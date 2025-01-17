@@ -1,8 +1,8 @@
-const { Events } = require('discord.js');
-const { logTime } = require('../utils/helper');
-const { analyzeThreads } = require('../utils/analyzers');
-const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
-const { createApplicationMessage } = require('../utils/roleApplication');
+import { Events } from 'discord.js';
+import { logTime } from '../utils/helper.js';
+import { analyzeThreads } from '../utils/analyzers.js';
+import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
+import { createApplicationMessage } from '../utils/roleApplication.js';
 
 /**
  * 执行定时任务
@@ -85,7 +85,7 @@ const scheduleAnalysis = (client) => {
     }
 };
 
-module.exports = {
+export default {
     name: Events.ClientReady,
     once: true,
     async execute(client) {

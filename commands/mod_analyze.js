@@ -1,13 +1,13 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { analyzeThreads } = require('../utils/analyzers');
-const { checkPermission, handlePermissionResult, measureTime } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { analyzeThreads } from '../utils/analyzers.js';
+import { checkPermission, handlePermissionResult, measureTime } from '../utils/helper.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
 /**
  * 分析命令 - 生成子区活跃度统计报告
  * 统计所有子区的活跃状态，并在日志频道更新分析报告
  */
-module.exports = {
+export default {
     cooldown: 10, // 设置10秒冷却时间
     data: new SlashCommandBuilder()
         .setName('更新分析报告')

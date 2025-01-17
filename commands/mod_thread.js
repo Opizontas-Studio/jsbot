@@ -1,13 +1,13 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { logTime, checkChannelPermission, sendModerationLog, sendThreadNotification } = require('../utils/helper');
-const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
+import { logTime, checkChannelPermission, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
+import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
 
 /**
  * 管理命令 - 管理论坛帖子
  * 提供锁定、解锁、归档等管理功能
  */
-module.exports = {
-    cooldown: 10, // 设置10秒冷却时间
+export default {
+    cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('管理帖子')
         .setDescription('管理论坛帖子')

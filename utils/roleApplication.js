@@ -1,4 +1,4 @@
-const { 
+import { 
     ActionRowBuilder, 
     ButtonBuilder, 
     ButtonStyle, 
@@ -8,22 +8,26 @@ const {
     EmbedBuilder,
     ChannelType,
     Collection 
-} = require('discord.js');
-const { logTime } = require('./helper');
-const { globalRequestQueue, globalRateLimiter } = require('./concurrency');
-const fs = require('node:fs');
-const path = require('node:path');
+} from 'discord.js';
+import { logTime } from './helper.js';
+import { globalRequestQueue, globalRateLimiter } from './concurrency.js';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
 
-// 处理创建申请消息
-async function createApplicationMessage(client) {
+/**
+ * 处理创建申请消息
+ * @param {Client} client - Discord客户端
+ */
+export const createApplicationMessage = async (client) => {
     // 读取消息ID配置
-    const messageIdsPath = path.join(__dirname, '..', 'data', 'messageIds.json');
+    const messageIdsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
     let messageIds;
     try {
-        messageIds = JSON.parse(fs.readFileSync(messageIdsPath, 'utf8'));
+        messageIds = JSON.parse(readFileSync(messageIdsPath, 'utf8'));
         if (!messageIds.roleApplicationMessages) {
             messageIds.roleApplicationMessages = {};
         }
@@ -52,7 +56,7 @@ async function createApplicationMessage(client) {
                     }, 1);
                     // 清除消息ID记录
                     delete messageIds.roleApplicationMessages[guildId];
-                    fs.writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
+                    writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
                 } catch (error) {
                     logTime(`删除旧申请消息失败: ${error}`, true);
                 }
@@ -104,7 +108,7 @@ async function createApplicationMessage(client) {
                 });
 
                 messageIds.roleApplicationMessages[guildId] = newMessage.id;
-                fs.writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
+                writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
                 
                 logTime(`已在服务器 ${guildId} 创建新的身份组申请消息`);
             }, 1);
@@ -112,10 +116,13 @@ async function createApplicationMessage(client) {
             logTime(`在服务器 ${guildId} 创建身份组申请消息时出错: ${error}`, true);
         }
     }
-}
+};
 
-// 处理按钮交互
-async function handleButtonInteraction(interaction) {
+/**
+ * 处理按钮交互
+ * @param {ButtonInteraction} interaction - Discord按钮交互对象
+ */
+export const handleButtonInteraction = async (interaction) => {
     if (interaction.customId !== 'apply_creator_role') return;
 
     // 检查功能是否启用
@@ -173,10 +180,13 @@ async function handleButtonInteraction(interaction) {
     modal.addComponents(firstActionRow);
 
     await interaction.showModal(modal);
-}
+};
 
-// 处理模态框提交
-async function handleModalSubmit(interaction) {
+/**
+ * 处理模态框提交
+ * @param {ModalSubmitInteraction} interaction - Discord模态框提交交互对象
+ */
+export const handleModalSubmit = async (interaction) => {
     if (interaction.customId !== 'creator_role_modal') return;
 
     await interaction.deferReply({ flags: ['Ephemeral'] });
@@ -279,10 +289,4 @@ async function handleModalSubmit(interaction) {
         logTime(`处理创作者身份组申请时出错: ${error}`, true);
         await interaction.editReply('❌ 处理申请时出现错误，请稍后重试。');
     }
-}
-
-module.exports = {
-    createApplicationMessage,
-    handleButtonInteraction,
-    handleModalSubmit
 }; 

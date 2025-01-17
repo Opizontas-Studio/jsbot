@@ -1,17 +1,19 @@
-const { DiscordAPIError } = require('@discordjs/rest');
-const { RESTJSONErrorCodes } = require('discord-api-types/v10');
-const { ChannelFlags } = require('discord.js');
-const { logTime, delay, measureTime } = require('./helper');
-const fs = require('fs').promises;
-const path = require('path');
-const MESSAGE_IDS_PATH = path.join(__dirname, '../data/messageIds.json');
-const { globalRequestQueue } = require('./concurrency');
+import { DiscordAPIError } from '@discordjs/rest';
+import { RESTJSONErrorCodes } from 'discord-api-types/v10';
+import { ChannelFlags } from 'discord.js';
+import { logTime, delay, measureTime } from './helper.js';
+import { promises as fs } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { globalRequestQueue } from './concurrency.js';
+
+const MESSAGE_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
 
 /**
  * Discord日志管理器
  * 处理分析报告的格式化和发送
  */
-class DiscordLogger {
+export class DiscordLogger {
     /**
      * @param {Client} client - Discord客户端
      * @param {string} guildId - 服务器ID
@@ -236,7 +238,7 @@ class DiscordLogger {
  * @param {Error} error - 错误对象
  * @returns {string} 格式化的错误信息
  */
-const handleDiscordError = (error) => {
+export const handleDiscordError = (error) => {
     if (error instanceof DiscordAPIError) {
         const errorMessages = {
             [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
@@ -260,7 +262,7 @@ const handleDiscordError = (error) => {
  * @param {Collection} activeThreads - 预获取的活跃子区集合
  * @returns {Promise<Object>} 统计结果和失败记录
  */
-async function analyzeThreads(client, guildConfig, guildId, options = {}, activeThreads = null) {
+export const analyzeThreads = async (client, guildConfig, guildId, options = {}, activeThreads = null) => {
     // 立即发送延迟响应
     if (options.interaction) {
         await options.interaction.deferReply({ flags: ['Ephemeral'] });
@@ -445,9 +447,4 @@ async function analyzeThreads(client, guildConfig, guildId, options = {}, active
             throw error;
         }
     }, 1); // 设置优先级
-}
-
-module.exports = {
-    analyzeThreads,
-    DiscordLogger
 };

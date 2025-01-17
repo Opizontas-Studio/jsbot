@@ -1,6 +1,6 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { handleCommandError } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder } from 'discord.js';
+import { handleCommandError } from '../utils/helper.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
 // 定义颜色映射
 const COLORS = {
@@ -11,7 +11,7 @@ const COLORS = {
     '青色': 0x00ffff,
 };
 
-module.exports = {
+export default {
     // 设置命令冷却时间为60秒
     cooldown: 60,
     

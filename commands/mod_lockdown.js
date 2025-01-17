@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { logTime, handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
+import { logTime, handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } from '../utils/helper.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
-module.exports = {
+export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('暂停邀请')

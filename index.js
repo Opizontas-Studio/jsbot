@@ -1,16 +1,24 @@
-const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const { REST, Routes } = require('discord.js');
-const config = require('./config.json');
-const fs = require('node:fs');
-const path = require('node:path');
-const { measureTime, logTime, loadCommandFiles, delay } = require('./utils/helper');
-const GuildManager = require('./utils/guild_config');
-const { execSync } = require('child_process');
+import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
+import { REST, Routes } from 'discord.js';
+import { readFileSync, readdirSync, writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { measureTime, logTime, loadCommandFiles, delay } from './utils/helper.js';
+import GuildManager from './utils/guild_config.js';
+import { execSync } from 'child_process';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const config = JSON.parse(
+  readFileSync(join(currentDir, 'config.json'), 'utf8')
+);
+
+// 读取package.json获取版本号
+const packageJson = JSON.parse(readFileSync(join(currentDir, 'package.json'), 'utf8'));
 
 // 添加获取 Git 版本信息的函数
 function getVersionInfo() {
     try {
-        const packageJson = require('./package.json');
+        const packageJson = JSON.parse(readFileSync(join(currentDir, 'package.json'), 'utf8'));
         const version = 'v' + packageJson.version;
         const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
         const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
@@ -41,31 +49,37 @@ client.commands = new Collection();
 client.guildManager = new GuildManager();
 
 // 加载事件处理器
-function loadEvents() {
-    const eventsPath = path.join(__dirname, 'events');
-    const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+async function loadEvents() {
+    const eventsPath = join(currentDir, 'events');
+    const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
     logTime(`开始加载 ${eventFiles.length} 个事件处理器`);
     for (const file of eventFiles) {
-        const events = require(path.join(eventsPath, file));
-        
-        // 处理导出的单个事件或事件数组
-        const eventList = Array.isArray(events) ? events : [events];
-        
-        for (const event of eventList) {
-            if (!event || !event.name || !event.execute) {
-                logTime(`警告: ${file} 中的事件格式无效`, true);
-                continue;
-            }
-
-            const eventHandler = (...args) => event.execute(...args);
+        try {
+            const eventPath = join(eventsPath, file);
+            // 转换为 file:// URL
+            const fileUrl = `file://${eventPath.replace(/\\/g, '/')}`;
+            const event = await import(fileUrl);
             
-            if (event.once) {
-                client.once(event.name, eventHandler);
-            } else {
-                client.on(event.name, eventHandler);
+            // 处理导出的单个事件或事件数组
+            const eventList = Array.isArray(event.default) ? event.default : [event.default];
+            
+            for (const evt of eventList) {
+                if (!evt || !evt.name || !evt.execute) {
+                    logTime(`警告: ${file} 中的事件格式无效`, true);
+                    continue;
+                }
+
+                if (evt.once) {
+                    client.once(evt.name, (...args) => evt.execute(...args));
+                } else {
+                    client.on(evt.name, (...args) => evt.execute(...args));
+                }
+                logTime(`已加载事件: ${evt.name}`);
             }
-            logTime(`已加载事件: ${event.name}`);
+        } catch (error) {
+            logTime(`加载事件文件 ${file} 失败:`, true);
+            console.error(error.stack);
         }
     }
 }
@@ -129,7 +143,7 @@ async function main() {
         logTime(`登录完成，用时: ${loginTimer()}秒`);
 
         // 加载事件
-        loadEvents();
+        await loadEvents();
 
         // 等待客户端完全就绪
         if (!client.isReady()) {
@@ -139,8 +153,8 @@ async function main() {
         }
 
         // 检查并部署未部署命令的服务器
-        const commandsPath = path.join(__dirname, 'commands');
-        const commands = loadCommandFiles(commandsPath);
+        const commandsPath = join(currentDir, 'commands');
+        const commands = await loadCommandFiles(commandsPath);
         const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
         
         const rest = new REST({ version: '10' }).setToken(config.token);
@@ -156,7 +170,7 @@ async function main() {
                     
                     // 更新配置文件
                     config.guilds[guildId].commandsDeployed = true;
-                    fs.writeFileSync('./config.json', JSON.stringify(config, null, 4));
+                    writeFileSync('./config.json', JSON.stringify(config, null, 4));
                     logTime(`服务器 ${guildId} 命令部署完成，共 ${result.length} 个命令`);
 
                     // 添加延迟避免速率限制

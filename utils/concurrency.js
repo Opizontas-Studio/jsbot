@@ -1,10 +1,10 @@
-const { logTime } = require('./helper');
+import { logTime } from './helper.js';
 
 /**
  * 全局请求队列
  * 用于控制和序列化异步请求
  */
-class RequestQueue {
+export class RequestQueue {
     constructor() {
         this.queue = [];
         this.processing = false;
@@ -120,7 +120,7 @@ class RequestQueue {
  * 批量处理器
  * 用于控制批量操作的并发和延迟
  */
-class BatchProcessor {
+export class BatchProcessor {
     constructor() {
         // 不同任务类型的批处理配置
         this.configs = {
@@ -180,7 +180,7 @@ class BatchProcessor {
  * 速率限制器
  * 用于控制请求频率
  */
-class RateLimiter {
+export class RateLimiter {
     constructor(maxRequests = 50, timeWindowMs = 1000) {
         this.maxRequests = maxRequests;
         this.timeWindowMs = timeWindowMs;
@@ -209,15 +209,6 @@ class RateLimiter {
 }
 
 // 创建单例实例
-const globalRequestQueue = new RequestQueue();
-const globalRateLimiter = new RateLimiter(10, 1000); // 每秒最多10个请求
-const globalBatchProcessor = new BatchProcessor();
-
-module.exports = {
-    RequestQueue,
-    BatchProcessor,
-    RateLimiter,
-    globalRequestQueue,
-    globalRateLimiter,
-    globalBatchProcessor
-}; 
+export const globalRequestQueue = new RequestQueue();
+export const globalRateLimiter = new RateLimiter(10, 1000); // 每秒最多10个请求
+export const globalBatchProcessor = new BatchProcessor(); 

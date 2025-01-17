@@ -1,9 +1,9 @@
-const { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { logTime, lockAndArchiveThread, handleCommandError } = require('../utils/helper');
-const { handleSingleThread } = require('./mod_prune');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
+import { logTime, lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
+import { handleSingleThread } from './mod_prune.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
-module.exports = {
+export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('自助管理')

@@ -1,9 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { handleCommandError, lockAndArchiveThreadWithLog } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
+import { handleCommandError, lockAndArchiveThreadWithLog } from '../utils/helper.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
-module.exports = {
-    cooldown: 10, // 设置10秒冷却时间
+export default {
+    cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('一键锁定关贴')
         .setDescription('锁定并归档当前论坛帖子')

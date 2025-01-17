@@ -1,13 +1,13 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { checkPermission, handlePermissionResult, logTime, generateProgressReport, handleCommandError } = require('../utils/helper');
-const { cleanThreadMembers } = require('../utils/cleaner');
-const { globalBatchProcessor, globalRateLimiter } = require('../utils/concurrency');
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { checkPermission, handlePermissionResult, logTime, generateProgressReport, handleCommandError } from '../utils/helper.js';
+import { cleanThreadMembers } from '../utils/cleaner.js';
+import { globalBatchProcessor, globalRateLimiter } from '../utils/concurrency.js';
 
 /**
  * 清理子区不活跃用户命令
  * 支持单个子区清理和全服清理两种模式
  */
-module.exports = {
+export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('清理子区不活跃用户')
@@ -58,7 +58,7 @@ module.exports = {
 /**
  * 处理单个子区的清理
  */
-async function handleSingleThread(interaction, guildConfig) {
+export async function handleSingleThread(interaction, guildConfig) {
     if (!interaction.channel.isThread()) {
         await interaction.editReply({
             content: '❌ 此命令只能在子区中使用',

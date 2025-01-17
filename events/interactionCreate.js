@@ -1,7 +1,7 @@
-const { Events, Collection } = require('discord.js');
-const { logTime } = require('../utils/helper');
-const { globalRequestQueue, globalRateLimiter } = require('../utils/concurrency');
-const { handleButtonInteraction, handleModalSubmit } = require('../utils/roleApplication');
+import { Events, Collection } from 'discord.js';
+import { logTime } from '../utils/helper.js';
+import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
+import { handleButtonInteraction, handleModalSubmit } from '../utils/roleApplication.js';
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
@@ -13,7 +13,7 @@ const DEFAULT_COOLDOWN = 5;
  * 处理Discord斜杠命令交互
  * @param {Interaction} interaction - Discord交互对象
  */
-module.exports = {
+export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
         // 处理身份组申请相关的交互

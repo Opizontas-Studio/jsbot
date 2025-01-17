@@ -1,11 +1,11 @@
-const fs = require('node:fs');
-const path = require('node:path');
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * 计算执行时间的工具函数
  * @returns {Function} 返回一个函数，调用时返回从开始到现在的秒数（保留两位小数）
  */
-const measureTime = () => {
+export const measureTime = () => {
     const start = process.hrtime();
     return () => {
         const [seconds, nanoseconds] = process.hrtime(start);
@@ -18,14 +18,14 @@ const measureTime = () => {
  * @param {number} ms - 延迟时间（毫秒）
  * @returns {Promise<void>}
  */
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * 记录时间日志
  * @param {string} message - 日志消息
  * @param {boolean} [error=false] - 是否为错误日志
  */
-const logTime = (message, error = false) => {
+export const logTime = (message, error = false) => {
     const prefix = error ? '❌ ' : '';
     console.log(`[${new Date().toLocaleString()}] ${prefix}${message}`);
 };
@@ -36,7 +36,7 @@ const logTime = (message, error = false) => {
  * @param {string[]} allowedRoleIds - 允许执行命令的角色ID数组
  * @returns {boolean} 如果用户拥有允许的角色则返回true
  */
-const checkPermission = (member, allowedRoleIds) => {
+export const checkPermission = (member, allowedRoleIds) => {
     return member.roles.cache.some(role => allowedRoleIds.includes(role.id));
 };
 
@@ -46,7 +46,7 @@ const checkPermission = (member, allowedRoleIds) => {
  * @param {boolean} hasPermission - 权限检查结果
  * @returns {Promise<boolean>} 如果没有权限返回false
  */
-const handlePermissionResult = async (interaction, hasPermission) => {
+export const handlePermissionResult = async (interaction, hasPermission) => {
     if (!hasPermission) {
         await interaction.reply({
             content: '你没有权限使用此命令。需要具有指定的身份组权限。',
@@ -64,7 +64,7 @@ const handlePermissionResult = async (interaction, hasPermission) => {
  * @param {string[]} allowedRoleIds - 允许执行命令的角色ID数组
  * @returns {boolean} 如果用户拥有权限则返回true
  */
-const checkChannelPermission = (member, channel, allowedRoleIds) => {
+export const checkChannelPermission = (member, channel, allowedRoleIds) => {
     // 检查用户是否有全局身份组权限
     const hasGlobalPermission = member.roles.cache.some(role => allowedRoleIds.includes(role.id));
     if (hasGlobalPermission) return true;
@@ -89,7 +89,7 @@ const checkChannelPermission = (member, channel, allowedRoleIds) => {
  * @param {string} [reason] - 操作原因（可选）
  * @returns {Promise<void>}
  */
-const lockAndArchiveThreadBase = async (thread, executor, reason) => {
+export const lockAndArchiveThreadBase = async (thread, executor, reason) => {
     // 发送通知到帖子中
     await sendThreadNotification(thread, {
         title: '帖子已被锁定并归档',
@@ -112,7 +112,7 @@ const lockAndArchiveThreadBase = async (thread, executor, reason) => {
  * @param {Object} guildConfig - 服务器配置
  * @returns {Promise<void>}
  */
-const lockAndArchiveThreadWithLog = async (thread, executor, reason, guildConfig) => {
+export const lockAndArchiveThreadWithLog = async (thread, executor, reason, guildConfig) => {
     if (!reason) {
         throw new Error('管理员必须提供锁定原因');
     }
@@ -151,7 +151,7 @@ const lockAndArchiveThreadWithLog = async (thread, executor, reason, guildConfig
  * @param {string} logData.threadUrl - 帖子链接
  * @param {string} logData.reason - 操作原因
  */
-async function sendModerationLog(client, moderationChannelId, logData) {
+export const sendModerationLog = async (client, moderationChannelId, logData) => {
     const moderationChannel = await client.channels.fetch(moderationChannelId);
     await moderationChannel.send({
         embeds: [{
@@ -180,7 +180,7 @@ async function sendModerationLog(client, moderationChannelId, logData) {
             }
         }]
     });
-}
+};
 
 /**
  * 发送通知到帖子中
@@ -190,7 +190,7 @@ async function sendModerationLog(client, moderationChannelId, logData) {
  * @param {string} notifyData.executorId - 执行者ID
  * @param {string} notifyData.reason - 操作原因
  */
-async function sendThreadNotification(thread, notifyData) {
+export const sendThreadNotification = async (thread, notifyData) => {
     await thread.send({
         embeds: [{
             color: 0xffcc00,
@@ -210,7 +210,7 @@ async function sendThreadNotification(thread, notifyData) {
             timestamp: new Date()
         }]
     });
-}
+};
 
 /**
  * 生成进度报告
@@ -219,10 +219,10 @@ async function sendThreadNotification(thread, notifyData) {
  * @param {string} prefix - 前缀文本
  * @returns {string} 格式化的进度信息
  */
-function generateProgressReport(current, total, prefix = '') {
+export const generateProgressReport = (current, total, prefix = '') => {
     const progress = (current / total * 100).toFixed(1);
     return `${prefix}${current}/${total} (${progress}%)`;
-}
+};
 
 /**
  * 处理分批进度报告
@@ -233,7 +233,7 @@ function generateProgressReport(current, total, prefix = '') {
  * @param {Function} callback - 进度回调函数
  * @returns {number} 新的进度索引
  */
-function handleBatchProgress(current, total, intervals, lastProgressIndex, callback) {
+export const handleBatchProgress = (current, total, intervals, lastProgressIndex, callback) => {
     const currentProgress = (current / total * 100);
     const progressIndex = intervals.findIndex(interval => 
         currentProgress >= interval && interval > (lastProgressIndex >= 0 ? intervals[lastProgressIndex] : 0)
@@ -244,7 +244,7 @@ function handleBatchProgress(current, total, intervals, lastProgressIndex, callb
         return progressIndex;
     }
     return lastProgressIndex;
-}
+};
 
 /**
  * 统一处理命令错误响应
@@ -252,7 +252,7 @@ function handleBatchProgress(current, total, intervals, lastProgressIndex, callb
  * @param {Error} error - 错误对象
  * @param {string} commandName - 命令名称
  */
-async function handleCommandError(interaction, error, commandName) {
+export const handleCommandError = async (interaction, error, commandName) => {
     logTime(`${commandName}执行出错: ${error}`, true);
     
     try {
@@ -270,7 +270,7 @@ async function handleCommandError(interaction, error, commandName) {
     } catch (replyError) {
         logTime(`发送错误响应失败: ${replyError}`, true);
     }
-}
+};
 
 /**
  * 发送清理报告到管理频道
@@ -278,7 +278,7 @@ async function handleCommandError(interaction, error, commandName) {
  * @param {Object} guildConfig - 服务器配置
  * @param {Object} result - 清理结果
  */
-async function sendCleanupReport(interaction, guildConfig, result) {
+export const sendCleanupReport = async (interaction, guildConfig, result) => {
     const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
     await moderationChannel.send({
         embeds: [{
@@ -305,58 +305,53 @@ async function sendCleanupReport(interaction, guildConfig, result) {
             }
         }]
     });
-}
+};
 
 /**
  * 加载命令文件
  * @param {string} commandsDir - 命令文件目录的路径
  * @param {string[]} [excludeFiles=[]] - 要排除的文件名数组
- * @returns {Map<string, Object>} 命令映射
+ * @returns {Promise<Map<string, Object>>} 命令映射
  */
-function loadCommandFiles(commandsDir, excludeFiles = []) {
+export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
     const commands = new Map();
     
-    fs.readdirSync(commandsDir)
-        .filter(file => file.endsWith('.js'))
-        .forEach(file => {
+    try {
+        const files = readdirSync(commandsDir)
+            .filter(file => file.endsWith('.js') && !excludeFiles.includes(file));
+
+        for (const file of files) {
             try {
-                const command = require(path.join(commandsDir, file));
-                if (!command.data?.name || !command.execute) {
+                const commandPath = join(commandsDir, file);
+                // 转换为 file:// URL
+                const fileUrl = `file://${commandPath.replace(/\\/g, '/')}`;
+                const command = await import(fileUrl);
+                
+                if (!command.default?.data?.name || !command.default.execute) {
                     logTime(`⚠️ ${file} 缺少必要属性`);
-                    return;
+                    continue;
                 }
                 
-                if (commands.has(command.data.name)) {
-                    logTime(`⚠️ 重复命令名称 "${command.data.name}"`);
-                    return;
+                if (commands.has(command.default.data.name)) {
+                    logTime(`⚠️ 重复命令名称 "${command.default.data.name}"`);
+                    continue;
                 }
 
-                commands.set(command.data.name, command);
+                commands.set(command.default.data.name, command.default);
+                logTime(`已加载命令: ${command.default.data.name}`);
             } catch (error) {
                 logTime(`❌ 加载命令文件 ${file} 失败:`, true);
                 console.error(error.stack);
             }
-        });
+        }
         
-    logTime(`已加载 ${commands.size} 个命令: ${Array.from(commands.keys()).join(', ')}`);
-    return commands;
-}
+        return commands;
+    } catch (error) {
+        logTime(`❌ 读取命令目录失败:`, true);
+        console.error(error.stack);
+        return new Map();
+    }
+};
 
-module.exports = {
-    measureTime,
-    delay,
-    logTime,
-    checkPermission,
-    handlePermissionResult,
-    checkChannelPermission,
-    lockAndArchiveThreadBase,
-    lockAndArchiveThreadWithLog,
-    sendModerationLog,
-    sendThreadNotification,
-    generateProgressReport,
-    handleBatchProgress,
-    handleCommandError,
-    sendCleanupReport,
-    loadCommandFiles,
-    lockAndArchiveThread: lockAndArchiveThreadBase
-}; 
+// 为了向后兼容，保留 lockAndArchiveThread 的别名
+export const lockAndArchiveThread = lockAndArchiveThreadBase; 

@@ -1,12 +1,12 @@
-const { logTime } = require('./helper');
-const { globalBatchProcessor, globalRateLimiter, globalRequestQueue } = require('./concurrency');
+import { logTime } from './helper.js';
+import { globalBatchProcessor, globalRateLimiter, globalRequestQueue } from './concurrency.js';
 
 /**
  * 发送子区清理报告
  * @param {ThreadChannel} thread - 子区对象
  * @param {Object} result - 清理结果
  */
-async function sendThreadReport(thread, result) {
+export const sendThreadReport = async (thread, result) => {
     try {
         await thread.send({
             embeds: [{
@@ -36,7 +36,7 @@ async function sendThreadReport(thread, result) {
     } catch (error) {
         logTime(`发送子区报告失败 ${thread.name}: ${error.message}`, true);
     }
-}
+};
 
 /**
  * 清理子区成员
@@ -47,7 +47,7 @@ async function sendThreadReport(thread, result) {
  * @param {Function} progressCallback - 进度回调函数
  * @returns {Promise<Object>} 清理结果
  */
-async function cleanThreadMembers(thread, threshold, options = {}, progressCallback = () => {}) {
+export const cleanThreadMembers = async (thread, threshold, options = {}, progressCallback = () => {}) => {
     // 将整个清理任务加入队列
     return await globalRequestQueue.add(async () => {
         try {
@@ -232,9 +232,4 @@ async function cleanThreadMembers(thread, threshold, options = {}, progressCallb
             };
         }
     }, 0); // 优先级设为0
-}
-
-module.exports = {
-    cleanThreadMembers,
-    sendThreadReport
 }; 

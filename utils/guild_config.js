@@ -1,6 +1,6 @@
-const { logTime } = require('./helper');
+import { logTime } from './helper.js';
 
-class GuildManager {
+export class GuildManager {
     constructor() {
         this.guilds = new Map();
     }
@@ -43,4 +43,4 @@ class GuildManager {
     }
 }
 
-module.exports = GuildManager; 
+export default GuildManager; 

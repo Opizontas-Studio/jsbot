@@ -1,10 +1,10 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { REST, Routes } = require('discord.js');
-const { logTime, measureTime, loadCommandFiles, checkPermission, handlePermissionResult } = require('../utils/helper');
-const path = require('node:path');
-const { Collection } = require('discord.js');
+import { SlashCommandBuilder, Collection } from 'discord.js';
+import { REST, Routes } from 'discord.js';
+import { logTime, measureTime, loadCommandFiles, checkPermission, handlePermissionResult } from '../utils/helper.js';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('同步指令')
         .setDescription('检查并同步当前服务器的Discord指令'),
@@ -18,7 +18,7 @@ module.exports = {
         
         try {
             const deployTimer = measureTime();
-            const commandsPath = path.join(__dirname);
+            const commandsPath = join(dirname(fileURLToPath(import.meta.url)));
             const localCommands = loadCommandFiles(commandsPath, ['sync_commands.js']);
             const localCommandData = Array.from(localCommands.values()).map(cmd => cmd.data.toJSON());
             

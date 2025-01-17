@@ -1,13 +1,13 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { analyzeThreads } = require('../utils/analyzers');
-const { checkPermission, handlePermissionResult, measureTime } = require('../utils/helper');
-const { globalRequestQueue } = require('../utils/concurrency');
+import { SlashCommandBuilder } from 'discord.js';
+import { analyzeThreads } from '../utils/analyzers.js';
+import { checkPermission, handlePermissionResult, measureTime } from '../utils/helper.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
 /**
  * 清理命令 - 归档不活跃的子区
  * 当活跃子区数量超过阈值时，自动归档最不活跃的子区
  */
-module.exports = {
+export default {
     cooldown: 10, // 设置10秒冷却时间
     data: new SlashCommandBuilder()
         .setName('清理活跃贴')

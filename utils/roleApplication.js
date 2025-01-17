@@ -43,7 +43,7 @@ export const createApplicationMessage = async (client) => {
                                 logTime(`已删除服务器 ${guildId} 的旧申请消息（功能已禁用）`);
                             }
                         }
-                    }, 1);
+                    }, 3);  // 用户指令优先级
                     // 清除消息ID记录
                     delete messageIds.roleApplicationMessages[guildId];
                     writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
@@ -101,7 +101,7 @@ export const createApplicationMessage = async (client) => {
                 writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
                 
                 logTime(`已在服务器 ${guildId} 创建新的身份组申请消息`);
-            }, 1);
+            }, 3); // 用户指令优先级
         } catch (error) {
             logTime(`在服务器 ${guildId} 创建身份组申请消息时出错: ${error}`, true);
         }
@@ -285,7 +285,7 @@ export const handleModalSubmit = async (interaction) => {
             } else {
                 await interaction.editReply('❌ 审核未通过，请获取足够正面反应后再申请。');
             }
-        }, 2); // 使用较高优先级，因为这是用户交互
+        }, 3); // 用户指令优先级
 
     } catch (error) {
         logTime(`处理创作者身份组申请时出错: ${error}`, true);

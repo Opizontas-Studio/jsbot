@@ -1,7 +1,6 @@
 import { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
 import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
-import { handleSingleThread } from './mod_prune.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
+import { handleSingleThread } from './adm_prune.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
@@ -103,21 +102,19 @@ export default {
                     content: '⏳ 正在处理...'
                 });
 
-                await globalRequestQueue.add(async () => {
-                    if (action === 'pin') {
-                        await message.pin();
-                        await interaction.editReply({
-                            content: '✅ 消息已标注'
-                        });
-                        logTime(`楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
-                    } else {
-                        await message.unpin();
-                        await interaction.editReply({
-                            content: '✅ 消息已取消标注'
-                        });
-                        logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
-                    }
-                }, 2); // 中优先级
+                if (action === 'pin') {
+                    await message.pin();
+                    await interaction.editReply({
+                        content: '✅ 消息已标注'
+                    });
+                    logTime(`楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+                } else {
+                    await message.unpin();
+                    await interaction.editReply({
+                        content: '✅ 消息已取消标注'
+                    });
+                    logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+                }
 
             } catch (error) {
                 await handleCommandError(interaction, error, '标注消息');
@@ -166,9 +163,7 @@ export default {
                         const threadName = thread.name;
                         const userTag = interaction.user.tag;
                         
-                        await globalRequestQueue.add(async () => {
-                            await thread.delete('作者自行删除');
-                        }, 3);
+                        await thread.delete('作者自行删除');
                         
                         // 记录日志
                         logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
@@ -249,14 +244,16 @@ export default {
                         embeds: []
                     });
 
-                    await globalRequestQueue.add(async () => {
-                        await lockAndArchiveThread(thread, interaction.user, reason || '作者自行锁定', guildConfig);
+                    try {
+                        await lockAndArchiveThread(thread, interaction.user, reason || '楼主已结束讨论');
                         await interaction.editReply({
-                            content: '✅ 帖子已成功锁定并关闭',
+                            content: '✅ 帖子已锁定并归档',
                             components: [],
                             embeds: []
                         });
-                    }, 3);
+                    } catch (error) {
+                        await handleCommandError(interaction, error, '锁定帖子');
+                    }
                 }
             } catch (error) {
                 if (error.code === 'InteractionCollectorError') {
@@ -298,7 +295,7 @@ export default {
                     return;
                 }
 
-                // 以下是原有的确认逻辑
+                // 确认逻辑
                 const confirmButton = new ButtonBuilder()
                     .setCustomId('confirm_clean')
                     .setLabel('确认清理')
@@ -342,7 +339,7 @@ export default {
                         await globalRequestQueue.add(async () => {
                             await handleSingleThread(interaction, guildConfig);
                             logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
-                        }, 0); // 低优先级
+                        }, 0); // 该耗时任务独立进入队列
                     }
                 } catch (error) {
                     if (error.code === 'InteractionCollectorError') {

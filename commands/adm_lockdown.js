@@ -1,7 +1,6 @@
 import { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
 import { handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 
 export default {
     cooldown: 10,
@@ -94,68 +93,66 @@ export default {
                     embeds: []
                 });
 
-                await globalRequestQueue.add(async () => {
-                    const features = guild.features;
-                    if (action === 'enable') {
-                        // 启用邀请暂停
-                        if (!features.includes('INVITES_DISABLED')) {
-                            await guild.edit({
-                                features: [...features, 'INVITES_DISABLED']
-                            });
-                            
-                            // 发送管理日志
-                            await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
-                                title: '🔒 服务器邀请功能已暂停',
-                                executorId: interaction.user.id,
-                                threadName: '服务器邀请管理',
-                                threadUrl: interaction.channel.url,
-                                reason: reason
-                            });
+                const features = guild.features;
+                if (action === 'enable') {
+                    // 启用邀请暂停
+                    if (!features.includes('INVITES_DISABLED')) {
+                        await guild.edit({
+                            features: [...features, 'INVITES_DISABLED']
+                        });
+                        
+                        // 发送管理日志
+                        await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
+                            title: '🔒 服务器邀请功能已暂停',
+                            executorId: interaction.user.id,
+                            threadName: '服务器邀请管理',
+                            threadUrl: interaction.channel.url,
+                            reason: reason
+                        });
 
-                            logTime(`管理员 ${interaction.user.tag} 暂停了服务器 ${guild.name} 的邀请功能`);
-                            await interaction.editReply({
-                                content: '✅ 已成功暂停服务器邀请功能',
-                                components: [],
-                                embeds: []
-                            });
-                        } else {
-                            await interaction.editReply({
-                                content: '❓ 服务器邀请功能已经处于暂停状态',
-                                components: [],
-                                embeds: []
-                            });
-                        }
+                        logTime(`管理员 ${interaction.user.tag} 暂停了服务器 ${guild.name} 的邀请功能`);
+                        await interaction.editReply({
+                            content: '✅ 已成功暂停服务器邀请功能',
+                            components: [],
+                            embeds: []
+                        });
                     } else {
-                        // 禁用邀请暂停
-                        if (features.includes('INVITES_DISABLED')) {
-                            await guild.edit({
-                                features: features.filter(f => f !== 'INVITES_DISABLED')
-                            });
-
-                            // 发送管理日志
-                            await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
-                                title: '🔓 服务器邀请功能已恢复',
-                                executorId: interaction.user.id,
-                                threadName: '服务器邀请管理',
-                                threadUrl: interaction.channel.url,
-                                reason: reason
-                            });
-
-                            logTime(`管理员 ${interaction.user.tag} 恢复了服务器 ${guild.name} 的邀请功能`);
-                            await interaction.editReply({
-                                content: '✅ 已成功恢复服务器邀请功能',
-                                components: [],
-                                embeds: []
-                            });
-                        } else {
-                            await interaction.editReply({
-                                content: '❓ 服务器邀请功能已经处于开启状态',
-                                components: [],
-                                embeds: []
-                            });
-                        }
+                        await interaction.editReply({
+                            content: '❓ 服务器邀请功能已经处于暂停状态',
+                            components: [],
+                            embeds: []
+                        });
                     }
-                }, 3); // 高优先级，影响全服务器
+                } else {
+                    // 禁用邀请暂停
+                    if (features.includes('INVITES_DISABLED')) {
+                        await guild.edit({
+                            features: features.filter(f => f !== 'INVITES_DISABLED')
+                        });
+
+                        // 发送管理日志
+                        await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
+                            title: '🔓 服务器邀请功能已恢复',
+                            executorId: interaction.user.id,
+                            threadName: '服务器邀请管理',
+                            threadUrl: interaction.channel.url,
+                            reason: reason
+                        });
+
+                        logTime(`管理员 ${interaction.user.tag} 恢复了服务器 ${guild.name} 的邀请功能`);
+                        await interaction.editReply({
+                            content: '✅ 已成功恢复服务器邀请功能',
+                            components: [],
+                            embeds: []
+                        });
+                    } else {
+                        await interaction.editReply({
+                            content: '❓ 服务器邀请功能已经处于开启状态',
+                            components: [],
+                            embeds: []
+                        });
+                    }
+                }
             }
         } catch (error) {
             if (error.code === 'InteractionCollectorError') {

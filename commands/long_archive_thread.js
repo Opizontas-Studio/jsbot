@@ -1,7 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { analyzeThreads } from '../utils/analyzers.js';
 import { checkPermission, handlePermissionResult, measureTime } from '../utils/helper.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 
 /**
  * 清理命令 - 归档不活跃的子区
@@ -51,13 +50,10 @@ export default {
                 return;
             }
 
-            // 将清理操作加入队列
-            const result = await globalRequestQueue.add(async () => {
-                return await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
-                    clean: true,
-                    threshold: threshold || 960
-                }, activeThreads);
-            }, 2); // 使用中等优先级，因为这是管理员主动触发的清理操作
+            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
+                clean: true,
+                threshold: threshold || 960
+            }, activeThreads);
 
             const executionTime = executionTimer();
 

@@ -1,6 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { handleCommandError } from '../utils/helper.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 
 // 定义颜色映射
 const COLORS = {
@@ -62,29 +61,26 @@ export default {
             const imageUrl = interaction.options.getString('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
 
-            // 加入队列发送通知
-            await globalRequestQueue.add(async () => {
-                const embed = {
-                    color: COLORS[selectedColor],
-                    title: title,
-                    description: description,
-                    timestamp: new Date(),
-                    footer: {
-                        text: `由 ${interaction.member.displayName} 发送`
-                    }
-                };
-                
-                // 如果提供了图片URL，添加图片
-                if (imageUrl) {
-                    embed.image = { url: imageUrl };
+            const embed = {
+                color: COLORS[selectedColor],
+                title: title,
+                description: description,
+                timestamp: new Date(),
+                footer: {
+                    text: `由 ${interaction.member.displayName} 发送`
                 }
+            };
+            
+            // 如果提供了图片URL，添加图片
+            if (imageUrl) {
+                embed.image = { url: imageUrl };
+            }
 
-                await channel.send({ embeds: [embed] });
+            await channel.send({ embeds: [embed] });
 
-                await interaction.editReply({
-                    content: '✅ 通知已发送'
-                });
-            }, 2); // 中优先级
+            await interaction.editReply({
+                content: '✅ 通知已发送'
+            });
 
         } catch (error) {
             await handleCommandError(interaction, error, '发送通知');

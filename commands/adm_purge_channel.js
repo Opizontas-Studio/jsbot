@@ -1,6 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
 import { checkPermission, handlePermissionResult, measureTime, delay } from '../utils/helper.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
@@ -118,9 +117,8 @@ export default {
 
                         // 批量删除新消息
                         if (recentMessages.size > 0) {
-                            await globalRequestQueue.add(async () => {
-                                await channel.bulkDelete(recentMessages);
-                            }, 1);
+                            await channel.bulkDelete(recentMessages);
+                            await delay(200);
                         }
 
                         // 逐个删除旧消息

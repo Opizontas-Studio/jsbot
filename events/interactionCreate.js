@@ -72,19 +72,25 @@ export default {
         setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
 
         try {
-            // 根据命令类型设置不同的优先级
-            let priority = 0;
-            if (command.data.name.startsWith('mod_')) {
-                priority = 2; // 管理命令最高优先级
-            } else if (command.data.name === 'self_manage') {
-                priority = 1; // 自助管理次高优先级
+            // 根据命令名称前缀设置优先级
+            let priority = 1; // 默认优先级
+            const commandName = command.data.name;
+            
+            if (commandName.startsWith('adm_')) {
+                priority = 5; // 管理级任务最高优先级
+            } else if (commandName.startsWith('mod_')) {
+                priority = 4; // 管理员任务次高优先级
+            } else if (commandName.startsWith('user_')) {
+                priority = 3; // 用户任务中等优先级
+            } else if (commandName.startsWith('long_')) {
+                priority = 2; // 耗时后台任务较低优先级
             }
 
             // 使用全局请求队列处理命令
             await globalRequestQueue.add(
                 async () => {
                     // 对于高频操作命令使用速率限制
-                    if (['self_manage', 'mod_thread'].includes(command.data.name)) {
+                    if (commandName.startsWith('user_') || commandName.startsWith('mod_')) {
                         return await globalRateLimiter.withRateLimit(async () => {
                             await command.execute(interaction, guildConfig);
                         });

@@ -184,7 +184,7 @@ export class BatchProcessor {
         this.configs = {
             // 子区检查 - 较大批次，较短延迟
             threadCheck: {
-                batchSize: 15,
+                batchSize: 30,
                 delayMs: 100
             },
             // 消息历史 - 中等批次，较长延迟

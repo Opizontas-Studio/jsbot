@@ -130,7 +130,8 @@ export class DiscordLogger {
                 value: [
                     `所属频道: ${thread.parentName}`,
                     `消息数量: ${thread.messageCount}`,
-                    `不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`
+                    `不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`,
+                    `链接: https://discord.com/channels/${this.guildId}/${thread.threadId}`
                 ].join('\n'),
                 inline: false
             }))

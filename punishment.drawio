@@ -1,214 +1,214 @@
 <mxfile host="65bd71144e">
     <diagram id="Z2dUOpaNP-kNlB8nS5x3" name="第 1 页">
-        <mxGraphModel dx="2342" dy="956" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+        <mxGraphModel dx="2280" dy="1147" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="48" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="90" target="7">
+                <mxCell id="48" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="90" target="7" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="80" y="117.5" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="54" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="91" target="41">
+                <mxCell id="54" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="91" target="41" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="330" y="280" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="51" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="7" target="31">
+                <mxCell id="51" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="7" target="31" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="66" style="edgeStyle=none;html=1;exitX=0;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="7">
+                <mxCell id="66" style="edgeStyle=none;html=1;exitX=0;exitY=1;exitDx=0;exitDy=0;" parent="1" source="7" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-110" y="660" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="7" value="执行处罚效果" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="7" value="执行处罚效果" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="20" y="162.5" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="49" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="89" target="10">
+                <mxCell id="49" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="89" target="10" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-177" y="117.5" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="50" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="10" target="18">
+                <mxCell id="50" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="10" target="18" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="10" value="执行永封" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="10" value="执行永封" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-237" y="162.5" width="120" height="55" as="geometry"/>
                 </mxCell>
-                <mxCell id="74" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" target="73">
+                <mxCell id="74" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" target="73" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-185" y="770" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="87" style="edgeStyle=none;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" target="94">
+                <mxCell id="87" style="edgeStyle=none;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" target="94" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-270" y="713.75" as="targetPoint"/>
                         <mxPoint x="-270" y="715" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="64" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="18">
+                <mxCell id="64" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="18" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-185" y="660" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="18" value="发送公示消息&lt;br&gt;且私聊发送提醒" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="18" value="发送公示消息&lt;br&gt;且私聊发送提醒" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-237" y="257.5" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="53" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="22" target="41">
+                <mxCell id="53" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="22" target="41" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="22" value="上诉控件提供：&lt;br&gt;- 受处罚原因&lt;br&gt;- 处罚人&lt;br&gt;- 处罚情况&lt;br&gt;上诉按钮：&lt;br&gt;- 诉求:撤销处罚/减刑&lt;br&gt;- 作文:理由" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="22" value="上诉控件提供：&lt;br&gt;- 受处罚原因&lt;br&gt;- 处罚人&lt;br&gt;- 处罚情况&lt;br&gt;上诉按钮：&lt;br&gt;- 诉求:撤销处罚/减刑&lt;br&gt;- 作文:理由" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="20" y="357.5" width="120" height="125" as="geometry"/>
                 </mxCell>
-                <mxCell id="71" style="edgeStyle=none;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="24" target="121">
+                <mxCell id="71" style="edgeStyle=none;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="24" target="121" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="80" y="610" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="24" value="投票数小于总数10%或同票则执行蓝方诉求&lt;br&gt;红方票多：&lt;br&gt;- 执行议员指令&lt;br&gt;- 解除上诉人处罚&lt;br&gt;蓝方票多：&lt;br&gt;- 议员指令无效&lt;br&gt;- 执行蓝方诉求" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="24" value="投票数小于总数10%或同票则执行蓝方诉求&lt;br&gt;红方票多：&lt;br&gt;- 执行议员指令&lt;br&gt;- 解除上诉人处罚&lt;br&gt;蓝方票多：&lt;br&gt;- 议员指令无效&lt;br&gt;- 执行蓝方诉求" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="10" y="650" width="160" height="130" as="geometry"/>
                 </mxCell>
-                <mxCell id="52" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="31" target="22">
+                <mxCell id="52" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="31" target="22" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="31" value="&lt;div&gt;发送公示消息&lt;/div&gt;&lt;div&gt;含上诉控件&lt;br&gt;@当事人提醒&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="31" value="&lt;div&gt;发送公示消息&lt;/div&gt;&lt;div&gt;含上诉控件&lt;br&gt;@当事人提醒&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="20" y="257.5" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="61" style="edgeStyle=none;html=1;" edge="1" parent="1" source="40">
+                <mxCell id="61" style="edgeStyle=none;html=1;" parent="1" source="40" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="470" y="715" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="62" style="edgeStyle=none;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="40" target="24">
+                <mxCell id="62" style="edgeStyle=none;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="40" target="24" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="180" y="715" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="100" style="edgeStyle=none;html=1;" edge="1" parent="1" source="40">
+                <mxCell id="100" style="edgeStyle=none;html=1;" parent="1" source="40" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="330" y="809.9999999999998" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="40" value="&lt;div&gt;发起人红方，受控人蓝方&lt;br&gt;两旁显示诉求&lt;br&gt;（蓝方默认要求不做处理）&lt;br&gt;议员投票&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="40" value="&lt;div&gt;发起人红方，受控人蓝方&lt;br&gt;两旁显示诉求&lt;br&gt;（蓝方默认要求不做处理）&lt;br&gt;议员投票&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="240" y="670" width="180" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="58" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="41" target="57">
+                <mxCell id="58" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="41" target="57" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="41" value="发送议事控件到议事区&lt;br&gt;议员可匿名点赞&lt;br&gt;点赞则更新控件" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="41" value="发送议事控件到议事区&lt;br&gt;议员可匿名点赞&lt;br&gt;点赞则更新控件" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="240" y="385" width="180" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="59" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="57" target="40">
+                <mxCell id="59" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="57" target="40" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="57" value="达到10赞后&lt;br&gt;执行变更：&lt;br&gt;- 解除禁言&lt;br&gt;- 添加辩诉区通行&lt;br&gt;- 向辩诉区创建新帖子&lt;br&gt;- @当事人&lt;br&gt;- 在辩诉贴下创建投票器控件" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="57" value="达到10赞后&lt;br&gt;执行变更：&lt;br&gt;- 解除禁言&lt;br&gt;- 添加辩诉区通行&lt;br&gt;- 向辩诉区创建新帖子&lt;br&gt;- @当事人&lt;br&gt;- 在辩诉贴下创建投票器控件" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="240" y="500" width="180" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="67" value="" style="endArrow=classic;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="24">
+                <mxCell id="67" value="" style="endArrow=classic;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="24" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-80" y="714.5" as="sourcePoint"/>
                         <mxPoint x="-100" y="715" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="68" value="更新库内数据" style="edgeLabel;resizable=0;html=1;align=center;verticalAlign=middle;" connectable="0" vertex="1" parent="67">
+                <mxCell id="68" value="更新库内数据" style="edgeLabel;resizable=0;html=1;align=center;verticalAlign=middle;" parent="67" connectable="0" vertex="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="76" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="73" target="96">
+                <mxCell id="76" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="73" target="96" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-170" y="920" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="77" style="edgeStyle=none;html=1;" edge="1" parent="1" source="73">
+                <mxCell id="77" style="edgeStyle=none;html=1;" parent="1" source="73" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="-60" y="855" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="73" value="检查另一服务器存在状态" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="73" value="检查另一服务器存在状态" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-245" y="830" width="120" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="89" value="入口：管理员创建指令&lt;br&gt;/处罚 红线永封 保留消息:是/否 原因:test" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="89" value="入口：管理员创建指令&lt;br&gt;/处罚 红线永封 保留消息:是/否 原因:test" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-272" y="40" width="190" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="90" value="入口：管理员创建指令&lt;br&gt;/处罚 违规 禁言:3d4h5m 警告（可选）:30d 原因:test" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="90" value="入口：管理员创建指令&lt;br&gt;/处罚 违规 禁言:3d4h5m 警告（可选）:30d 原因:test" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-15" y="40" width="190" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="91" value="入口：议员创建指令&lt;br&gt;/辩诉 禁言 目标:@谁 时长:3d 理由:作文&lt;br&gt;/辩诉 永封 目标:@谁 理由:作文&lt;br&gt;/辩诉 身份组撤销 目标:@谁 身份组:议员 理由:作文" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="91" value="入口：议员创建指令&lt;br&gt;/辩诉 禁言 目标:@谁 时长:3d 理由:作文&lt;br&gt;/辩诉 永封 目标:@谁 理由:作文&lt;br&gt;/辩诉 身份组撤销 目标:@谁 身份组:议员 理由:作文" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="240" y="40" width="180" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="98" style="edgeStyle=none;html=1;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="94" target="73">
+                <mxCell id="98" style="edgeStyle=none;html=1;entryX=0;entryY=0;entryDx=0;entryDy=0;" parent="1" source="94" target="73" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="94" value="bot启动定时任务&lt;br&gt;每5分钟双服务器循环全库&lt;br&gt;- 警告到期解除并销毁警告&lt;br&gt;- 禁言到期消除到期信息&lt;br&gt;- false同步参执行扫描任务" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="94" value="bot启动定时任务&lt;br&gt;每5分钟双服务器循环全库&lt;br&gt;- 警告到期解除并销毁警告&lt;br&gt;- 禁言到期消除到期信息&lt;br&gt;- false同步参执行扫描任务" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="-580" y="662.5" width="248" height="105" as="geometry"/>
                 </mxCell>
-                <mxCell id="95" value="该用户存在：&lt;br&gt;- 永封则执行永封、信息销毁&lt;br&gt;- 禁言/警告则同步处罚&lt;br&gt;同步参设true" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="95" value="该用户存在：&lt;br&gt;- 永封则执行永封、信息销毁&lt;br&gt;- 禁言/警告则同步处罚&lt;br&gt;同步参设true" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="-60" y="815" width="200" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="96" value="该用户不存在&lt;br&gt;退出" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="96" value="该用户不存在&lt;br&gt;退出" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="-285" y="920" width="200" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="101" value="&lt;div&gt;每3分钟：&lt;br&gt;- 重置每个人投票权，更新投票状态&lt;/div&gt;&lt;div&gt;&amp;nbsp; - 检查是否到12小时公开比分&lt;br&gt;&lt;/div&gt;- 拔河图显示票数比例&lt;div&gt;&amp;nbsp; - 检查是否到期24小时结束&lt;/div&gt;" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="101" value="&lt;div&gt;每3分钟：&lt;br&gt;- 重置每个人投票权，更新投票状态&lt;/div&gt;&lt;div&gt;&amp;nbsp; - 检查是否到12小时公开比分&lt;br&gt;&lt;/div&gt;- 拔河图显示票数比例&lt;div&gt;&amp;nbsp; - 检查是否到期24小时结束&lt;/div&gt;" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="220" y="810" width="220" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="102" value="前12小时&lt;br&gt;允许蓝方1次：&lt;br&gt;/修改诉求 辩诉贴链接:xxx 新诉求:xxx&lt;br&gt;允许红方：&lt;br&gt;/撤诉 辩诉贴链接:xxx&lt;br&gt;撤诉则删除投票器，锁定关闭辩诉贴&lt;br&gt;销毁流程库状态，理由：撤诉" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="102" value="前12小时&lt;br&gt;允许蓝方1次：&lt;br&gt;/修改诉求 辩诉贴链接:xxx 新诉求:xxx&lt;br&gt;允许红方：&lt;br&gt;/撤诉 辩诉贴链接:xxx&lt;br&gt;撤诉则删除投票器，锁定关闭辩诉贴&lt;br&gt;销毁流程库状态，理由：撤诉" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="470" y="655" width="260" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="114" style="edgeStyle=none;html=1;" edge="1" parent="1">
+                <mxCell id="114" style="edgeStyle=none;html=1;" parent="1" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="595" y="280" as="targetPoint"/>
                         <mxPoint x="595" y="340" as="sourcePoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="109" value="" style="endArrow=classic;startArrow=classic;html=1;entryX=1;entryY=1;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="124" target="31">
+                <mxCell id="109" value="" style="endArrow=classic;startArrow=classic;html=1;entryX=1;entryY=1;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="124" target="31" edge="1">
                     <mxGeometry width="50" height="50" relative="1" as="geometry">
                         <mxPoint x="480" y="396.25" as="sourcePoint"/>
                         <mxPoint x="-240" y="370" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="111" value="" style="endArrow=classic;startArrow=classic;html=1;entryX=0.026;entryY=0.69;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="41" target="124">
+                <mxCell id="111" value="" style="endArrow=classic;startArrow=classic;html=1;entryX=0.026;entryY=0.69;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="41" target="124" edge="1">
                     <mxGeometry width="50" height="50" relative="1" as="geometry">
                         <mxPoint x="423" y="428" as="sourcePoint"/>
                         <mxPoint x="480" y="420" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="112" value="" style="endArrow=classic;startArrow=classic;html=1;exitX=1;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="40">
+                <mxCell id="112" value="" style="endArrow=classic;startArrow=classic;html=1;exitX=1;exitY=0;exitDx=0;exitDy=0;" parent="1" source="40" edge="1">
                     <mxGeometry width="50" height="50" relative="1" as="geometry">
                         <mxPoint x="550" y="502.5" as="sourcePoint"/>
                         <mxPoint x="600" y="452.5" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="115" value="bot启动则马上根据当前时间计算&lt;br&gt;删除控件，计算后发送新控件" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="115" value="bot启动则马上根据当前时间计算&lt;br&gt;删除控件，计算后发送新控件" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="480" y="200" width="230" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="119" value="" style="endArrow=classic;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="102">
+                <mxCell id="119" value="" style="endArrow=classic;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" parent="1" source="102" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="560" y="600" as="sourcePoint"/>
                         <mxPoint x="600" y="460" as="targetPoint"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="120" value="更新流程库状态&lt;br&gt;" style="edgeLabel;resizable=0;html=1;align=center;verticalAlign=middle;" connectable="0" vertex="1" parent="119">
+                <mxCell id="120" value="更新流程库状态&lt;br&gt;" style="edgeLabel;resizable=0;html=1;align=center;verticalAlign=middle;" parent="119" connectable="0" vertex="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="121" value="投票比例&lt;br&gt;处理结果公示" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="121" value="投票比例&lt;br&gt;处理结果公示" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="5" y="540" width="170" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="123" value="处罚库更新&lt;br&gt;- 禁言类型&lt;br&gt;-永封类型&lt;br&gt;- 警告类型&lt;br&gt;同步参设false&lt;br&gt;已处罚参设服务器id" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="123" value="处罚库更新&lt;br&gt;- 禁言类型&lt;br&gt;-永封类型&lt;br&gt;- 警告类型&lt;br&gt;同步参设false&lt;br&gt;已处罚参设服务器id" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="-280" y="662.5" width="190" height="107" as="geometry"/>
                 </mxCell>
-                <mxCell id="124" value="流程库更新&lt;br&gt;- 上诉控件状态：3天后销毁&lt;br&gt;- 议事控件状态：1天后销毁&lt;br&gt;- 投票控件状态：1天后销毁" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="124" value="流程库更新&lt;br&gt;- 上诉控件状态：3天后销毁&lt;br&gt;- 议事控件状态：1天后销毁&lt;br&gt;- 投票控件状态：1天后销毁" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="485" y="340" width="220" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="125" value="逻辑节点" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="125" value="逻辑节点" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-620" y="130" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="126" value="逻辑终点" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="126" value="逻辑终点" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="-620" y="217.5" width="120" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="127" value="数据库" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+                <mxCell id="127" value="数据库" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
                     <mxGeometry x="-620" y="330" width="120" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="128" value="逻辑入口" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                <mxCell id="128" value="逻辑入口" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
                     <mxGeometry x="-620" y="50" width="120" height="60" as="geometry"/>
                 </mxCell>
             </root>

@@ -45,7 +45,7 @@ export const createApplicationMessage = async (client) => {
             if (oldMessageId) {
                 try {
                     await globalRequestQueue.add(async () => {
-                        const channel = await client.channels.fetch(guildConfig.roleApplication.threadId);
+                        const channel = await client.channels.fetch(guildConfig.roleApplication.creatorRoleThreadId);
                         if (channel) {
                             const oldMessage = await channel.messages.fetch(oldMessageId);
                             if (oldMessage) {
@@ -65,14 +65,14 @@ export const createApplicationMessage = async (client) => {
         }
 
         // 检查必要的配置是否存在
-        if (!guildConfig.roleApplication?.threadId || !guildConfig.roleApplication?.roleId) {
+        if (!guildConfig.roleApplication?.creatorRoleThreadId || !guildConfig.roleApplication?.creatorRoleId) {
             logTime(`服务器 ${guildId} 的身份组申请配置不完整`, true);
             continue;
         }
 
         try {
             await globalRequestQueue.add(async () => {
-                const channel = await client.channels.fetch(guildConfig.roleApplication.threadId);
+                const channel = await client.channels.fetch(guildConfig.roleApplication.creatorRoleThreadId);
                 if (!channel) return;
 
                 // 检查是否已存在消息
@@ -138,7 +138,7 @@ export const handleButtonInteraction = async (interaction) => {
     // 检查用户是否已有创作者身份组
     const member = await interaction.guild.members.fetch(interaction.user.id);
     
-    if (member.roles.cache.has(guildConfig.roleApplication.roleId)) {
+    if (member.roles.cache.has(guildConfig.roleApplication.creatorRoleId)) {
         await interaction.reply({
             content: '❌ 您已经拥有创作者身份组',
             flags: ['Ephemeral']
@@ -200,17 +200,24 @@ export const handleModalSubmit = async (interaction) => {
             return;
         }
 
-        const [, guildId, threadId] = matches;
-        const guildConfig = interaction.client.guildManager.getGuildConfig(guildId);
+        const [, linkGuildId, threadId] = matches;
+        const currentGuildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 
-        // 检查功能是否启用
-        if (!guildConfig?.roleApplication?.enabled) {
+        // 检查当前服务器是否启用功能
+        if (!currentGuildConfig?.roleApplication?.enabled) {
             await interaction.editReply('❌ 此服务器未启用身份组申请功能');
             return;
         }
 
-        if (!guildConfig?.roleApplication?.roleId) {
+        if (!currentGuildConfig?.roleApplication?.creatorRoleId) {
             await interaction.editReply('❌ 服务器配置错误');
+            return;
+        }
+
+        // 检查链接所属服务器是否在配置中
+        const linkGuildConfig = interaction.client.guildManager.getGuildConfig(linkGuildId);
+        if (!linkGuildConfig) {
+            await interaction.editReply('❌ 提供的帖子不在允许的服务器中');
             return;
         }
 
@@ -241,7 +248,7 @@ export const handleModalSubmit = async (interaction) => {
             });
 
             // 准备审核日志
-            const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
+            const moderationChannel = await interaction.client.channels.fetch(currentGuildConfig.moderationThreadId);
             const auditEmbed = {
                 color: maxReactions >= 5 ? 0x00ff00 : 0xff0000,
                 title: maxReactions >= 5 ? '✅ 创作者身份组申请通过' : '❌ 创作者身份组申请未通过',
@@ -260,6 +267,11 @@ export const handleModalSubmit = async (interaction) => {
                         name: '最高反应数',
                         value: `${maxReactions}`,
                         inline: true
+                    },
+                    {
+                        name: '作品所在服务器',
+                        value: thread.guild.name,
+                        inline: true
                     }
                 ],
                 timestamp: new Date(),
@@ -271,7 +283,7 @@ export const handleModalSubmit = async (interaction) => {
             if (maxReactions >= 5) {
                 // 添加身份组
                 const member = await interaction.guild.members.fetch(interaction.user.id);
-                await member.roles.add(guildConfig.roleApplication.roleId);
+                await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
                 await interaction.editReply('✅ 审核通过，已为您添加创作者身份组。');
                 
                 // 只有通过审核才发送日志

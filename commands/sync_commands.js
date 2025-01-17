@@ -19,7 +19,7 @@ export default {
         try {
             const deployTimer = measureTime();
             const commandsPath = join(dirname(fileURLToPath(import.meta.url)));
-            const localCommands = loadCommandFiles(commandsPath, ['sync_commands.js']);
+            const localCommands = await loadCommandFiles(commandsPath);
             const localCommandData = Array.from(localCommands.values()).map(cmd => cmd.data.toJSON());
             
             // 创建 REST 实例

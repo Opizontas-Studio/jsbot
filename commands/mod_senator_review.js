@@ -77,8 +77,16 @@ export default {
                 // 检查申请者是否是帖子作者
                 const applicant = firstMessage.author;
                 
-                // 检查申请者加入时间
+                // 检查申请者是否已有议员身份组
                 const member = await interaction.guild.members.fetch(applicant.id);
+                if (member.roles.cache.has(guildConfig.roleApplication.senatorRoleId)) {
+                    await interaction.editReply({
+                        content: '❌ 申请者已经拥有议员身份组'
+                    });
+                    return;
+                }
+                
+                // 检查申请者加入时间
                 const joinedAt = member.joinedAt;
                 const daysSinceJoin = Math.floor((Date.now() - joinedAt.getTime()) / (1000 * 60 * 60 * 24));
                 
@@ -162,6 +170,7 @@ export default {
                 if (passed) {
                     // 添加身份组
                     await member.roles.add(guildConfig.roleApplication.senatorRoleId);
+                    logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请`);
                 }
 
                 // 在帖子中发送审核结果

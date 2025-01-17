@@ -1,15 +1,5 @@
-import { 
-    ActionRowBuilder, 
-    ButtonBuilder, 
-    ButtonStyle, 
-    ModalBuilder, 
-    TextInputBuilder, 
-    TextInputStyle, 
-    EmbedBuilder,
-    ChannelType,
-    Collection 
-} from 'discord.js';
-import { logTime } from './helper.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder,ChannelType,Collection } from 'discord.js';
+import { logTime } from './logger.js';
 import { globalRequestQueue, globalRateLimiter } from './concurrency.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'path';

@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
-import { logTime, lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
+import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
 import { handleSingleThread } from './mod_prune.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 10,

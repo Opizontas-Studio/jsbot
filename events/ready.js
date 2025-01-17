@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { logTime } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { analyzeThreads } from '../utils/analyzers.js';
 import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
 import { createApplicationMessage } from '../utils/roleApplication.js';

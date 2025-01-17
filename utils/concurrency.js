@@ -1,4 +1,4 @@
-import { logTime } from './helper.js';
+import { logTime } from './logger.js';
 
 /**
  * 全局请求队列

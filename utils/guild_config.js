@@ -1,4 +1,4 @@
-import { logTime } from './helper.js';
+import { logTime } from './logger.js';
 
 export class GuildManager {
     constructor() {

@@ -1,5 +1,5 @@
 import { Events, Collection } from 'discord.js';
-import { logTime } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
 import { handleButtonInteraction, handleModalSubmit } from '../utils/roleApplication.js';
 

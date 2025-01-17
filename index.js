@@ -3,9 +3,11 @@ import { REST, Routes } from 'discord.js';
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { measureTime, logTime, loadCommandFiles, delay } from './utils/helper.js';
+import { measureTime, loadCommandFiles, delay } from './utils/helper.js';
+import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
 import { execSync } from 'child_process';
+import './utils/logger.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(

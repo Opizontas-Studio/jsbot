@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { checkPermission, handlePermissionResult, logTime, generateProgressReport, handleCommandError } from '../utils/helper.js';
+import { checkPermission, handlePermissionResult, generateProgressReport, handleCommandError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { cleanThreadMembers } from '../utils/cleaner.js';
 import { globalBatchProcessor, globalRateLimiter } from '../utils/concurrency.js';
 

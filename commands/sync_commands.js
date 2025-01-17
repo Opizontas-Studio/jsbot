@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, Collection } from 'discord.js';
 import { REST, Routes } from 'discord.js';
-import { logTime, measureTime, loadCommandFiles, checkPermission, handlePermissionResult } from '../utils/helper.js';
+import { measureTime, loadCommandFiles, checkPermission, handlePermissionResult } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

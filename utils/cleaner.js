@@ -1,4 +1,4 @@
-import { logTime } from './helper.js';
+import { logTime } from './logger.js';
 import { globalBatchProcessor, globalRateLimiter, globalRequestQueue } from './concurrency.js';
 
 /**

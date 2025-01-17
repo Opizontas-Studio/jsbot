@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { logTime, checkChannelPermission, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
+import { checkChannelPermission, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
 
 /**

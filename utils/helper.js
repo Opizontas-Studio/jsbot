@@ -1,5 +1,6 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { logTime } from './logger.js';
 
 /**
  * 计算执行时间的工具函数
@@ -19,16 +20,6 @@ export const measureTime = () => {
  * @returns {Promise<void>}
  */
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * 记录时间日志
- * @param {string} message - 日志消息
- * @param {boolean} [error=false] - 是否为错误日志
- */
-export const logTime = (message, error = false) => {
-    const prefix = error ? '❌ ' : '';
-    console.log(`[${new Date().toLocaleString()}] ${prefix}${message}`);
-};
 
 /**
  * 检查用户是否具有执行命令的权限

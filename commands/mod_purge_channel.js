@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
-import { checkPermission, handlePermissionResult, measureTime, logTime, delay } from '../utils/helper.js';
+import { checkPermission, handlePermissionResult, measureTime, delay } from '../utils/helper.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 10,

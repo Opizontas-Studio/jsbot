@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
-import { logTime, handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } from '../utils/helper.js';
+import { handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 
 export default {
@@ -21,14 +22,9 @@ export default {
                 .setRequired(true)),
 
     async execute(interaction, guildConfig) {
-        // 权限检查
-        if (!checkPermission(interaction.member, guildConfig.AdministratorRoleIds)) {
-            await interaction.reply({
-                content: '你没有权限使用此命令',
-                flags: ['Ephemeral']
-            });
-            return;
-        }
+        // 检查权限
+        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
+        if (!await handlePermissionResult(interaction, hasPermission)) return;
 
         await interaction.deferReply({ flags: ['Ephemeral'] });
         const action = interaction.options.getString('操作');

@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
 import { handleCommandError } from '../utils/helper.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 10,

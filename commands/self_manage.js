@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { logTime, lockAndArchiveThread, handleCommandError } = require('../utils/helper');
 const { handleSingleThread } = require('./mod_prune');
 const { globalRequestQueue } = require('../utils/concurrency');

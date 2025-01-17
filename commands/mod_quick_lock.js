@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { logTime, handleCommandError, lockAndArchiveThreadWithLog } = require('../utils/helper');
+const { handleCommandError, lockAndArchiveThreadWithLog } = require('../utils/helper');
 const { globalRequestQueue } = require('../utils/concurrency');
 
 module.exports = {

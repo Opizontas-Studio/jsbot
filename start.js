@@ -87,6 +87,7 @@ function setupProcessHandlers() {
 
     process.on('SIGINT', () => exitHandler('退出'));
     process.on('SIGTERM', () => exitHandler('终止'));
+    process.on('error', (error) => errorHandler(error, 'Process Error'));
     process.on('unhandledRejection', (error) => {
         logTime('未处理的Promise拒绝:', true);
         console.error('错误详情:', error);

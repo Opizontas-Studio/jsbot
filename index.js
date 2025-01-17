@@ -44,7 +44,25 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers
-    ]
+    ],
+    // 添加分片配置
+    shards: 'auto',
+    shardCount: 1, // 根据需要调整分片数量
+    failIfNotExists: false,
+    // 添加重连配置
+    presence: {
+        status: 'online'
+    },
+    ws: {
+        large_threshold: 250,
+        compress: true
+    },
+    // 重连策略
+    restWsBridgeTimeout: 5000,
+    restTimeOffset: 750,
+    restRequestTimeout: 15000,
+    retryLimit: 3,
+    waitGuildTimeout: 15000
 });
 
 client.commands = new Collection();

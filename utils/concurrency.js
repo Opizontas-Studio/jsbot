@@ -17,6 +17,41 @@ export class RequestQueue {
             failed: 0,
             retried: 0
         };
+        this.paused = false; // 新增：队列暂停状态
+        this.shardStatus = new Map(); // 新增：分片状态追踪
+    }
+
+    // 新增：设置分片状态
+    setShardStatus(shardId, status) {
+        this.shardStatus.set(shardId, status);
+        if (status === 'disconnected') {
+            this.pause();
+        } else if (status === 'ready') {
+            this.resume();
+        }
+    }
+
+    // 新增：暂停队列处理
+    pause() {
+        this.paused = true;
+        logTime('请求队列已暂停处理');
+    }
+
+    // 新增：恢复队列处理
+    resume() {
+        this.paused = false;
+        logTime('请求队列已恢复处理');
+        this.process(); // 恢复处理
+    }
+
+    // 新增：检查是否所有分片都准备就绪
+    isAllShardsReady() {
+        for (const [_, status] of this.shardStatus) {
+            if (status !== 'ready') {
+                return false;
+            }
+        }
+        return true;
     }
 
     async add(task, priority = 0) {
@@ -59,11 +94,11 @@ export class RequestQueue {
     }
 
     async process() {
-        if (this.processing) return;
+        if (this.processing || this.paused) return;
         this.processing = true;
 
         try {
-            while (this.queue.length > 0 && this.currentProcessing < this.maxConcurrent) {
+            while (this.queue.length > 0 && this.currentProcessing < this.maxConcurrent && !this.paused) {
                 const item = this.queue.shift();
                 this.currentProcessing++;
 
@@ -73,7 +108,7 @@ export class RequestQueue {
             }
         } finally {
             this.processing = false;
-            if (this.queue.length > 0) {
+            if (this.queue.length > 0 && !this.paused) {
                 setImmediate(() => this.process());
             }
         }

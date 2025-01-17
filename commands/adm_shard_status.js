@@ -56,7 +56,7 @@ export default {
                         name: '队列统计',
                         value: [
                             `📥 等待处理: ${queueStats.queueLength}`,
-                            `⚡ 正在处理: ${queueStats.currentProcessing}`,
+                            `⚡ 正在处理: ${queueStats.currentProcessing - 1}`,
                             `✅ 已完成: ${queueStats.processed}`,
                             `🔄 重试: ${queueStats.retried}`,
                             `❌ 失败: ${queueStats.failed}`

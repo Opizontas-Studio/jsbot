@@ -364,11 +364,8 @@ export const analyzeThreads = async (client, guildConfig, guildId, options = {},
                     return null;
                 }
             },
-            (progress, processed) => {
-                logTime(`已处理 ${processed}/${threadArray.length} 个子区`);
-            },
-            'threadAnalysis',
-            40 // 批处理大小
+            null, 
+            'threadAnalysis'
         );
 
         threadInfoArray.push(...batchResults.filter(result => result !== null));

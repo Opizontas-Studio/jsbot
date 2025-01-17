@@ -187,6 +187,11 @@ export class BatchProcessor {
                 batchSize: 30,
                 delayMs: 100
             },
+            // 子区分析 - 大批次，较短延迟
+            threadAnalysis: {
+                batchSize: 40,
+                delayMs: 100
+            },
             // 消息历史 - 中等批次，较长延迟
             messageHistory: {
                 batchSize: 10,

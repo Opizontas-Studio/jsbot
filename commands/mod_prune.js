@@ -35,7 +35,7 @@ export default {
                         .setRequired(false))),
 
     async execute(interaction, guildConfig) {
-        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
+        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
         const subcommand = interaction.options.getSubcommand();
@@ -71,7 +71,7 @@ export async function handleSingleThread(interaction, guildConfig) {
     const threshold = interaction.options.getInteger('阈值') || 950;
 
     // 检查白名单
-    if (guildConfig.whitelistedThreads?.includes(thread.id)) {
+    if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
         await interaction.editReply({
             content: '✅ 此子区在白名单中，已跳过清理。',
             flags: ['Ephemeral']
@@ -113,7 +113,7 @@ async function handleAllThreads(interaction, guildConfig) {
     
     const activeThreads = await interaction.guild.channels.fetchActiveThreads();
     const threads = activeThreads.threads.filter(thread => 
-        !guildConfig.whitelistedThreads?.includes(thread.id)
+        !guildConfig.automation.whitelistedThreads?.includes(thread.id)
     );
 
     logTime(`已获取活跃子区列表，共 ${threads.size} 个子区`);
@@ -279,7 +279,7 @@ async function handleCleanupResult(interaction, result, threshold) {
     }
 
     // 发送操作日志
-    const moderationChannel = await interaction.client.channels.fetch(interaction.guildConfig.moderationThreadId);
+    const moderationChannel = await interaction.client.channels.fetch(interaction.guildConfig.moderationLogThreadId);
     await moderationChannel.send({
         embeds: [{
             color: 0x0099ff,
@@ -321,7 +321,7 @@ async function handleCleanupResult(interaction, result, threshold) {
  */
 async function sendSummaryReport(interaction, results, threshold, guildConfig) {
     // 发送管理日志
-    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
+    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
     await moderationChannel.send({
         embeds: [{
             color: 0x0099ff,

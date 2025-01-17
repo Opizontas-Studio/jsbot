@@ -70,7 +70,7 @@ export default {
             const hasPermission = checkChannelPermission(
                 interaction.member,
                 thread,
-                guildConfig.allowedRoleIds
+                guildConfig.AdministratorRoleIds
             );
             
             if (!hasPermission) {
@@ -132,7 +132,7 @@ export default {
             // 只有锁定和解锁操作才发送日志和通知
             if (action === 'lock' || action === 'unlock') {
                 // 发送操作日志
-                await sendModerationLog(interaction.client, guildConfig.moderationThreadId, {
+                await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
                     title: `管理员${actionDesc}帖子`,
                     executorId: interaction.user.id,
                     threadName: thread.name,

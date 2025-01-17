@@ -33,11 +33,11 @@ export const logTime = (message, error = false) => {
 /**
  * 检查用户是否具有执行命令的权限
  * @param {GuildMember} member - Discord服务器成员对象
- * @param {string[]} allowedRoleIds - 允许执行命令的角色ID数组
+ * @param {string[]} AdministratorRoleIds - 允许执行命令的管理员角色ID数组
  * @returns {boolean} 如果用户拥有允许的角色则返回true
  */
-export const checkPermission = (member, allowedRoleIds) => {
-    return member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+export const checkPermission = (member, AdministratorRoleIds) => {
+    return member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
 };
 
 /**
@@ -61,12 +61,12 @@ export const handlePermissionResult = async (interaction, hasPermission) => {
  * 检查用户是否具有特定频道的权限
  * @param {GuildMember} member - Discord服务器成员对象
  * @param {Channel} channel - Discord频道对象
- * @param {string[]} allowedRoleIds - 允许执行命令的角色ID数组
+ * @param {string[]} AdministratorRoleIds - 允许执行命令的管理员角色ID数组
  * @returns {boolean} 如果用户拥有权限则返回true
  */
-export const checkChannelPermission = (member, channel, allowedRoleIds) => {
+export const checkChannelPermission = (member, channel, AdministratorRoleIds) => {
     // 检查用户是否有全局身份组权限
-    const hasGlobalPermission = member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+    const hasGlobalPermission = member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
     if (hasGlobalPermission) return true;
 
     // 获取用户在该频道的权限
@@ -125,7 +125,7 @@ export const lockAndArchiveThreadWithLog = async (thread, executor, reason, guil
     });
 
     // 发送操作日志
-    await sendModerationLog(thread.client, guildConfig.moderationThreadId, {
+    await sendModerationLog(thread.client, guildConfig.moderationLogThreadId, {
         title: '管理员锁定并归档帖子',
         executorId: executor.id,
         threadName: thread.name,
@@ -279,7 +279,7 @@ export const handleCommandError = async (interaction, error, commandName) => {
  * @param {Object} result - 清理结果
  */
 export const sendCleanupReport = async (interaction, guildConfig, result) => {
-    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
+    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
     await moderationChannel.send({
         embeds: [{
             color: 0x0099ff,

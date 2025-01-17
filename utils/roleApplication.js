@@ -248,7 +248,7 @@ export const handleModalSubmit = async (interaction) => {
             });
 
             // 准备审核日志
-            const moderationChannel = await interaction.client.channels.fetch(currentGuildConfig.moderationThreadId);
+            const moderationChannel = await interaction.client.channels.fetch(currentGuildConfig.roleApplication.logThreadId);
             const auditEmbed = {
                 color: maxReactions >= 5 ? 0x00ff00 : 0xff0000,
                 title: maxReactions >= 5 ? '✅ 创作者身份组申请通过' : '❌ 创作者身份组申请未通过',

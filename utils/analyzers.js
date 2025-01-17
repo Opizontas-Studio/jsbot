@@ -22,7 +22,7 @@ export class DiscordLogger {
     constructor(client, guildId, guildConfig) {
         this.client = client;
         this.guildId = guildId;
-        this.logChannelId = guildConfig.logThreadId;
+        this.logChannelId = guildConfig.automation.logThreadId;
         this.logChannel = null;
         this.messageIds = null;
     }

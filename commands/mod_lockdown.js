@@ -22,7 +22,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 权限检查
-        if (!checkPermission(interaction.member, guildConfig.allowedRoleIds)) {
+        if (!checkPermission(interaction.member, guildConfig.AdministratorRoleIds)) {
             await interaction.reply({
                 content: '你没有权限使用此命令',
                 flags: ['Ephemeral']
@@ -108,7 +108,7 @@ export default {
                             });
                             
                             // 发送管理日志
-                            await sendModerationLog(interaction.client, guildConfig.moderationThreadId, {
+                            await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
                                 title: '🔒 服务器邀请功能已暂停',
                                 executorId: interaction.user.id,
                                 threadName: '服务器邀请管理',
@@ -137,7 +137,7 @@ export default {
                             });
 
                             // 发送管理日志
-                            await sendModerationLog(interaction.client, guildConfig.moderationThreadId, {
+                            await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
                                 title: '🔓 服务器邀请功能已恢复',
                                 executorId: interaction.user.id,
                                 threadName: '服务器邀请管理',

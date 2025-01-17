@@ -17,7 +17,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
+        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
         await interaction.deferReply({ flags: ['Ephemeral'] });
@@ -166,8 +166,8 @@ export default {
                     });
 
                     // 记录到日志频道
-                    if (guildConfig.moderationThreadId) {
-                        const logChannel = await interaction.client.channels.fetch(guildConfig.moderationThreadId);
+                    if (guildConfig.moderationLogThreadId) {
+                        const logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
                         await logChannel.send({
                             embeds: [{
                                 color: 0x0099ff,

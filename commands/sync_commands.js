@@ -11,7 +11,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.allowedRoleIds);
+        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
         if (!await handlePermissionResult(interaction, hasPermission)) return;
 
         await interaction.deferReply({ flags: ['Ephemeral'] });

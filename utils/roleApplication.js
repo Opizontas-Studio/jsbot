@@ -31,7 +31,7 @@ async function createApplicationMessage(client) {
         return;
     }
 
-    // 为每个配置了身份组申请功能的服务器创建申请消息
+    // 为每个配置了身份组申请功能的服务器检查/创建申请消息
     for (const [guildId, guildConfig] of client.guildManager.guilds) {
         // 检查功能是否启用
         if (!guildConfig.roleApplication?.enabled) {
@@ -67,17 +67,15 @@ async function createApplicationMessage(client) {
             const channel = await client.channels.fetch(guildConfig.roleApplication.threadId);
             if (!channel) continue;
 
-            // 删除旧的申请消息
-            const oldMessageId = messageIds.roleApplicationMessages[guildId];
-            if (oldMessageId) {
+            // 检查是否已存在消息
+            const existingMessageId = messageIds.roleApplicationMessages[guildId];
+            if (existingMessageId) {
                 try {
-                    const oldMessage = await channel.messages.fetch(oldMessageId);
-                    if (oldMessage) {
-                        await oldMessage.delete();
-                        logTime(`已删除服务器 ${guildId} 的旧申请消息`);
-                    }
+                    await channel.messages.fetch(existingMessageId);
+                    logTime(`服务器 ${guildId} 的申请消息已存在，无需重新创建`);
+                    continue; // 如果消息存在且有效，跳过创建
                 } catch (error) {
-                    logTime(`删除旧申请消息失败: ${error}`, true);
+                    logTime(`服务器 ${guildId} 的现有申请消息已失效，将创建新消息`, true);
                 }
             }
 

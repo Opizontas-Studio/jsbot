@@ -126,11 +126,12 @@ export class DiscordLogger {
             description: '注：此列表不包含置顶子区',
             timestamp: new Date(),
             fields: nonPinnedThreads.slice(0, 10).map((thread, index) => ({
-                name: `${index + 1}. [${thread.name}](https://discord.com/channels/${this.guildId}/${thread.threadId})${thread.error ? ' ⚠️' : ''}`,
+                name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
                 value: [
                     `所属频道: ${thread.parentName}`,
                     `消息数量: ${thread.messageCount}`,
-                    `不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`
+                    `不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`,
+                    `[🔗 链接](https://discord.com/channels/${this.guildId}/${thread.threadId})`
                 ].join('\n'),
                 inline: false
             }))

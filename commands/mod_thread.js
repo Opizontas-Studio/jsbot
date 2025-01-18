@@ -4,7 +4,8 @@ import { logTime } from '../utils/logger.js';
 
 /**
  * 管理命令 - 管理论坛帖子
- * 提供锁定、解锁、归档等管理功能
+ * 提供锁定、解锁、归档、开启、论坛标注等管理功能
+ * 注意：标注功能是将帖子标注到论坛顶部，而不是标注帖子内的消息
  */
 export default {
     cooldown: 10,
@@ -18,15 +19,15 @@ export default {
         )
         .addStringOption(option =>
             option.setName('操作')
-                .setDescription('处理方针')
+                .setDescription('处理方针（标注为标注帖子到论坛顶部）')
                 .setRequired(true)
                 .addChoices(
                     { name: '锁定', value: 'lock' },
                     { name: '解锁', value: 'unlock' },
                     { name: '归档', value: 'archive' },
                     { name: '开启', value: 'unarchive' },
-                    { name: '标注', value: 'pin' },
-                    { name: '取消标注', value: 'unpin' }
+                    { name: '论坛标注', value: 'pin' },
+                    { name: '取消论坛标注', value: 'unpin' }
                 )
         )
         .addStringOption(option =>
@@ -121,8 +122,8 @@ export default {
                 unlock: '解锁',
                 archive: '归档',
                 unarchive: '开启',
-                pin: '标注',
-                unpin: '取消标注'
+                pin: '论坛标注',
+                unpin: '取消论坛标注'
             }[action];
 
             // 只有锁定和解锁操作才发送日志和通知

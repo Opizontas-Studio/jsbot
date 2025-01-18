@@ -9,3 +9,7 @@ yarn-error.log*
 data/
 config.json
 .env
+
+# 依赖
+node_modules/
+package.json

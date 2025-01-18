@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
 import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
-import { handleSingleThread } from './adm_prune.js';
+import { handleSingleThread } from './long_prune.js';
 import { logTime } from '../utils/logger.js';
 
 export default {

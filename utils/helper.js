@@ -1,6 +1,8 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { logTime } from './logger.js';
+import { DiscordAPIError } from '@discordjs/rest';
+import { RESTJSONErrorCodes } from 'discord-api-types/v10';
 
 /**
  * 计算执行时间的工具函数
@@ -20,6 +22,25 @@ export const measureTime = () => {
  * @returns {Promise<void>}
  */
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * 处理Discord API错误
+ * @param {Error} error - 错误对象
+ * @returns {string} 格式化的错误信息
+ */
+export const handleDiscordError = (error) => {
+    if (error instanceof DiscordAPIError) {
+        const errorMessages = {
+            [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
+            [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
+            [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
+            [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
+            [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道'
+        };
+        return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
+    }
+    return error.message || '未知错误';
+};
 
 /**
  * 检查用户是否具有执行命令的权限

@@ -15,9 +15,9 @@ Discord.js Bot Project
 │   ├── buttons.js             # 按钮交互处理
 │   └── modals.js              # 模态框交互处理
 ├── utils/                      # 工具类模块
-│   ├── analyzers.js           # 子区分析工具
-│   ├── cleaner.js             # 清理工具
-│   ├── concurrency.js         # 并发控制
+│   ├── analyzers.js           # 活跃子区分析工具
+│   ├── cleaner.js             # 子区成员清理工具
+│   ├── concurrency.js         # 队列和并发控制
 │   ├── guild_config.js        # 服务器配置管理
 │   ├── helper.js              # 通用辅助函数
 │   ├── logger.js              # 日志管理
@@ -240,6 +240,7 @@ export const handleDiscordError = (error, context) => {...}  // Discord API错�
 ```javascript
 export const cleanThreadMembers = async (thread, options) => {...}  // 清理子区成员
 export const sendThreadReport = async (thread, result) => {...}     // 发送子区清理报告
+export async function handleSingleThreadCleanup(interaction, guildConfig) {...} // 处理单个子区清理
 ```
 
 ### concurrency.js - 并发控制
@@ -284,7 +285,10 @@ export class GuildManager {
 ```javascript
 // 时间和延迟
 export const measureTime = () => {...}                                           // 计时器函数
-export const delay = (ms) => {...}                                              // Promise延迟函数
+export const delay = (ms) => {...} 
+
+// 处理Discord API错误
+export const handleDiscordError = (error) => {...}                             // 处理Discord API错误
 
 // 权限检查
 export const checkPermission = (member, roles) => {...}                         // 检查角色权限
@@ -321,8 +325,6 @@ export default logger  // Winston日志记录器实例
 ## roleApplication.js - 创作者身份组申请
 ```javascript
 export const createApplicationMessage = async (client, guildConfig) => {...}  // 创建申请消息
-export const handleButtonInteraction = async (interaction) => {...}           // 处理按钮交互
-export const handleModalSubmit = async (interaction) => {...}                 // 处理模态框提交
 ```
 
 # 主要文件说明

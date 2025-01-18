@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "deploy": "node commands/sync_commands.js",
+    "deploy": "node commands/adm_sync_commands.js",
     "start:log": "node index.js | tee -a ./logs/bot.log"
   },
   "keywords": [],

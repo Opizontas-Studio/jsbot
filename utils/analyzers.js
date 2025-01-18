@@ -1,7 +1,5 @@
-import { DiscordAPIError } from '@discordjs/rest';
-import { RESTJSONErrorCodes } from 'discord-api-types/v10';
 import { ChannelFlags } from 'discord.js';
-import { delay, measureTime } from './helper.js';
+import { delay, measureTime, handleDiscordError } from './helper.js';
 import { logTime } from './logger.js';
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
@@ -235,25 +233,6 @@ export class DiscordLogger {
         await message.edit({ embeds: [embed] });
     }
 }
-
-/**
- * 处理Discord API错误
- * @param {Error} error - 错误对象
- * @returns {string} 格式化的错误信息
- */
-export const handleDiscordError = (error) => {
-    if (error instanceof DiscordAPIError) {
-        const errorMessages = {
-            [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
-            [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
-            [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
-            [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
-            [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道'
-        };
-        return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
-    }
-    return error.message || '未知错误';
-};
 
 /**
  * 分析Discord子区活跃度

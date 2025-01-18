@@ -22,8 +22,7 @@ const baseFormat = winston.format.printf(({ message, level }) => {
 const consoleTransport = new winston.transports.Console({
     format: winston.format.combine(
         winston.format.colorize(),
-        baseFormat,
-        winston.format.printf(info => `${info.message}`)
+        baseFormat
     )
 });
 

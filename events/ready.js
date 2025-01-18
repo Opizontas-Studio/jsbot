@@ -46,14 +46,6 @@ export default {
             }
             
             logTime(`分片 ${id} ${message}`, status === 'error');
-            
-            // 检查WebSocket连接状态
-            const wsStatus = client.ws.status;
-            if (status === 'reconnecting' && wsStatus === 0) {
-                logTime('WebSocket连接正常，忽略重连状态');
-                return;
-            }
-            
             globalRequestQueue.setShardStatus(id, status);
         };
 
@@ -67,7 +59,10 @@ export default {
         // 添加WebSocket状态监听
         client.ws.on('ready', () => {
             logTime('WebSocket连接就绪');
-            globalRequestQueue.setShardStatus(0, 'ready');
+            // 让RequestQueue自己管理状态转换
+            if (globalRequestQueue.shardStatus.get(0) !== 'ready') {
+                globalRequestQueue.setShardStatus(0, 'ready');
+            }
         });
     },
 }; 

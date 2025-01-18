@@ -12,17 +12,20 @@ try {
     }
 }
 
-// 创建基础日志格式
-const baseFormat = winston.format.printf(({ message, level }) => {
+// 创建统一的日志格式
+const logFormat = winston.format.printf(({ message, level, timestamp }) => {
     const prefix = level === 'error' ? '❌ ' : '';
-    return `[${new Date().toLocaleString()}] ${prefix}${message}`;
+    return `[${timestamp}] ${prefix}${message}`;
 });
 
 // 创建控制台传输
 const consoleTransport = new winston.transports.Console({
     format: winston.format.combine(
         winston.format.colorize(),
-        baseFormat
+        winston.format.timestamp({
+            format: 'YYYY/M/D HH:mm:ss'
+        }),
+        logFormat
     )
 });
 
@@ -33,8 +36,10 @@ const dailyRotateFile = new winston.transports.DailyRotateFile({
     maxSize: '20m',
     maxFiles: '14d',
     format: winston.format.combine(
-        baseFormat,
-        winston.format.printf(info => `${info.message}\n`)
+        winston.format.timestamp({
+            format: 'YYYY/M/D HH:mm:ss'
+        }),
+        logFormat
     ),
     handleExceptions: true,
     handleRejections: true
@@ -43,6 +48,12 @@ const dailyRotateFile = new winston.transports.DailyRotateFile({
 // 创建logger实例
 const logger = winston.createLogger({
     level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp({
+            format: 'YYYY/M/D HH:mm:ss'
+        }),
+        logFormat
+    ),
     transports: [
         consoleTransport,
         dailyRotateFile

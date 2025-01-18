@@ -162,8 +162,6 @@ class TaskScheduler {
                 tasks.push('清理');
             }
             
-            logTime(`服务器 ${guildId} 的下次${tasks.join('和')}将在 ${nextRun.toLocaleString()} 执行`);
-            
             // 设置新的定时器
             const timer = setTimeout(async () => {
                 try {

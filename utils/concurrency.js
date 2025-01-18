@@ -23,7 +23,18 @@ export class RequestQueue {
         this.validStates = new Set(['ready', 'disconnected', 'reconnecting', 'error', 'resumed']);
         // 添加状态检查定时器
         this.statusCheckInterval = null;
+        this.lastActivityTimestamp = Date.now();
         this.startStatusCheck();
+    }
+
+    // 记录活动时间
+    updateActivityTimestamp() {
+        this.lastActivityTimestamp = Date.now();
+    }
+
+    // 获取最后活动时间到现在的间隔
+    getInactivityDuration() {
+        return Date.now() - this.lastActivityTimestamp;
     }
 
     // 添加状态检查机制
@@ -33,17 +44,27 @@ export class RequestQueue {
         }
         
         this.statusCheckInterval = setInterval(() => {
-            if (this.shardStatus.get(0) === 'reconnecting') {
-                // 如果队列仍在正常处理请求，说明连接实际上是正常的
-                if (this.currentProcessing > 0 && !this.paused) {
-                    logTime('WebSocket连接正常，忽略重连状态');
-                    this.setShardStatus(0, 'ready');
-                }
-            }
+            const inactivityDuration = this.getInactivityDuration();
+            const currentStatus = this.shardStatus.get(0);
+
             // 检查队列健康状态
             if (this.queue.length > 0 && !this.processing && !this.paused) {
                 logTime('检测到队列停滞，尝试恢复处理');
                 this.process();
+            }
+
+            // 只在重连状态下进行额外检查
+            if (currentStatus === 'reconnecting') {
+                // 综合判断连接状态：
+                // 1. 当前有活跃处理
+                // 2. 最近有活动（5秒内）
+                // 3. 队列未暂停
+                if (this.currentProcessing > 0 && 
+                    inactivityDuration < 5000 && 
+                    !this.paused) {
+                    logTime('检测到活跃连接，更新状态为就绪');
+                    this.setShardStatus(0, 'ready');
+                }
             }
         }, 5000); // 每5秒检查一次
     }
@@ -89,7 +110,15 @@ export class RequestQueue {
         }
 
         const oldStatus = this.shardStatus.get(shardId);
+        
+        // 状态转换验证
+        if (oldStatus === status) {
+            return; // 相同状态不处理
+        }
+
+        // 记录状态变更
         this.shardStatus.set(shardId, status);
+        this.updateActivityTimestamp();
         
         // 更新队列状态
         switch (status) {

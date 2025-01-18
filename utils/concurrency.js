@@ -104,7 +104,7 @@ export class RequestQueue {
     }
 
     // 设置分片状态
-    setShardStatus(shardId, status) {
+    async setShardStatus(shardId, status) {
         if (!this.validStates.has(status)) {
             throw new Error(`无效的分片状态: ${status}`);
         }
@@ -251,9 +251,7 @@ export class RequestQueue {
             }
         } finally {
             this.currentProcessing--;
-            // 动态调整延迟时间
-            const delay = Math.min(50, Math.max(10, this.queue.length));
-            await new Promise(r => setTimeout(r, delay));
+            await new Promise(r => setTimeout(r, 50));
         }
     }
 
@@ -368,5 +366,5 @@ export class RateLimiter {
 
 // 创建单例实例
 export const globalRequestQueue = new RequestQueue();
-export const globalRateLimiter = new RateLimiter(10, 1000); // 每秒最多10个请求
+export const globalRateLimiter = new RateLimiter(40, 1000); // 每秒最多40个请求
 export const globalBatchProcessor = new BatchProcessor(); 

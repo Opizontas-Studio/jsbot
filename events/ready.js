@@ -22,30 +22,45 @@ export default {
         // 分片状态变化
         const handleShardStatus = (status, id, event = null) => {
             let message = '';
+            let details = '';
             
             switch (status) {
                 case 'disconnected':
                     if (event) {
                         message = `分片断开连接 (代码: ${event.code})`;
+                        details = `断开原因: ${event.reason || '未知'}, 是否清理: ${event.wasClean}`;
                     } else {
                         message = '分片断开连接';
                     }
                     break;
                 case 'reconnecting':
                     message = '正在重新连接...';
+                    details = `重连时间: ${new Date().toISOString()}`;
                     break;
                 case 'resumed':
                     message = '已恢复连接';
+                    details = `恢复时间: ${new Date().toISOString()}, 重连延迟: ${client.ws.ping}ms`;
                     break;
                 case 'error':
                     message = event ? `发生错误: ${event.message}` : '发生错误';
+                    if (event) {
+                        details = `错误堆栈: ${event.stack || '无'}, 错误代码: ${event.code || '无'}`;
+                    }
                     break;
                 case 'ready':
                     message = '已就绪';
+                    details = `WebSocket延迟: ${client.ws.ping}ms`;
                     break;
             }
             
             logTime(`分片 ${id} ${message}`, status === 'error');
+            if (details) {
+                logTime(`分片 ${id} 详细信息: ${details}`, status === 'error');
+            }
+            
+            // 记录当前的连接统计
+            logTime(`连接统计 - 总重连次数: ${client.ws.reconnects}, 当前延迟: ${client.ws.ping}ms`);
+            
             globalRequestQueue.setShardStatus(id, status);
         };
 
@@ -59,7 +74,8 @@ export default {
         // 添加WebSocket状态监听
         client.ws.on('ready', () => {
             logTime('WebSocket连接就绪');
-            // 让RequestQueue自己管理状态转换
+            logTime(`WebSocket状态 - 延迟: ${client.ws.ping}ms, 会话ID: ${client.ws.shards.get(0)?.sessionId || '无'}`);
+            
             if (globalRequestQueue.shardStatus.get(0) !== 'ready') {
                 globalRequestQueue.setShardStatus(0, 'ready');
             }

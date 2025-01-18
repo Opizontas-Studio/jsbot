@@ -15,14 +15,15 @@ try {
 // 创建基础日志格式
 const baseFormat = winston.format.printf(({ message, level }) => {
     const prefix = level === 'error' ? '❌ ' : '';
-    return `[${new Date().toLocaleString()}] ${prefix}${message}\n`;
+    return `[${new Date().toLocaleString()}] ${prefix}${message}`;
 });
 
 // 创建控制台传输
 const consoleTransport = new winston.transports.Console({
     format: winston.format.combine(
         winston.format.colorize(),
-        baseFormat
+        baseFormat,
+        winston.format.printf(info => `${info.message}`)
     )
 });
 
@@ -32,7 +33,10 @@ const dailyRotateFile = new winston.transports.DailyRotateFile({
     datePattern: 'YYYY-MM-DD',
     maxSize: '20m',
     maxFiles: '14d',
-    format: baseFormat,
+    format: winston.format.combine(
+        baseFormat,
+        winston.format.printf(info => `${info.message}\n`)
+    ),
     handleExceptions: true,
     handleRejections: true
 });

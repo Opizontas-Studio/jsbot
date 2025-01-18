@@ -15,14 +15,15 @@ try {
 // 创建基础日志格式
 const baseFormat = winston.format.printf(({ message, level }) => {
     const prefix = level === 'error' ? '❌ ' : '';
-    const logMessage = `[${new Date().toLocaleString()}] ${prefix}${message}\n`;
-    // 同时输出到控制台
-    if (level === 'error') {
-        process.stderr.write(logMessage);
-    } else {
-        process.stdout.write(logMessage);
-    }
-    return logMessage;
+    return `[${new Date().toLocaleString()}] ${prefix}${message}\n`;
+});
+
+// 创建控制台传输
+const consoleTransport = new winston.transports.Console({
+    format: winston.format.combine(
+        winston.format.colorize(),
+        baseFormat
+    )
 });
 
 // 创建旋转日志文件传输
@@ -31,12 +32,19 @@ const dailyRotateFile = new winston.transports.DailyRotateFile({
     datePattern: 'YYYY-MM-DD',
     maxSize: '20m',
     maxFiles: '14d',
-    format: baseFormat
+    format: baseFormat,
+    handleExceptions: true,
+    handleRejections: true
 });
 
 // 创建logger实例
 const logger = winston.createLogger({
-    transports: [dailyRotateFile]
+    level: 'info',
+    transports: [
+        consoleTransport,
+        dailyRotateFile
+    ],
+    exitOnError: false
 });
 
 /**

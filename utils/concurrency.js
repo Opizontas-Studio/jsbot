@@ -36,11 +36,16 @@ export class RequestQueue {
             if (this.shardStatus.get(0) === 'reconnecting') {
                 // 如果队列仍在正常处理请求，说明连接实际上是正常的
                 if (this.currentProcessing > 0 && !this.paused) {
-                    logTime('检测到队列正常运行，自动恢复分片状态');
+                    logTime('WebSocket连接正常，忽略重连状态');
                     this.setShardStatus(0, 'ready');
                 }
             }
-        }, 60000); // 每分钟检查一次
+            // 检查队列健康状态
+            if (this.queue.length > 0 && !this.processing && !this.paused) {
+                logTime('检测到队列停滞，尝试恢复处理');
+                this.process();
+            }
+        }, 5000); // 每5秒检查一次
     }
 
     // 清理资源
@@ -217,7 +222,9 @@ export class RequestQueue {
             }
         } finally {
             this.currentProcessing--;
-            await new Promise(r => setTimeout(r, 100));
+            // 动态调整延迟时间
+            const delay = Math.min(50, Math.max(10, this.queue.length));
+            await new Promise(r => setTimeout(r, delay));
         }
     }
 

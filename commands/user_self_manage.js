@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
 import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
-import { handleSingleThread } from './long_prune.js';
+import { handleSingleThreadCleanup } from '../utils/cleaner.js';
 import { logTime } from '../utils/logger.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 
 export default {
     cooldown: 10,
@@ -337,7 +338,7 @@ export default {
                         });
 
                         await globalRequestQueue.add(async () => {
-                            await handleSingleThread(interaction, guildConfig);
+                            await handleSingleThreadCleanup(interaction, guildConfig);
                             logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                         }, 0); // 该耗时任务独立进入队列
                     }

@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { checkPermission, handlePermissionResult, generateProgressReport, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { cleanThreadMembers } from '../utils/cleaner.js';
+import { cleanThreadMembers, handleSingleThreadCleanup } from '../utils/cleaner.js';
 import { globalBatchProcessor, globalRateLimiter } from '../utils/concurrency.js';
 
 /**
@@ -44,66 +44,15 @@ export default {
 
         try {
             if (subcommand === '当前') {
-                await handleSingleThread(interaction, guildConfig);
+                await handleSingleThreadCleanup(interaction, guildConfig);
             } else if (subcommand === '全部') {
                 await handleAllThreads(interaction, guildConfig);
             }
         } catch (error) {
             await handleCommandError(interaction, error, '清理子区不活跃用户');
         }
-    },
-
-    handleSingleThread
+    }
 };
-
-/**
- * 处理单个子区的清理
- */
-export async function handleSingleThread(interaction, guildConfig) {
-    if (!interaction.channel.isThread()) {
-        await interaction.editReply({
-            content: '❌ 此命令只能在子区中使用',
-            flags: ['Ephemeral']
-        });
-        return;
-    }
-
-    const thread = interaction.channel;
-    const threshold = interaction.options.getInteger('阈值') || 950;
-
-    // 检查白名单
-    if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
-        await interaction.editReply({
-            content: '✅ 此子区在白名单中，已跳过清理。',
-            flags: ['Ephemeral']
-        });
-        return;
-    }
-
-    // 提前检查成员数量
-    const members = await thread.members.fetch();
-    const memberCount = members.size;
-    
-    if (memberCount < threshold) {
-        await interaction.editReply({
-            embeds: [{
-                color: 0x808080,
-                title: '❌ 无需清理',
-                description: `当前子区人数(${memberCount})未达到清理阈值(${threshold})`
-            }]
-        });
-        return;
-    }
-
-    const result = await cleanThreadMembers(
-        thread,
-        threshold,
-        { sendThreadReport: true },
-        (progress) => updateProgress(interaction, progress)
-    );
-
-    await handleCleanupResult(interaction, result, threshold);
-}
 
 /**
  * 处理全服子区的清理
@@ -240,81 +189,6 @@ async function handleAllThreads(interaction, guildConfig) {
         logTime(`执行全服清理时出错: ${error.message}`, true);
         throw error;
     }
-}
-
-/**
- * 更新进度显示
- */
-async function updateProgress(interaction, progress) {
-    if (progress.type === 'message_scan') {
-        await interaction.editReply({
-            content: generateProgressReport(progress.messagesProcessed, progress.totalMessages, '正在统计活跃用户...'),
-            flags: ['Ephemeral']
-        });
-    } else if (progress.type === 'member_remove') {
-        await interaction.editReply({
-            content: generateProgressReport(progress.removedCount, progress.totalToRemove, '正在移除未发言成员...'),
-            flags: ['Ephemeral']
-        });
-    }
-}
-
-/**
- * 处理清理结果
- */
-async function handleCleanupResult(interaction, result, threshold) {
-    if (result.status === 'skipped') {
-        const message = result.reason === 'whitelisted' 
-            ? '✅ 此子区在白名单中，已跳过清理。'
-            : `✅ 当前子区人数(${result.memberCount})已经在限制范围内，无需清理。`;
-            
-        await interaction.editReply({
-            content: message,
-            flags: ['Ephemeral']
-        });
-        return;
-    }
-
-    if (result.status === 'error') {
-        throw new Error(result.error);
-    }
-
-    // 发送操作日志
-    const moderationChannel = await interaction.client.channels.fetch(interaction.guildConfig.moderationLogThreadId);
-    await moderationChannel.send({
-        embeds: [{
-            color: 0x0099ff,
-            title: '子区清理报告',
-            fields: [{
-                name: result.name,
-                value: [
-                    `[跳转到子区](${result.url})`,
-                    `原始人数: ${result.originalCount}`,
-                    `移除人数: ${result.removedCount}`,
-                    `当前人数: ${result.originalCount - result.removedCount}`,
-                    result.lowActivityCount > 0 ? 
-                        `(包含 ${result.lowActivityCount} 个低活跃度成员)` : 
-                        ''
-                ].filter(Boolean).join('\n'),
-                inline: false
-            }],
-            timestamp: new Date(),
-            footer: { text: '论坛管理系统' }
-        }]
-    });
-
-    // 回复执行结果
-    await interaction.editReply({
-        content: [
-            '✅ 子区清理完成！',
-            `🎯 目标阈值: ${threshold}`,
-            `📊 原始人数: ${result.originalCount}`,
-            `👥 活跃用户: ${result.originalCount - result.inactiveCount}`,
-            `🚫 已移除: ${result.removedCount}`,
-            `👤 当前人数: ${result.originalCount - result.removedCount}`
-        ].join('\n'),
-        flags: ['Ephemeral']
-    });
 }
 
 /**

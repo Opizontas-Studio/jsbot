@@ -1,10 +1,10 @@
 import { ChannelFlags } from 'discord.js';
-import { delay, measureTime, handleDiscordError } from './helper.js';
-import { logTime } from './logger.js';
+import { delay, measureTime, handleDiscordError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { globalBatchProcessor } from './concurrency.js';
+import { globalBatchProcessor } from '../utils/concurrency.js';
 import { Client, Collection } from 'discord.js';
 
 const MESSAGE_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');

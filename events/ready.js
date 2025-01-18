@@ -1,8 +1,8 @@
 import { Events } from 'discord.js';
 import { logTime } from '../utils/logger.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { createApplicationMessage } from '../utils/roleApplication.js';
-import { globalTaskScheduler } from '../tasks/scheduler.js';
+import { createApplicationMessage } from '../services/roleApplication.js';
+import { globalTaskScheduler } from '../handlers/scheduler.js';
 
 export default {
     name: Events.ClientReady,

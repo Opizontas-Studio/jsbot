@@ -1,5 +1,4 @@
 import { logTime } from '../utils/logger.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType, Collection } from 'discord.js';
 import { DiscordAPIError } from '@discordjs/rest';
 import { handleDiscordError } from '../utils/helper.js';

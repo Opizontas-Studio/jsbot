@@ -18,11 +18,6 @@ const DEFAULT_COOLDOWN = 5;
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        // 统一的延迟响应处理，对于确认按钮，不需要延迟响应
-        if (!interaction.customId?.startsWith('confirm_')) {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-        }
-
         // 处理按钮交互
         if (interaction.isButton()) {
             await handleButton(interaction);
@@ -37,6 +32,9 @@ export default {
 
         // 只处理斜杠命令
         if (!interaction.isChatInputCommand()) return;
+
+        // 对于命令，使用延迟响应
+        await interaction.deferReply({ flags: ['Ephemeral'] });
 
         // 获取服务器特定配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);

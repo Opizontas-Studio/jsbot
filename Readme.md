@@ -14,27 +14,28 @@ Discord.js Bot Project
 ├── handlers/                   # 交互处理模块
 │   ├── buttons.js             # 按钮交互处理
 │   └── modals.js              # 模态框交互处理
+│   └── scheduler.js           # 定时任务管理器
 ├── db/                         # 数据库模块
 │   ├── db.js                  # 数据库管理器
 │   ├── punishment.js          # 处罚数据模型
 │   └── process.js             # 流程数据模型
 ├── utils/                      # 工具类模块
-│   ├── analyzers.js           # 活跃子区分析工具
-│   ├── cleaner.js             # 子区成员清理工具
 │   ├── concurrency.js         # 队列和并发控制
 │   ├── guild_config.js        # 服务器配置管理
 │   ├── helper.js              # 通用辅助函数
 │   ├── logger.js              # 日志管理
+├── services/                   # 服务类模块
+│   ├── analyzers.js           # 活跃子区分析工具
+│   ├── cleaner.js             # 子区成员清理工具
 │   └── roleApplication.js     # 身份组申请处理
-├── tasks/                      # 定时任务模块
-│   └── scheduler.js           # 定时任务管理器
 ├── data/                      # 数据存储目录
 │   ├── database.sqlite        # SQLite数据库文件
 │   └── messageIds.json        # 消息ID配置
 ├── config.json                # 配置文件
 ├── index.js                   # 主入口文件
 ├── package.json              # 项目配置
-└── eslint.config.js          # ESLint配置
+├── eslint.config.js          # ESLint配置
+└── Readme.md                 # 项目说明
 ```
 
 
@@ -219,8 +220,14 @@ Discord.js Bot Project
   * 错误处理和反馈
   * 支持多步骤表单
   * 提供字段验证机制
+  
+## scheduler.js - 定时任务管理器
+- 定义：统一管理所有定时任务的调度和执行
+- 导出：`globalTaskScheduler.schedule({ name, interval, task, onError, retryCount })`
 
 # db/ - 数据库模块
+
+## db.js - 数据库管理器
 - 使用SQLite3作为轻量级数据库
 - 数据文件位于`data/database.sqlite`
 - 自动创建表结构和索引
@@ -266,11 +273,39 @@ CREATE TABLE processes (
 )
 ```
 
-# tasks/ - 定时任务模块
+# services/ - 服务类模块
 
-## scheduler.js - 定时任务管理器
-- 定义：统一管理所有定时任务的调度和执行
-导出：`globalTaskScheduler.schedule({ name, interval, task, onError, retryCount })`
+## analyzers.js - 活跃子区分析工具
+- `analyzeThreads(client, guildConfig)` - 分析所有子区活跃度
+  * 参数: Discord客户端、服务器配置
+  * 返回: 分析结果
+  * 支持自动化定时执行
+  * 可配置分析范围和阈值
+
+## cleaner.js - 清理工具
+- `sendThreadReport(thread, result)` - 发送子区清理报告
+  * 参数: 子区对象、清理结果
+  * 支持详细的统计信息显示
+- `cleanThreadMembers(thread, threshold, options, progressCallback)` - 清理子区成员
+  * 参数: 子区对象、目标阈值、选项、进度回调
+  * 支持白名单检查
+  * 自动识别活跃/不活跃成员
+  * 批量处理成员移除
+  * 支持进度报告
+- `handleSingleThreadCleanup(interaction, guildConfig)` - 处理单个子区清理
+  * 参数: 交互对象、服务器配置
+  * 支持阈值自定义
+  * 自动检查权限和条件
+  * 发送清理结果通知
+
+## roleApplication.js - 身份组申请
+- `createApplicationMessage(client)` - 创建申请消息
+  * 参数: Discord客户端
+  * 自动检查现有消息
+  * 创建申请按钮和说明
+  * 保存消息ID配置
+  * 支持功能开关检查
+  * 自动清理失效消息
 
 # utils/ - 工具类模块
 
@@ -324,22 +359,6 @@ CREATE TABLE processes (
   * 自动添加时间戳
   * 错误日志带有❌标记
 
-## cleaner.js - 清理工具
-- `sendThreadReport(thread, result)` - 发送子区清理报告
-  * 参数: 子区对象、清理结果
-  * 支持详细的统计信息显示
-- `cleanThreadMembers(thread, threshold, options, progressCallback)` - 清理子区成员
-  * 参数: 子区对象、目标阈值、选项、进度回调
-  * 支持白名单检查
-  * 自动识别活跃/不活跃成员
-  * 批量处理成员移除
-  * 支持进度报告
-- `handleSingleThreadCleanup(interaction, guildConfig)` - 处理单个子区清理
-  * 参数: 交互对象、服务器配置
-  * 支持阈值自定义
-  * 自动检查权限和条件
-  * 发送清理结果通知
-
 ## concurrency.js - 并发控制
 - RequestQueue类 - 全局请求队列
   * 控制并发请求数量(最大5个)
@@ -366,15 +385,6 @@ CREATE TABLE processes (
   * 阈值设置
   * 日志频道配置
   * 状态信息构建
-
-## roleApplication.js - 身份组申请
-- `createApplicationMessage(client)` - 创建申请消息
-  * 参数: Discord客户端
-  * 自动检查现有消息
-  * 创建申请按钮和说明
-  * 保存消息ID配置
-  * 支持功能开关检查
-  * 自动清理失效消息
 
 # 主要文件说明
 

@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { analyzeThreads } from '../utils/analyzers.js';
+import { analyzeThreads } from '../services/analyzers.js';
 import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
 /**

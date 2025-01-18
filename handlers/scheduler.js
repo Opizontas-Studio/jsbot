@@ -1,7 +1,7 @@
 import { logTime } from '../utils/logger.js';
-import { analyzeThreads } from '../utils/analyzers.js';
+import { analyzeThreads } from '../services/analyzers.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { dbManager } from '../db/db.js';
+import { dbManager } from '../db/manager.js';
 
 /**
  * 定时任务管理器

@@ -1,11 +1,13 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
-import { logTime } from './logger.js';
-import { globalRequestQueue } from './concurrency.js';
+import { logTime } from '../utils/logger.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { DiscordAPIError } from '@discordjs/rest';
-import { handleDiscordError } from './helper.js';
+import { handleDiscordError } from '../utils/helper.js';
+
+const messageIdsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
 
 /**
  * 处理创建申请消息
@@ -13,7 +15,6 @@ import { handleDiscordError } from './helper.js';
  */
 export const createApplicationMessage = async (client) => {
     // 读取消息ID配置
-    const messageIdsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
     let messageIds;
     try {
         messageIds = JSON.parse(readFileSync(messageIdsPath, 'utf8'));

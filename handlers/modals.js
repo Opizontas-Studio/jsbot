@@ -12,6 +12,8 @@ export const modalHandlers = {
     // 身份组申请模态框处理器
     'creator_role_modal': async (interaction) => {
         try {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+
             const threadLink = interaction.fields.getTextInputValue('thread_link');
             const matches = threadLink.match(/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/);
 

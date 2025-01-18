@@ -13,9 +13,9 @@ import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
 
 // 本地功能模块
-import { globalTaskScheduler } from './tasks/scheduler.js';
+import { globalTaskScheduler } from './handlers/scheduler.js';
 import { globalRequestQueue } from './utils/concurrency.js';
-import { dbManager } from './db/db.js';
+import { dbManager } from './db/manager.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(readFileSync(join(currentDir, 'config.json'), 'utf8'));

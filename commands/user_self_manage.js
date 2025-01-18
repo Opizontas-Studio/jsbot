@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
-import { handleSingleThreadCleanup } from '../utils/cleaner.js';
+import { handleSingleThreadCleanup } from '../services/cleaner.js';
 import { logTime } from '../utils/logger.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';

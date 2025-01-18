@@ -147,7 +147,7 @@ function setupProcessHandlers() {
 
     // 错误处理
     process.on('error', (error) => {
-        logTime(`进程错误: ${error.name}: ${error.message}`, true);
+        logTime(`进程错误: ${handleDiscordError(error)}`, true);
         if (error.stack) {
             console.error(error.stack);
         }
@@ -155,7 +155,7 @@ function setupProcessHandlers() {
 
     process.on('unhandledRejection', (error) => {
         logTime('未处理的Promise拒绝:', true);
-        console.error('错误详情:', error);
+        console.error('错误详情:', handleDiscordError(error));
         if (error.requestBody) {
             console.error('请求数据:', error.requestBody);
         }
@@ -166,7 +166,7 @@ function setupProcessHandlers() {
 
     process.on('uncaughtException', (error) => {
         logTime('未捕获的异常:', true);
-        console.error('错误详情:', error);
+        console.error('错误详情:', handleDiscordError(error));
         if (error.stack) {
             console.error('堆栈跟踪:', error.stack);
         }

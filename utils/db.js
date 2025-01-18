@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { logTime } from './logger.js';
+import { delay } from './helper.js';
 
 class DatabaseManager {
     constructor() {
@@ -69,11 +70,12 @@ class DatabaseManager {
         this.connectionRetries++;
         logTime(`尝试重新连接数据库 (${this.connectionRetries}/${this.maxRetries})`);
 
-        setTimeout(() => {
-            this.connect(uri).catch(err => {
-                logTime(`重连失败: ${err.message}`, true);
-            });
-        }, this.retryDelay);
+        await delay(this.retryDelay);
+        try {
+            await this.connect(uri);
+        } catch (err) {
+            logTime(`重连失败: ${err.message}`, true);
+        }
     }
 
     /**

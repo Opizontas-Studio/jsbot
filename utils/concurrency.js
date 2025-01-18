@@ -21,6 +21,21 @@ export class RequestQueue {
         this.shardStatus = new Map(); // 分片状态追踪
         // 定义有效的状态集合
         this.validStates = new Set(['ready', 'disconnected', 'reconnecting', 'error', 'resumed']);
+        // 添加状态检查定时器
+        this.startStatusCheck();
+    }
+
+    // 添加状态检查机制
+    startStatusCheck() {
+        setInterval(() => {
+            if (this.shardStatus.get(0) === 'reconnecting') {
+                // 如果队列仍在正常处理请求，说明连接实际上是正常的
+                if (this.currentProcessing > 0 && !this.paused) {
+                    logTime('检测到队列正常运行，自动恢复分片状态');
+                    this.setShardStatus(0, 'ready');
+                }
+            }
+        }, 60000); // 每分钟检查一次
     }
 
     // 设置分片状态
@@ -29,6 +44,7 @@ export class RequestQueue {
             throw new Error(`无效的分片状态: ${status}`);
         }
 
+        const oldStatus = this.shardStatus.get(shardId);
         this.shardStatus.set(shardId, status);
         
         // 更新队列状态
@@ -38,6 +54,10 @@ export class RequestQueue {
                 this.pause();
                 break;
             case 'reconnecting':
+                // 只有在之前是断开或错误状态时才暂停
+                if (oldStatus === 'disconnected' || oldStatus === 'error') {
+                    this.pause();
+                }
                 break;
             case 'ready':
             case 'resumed':

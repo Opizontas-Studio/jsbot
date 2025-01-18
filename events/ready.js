@@ -109,6 +109,14 @@ export default {
             };
             
             logTime(`分片 ${id} ${statusMessages[status]}`, status === 'error');
+            
+            // 检查WebSocket连接状态
+            const wsStatus = client.ws.status;
+            if (status === 'reconnecting' && wsStatus === 0) {
+                logTime('WebSocket连接正常，忽略重连状态');
+                return;
+            }
+            
             globalRequestQueue.setShardStatus(id, status);
         };
 
@@ -118,5 +126,11 @@ export default {
         client.on('shardResumed', (id) => handleShardStatus('resumed', id));
         client.on('shardError', (error, id) => handleShardStatus('error', id, error.message));
         client.on('shardReady', (id) => handleShardStatus('ready', id));
+
+        // 添加WebSocket状态监听
+        client.ws.on('ready', () => {
+            logTime('WebSocket连接就绪');
+            globalRequestQueue.setShardStatus(0, 'ready');
+        });
     },
 }; 

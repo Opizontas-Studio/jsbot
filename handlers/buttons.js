@@ -154,6 +154,11 @@ export const buttonHandlers = {
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
  */
 export async function handleButton(interaction) {
+    // 如果是确认按钮（以confirm_开头），直接返回
+    if (interaction.customId.startsWith('confirm_')) {
+        return;
+    }
+
     const handler = buttonHandlers[interaction.customId];
     if (!handler) {
         logTime(`未找到按钮处理器: ${interaction.customId}`, true);

@@ -53,20 +53,37 @@ export class RequestQueue {
                 this.process();
             }
 
-            // 只在重连状态下进行额外检查
+            // 增加网络连接状态检查
             if (currentStatus === 'reconnecting') {
-                // 综合判断连接状态：
-                // 1. 当前有活跃处理
-                // 2. 最近有活动（5秒内）
-                // 3. 队列未暂停
-                if (this.currentProcessing > 0 && 
-                    inactivityDuration < 5000 && 
-                    !this.paused) {
-                    logTime('检测到活跃连接，更新状态为就绪');
-                    this.setShardStatus(0, 'ready');
+                // 如果重连时间超过30秒，强制清理队列
+                if (inactivityDuration > 30000) {
+                    logTime('重连时间过长，执行队列清理');
+                    this.cleanup().catch(error => {
+                        logTime(`队列清理失败: ${error.message}`, true);
+                    });
+                    return;
                 }
             }
+
+            // 检查是否需要重置队列状态
+            if (inactivityDuration > 60000) { // 60秒无活动
+                logTime('检测到长时间无活动，重置队列状态');
+                this.resetQueueState();
+            }
         }, 5000); // 每5秒检查一次
+    }
+
+    // 新增重置队列状态方法
+    async resetQueueState() {
+        if (!this.paused) {
+            this.pause();
+        }
+        await this.cleanup();
+        this.currentProcessing = 0;
+        this.processing = false;
+        this.paused = false;
+        logTime('队列状态已重置');
+        this.resume();
     }
 
     // 清理资源
@@ -76,9 +93,6 @@ export class RequestQueue {
             clearInterval(this.statusCheckInterval);
             this.statusCheckInterval = null;
         }
-
-        // 暂停队列，防止新任务被处理
-        this.pause();
 
         // 等待当前正在处理的任务完成
         if (this.currentProcessing > 0) {
@@ -111,9 +125,8 @@ export class RequestQueue {
 
         const oldStatus = this.shardStatus.get(shardId);
         
-        // 状态转换验证
         if (oldStatus === status) {
-            return; // 相同状态不处理
+            return;
         }
 
         // 记录状态变更
@@ -124,18 +137,27 @@ export class RequestQueue {
         switch (status) {
             case 'disconnected':
             case 'error':
+                // 立即执行清理
                 this.pause();
+                await this.cleanup();
                 break;
             case 'reconnecting':
-                // 只有在之前是断开或错误状态时才暂停
                 if (oldStatus === 'disconnected' || oldStatus === 'error') {
                     this.pause();
+                    // 设置重连超时
+                    setTimeout(async () => {
+                        if (this.shardStatus.get(shardId) === 'reconnecting') {
+                            logTime('重连超时，执行清理');
+                            await this.cleanup();
+                        }
+                    }, 30000);
                 }
                 break;
             case 'ready':
             case 'resumed':
-                // 只有在没有其他错误状态时才恢复
                 if (this.isAllShardsHealthy()) {
+                    // 重置队列状态后恢复
+                    await this.resetQueueState();
                     this.resume();
                 }
                 break;
@@ -144,15 +166,22 @@ export class RequestQueue {
 
     // 暂停队列处理
     pause() {
-        this.paused = true;
-        logTime('请求队列已暂停处理');
+        if (!this.paused) {
+            this.paused = true;
+            logTime('请求队列已暂停处理');
+        }
     }
 
     // 恢复队列处理
     resume() {
-        this.paused = false;
-        logTime('请求队列已恢复处理');
-        this.process(); // 恢复处理
+        if (this.paused) {
+            this.paused = false;
+            logTime('请求队列已恢复处理');
+            // 恢复时检查是否有待处理的请求
+            if (this.queue.length > 0 && !this.processing) {
+                this.processQueue();
+            }
+        }
     }
 
     // 检查是否分片处于健康状态

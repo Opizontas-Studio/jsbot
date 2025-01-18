@@ -51,10 +51,6 @@ const client = new Client({
     presence: {
         status: 'online'
     },
-    ws: {
-        large_threshold: 250,
-        compress: true
-    },
     // 重连策略
     restWsBridgeTimeout: 10000,
     restTimeOffset: 750,
@@ -152,35 +148,6 @@ function setupProcessHandlers() {
     // 进程信号处理
     process.on('SIGINT', () => gracefulShutdown('退出'));
     process.on('SIGTERM', () => gracefulShutdown('终止'));
-
-    // 错误处理
-    process.on('error', (error) => {
-        logTime(`进程错误: ${handleDiscordError(error)}`, true);
-        if (error.stack) {
-            console.error(error.stack);
-        }
-    });
-
-    process.on('unhandledRejection', (error) => {
-        logTime('未处理的Promise拒绝:', true);
-        console.error('错误详情:', handleDiscordError(error));
-        if (error.requestBody) {
-            console.error('请求数据:', error.requestBody);
-        }
-        if (error.response) {
-            console.error('Discord API响应:', error.response);
-        }
-    });
-
-    process.on('uncaughtException', (error) => {
-        logTime('未捕获的异常:', true);
-        console.error('错误详情:', handleDiscordError(error));
-        if (error.stack) {
-            console.error('堆栈跟踪:', error.stack);
-        }
-        // 对于未捕获的异常，我们应该尝试优雅关闭
-        gracefulShutdown('未捕获异常');
-    });
 }
 
 // 主函数

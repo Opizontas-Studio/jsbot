@@ -11,8 +11,6 @@ import { handleDiscordError } from '../utils/helper.js';
 export const modalHandlers = {
     // 身份组申请模态框处理器
     'creator_role_modal': async (interaction) => {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
         try {
             const threadLink = interaction.fields.getTextInputValue('thread_link');
             const matches = threadLink.match(/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/);

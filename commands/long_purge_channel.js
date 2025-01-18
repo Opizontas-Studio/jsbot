@@ -20,7 +20,6 @@ export default {
         // 检查权限
         if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
-        await interaction.deferReply({ flags: ['Ephemeral'] });
         const executionTimer = measureTime();
 
         try {

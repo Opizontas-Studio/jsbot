@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { analyzeThreads } from '../utils/analyzers.js';
 import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
@@ -10,8 +10,7 @@ export default {
     cooldown: 10, // 设置10秒冷却时间
     data: new SlashCommandBuilder()
         .setName('更新分析报告')
-        .setDescription('分析论坛子区活跃度统计')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ViewAuditLog),
+        .setDescription('分析论坛子区活跃度统计'),
 
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
@@ -20,18 +19,19 @@ export default {
         const executionTimer = measureTime();
 
         try {
-            // 发送临时响应
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId);
             const executionTime = executionTimer();
 
-            // 根据分析结果回复
+            // 构建回复消息
             const replyContent = [
                 '✅ 分析完成！',
-                `📊 总计分析了 ${result.statistics.totalThreads} 个子区`,
-                `⚠️ 处理失败: ${result.failedOperations.length} 个`,
-                `⏱️ 总执行时间: ${executionTime}秒`
+                `📊 活跃子区总数: ${result.statistics.totalThreads}`,
+                `⚠️ 处理异常数: ${result.statistics.processedWithErrors}`,
+                '🕒 不活跃统计:',
+                `- 72小时以上: ${result.statistics.inactiveThreads.over72h}`,
+                `- 48小时以上: ${result.statistics.inactiveThreads.over48h}`,
+                `- 24小时以上: ${result.statistics.inactiveThreads.over24h}`,
+                `⏱️ 执行用时: ${executionTime}秒`
             ].join('\n');
 
             await interaction.editReply({

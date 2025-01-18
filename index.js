@@ -1,40 +1,24 @@
-import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
-import { REST, Routes } from 'discord.js';
+// Node.js模块
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { measureTime, loadCommandFiles, delay, handleDiscordError } from './utils/helper.js';
+
+// Discord.js库
+import { Client, Collection, Events, GatewayIntentBits, REST, Routes } from 'discord.js';
+import { DiscordAPIError } from '@discordjs/rest';
+
+// 本地工具函数
+import { measureTime, loadCommandFiles, delay, handleDiscordError, getVersionInfo } from './utils/helper.js';
 import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
-import { execSync } from 'child_process';
+
+// 本地功能模块
 import { globalTaskScheduler } from './tasks/scheduler.js';
 import { globalRequestQueue } from './utils/concurrency.js';
 import { dbManager } from './db/db.js';
-import { DiscordAPIError } from '@discordjs/rest';
-import './utils/logger.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
-const config = JSON.parse(
-  readFileSync(join(currentDir, 'config.json'), 'utf8')
-);
-
-// 添加获取 Git 版本信息的函数
-function getVersionInfo() {
-    try {
-        const packageJson = JSON.parse(readFileSync(join(currentDir, 'package.json'), 'utf8'));
-        const version = 'v' + packageJson.version;
-        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-        const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
-        return {
-            version,
-            commitHash,
-            commitDate
-        };
-    } catch (error) {
-        logTime('获取版本信息失败: ' + error.message, true);
-        return null;
-    }
-}
+const config = JSON.parse(readFileSync(join(currentDir, 'config.json'), 'utf8'));
 
 // 初始化客户端
 const client = new Client({
@@ -60,6 +44,18 @@ const client = new Client({
     waitGuildTimeout: 15000
 });
 
+// 监控速率限制和API响应
+client.rest
+    .on('rateLimited', (rateLimitData) => {
+        logTime(`速率超限: • 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${rateLimitData.timeToReset}ms - 全局: ${rateLimitData.global ? '是' : '否'} - 限制: ${rateLimitData.limit || '未知'}`, true);
+    })
+    .on('response', (request, response) => {
+        if (response.status === 429) {  // 429是速率限制状态码
+            logTime(`API受限: • 路由: ${request.route} - 方法: ${request.method} - 状态: ${response.status} - 重试延迟: ${response.headers.get('retry-after')}ms`, true);
+        }
+    });
+
+// 初始化命令集合和GuildManager
 client.commands = new Collection();
 client.guildManager = new GuildManager();
 
@@ -67,8 +63,8 @@ client.guildManager = new GuildManager();
 async function loadEvents() {
     const eventsPath = join(currentDir, 'events');
     const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+    let loadedEvents = 0;
 
-    logTime(`开始加载 ${eventFiles.length} 个事件处理器`);
     for (const file of eventFiles) {
         try {
             const eventPath = join(eventsPath, file);
@@ -90,13 +86,14 @@ async function loadEvents() {
                 } else {
                     client.on(evt.name, (...args) => evt.execute(...args));
                 }
-                logTime(`已加载事件: ${evt.name}`);
+                loadedEvents++;
             }
         } catch (error) {
             logTime(`加载事件文件 ${file} 失败:`, true);
             console.error(error.stack);
         }
     }
+    logTime(`已加载 ${loadedEvents} 个事件处理器`);
 }
 
 // 设置进程事件处理
@@ -121,7 +118,6 @@ function setupProcessHandlers() {
                 // 在关闭前执行一次备份
                 try {
                     await dbManager.backup();
-                    logTime('已完成关闭前的数据库备份');
                 } catch (error) {
                     logTime('关闭前备份失败: ' + error.message, true);
                 }
@@ -199,13 +195,13 @@ async function main() {
             });
         }
 
-        // 检查并部署未部署命令的服务器
+        // 加载命令
         const commandsPath = join(currentDir, 'commands');
         const commands = await loadCommandFiles(commandsPath);
         const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
-        
         const rest = new REST({ version: '10' }).setToken(config.token);
-        
+
+        // 部署命令
         for (const [guildId, guildConfig] of Object.entries(config.guilds)) {
             if (!guildConfig.commandsDeployed) {
                 try {

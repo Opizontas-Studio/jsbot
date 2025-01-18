@@ -3,6 +3,10 @@ import { join } from 'node:path';
 import { logTime } from './logger.js';
 import { DiscordAPIError } from '@discordjs/rest';
 import { RESTJSONErrorCodes } from 'discord-api-types/v10';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
+import { execSync } from 'child_process';
 
 /**
  * 计算执行时间的工具函数
@@ -354,6 +358,7 @@ export const sendCleanupReport = async (interaction, guildConfig, result) => {
  */
 export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
     const commands = new Map();
+    let errorCount = 0;
     
     try {
         const files = readdirSync(commandsDir)
@@ -367,27 +372,51 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
                 const command = await import(fileUrl);
                 
                 if (!command.default?.data?.name || !command.default.execute) {
-                    logTime(`⚠️ ${file} 缺少必要属性`);
+                    errorCount++;
                     continue;
                 }
                 
                 if (commands.has(command.default.data.name)) {
                     logTime(`⚠️ 重复命令名称 "${command.default.data.name}"`);
+                    errorCount++;
                     continue;
                 }
 
                 commands.set(command.default.data.name, command.default);
-                logTime(`已加载命令: ${command.default.data.name}`);
             } catch (error) {
+                errorCount++;
                 logTime(`❌ 加载命令文件 ${file} 失败:`, true);
                 console.error(error.stack);
             }
         }
-        
+        logTime(`命令加载完成，成功 ${commands.size} 个，失败 ${errorCount} 个`);
         return commands;
     } catch (error) {
         logTime(`❌ 读取命令目录失败:`, true);
         console.error(error.stack);
         return new Map();
+    }
+};
+
+/**
+ * 获取应用程序版本信息
+ * @returns {Object|null} 包含版本号、提交哈希和提交日期的对象，如果获取失败则返回null
+ */
+export const getVersionInfo = () => {
+    try {
+        const currentDir = dirname(fileURLToPath(import.meta.url));
+        const packagePath = join(currentDir, '..', 'package.json');
+        const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+        const version = 'v' + packageJson.version;
+        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+        const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
+        return {
+            version,
+            commitHash,
+            commitDate
+        };
+    } catch (error) {
+        logTime('获取版本信息失败: ' + error.message, true);
+        return null;
     }
 }; 

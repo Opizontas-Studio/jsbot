@@ -52,8 +52,6 @@ export default {
 
     async execute(interaction) {
         try {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             // 获取目标用户
             const targetUser = interaction.options.getUser('目标用户');
             

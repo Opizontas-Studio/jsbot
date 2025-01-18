@@ -41,9 +41,6 @@ export default {
         const threadUrl = interaction.options.getString('帖子链接');
         
         try {
-            // 立即发送一个延迟响应
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-            
             // 解析帖子链接
             const matches = threadUrl.match(/channels\/(\d+)\/(\d+)(?:\/threads\/(\d+))?/);
             

@@ -170,10 +170,15 @@ export async function handleButton(interaction) {
     try {
         await handler(interaction);
     } catch (error) {
-        logTime(`按钮处理出错 [${interaction.customId}]: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
+        const errorMessage = error instanceof DiscordAPIError ? 
+            handleDiscordError(error) : 
+            '处理请求时出现错误，请稍后重试。';
+            
+        logTime(`按钮处理出错 [${interaction.customId}]: ${errorMessage}`, true);
+        
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
-                content: `❌ ${error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试。'}`,
+                content: `❌ ${errorMessage}`,
                 flags: ['Ephemeral']
             });
         }

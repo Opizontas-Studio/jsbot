@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChannelType, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
+import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
 import { handleSingleThreadCleanup } from '../utils/cleaner.js';
 import { logTime } from '../utils/logger.js';
@@ -75,8 +75,6 @@ export default {
 
         // 处理标注信息命令
         if (subcommand === '标注信息') {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-            
             try {
                 const messageUrl = interaction.options.getString('消息链接');
                 const action = interaction.options.getString('操作');
@@ -126,8 +124,6 @@ export default {
 
         // 处理删除命令
         if (subcommand === '删除') {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             try {
                 await handleConfirmationButton({
                     interaction,
@@ -188,9 +184,7 @@ export default {
         } 
         // 处理锁定并关闭命令
         else if (subcommand === '锁定并关闭') {
-            const reason = interaction.options.getString('理由');
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-            
+            const reason = interaction.options.getString('理由');  
             try {
                 await handleConfirmationButton({
                     interaction,
@@ -230,8 +224,6 @@ export default {
         }
         // 处理清理不活跃用户命令
         else if (subcommand === '清理不活跃用户') {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             try {
                 const threshold = interaction.options.getInteger('阈值') || 950;
                 

@@ -14,8 +14,6 @@ export default {
         // 检查用户是否有执行权限
         if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-        
         try {
             const deployTimer = measureTime();
             const commandsPath = join(dirname(fileURLToPath(import.meta.url)));

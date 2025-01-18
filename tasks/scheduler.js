@@ -1,6 +1,6 @@
 import { logTime } from '../utils/logger.js';
 import { analyzeThreads } from '../utils/analyzers.js';
-import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 import { dbManager } from '../db/db.js';
 
 /**
@@ -188,18 +188,16 @@ class TaskScheduler {
     async runScheduledTasks(client, guildConfig, guildId) {
         try {
             await globalRequestQueue.add(async () => {
-                await globalRateLimiter.withRateLimit(async () => {
-                    if (guildConfig.automation?.analysis) {
-                        await analyzeThreads(client, guildConfig, guildId);
-                    }
+                if (guildConfig.automation?.analysis) {
+                    await analyzeThreads(client, guildConfig, guildId);
+                }
 
-                    if (guildConfig.automation?.cleanup?.enabled) {
-                        await analyzeThreads(client, guildConfig, guildId, {
-                            clean: true,
-                            threshold: guildConfig.automation.cleanup.threshold || 960
-                        });
-                    }
-                });
+                if (guildConfig.automation?.cleanup?.enabled) {
+                    await analyzeThreads(client, guildConfig, guildId, {
+                        clean: true,
+                        threshold: guildConfig.automation.cleanup.threshold || 960
+                    });
+                }
             }, 0);
         } catch (error) {
             logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
@@ -226,9 +224,13 @@ class TaskScheduler {
      * 停止所有任务
      */
     stopAll() {
+        let stoppedCount = 0;
         for (const [taskId, timer] of this.timers) {
             clearInterval(timer);
-            logTime(`已停止任务: ${taskId}`);
+            stoppedCount++;
+        }
+        if (stoppedCount > 0) {
+            logTime(`已停止 ${stoppedCount} 个定时任务`);
         }
         this.timers.clear();
         this.isInitialized = false;

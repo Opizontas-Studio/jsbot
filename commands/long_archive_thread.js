@@ -27,9 +27,6 @@ export default {
         const executionTimer = measureTime();
 
         try {
-            // 发送临时响应，避免交互超时
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             // 获取当前活跃子区数量并检查是否需要清理
             const guild = interaction.guild;
             const activeThreads = await guild.channels.fetchActiveThreads();

@@ -308,10 +308,10 @@ export const analyzeThreads = async (client, guildConfig, guildId, options = {},
                     
                     // 如果第一次获取为空，尝试获取更多消息
                     if (!lastMessage) {
-                        const moreMessages = await thread.messages.fetch({ limit: 5 });
+                        const moreMessages = await thread.messages.fetch({ limit: 3 });
                         lastMessage = moreMessages.find(msg => msg !== null);
                         
-                        // 如果5条消息都获取失败，输出详细信息
+                        // 如果3条消息都获取失败，输出详细信息
                         if (!lastMessage) {
                             logTime(`[警告] 子区消息获取异常: ${thread.name} 消息计数: ${thread.messageCount}`);
                         }

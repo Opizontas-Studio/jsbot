@@ -17,10 +17,10 @@ export default {
         await createApplicationMessage(client);
         
         // 初始化分片状态
-        globalRequestQueue.setShardStatus(0, 'ready');
+        globalRequestQueue.setShardStatus('ready');
         
         // 分片状态变化
-        const handleShardStatus = (status, id, event = null) => {
+        const handleShardStatus = (status, event = null) => {
             let message = '';
             let details = '';
             
@@ -33,14 +33,15 @@ export default {
                 4011: '分片无效'
             };
             
+            // 根据状态设置消息和详细信息
             switch (status) {
                 case 'disconnected':
                     if (event) {
                         const reason = CLOSE_CODES[event.code] || '未知原因';
-                        message = `分片断开连接 (代码: ${event.code} - ${reason})`;
+                        message = `连接断开 (代码: ${event.code} - ${reason})`;
                         details = `是否清理: ${event.wasClean}`;
                     } else {
-                        message = '分片断开连接';
+                        message = '连接断开';
                     }
                     break;
                 case 'reconnecting':
@@ -63,31 +64,37 @@ export default {
                     break;
             }
             
-            logTime(`分片 ${id} ${message}`, status === 'error');
+            logTime(message, status === 'error');
             if (details) {
-                logTime(`分片 ${id} 详细信息: ${details}`, status === 'error');
+                logTime(details, status === 'error');
             }
             
             // 记录当前的连接统计
-            logTime(`连接统计 - 总重连次数: ${client.ws.reconnects}, 当前延迟: ${client.ws.ping}ms`);
+            const shard = client.ws.shards.get(0);
+            const reconnectCount = shard ? shard.sequence || 0 : 0;
+            logTime(`连接统计 - 重连次数: ${reconnectCount}, WebSocket延迟: ${client.ws.ping}ms${details ? ', ' + details : ''}`);
             
-            globalRequestQueue.setShardStatus(id, status);
+            globalRequestQueue.setShardStatus(status);
         };
 
         // 事件监听
-        client.on('shardDisconnect', (event, id) => handleShardStatus('disconnected', id, event));
-        client.on('shardReconnecting', (id) => handleShardStatus('reconnecting', id));
-        client.on('shardResumed', (id) => handleShardStatus('resumed', id));
-        client.on('shardError', (error, id) => handleShardStatus('error', id, error));
-        client.on('shardReady', (id) => handleShardStatus('ready', id));
+        client.on('shardDisconnect', (event) => handleShardStatus('disconnected', event));
+        client.on('shardReconnecting', () => handleShardStatus('reconnecting'));
+        client.on('shardResumed', () => handleShardStatus('resumed'));
+        client.on('shardError', (error) => handleShardStatus('error', error));
+        client.on('shardReady', () => handleShardStatus('ready'));
 
         // 添加WebSocket状态监听
         client.ws.on('ready', () => {
+            const shard = client.ws.shards.get(0);
+            const reconnectCount = shard ? shard.sequence || 0 : 0;
+            const sessionId = shard?.sessionId || '无';
+            
             logTime('WebSocket连接就绪');
-            logTime(`WebSocket状态 - 延迟: ${client.ws.ping}ms, 会话ID: ${client.ws.shards.get(0)?.sessionId || '无'}`);
+            logTime(`WebSocket状态 - 重连次数: ${reconnectCount}, 延迟: ${client.ws.ping}ms, 会话ID: ${sessionId}`);
             
             if (globalRequestQueue.shardStatus.get(0) !== 'ready') {
-                globalRequestQueue.setShardStatus(0, 'ready');
+                globalRequestQueue.setShardStatus('ready');
             }
         });
     },

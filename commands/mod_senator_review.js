@@ -11,8 +11,6 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             // 检查服务器是否启用身份组申请功能
             if (!guildConfig?.roleApplication?.enabled) {
                 await interaction.editReply({

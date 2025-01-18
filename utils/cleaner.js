@@ -1,5 +1,5 @@
 import { logTime } from './logger.js';
-import { globalBatchProcessor, globalRateLimiter } from './concurrency.js';
+import { globalBatchProcessor } from './concurrency.js';
 
 /**
  * 发送子区清理报告
@@ -81,15 +81,13 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             const options = { limit: 100 };
             if (beforeId) options.before = beforeId;
             
-            return await globalRateLimiter.withRateLimit(async () => {
-                try {
-                    const messages = await thread.messages.fetch(options);
-                    return messages;
-                } catch (error) {
-                    logTime(`获取消息批次失败: ${error.message}`, true);
-                    return null;
-                }
-            });
+            try {
+                const messages = await thread.messages.fetch(options);
+                return messages;
+            } catch (error) {
+                logTime(`获取消息批次失败: ${error.message}`, true);
+                return null;
+            }
         }
 
         let totalBatches = 0;

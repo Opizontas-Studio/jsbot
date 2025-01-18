@@ -25,7 +25,6 @@ export default {
         // 检查权限
         if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
-        await interaction.deferReply({ flags: ['Ephemeral'] });
         const action = interaction.options.getString('操作');
         const reason = interaction.options.getString('理由');
         const guild = interaction.guild;

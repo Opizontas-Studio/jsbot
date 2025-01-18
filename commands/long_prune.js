@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { checkAndHandlePermission, generateProgressReport, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { cleanThreadMembers, handleSingleThreadCleanup } from '../utils/cleaner.js';
-import { globalBatchProcessor, globalRateLimiter } from '../utils/concurrency.js';
+import { globalBatchProcessor } from '../utils/concurrency.js';
 
 /**
  * 清理子区不活跃用户命令
@@ -39,9 +39,9 @@ export default {
         if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         const subcommand = interaction.options.getSubcommand();
-        await interaction.deferReply({ flags: ['Ephemeral'] });
 
-        try {
+
+        try {    
             if (subcommand === '当前') {
                 await handleSingleThreadCleanup(interaction, guildConfig);
             } else if (subcommand === '全部') {
@@ -82,28 +82,24 @@ async function handleAllThreads(interaction, guildConfig) {
             Array.from(threads.values()),
             async (thread) => {
                 try {
-                    // 使用速率限制器包装API调用
-                    return await globalRateLimiter.withRateLimit(async () => {
-                        const members = await thread.members.fetch();
-                        return {
-                            thread,
-                            memberCount: members.size,
-                            needsCleanup: members.size > threshold
-                        };
-                    });
+                    const members = await thread.members.fetch();
+                    return {
+                        thread,
+                        memberCount: members.size,
+                        needsCleanup: members.size > threshold
+                    };
                 } catch (error) {
                     logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
                     return null;
                 }
             },
             async (progress, processed, total) => {
-                // 更新进度显示
                 await interaction.editReply({
                     content: `⏳ 正在检查子区人数... (${processed}/${total})`,
                     flags: ['Ephemeral']
                 });
             },
-            'threadCheck'  // 指定任务类型为子区检查
+            'threadCheck'
         );
 
         // 处理结果
@@ -149,7 +145,7 @@ async function handleAllThreads(interaction, guildConfig) {
         // 处理结果存储
         const cleanupResults = [];
 
-        // 使用 BatchProcessor 处理子区清理
+        // 使用批处理器处理子区清理
         const cleanupBatchResults = await globalBatchProcessor.processBatch(
             threadsToClean,
             async ({ thread }) => {

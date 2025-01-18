@@ -80,9 +80,10 @@ Discord.js Bot Project
 
 ### adm_shard_status.js - 系统状态查看
 - 显示当前系统运行状态
-- 包含版本信息、运行时间
-- 显示请求队列状态
-- 显示内存使用情况
+- 包含版本信息、运行时间、内存使用情况
+- 显示请求队列状态和处理情况
+- 支持3秒冷却时间
+- 自动刷新状态信息
 
 ### adm_sync_commands.js - 同步Discord命令
 - 同步本地命令到Discord服务器
@@ -100,9 +101,13 @@ Discord.js Bot Project
 
 ### mod_senator_review.js - 议员审核
 - 快速处理议员申请帖
-- 支持通过/拒绝操作
-- 自动分配相关身份组
-- 发送审核结果通知
+- 需要管理身份组权限
+- 自动检查申请者加入时间(需满15天)
+- 自动统计作品反应数(需满50个)
+- 支持多个作品链接检查
+- 自动分配议员身份组
+- 发送详细的审核结果通知
+- 记录审核操作日志
 
 ### mod_thread_manage.js - 帖子管理
 - 支持帖子锁定、解锁、开启、关闭、标注、取消标注操作
@@ -114,18 +119,19 @@ Discord.js Bot Project
 ### user_dm.js - 发送私聊通知
 - 通过机器人向指定用户发送私聊通知
 - 需要目标用户权限
-- 支持标题、内容、图片URL
-- 提供多种颜色选择（蓝色、绿色、紫色、粉色、青色）
+- 支持标题(最大256字符)和内容(最大4096字符)
+- 支持可选的图片URL
+- 提供多种颜色选择(蓝色、绿色、紫色、粉色、青色)
 - 带有60秒冷却时间
 - 自动添加发送者信息和时间戳
 
 ### user_notify.js - 发送通知
-- 创建自定义通知嵌入消息
-- 支持标题、内容、图片URL
-- 提供多种颜色选择（蓝色、绿色、紫色、粉色、青色）
+- 在当前频道发送通知控件
+- 支持标题(最大256字符)和内容(最大4096字符)
+- 支持可选的图片URL
+- 提供多种颜色选择(蓝色、绿色、紫色、粉色、青色)
 - 带有60秒冷却时间
 - 自动添加发送者信息和时间戳
-- 支持4096字符的内容长度
 
 ### user_self_manage.js - 自助管理
 - 用户管理自己的帖子
@@ -141,7 +147,7 @@ Discord.js Bot Project
 - 清理不活跃的子区
 - 可设置活跃度阈值
 - 自动归档不活跃帖子
-- 生成清理报告
+- 发送详细的清理报告
 - 支持白名单配置
 
 ### long_prune.js - 子区成员清理
@@ -165,7 +171,6 @@ Discord.js Bot Project
 
 ### long_update_analysis.js - 更新分析报告
 - 分析所有子区活跃度
-- 生成统计报告
 - 更新日志频道的分析信息
 - 显示执行时间和处理结果
 - 记录处理失败的操作
@@ -269,120 +274,113 @@ CREATE TABLE processes (
 
 # utils/ - 工具类模块
 
-## analyzers.js - 分析工具
-- 主要分析函数
-- 导出：`const analyzeThreads = (client, guildConfig, guildId, options) => {...}`  // 子区分析主函数
-
-- 日志管理器类
-导出：
-class DiscordLogger {
-    constructor(client, guildId, guildConfig) {...}  // 构造函数
-    async initialize() {...}                         // 初始化日志频道
-    async loadMessageIds() {...}                     // 加载消息ID配置
-    async saveMessageIds() {...}                     // 保存消息ID配置
-    async getOrCreateMessage(type) {...}             // 获取或创建消息
-    async sendInactiveThreadsList() {...}            // 发送不活跃子区列表
-    async sendStatisticsReport() {...}               // 发送统计报告
-    async sendCleanReport() {...}                    // 发送清理报告
-}
-
-- 错误处理
-导出：`const handleDiscordError = (error, context) => {...}`  // Discord API错误处理
-
-### cleaner.js - 清理工具
-导出：`const cleanThreadMembers = async (thread, options) => {...}`  // 清理子区成员
-导出：`const sendThreadReport = async (thread, result) => {...}`     // 发送子区清理报告
-导出：`async function handleSingleThreadCleanup(interaction, guildConfig) {...}` // 处理单个子区清理
-
-### concurrency.js - 并发控制
-导出：
-class RequestQueue {
-    constructor(options) {...}                      // 构造函数
-    async add(task, priority) {...}                // 添加任务
-    pause() {...}                                  // 暂停队列
-    resume() {...}                                 // 恢复队列
-    setShardStatus(shardId, status) {...}         // 设置分片状态
-    adjustQueuePriorities() {...}                 // 调整队列优先级
-    process() {...}                               // 处理队列
-    executeTask(item) {...}                       // 执行任务
-}
-
-class RateLimiter {
-    constructor(options) {...}                     // 构造函数
-    async withRateLimit(fn) {...}                 // 速率限制包装器
-}
-
-class BatchProcessor {
-    constructor(options) {...}                     // 构造函数
-    async processBatch(items, processor) {...}     // 批量处理
-}
-
-导出：`const globalRequestQueue = new RequestQueue({...})     // 全局请求队列实例`
-导出：`const globalRateLimiter = new RateLimiter({...})      // 全局速率限制器实例`
-导出：`const globalBatchProcessor = new BatchProcessor({...}) // 全局批处理器实例`
-
-## utils/db.js - 数据库管理
-- 数据库文件自动创建和初始化
-- 自动备份和恢复机制
-- 支持事务处理
-- 内置错误处理和重试机制
-- 连接池管理
-- 自动清理过期数据
-
-## guild_config.js - 服务器配置
-导出：
-class GuildManager {
-    constructor() {...}                           // 构造函数
-    initialize(config) {...}                      // 初始化配置
-    getGuildConfig(guildId) {...}                // 获取服务器配置
-    getGuildIds() {...}                          // 获取所有服务器ID
-}
-
 ## helper.js - 通用辅助函数
-导出：
-// 时间和延迟
-导出：`const measureTime = () => {...}`                                           // 计时器函数
-导出：`const delay = (ms) => {...}` 
-
-// 处理Discord API错误
-导出：`const handleDiscordError = (error) => {...}`                             // 处理Discord API错误
-
-// 权限检查
-导出：`const checkPermission = (member, roles) => {...}`                         // 检查角色权限
-导出：`const handlePermissionResult = (interaction, result) => {...}`            // 处理权限结果
-导出：`const checkChannelPermission = (channel, permission) => {...}`            // 检查频道权限
-
-// 帖子管理
-导出：`const lockAndArchiveThreadBase = (thread, reason) => {...}`               // 基础帖子锁定
-导出：`const lockAndArchiveThread = (thread, reason) => {...}`                   // 带通知的锁定
-导出：`const lockAndArchiveThreadWithLog = (thread, reason, executor) => {...}`  // 带日志的锁定
-
-// 日志和通知
-  导出：`const sendModerationLog = (client, guildConfig, data) => {...}`          // 发送管理日志
-导出：`const sendThreadNotification = (thread, notifyData) => {...}`            // 发送帖子通知
-导出：`const sendCleanupReport = (thread, result) => {...}`                     // 发送清理报告
-
-// 进度处理
-导出：`const generateProgressReport = (current, total, prefix) => {...}`         // 生成进度报告
-导出：`const handleBatchProgress = (current, total, intervals, lastIndex, callback) => {...}`  // 处理批量进度
-
-// 错误处理
-导出：`const handleCommandError = (interaction, error) => {...}`                 // 统一错误处理
-
-// 文件处理
-导出：`const loadCommandFiles = (commandsPath) => {...}`                         // 加载命令文件
+- `measureTime()` - 计算执行时间的工具函数
+  * 返回一个函数,调用时返回从开始到现在的秒数(保留两位小数)
+- `delay(ms)` - 延迟函数
+  * 参数: 延迟时间(毫秒)
+  * 返回: Promise
+- `handleDiscordError(error)` - 处理Discord API错误
+  * 参数: 错误对象
+  * 返回: 格式化的错误信息
+  * 支持多种Discord错误码的中文提示
+- `lockAndArchiveThread(thread, executor, reason, options)` - 锁定并归档帖子
+  * 参数: 帖子对象、执行者、原因、选项
+  * 支持管理员和楼主两种操作模式
+  * 自动发送通知和日志
+- `sendModerationLog(client, moderationChannelId, logData)` - 发送操作日志
+  * 参数: Discord客户端、管理频道ID、日志数据
+  * 支持标准化的日志格式
+- `sendThreadNotification(thread, notifyData)` - 发送帖子通知
+  * 参数: 帖子对象、通知数据
+  * 支持标准化的通知格式
+- `generateProgressReport(current, total, prefix)` - 生成进度报告
+  * 参数: 当前进度、总数、前缀文本
+  * 返回: 格式化的进度信息
+- `handleBatchProgress(current, total, intervals, lastIndex, callback)` - 处理分批进度
+  * 参数: 当前进度、总数、间隔点数组、上次索引、回调函数
+  * 返回: 新的进度索引
+- `handleCommandError(interaction, error, commandName)` - 统一处理命令错误
+  * 参数: 交互对象、错误对象、命令名称
+  * 自动处理延迟回复情况
+- `sendCleanupReport(interaction, guildConfig, result)` - 发送清理报告
+  * 参数: 交互对象、服务器配置、清理结果
+  * 支持详细的清理统计信息
+- `loadCommandFiles(commandsDir, excludeFiles)` - 加载命令文件
+  * 参数: 命令目录路径、排除文件数组
+  * 返回: 命令映射Map
+  * 支持错误处理和重复检查
+- `getVersionInfo()` - 获取应用程序版本信息
+  * 返回: 包含版本号、提交哈希和提交日期的对象
 
 ## logger.js - 日志系统
-导出：`const logTime = (message, isError = false) => {...}`  // 带时间戳的日志记录
-导出：`export default logger  // Winston日志记录器实例`
+- Winston日志记录器配置
+  * 支持控制台和文件双重输出
+  * 日志文件按日期自动轮转
+  * 保留14天的日志记录
+  * 最大单文件大小20MB
+- `logTime(message, isError)` - 记录时间日志
+  * 参数: 日志消息、是否为错误日志
+  * 自动添加时间戳
+  * 错误日志带有❌标记
 
-## roleApplication.js - 创作者身份组申请
-导出：`const createApplicationMessage = async (client, guildConfig) => {...}`  // 创建申请消息
+## cleaner.js - 清理工具
+- `sendThreadReport(thread, result)` - 发送子区清理报告
+  * 参数: 子区对象、清理结果
+  * 支持详细的统计信息显示
+- `cleanThreadMembers(thread, threshold, options, progressCallback)` - 清理子区成员
+  * 参数: 子区对象、目标阈值、选项、进度回调
+  * 支持白名单检查
+  * 自动识别活跃/不活跃成员
+  * 批量处理成员移除
+  * 支持进度报告
+- `handleSingleThreadCleanup(interaction, guildConfig)` - 处理单个子区清理
+  * 参数: 交互对象、服务器配置
+  * 支持阈值自定义
+  * 自动检查权限和条件
+  * 发送清理结果通知
+
+## concurrency.js - 并发控制
+- RequestQueue类 - 全局请求队列
+  * 控制并发请求数量(最大5个)
+  * 支持任务优先级
+  * 自动重试机制(最多2次)
+  * 支持暂停/恢复
+  * 分片状态管理
+  * 详细的统计信息
+- BatchProcessor类 - 批量处理器
+  * 支持多种任务类型的配置
+  * 自动控制批次大小和延迟
+  * 支持进度回调
+  * 预设配置:
+    - threadCheck: 45批/100ms
+    - threadAnalysis: 25批/500ms
+    - messageHistory: 10批/300ms
+    - memberRemove: 5批/500ms
+
+## guild_config.js - 服务器配置管理
+- GuildManager类
+  * 初始化服务器配置
+  * 管理自动化功能开关
+  * 支持白名单配置
+  * 阈值设置
+  * 日志频道配置
+  * 状态信息构建
+
+## roleApplication.js - 身份组申请
+- `createApplicationMessage(client)` - 创建申请消息
+  * 参数: Discord客户端
+  * 自动检查现有消息
+  * 创建申请按钮和说明
+  * 保存消息ID配置
+  * 支持功能开关检查
+  * 自动清理失效消息
 
 # 主要文件说明
 
 ## index.js - 主入口文件
-- 初始化Discord客户端
+- 初始化Discord客户端(使用最新的Discord.js v14)
+- 设置客户端选项
 - 加载事件处理器
 - 设置进程事件处理
 - 加载命令文件

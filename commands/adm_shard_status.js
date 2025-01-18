@@ -11,9 +11,6 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            // 立即发送延迟响应
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-            
             if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
             const client = interaction.client;
@@ -64,11 +61,6 @@ export default {
                                 `❌ 失败: ${queueStats.failed}`
                             ].join('\n'),
                             inline: false
-                        },
-                        {
-                            name: '平均等待时间',
-                            value: `${Math.round(queueStats.averageWaitTime)}ms`,
-                            inline: true
                         }
                     ],
                     timestamp: new Date(),

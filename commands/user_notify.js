@@ -50,9 +50,6 @@ export default {
 
     async execute(interaction) {
         try {
-            // 立即发送延迟响应
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             const channel = interaction.channel;
             
             // 获取参数

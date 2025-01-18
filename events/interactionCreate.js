@@ -1,8 +1,9 @@
 import { Events, Collection } from 'discord.js';
 import { logTime } from '../utils/logger.js';
-import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleButton } from '../handlers/buttons.js';
 import { handleModal } from '../handlers/modals.js';
+import { handleCommandError } from '../utils/helper.js';
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
@@ -17,6 +18,11 @@ const DEFAULT_COOLDOWN = 5;
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
+        // 统一的延迟响应处理，对于确认按钮，不需要延迟响应
+        if (!interaction.customId?.startsWith('confirm_')) {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+        }
+
         // 处理按钮交互
         if (interaction.isButton()) {
             await handleButton(interaction);
@@ -93,25 +99,12 @@ export default {
             // 使用全局请求队列处理命令
             await globalRequestQueue.add(
                 async () => {
-                    // 对于高频操作命令使用速率限制
-                    if (commandName.startsWith('user_') || commandName.startsWith('mod_')) {
-                        return await globalRateLimiter.withRateLimit(async () => {
-                            await command.execute(interaction, guildConfig);
-                        });
-                    } else {
-                        await command.execute(interaction, guildConfig);
-                    }
+                    await command.execute(interaction, guildConfig);
                 },
                 priority
             );
         } catch (error) {
-            logTime(`执行命令 ${interaction.commandName} 时出错: ${error}`, true);
-            const message = '执行此命令时出现错误。';
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: message, flags: ['Ephemeral'] });
-            } else {
-                await interaction.reply({ content: message, flags: ['Ephemeral'] });
-            }
+            await handleCommandError(interaction, error, command.data.name);
         }
     },
 }; 

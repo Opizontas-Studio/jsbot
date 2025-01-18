@@ -1,88 +1,94 @@
-import mongoose from 'mongoose';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
 import { logTime } from './logger.js';
-import { delay } from './helper.js';
+import { mkdirSync } from 'fs';
+import path from 'path';
 
 class DatabaseManager {
     constructor() {
         this._isConnected = false;
-        this.connectionRetries = 0;
-        this.maxRetries = 5;
-        this.retryDelay = 5000; // 5秒
-        this.isReconnecting = false;
+        this.db = null;
+        
+        // 确保data目录存在
+        try {
+            mkdirSync('./data');
+        } catch (error) {
+            if (error.code !== 'EEXIST') {
+                logTime('创建数据目录失败: ' + error.message, true);
+            }
+        }
     }
 
     /**
-     * 初始化数据库连接
-     * @param {string} uri - MongoDB连接URI
+     * 初始化数据库连接和表结构
      * @returns {Promise<void>}
      */
-    async connect(uri) {
+    async connect() {
         if (this._isConnected) {
             logTime('数据库已连接');
             return;
         }
 
         try {
-            await mongoose.connect(uri, {
-                serverSelectionTimeoutMS: 5000,
-                heartbeatFrequencyMS: 10000,
-                maxPoolSize: 10,
-                minPoolSize: 1,
-                socketTimeoutMS: 45000,
-                family: 4,  // 强制使用IPv4
-                retryWrites: true
+            // 打开数据库连接
+            this.db = await open({
+                filename: path.join('data', 'database.sqlite'),
+                driver: sqlite3.Database
             });
+
+            // 启用外键约束
+            await this.db.run('PRAGMA foreign_keys = ON');
+
+            // 创建处罚表
+            await this.db.run(`
+                CREATE TABLE IF NOT EXISTS punishments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    userId TEXT NOT NULL,
+                    guildId TEXT NOT NULL,
+                    type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')),
+                    reason TEXT NOT NULL,
+                    duration INTEGER NOT NULL,
+                    expireAt INTEGER NOT NULL,
+                    executorId TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active' 
+                        CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
+                    synced INTEGER DEFAULT 0,
+                    syncedServers TEXT DEFAULT '[]',
+                    createdAt INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+                    updatedAt INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+                )
+            `);
+
+            // 创建流程表
+            await this.db.run(`
+                CREATE TABLE IF NOT EXISTS processes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    punishmentId INTEGER NOT NULL,
+                    type TEXT NOT NULL CHECK(type IN ('appeal', 'vote', 'debate')),
+                    status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
+                    createdAt INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+                    expireAt INTEGER NOT NULL,
+                    messageIds TEXT DEFAULT '[]',
+                    votes TEXT DEFAULT '{}',
+                    result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)),
+                    reason TEXT DEFAULT '',
+                    updatedAt INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+                    FOREIGN KEY(punishmentId) REFERENCES punishments(id) ON DELETE CASCADE
+                )
+            `);
+
+            // 创建索引
+            await this.db.run('CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId, guildId)');
+            await this.db.run('CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, expireAt)');
+            await this.db.run('CREATE INDEX IF NOT EXISTS idx_processes_punishment ON processes(punishmentId)');
+            await this.db.run('CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt)');
 
             this._isConnected = true;
-            this.connectionRetries = 0;
-            this.isReconnecting = false;
             logTime('数据库连接成功');
-
-            // 监听连接事件
-            mongoose.connection.on('disconnected', () => {
-                this._isConnected = false;
-                logTime('数据库连接断开', true);
-                if (!this.isReconnecting) {
-                    this.reconnect(uri);
-                }
-            });
-
-            mongoose.connection.on('error', (err) => {
-                logTime(`数据库错误: ${err.message}`, true);
-                if (!this._isConnected && !this.isReconnecting) {
-                    this.reconnect(uri);
-                }
-            });
-
         } catch (error) {
             logTime(`数据库连接失败: ${error.message}`, true);
-            if (!this.isReconnecting) {
-                this.reconnect(uri);
-            }
-        }
-    }
-
-    /**
-     * 重新连接数据库
-     * @param {string} uri - MongoDB连接URI
-     * @private
-     */
-    async reconnect(uri) {
-        if (this.connectionRetries >= this.maxRetries || this.isReconnecting) {
-            logTime('达到最大重试次数或正在重连中，停止重连', true);
-            return;
-        }
-
-        this.isReconnecting = true;
-        this.connectionRetries++;
-        logTime(`尝试重新连接数据库 (${this.connectionRetries}/${this.maxRetries})`);
-
-        await delay(this.retryDelay);
-        try {
-            await this.connect(uri);
-        } catch (err) {
-            logTime(`重连失败: ${err.message}`, true);
-            this.isReconnecting = false;
+            throw error;
         }
     }
 
@@ -91,28 +97,17 @@ class DatabaseManager {
      * @returns {Promise<void>}
      */
     async disconnect() {
-        // 停止任何正在进行的重连
-        this.isReconnecting = false;
-        this.connectionRetries = this.maxRetries;
-
-        if (!this._isConnected && mongoose.connection.readyState === 0) {
-            logTime('数据库连接已经关闭');
+        if (!this._isConnected || !this.db) {
             return;
         }
 
         try {
-            // 移除所有事件监听器
-            mongoose.connection.removeAllListeners('disconnected');
-            mongoose.connection.removeAllListeners('error');
-            
-            await mongoose.disconnect();
+            await this.db.close();
             this._isConnected = false;
+            this.db = null;
             logTime('数据库连接已关闭');
         } catch (error) {
             logTime(`关闭数据库连接时出错: ${error.message}`, true);
-            // 强制设置状态
-            this._isConnected = false;
-            mongoose.connection.readyState = 0;
         }
     }
 
@@ -121,7 +116,18 @@ class DatabaseManager {
      * @returns {boolean}
      */
     getConnectionStatus() {
-        return this._isConnected && mongoose.connection.readyState === 1;
+        return this._isConnected && this.db !== null;
+    }
+
+    /**
+     * 获取数据库实例
+     * @returns {sqlite.Database}
+     */
+    getDb() {
+        if (!this._isConnected || !this.db) {
+            throw new Error('数据库未连接');
+        }
+        return this.db;
     }
 }
 

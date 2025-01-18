@@ -9,6 +9,7 @@ import GuildManager from './utils/guild_config.js';
 import { execSync } from 'child_process';
 import { globalTaskScheduler } from './tasks/scheduler.js';
 import { globalRequestQueue } from './utils/concurrency.js';
+import { dbManager } from './utils/db.js';
 import './utils/logger.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -103,7 +104,8 @@ async function loadEvents() {
 
 // 设置进程事件处理
 function setupProcessHandlers() {
-    const exitHandler = async (signal) => {
+    // 优雅关闭处理函数
+    const gracefulShutdown = async (signal) => {
         logTime(`收到${signal}信号，正在关闭`);
         
         try {
@@ -115,6 +117,11 @@ function setupProcessHandlers() {
             // 清理请求队列
             if (globalRequestQueue) {
                 await globalRequestQueue.cleanup();
+            }
+
+            // 关闭数据库连接
+            if (dbManager) {
+                await dbManager.disconnect();
             }
             
             // 等待一小段时间确保任务正确停止
@@ -134,16 +141,18 @@ function setupProcessHandlers() {
         }
     };
 
-    const errorHandler = (error, source) => {
-        logTime(`${source}: ${error.name}: ${error.message}`, true);
+    // 进程信号处理
+    process.on('SIGINT', () => gracefulShutdown('退出'));
+    process.on('SIGTERM', () => gracefulShutdown('终止'));
+
+    // 错误处理
+    process.on('error', (error) => {
+        logTime(`进程错误: ${error.name}: ${error.message}`, true);
         if (error.stack) {
             console.error(error.stack);
         }
-    };
+    });
 
-    process.on('SIGINT', () => exitHandler('退出'));
-    process.on('SIGTERM', () => exitHandler('终止'));
-    process.on('error', (error) => errorHandler(error, 'Process Error'));
     process.on('unhandledRejection', (error) => {
         logTime('未处理的Promise拒绝:', true);
         console.error('错误详情:', error);
@@ -154,13 +163,15 @@ function setupProcessHandlers() {
             console.error('Discord API响应:', error.response);
         }
     });
+
     process.on('uncaughtException', (error) => {
         logTime('未捕获的异常:', true);
         console.error('错误详情:', error);
         if (error.stack) {
             console.error('堆栈跟踪:', error.stack);
         }
-        process.exit(1);
+        // 对于未捕获的异常，我们应该尝试优雅关闭
+        gracefulShutdown('未捕获异常');
     });
 }
 
@@ -175,6 +186,9 @@ async function main() {
         }
 
         setupProcessHandlers();
+
+        // 初始化数据库连接
+        await dbManager.connect(config.mongodb.uri);
 
         // 初始化服务器管理器
         client.guildManager.initialize(config);
@@ -236,5 +250,5 @@ async function main() {
     }
 }
 
-// 启动应用
+// 万剑归宗
 main(); 

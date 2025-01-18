@@ -14,6 +14,10 @@ Discord.js Bot Project
 ├── handlers/                   # 交互处理模块
 │   ├── buttons.js             # 按钮交互处理
 │   └── modals.js              # 模态框交互处理
+├── db/                         # 数据库模块
+│   ├── db.js                  # 数据库管理器
+│   ├── punishment.js          # 处罚数据模型
+│   └── process.js             # 流程数据模型
 ├── utils/                      # 工具类模块
 │   ├── analyzers.js           # 活跃子区分析工具
 │   ├── cleaner.js             # 子区成员清理工具
@@ -25,6 +29,7 @@ Discord.js Bot Project
 ├── tasks/                      # 定时任务模块
 │   └── scheduler.js           # 定时任务管理器
 ├── data/                      # 数据存储目录
+│   ├── database.sqlite        # SQLite数据库文件
 │   └── messageIds.json        # 消息ID配置
 ├── config.json                # 配置文件
 ├── index.js                   # 主入口文件
@@ -32,7 +37,9 @@ Discord.js Bot Project
 └── eslint.config.js          # ESLint配置
 ```
 
-# Discord命令
+
+
+# commands/ - Discord命令
 
 ## 设计规范
 
@@ -165,7 +172,7 @@ Discord.js Bot Project
 - 支持自动化定时执行
 - 可配置分析范围和阈值
 
-# 事件处理模块
+# events/ - 事件处理模块
 
 ## interactionCreate.js
 - 定义：处理所有的Discord交互事件
@@ -186,7 +193,7 @@ Discord.js Bot Project
   * 设置分片状态
   * 监听分片状态变化
 
-# 交互处理模块
+# handlers/ - 交互处理模块
 
 ## buttons.js - 按钮交互处理
 - 定义：统一管理所有按钮交互的处理逻辑
@@ -208,7 +215,53 @@ Discord.js Bot Project
   * 支持多步骤表单
   * 提供字段验证机制
 
-# 定时任务模块
+# db/ - 数据库模块
+- 使用SQLite3作为轻量级数据库
+- 数据文件位于`data/database.sqlite`
+- 自动创建表结构和索引
+- 支持外键约束和级联删除
+- 使用JSON字段存储复杂数据
+- 自动管理时间戳
+- 内置数据完整性检查
+
+## punishments.js - 处罚记录表
+```sql
+CREATE TABLE punishments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId TEXT NOT NULL,           -- 被处罚用户ID
+    guildId TEXT NOT NULL,          -- 服务器ID
+    type TEXT NOT NULL,             -- 处罚类型：ban/mute/warn
+    reason TEXT NOT NULL,           -- 处罚原因
+    duration INTEGER NOT NULL,      -- 持续时间（毫秒）
+    expireAt INTEGER NOT NULL,      -- 到期时间
+    executorId TEXT NOT NULL,       -- 执行者ID
+    status TEXT NOT NULL,           -- 状态：active/expired/appealed/revoked
+    synced INTEGER DEFAULT 0,       -- 是否已同步
+    syncedServers TEXT,            -- 已同步的服务器列表（JSON数组）
+    createdAt INTEGER,             -- 创建时间
+    updatedAt INTEGER              -- 更新时间
+)
+```
+
+## processes.js - 流程记录表
+```sql
+CREATE TABLE processes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    punishmentId INTEGER NOT NULL,  -- 关联的处罚ID
+    type TEXT NOT NULL,             -- 流程类型：appeal/vote/debate
+    status TEXT NOT NULL,           -- 状态：pending/in_progress/completed/rejected/cancelled
+    createdAt INTEGER,             -- 创建时间
+    expireAt INTEGER NOT NULL,      -- 到期时间
+    messageIds TEXT,               -- 相关消息ID列表（JSON数组）
+    votes TEXT,                    -- 投票记录（JSON对象）
+    result TEXT,                   -- 结果：approved/rejected/cancelled
+    reason TEXT,                   -- 原因
+    updatedAt INTEGER,             -- 更新时间
+    FOREIGN KEY(punishmentId) REFERENCES punishments(id) ON DELETE CASCADE
+)
+```
+
+# tasks/ - 定时任务模块
 
 ## scheduler.js - 定时任务管理器
 - 定义：统一管理所有定时任务的调度和执行
@@ -221,7 +274,7 @@ Discord.js Bot Project
   * 任务状态监控
   * 支持优雅停止
 
-# 工具类模块
+# utils/ - 工具类模块
 
 ## analyzers.js - 分析工具
 ```javascript
@@ -278,6 +331,13 @@ export const globalRequestQueue = new RequestQueue({...})     // 全局请求队
 export const globalRateLimiter = new RateLimiter({...})      // 全局速率限制器实例
 export const globalBatchProcessor = new BatchProcessor({...}) // 全局批处理器实例
 ```
+## utils/db.js - 数据库管理
+- 数据库文件自动创建和初始化
+- 自动备份和恢复机制
+- 支持事务处理
+- 内置错误处理和重试机制
+- 连接池管理
+- 自动清理过期数据
 
 ## guild_config.js - 服务器配置
 ```javascript

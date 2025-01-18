@@ -9,7 +9,7 @@ import GuildManager from './utils/guild_config.js';
 import { execSync } from 'child_process';
 import { globalTaskScheduler } from './tasks/scheduler.js';
 import { globalRequestQueue } from './utils/concurrency.js';
-import { dbManager } from './utils/db.js';
+import { dbManager } from './db/db.js';
 import './utils/logger.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));

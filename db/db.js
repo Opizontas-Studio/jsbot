@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-import { logTime } from './logger.js';
+import { logTime } from '../utils/logger.js';
 import { mkdirSync } from 'fs';
 import path from 'path';
 

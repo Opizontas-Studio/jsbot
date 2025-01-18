@@ -14,6 +14,12 @@
 - 抽象了通用的确认按钮逻辑
 - 优化了交互响应的错误处理
 
+### 数据库系统重构
+- 从MongoDB迁移到SQLite3
+- 优化了数据库连接管理
+- 实现了轻量级数据存储
+- 改进了数据模型设计
+
 ### 并发控制优化
 - 优化了 `concurrency.js` 中的资源管理
 - 添加了清理机制防止内存泄漏
@@ -31,56 +37,53 @@
 
 ## 实现阶段
 
-### 第一阶段：定时任务重构和基础处罚框架（预计3天）
+### 第一阶段：数据库和基础处罚框架（预计2天）
 
-1. 定时任务重构
-   - 创建 `tasks/scheduler.js`
-   - 迁移现有定时任务
-   - 实现统一的任务管理
-   - 添加任务监控和错误处理
-
-2. 数据库设计
-   - 创建处罚记录数据库（MongoDB）
-   ```javascript
-   PunishmentSchema = {
-     userId: String,
-     guildId: String,
-     type: String, // 'ban'|'mute'|'warn'
-     reason: String,
-     duration: Number,
-     expireAt: Date,
-     executorId: String,
-     status: String,
-     synced: Boolean,
-     syncedServers: [String]
-   }
+1. 数据库设计
+   - 创建处罚记录表（SQLite）
+   ```sql
+   CREATE TABLE punishments (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       userId TEXT NOT NULL,
+       guildId TEXT NOT NULL,
+       type TEXT NOT NULL,
+       reason TEXT NOT NULL,
+       duration INTEGER NOT NULL,
+       expireAt INTEGER NOT NULL,
+       executorId TEXT NOT NULL,
+       status TEXT NOT NULL,
+       synced INTEGER DEFAULT 0,
+       syncedServers TEXT DEFAULT '[]'
+   )
    ```
-   - 创建流程记录数据库
-   ```javascript
-   ProcessSchema = {
-     punishmentId: String,
-     type: String, // 'appeal'|'vote'|'debate'
-     status: String,
-     createdAt: Date,
-     expireAt: Date,
-     messageIds: [String],
-     votes: Map<String, String>
-   }
+   - 创建流程记录表
+   ```sql
+   CREATE TABLE processes (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       punishmentId INTEGER NOT NULL,
+       type TEXT NOT NULL,
+       status TEXT NOT NULL,
+       createdAt INTEGER,
+       expireAt INTEGER NOT NULL,
+       messageIds TEXT DEFAULT '[]',
+       votes TEXT DEFAULT '{}',
+       FOREIGN KEY(punishmentId) REFERENCES punishments(id)
+   )
    ```
 
-3. 基础命令实现
+2. 基础命令实现
    - `/处罚 永封` 命令
    - `/处罚 禁言` 命令
    - 基础权限检查
    - 参数验证
    - 处罚执行
 
-4. 消息通知系统
+3. 消息通知系统
    - 公示消息发送
    - 私聊通知
    - 处罚日志记录
 
-### 第二阶段：上诉控件系统（预计3天）
+### 第二阶段：上诉控件系统（预计2天）
 
 1. 上诉控件开发
    - 创建上诉按钮组件
@@ -97,7 +100,7 @@
    - 控件有效期管理
    - 上诉权限控制
 
-### 第三阶段：辩诉投票系统（预计3天）
+### 第三阶段：辩诉投票系统（预计2天）
 
 1. 辩诉区功能
    - 辩诉帖子创建
@@ -126,7 +129,7 @@
    - 重试机制
    - 日志记录
 
-### 第五阶段：定时任务完善（预计2天）
+### 第五阶段：定时任务完善（预计1天）
 
 1. 处罚系统定时任务
    - 处罚到期检查
@@ -138,12 +141,12 @@
    - 24小时结束机制
    - 投票权重计算
 
-### 第六阶段：优化和测试（预计3天）
+### 第六阶段：优化和测试（预计2天）
 
 1. 性能优化
-   - 数据库查询优化
+   - SQL查询优化
+   - 索引优化
    - 并发处理优化
-   - 内存使用优化
 
 2. 错误处理完善
    - 异常捕获
@@ -163,9 +166,9 @@
    - 清晰的注释和文档
 
 2. 数据安全
-   - 数据备份机制
+   - 定期数据库备份
    - 权限严格控制
-   - 敏感信息保护
+   - 事务完整性保证
 
 3. 用户体验
    - 清晰的错误提示
@@ -178,22 +181,20 @@
 ```json
 {
   "dependencies": {
-    "mongoose": "^8.0.0",
-    "date-fns": "^3.0.0",
-    "node-schedule": "^2.1.1"
+    "sqlite3": "^5.1.7",
+    "sqlite": "^5.1.1"
   }
 }
 ```
 
 ## 文件结构
-
-新增文件结构：
 ```
 ├── commands/
 │   ├── adm_punish.js           # 处罚命令
 │   ├── mod_appeal.js           # 上诉命令
 │   └── mod_debate.js           # 辩诉命令
-├── models/
+├── db/
+│   ├── db.js                   # 数据库管理器
 │   ├── punishment.js           # 处罚数据模型
 │   └── process.js              # 流程数据模型
 ├── utils/

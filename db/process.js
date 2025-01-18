@@ -1,4 +1,4 @@
-import { dbManager } from '../utils/db.js';
+import { dbManager } from './db.js';
 
 class ProcessModel {
     /**

@@ -74,12 +74,4 @@ export const logTime = (message, error = false) => {
     }
 };
 
-// 重写console方法
-const originalConsole = { ...console };
-console.log = (...args) => logger.info(args.join(' '));
-console.info = (...args) => logger.info(args.join(' '));
-console.warn = (...args) => logger.warn(args.join(' '));
-console.error = (...args) => logger.error(args.join(' '));
-console.debug = (...args) => logger.debug(args.join(' '));
-
 export default logger;

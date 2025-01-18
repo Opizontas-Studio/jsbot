@@ -265,24 +265,17 @@ CREATE TABLE processes (
 
 ## scheduler.js - 定时任务管理器
 - 定义：统一管理所有定时任务的调度和执行
-- 导出：`globalTaskScheduler.schedule({ name, interval, task, onError, retryCount })`
-- 功能：
-  * 任务注册和取消
-  * 定时任务调度
-  * 资源清理管理
-  * 错误恢复机制
-  * 任务状态监控
-  * 支持优雅停止
+导出：`globalTaskScheduler.schedule({ name, interval, task, onError, retryCount })`
 
 # utils/ - 工具类模块
 
 ## analyzers.js - 分析工具
-```javascript
-// 主要分析函数
-export const analyzeThreads = (client, guildConfig, guildId, options) => {...}  // 子区分析主函数
+- 主要分析函数
+- 导出：`const analyzeThreads = (client, guildConfig, guildId, options) => {...}`  // 子区分析主函数
 
-// 日志管理器类
-export class DiscordLogger {
+- 日志管理器类
+导出：
+class DiscordLogger {
     constructor(client, guildId, guildConfig) {...}  // 构造函数
     async initialize() {...}                         // 初始化日志频道
     async loadMessageIds() {...}                     // 加载消息ID配置
@@ -293,20 +286,17 @@ export class DiscordLogger {
     async sendCleanReport() {...}                    // 发送清理报告
 }
 
-// 错误处理
-export const handleDiscordError = (error, context) => {...}  // Discord API错误处理
-```
+- 错误处理
+导出：`const handleDiscordError = (error, context) => {...}`  // Discord API错误处理
 
 ### cleaner.js - 清理工具
-```javascript
-export const cleanThreadMembers = async (thread, options) => {...}  // 清理子区成员
-export const sendThreadReport = async (thread, result) => {...}     // 发送子区清理报告
-export async function handleSingleThreadCleanup(interaction, guildConfig) {...} // 处理单个子区清理
-```
+导出：`const cleanThreadMembers = async (thread, options) => {...}`  // 清理子区成员
+导出：`const sendThreadReport = async (thread, result) => {...}`     // 发送子区清理报告
+导出：`async function handleSingleThreadCleanup(interaction, guildConfig) {...}` // 处理单个子区清理
 
 ### concurrency.js - 并发控制
-```javascript
-export class RequestQueue {
+导出：
+class RequestQueue {
     constructor(options) {...}                      // 构造函数
     async add(task, priority) {...}                // 添加任务
     pause() {...}                                  // 暂停队列
@@ -317,20 +307,20 @@ export class RequestQueue {
     executeTask(item) {...}                       // 执行任务
 }
 
-export class RateLimiter {
+class RateLimiter {
     constructor(options) {...}                     // 构造函数
     async withRateLimit(fn) {...}                 // 速率限制包装器
 }
 
-export class BatchProcessor {
+class BatchProcessor {
     constructor(options) {...}                     // 构造函数
     async processBatch(items, processor) {...}     // 批量处理
 }
 
-export const globalRequestQueue = new RequestQueue({...})     // 全局请求队列实例
-export const globalRateLimiter = new RateLimiter({...})      // 全局速率限制器实例
-export const globalBatchProcessor = new BatchProcessor({...}) // 全局批处理器实例
-```
+导出：`const globalRequestQueue = new RequestQueue({...})     // 全局请求队列实例`
+导出：`const globalRateLimiter = new RateLimiter({...})      // 全局速率限制器实例`
+导出：`const globalBatchProcessor = new BatchProcessor({...}) // 全局批处理器实例`
+
 ## utils/db.js - 数据库管理
 - 数据库文件自动创建和初始化
 - 自动备份和恢复机制
@@ -340,60 +330,54 @@ export const globalBatchProcessor = new BatchProcessor({...}) // 全局批处理
 - 自动清理过期数据
 
 ## guild_config.js - 服务器配置
-```javascript
-export class GuildManager {
+导出：
+class GuildManager {
     constructor() {...}                           // 构造函数
     initialize(config) {...}                      // 初始化配置
     getGuildConfig(guildId) {...}                // 获取服务器配置
     getGuildIds() {...}                          // 获取所有服务器ID
 }
-```
 
 ## helper.js - 通用辅助函数
-```javascript
+导出：
 // 时间和延迟
-export const measureTime = () => {...}                                           // 计时器函数
-export const delay = (ms) => {...} 
+导出：`const measureTime = () => {...}`                                           // 计时器函数
+导出：`const delay = (ms) => {...}` 
 
 // 处理Discord API错误
-export const handleDiscordError = (error) => {...}                             // 处理Discord API错误
+导出：`const handleDiscordError = (error) => {...}`                             // 处理Discord API错误
 
 // 权限检查
-export const checkPermission = (member, roles) => {...}                         // 检查角色权限
-export const handlePermissionResult = (interaction, result) => {...}            // 处理权限结果
-export const checkChannelPermission = (channel, permission) => {...}            // 检查频道权限
+导出：`const checkPermission = (member, roles) => {...}`                         // 检查角色权限
+导出：`const handlePermissionResult = (interaction, result) => {...}`            // 处理权限结果
+导出：`const checkChannelPermission = (channel, permission) => {...}`            // 检查频道权限
 
 // 帖子管理
-export const lockAndArchiveThreadBase = (thread, reason) => {...}               // 基础帖子锁定
-export const lockAndArchiveThread = (thread, reason) => {...}                   // 带通知的锁定
-export const lockAndArchiveThreadWithLog = (thread, reason, executor) => {...}  // 带日志的锁定
+导出：`const lockAndArchiveThreadBase = (thread, reason) => {...}`               // 基础帖子锁定
+导出：`const lockAndArchiveThread = (thread, reason) => {...}`                   // 带通知的锁定
+导出：`const lockAndArchiveThreadWithLog = (thread, reason, executor) => {...}`  // 带日志的锁定
 
 // 日志和通知
-export const sendModerationLog = (client, guildConfig, data) => {...}          // 发送管理日志
-export const sendThreadNotification = (thread, notifyData) => {...}            // 发送帖子通知
-export const sendCleanupReport = (thread, result) => {...}                     // 发送清理报告
+  导出：`const sendModerationLog = (client, guildConfig, data) => {...}`          // 发送管理日志
+导出：`const sendThreadNotification = (thread, notifyData) => {...}`            // 发送帖子通知
+导出：`const sendCleanupReport = (thread, result) => {...}`                     // 发送清理报告
 
 // 进度处理
-export const generateProgressReport = (current, total, prefix) => {...}         // 生成进度报告
-export const handleBatchProgress = (current, total, intervals, lastIndex, callback) => {...}  // 处理批量进度
+导出：`const generateProgressReport = (current, total, prefix) => {...}`         // 生成进度报告
+导出：`const handleBatchProgress = (current, total, intervals, lastIndex, callback) => {...}`  // 处理批量进度
 
 // 错误处理
-export const handleCommandError = (interaction, error) => {...}                 // 统一错误处理
+导出：`const handleCommandError = (interaction, error) => {...}`                 // 统一错误处理
 
 // 文件处理
-export const loadCommandFiles = (commandsPath) => {...}                         // 加载命令文件
-```
+导出：`const loadCommandFiles = (commandsPath) => {...}`                         // 加载命令文件
 
 ## logger.js - 日志系统
-```javascript
-export const logTime = (message, isError = false) => {...}  // 带时间戳的日志记录
-export default logger  // Winston日志记录器实例
-```
+导出：`const logTime = (message, isError = false) => {...}`  // 带时间戳的日志记录
+导出：`export default logger  // Winston日志记录器实例`
 
 ## roleApplication.js - 创作者身份组申请
-```javascript
-export const createApplicationMessage = async (client, guildConfig) => {...}  // 创建申请消息
-```
+导出：`const createApplicationMessage = async (client, guildConfig) => {...}`  // 创建申请消息
 
 # 主要文件说明
 
@@ -411,19 +395,3 @@ export const createApplicationMessage = async (client, guildConfig) => {...}  //
 - 命令部署状态
 - 自动化任务配置
 - 日志频道配置
-
-## package.json - 项目配置
-```json
-{
-  "name": "jsbot",
-  "version": "2.2.0",
-  "type": "module",
-  "dependencies": {
-    "discord.js": "^14.17.3",
-    "node-cron": "^3.0.3",
-    "undici": "^7.2.1",
-    "winston": "^3.11.0",
-    "winston-daily-rotate-file": "^5.0.0"
-  }
-}
-```

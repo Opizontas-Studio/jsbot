@@ -1,6 +1,8 @@
 import { logTime } from '../utils/logger.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType, Collection } from 'discord.js';
+import { DiscordAPIError } from '@discordjs/rest';
+import { handleDiscordError } from '../utils/helper.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -168,10 +170,10 @@ export async function handleButton(interaction) {
     try {
         await handler(interaction);
     } catch (error) {
-        logTime(`按钮处理出错 [${interaction.customId}]: ${error}`, true);
+        logTime(`按钮处理出错 [${interaction.customId}]: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
-                content: '❌ 处理请求时出现错误，请稍后重试。',
+                content: `❌ ${error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试。'}`,
                 flags: ['Ephemeral']
             });
         }

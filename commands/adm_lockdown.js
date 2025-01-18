@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleCommandError, checkPermission, handlePermissionResult, sendModerationLog } from '../utils/helper.js';
+import { handleCommandError, checkAndHandlePermission, sendModerationLog } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 
@@ -23,8 +23,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         await interaction.deferReply({ flags: ['Ephemeral'] });
         const action = interaction.options.getString('操作');

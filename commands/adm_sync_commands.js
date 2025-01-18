@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, Collection } from 'discord.js';
 import { REST, Routes } from 'discord.js';
-import { measureTime, loadCommandFiles, checkPermission, handlePermissionResult } from '../utils/helper.js';
+import { measureTime, loadCommandFiles, checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +12,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         await interaction.deferReply({ flags: ['Ephemeral'] });
         
@@ -101,10 +100,7 @@ export default {
             });
 
         } catch (error) {
-            await interaction.editReply({
-                content: `❌ 命令同步失败: ${error.message}`
-            });
-            throw error;
+            await handleCommandError(interaction, error, '同步命令');
         }
     }
 }; 

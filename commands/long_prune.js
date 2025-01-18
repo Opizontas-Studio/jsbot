@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { checkPermission, handlePermissionResult, generateProgressReport, handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, generateProgressReport, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { cleanThreadMembers, handleSingleThreadCleanup } from '../utils/cleaner.js';
 import { globalBatchProcessor, globalRateLimiter } from '../utils/concurrency.js';
@@ -36,8 +36,7 @@ export default {
                         .setRequired(false))),
 
     async execute(interaction, guildConfig) {
-        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         const subcommand = interaction.options.getSubcommand();
         await interaction.deferReply({ flags: ['Ephemeral'] });
@@ -186,8 +185,7 @@ async function handleAllThreads(interaction, guildConfig) {
         await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);
 
     } catch (error) {
-        logTime(`执行全服清理时出错: ${error.message}`, true);
-        throw error;
+        await handleCommandError(interaction, error, '全服清理');
     }
 }
 

@@ -35,7 +35,20 @@ export const handleDiscordError = (error) => {
             [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
             [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
             [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
-            [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道'
+            [RESTJSONErrorCodes.InvalidThreadChannel]: '无效的主题频道',
+            [RESTJSONErrorCodes.CannotSendMessagesToThisUser]: '无法向该用户发送消息',
+            [RESTJSONErrorCodes.ReactionBlocked]: '表情反应被阻止',
+            [RESTJSONErrorCodes.MaximumActiveThreads]: '已达到最大活跃子区数量',
+            [RESTJSONErrorCodes.MaximumThreadParticipants]: '子区成员已达上限',
+            [RESTJSONErrorCodes.ThreadArchived]: '子区已归档',
+            [RESTJSONErrorCodes.ThreadLocked]: '子区已锁定',
+            [RESTJSONErrorCodes.MaximumThreadMembers]: '子区成员数量已达到上限',
+            [RESTJSONErrorCodes.NotThreadMember]: '不是子区成员',
+            [RESTJSONErrorCodes.InteractionTimeout]: '交互已超时',
+            [RESTJSONErrorCodes.MaximumPendingThreads]: '待处理子区数量已达上限',
+            [RESTJSONErrorCodes.EntityTooLarge]: '内容超出长度限制',
+            [RESTJSONErrorCodes.TooManyActions]: '操作过于频繁，请稍后再试',
+            [RESTJSONErrorCodes.MaximumWebhooks]: '已达到Webhook数量上限'
         };
         return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
     }
@@ -43,30 +56,46 @@ export const handleDiscordError = (error) => {
 };
 
 /**
- * 检查用户是否具有执行命令的权限
- * @param {GuildMember} member - Discord服务器成员对象
- * @param {string[]} AdministratorRoleIds - 允许执行命令的管理员角色ID数组
- * @returns {boolean} 如果用户拥有允许的角色则返回true
- */
-export const checkPermission = (member, AdministratorRoleIds) => {
-    return member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
-};
-
-/**
- * 处理权限检查结果
+ * 检查用户权限并处理结果
  * @param {Interaction} interaction - Discord交互对象
- * @param {boolean} hasPermission - 权限检查结果
- * @returns {Promise<boolean>} 如果没有权限返回false
+ * @param {string[]} AdministratorRoleIds - 允许执行命令的管理员角色ID数组
+ * @param {Object} [options] - 可选配置
+ * @param {string} [options.errorMessage] - 自定义错误消息
+ * @param {boolean} [options.checkChannelPermission] - 是否检查频道权限
+ * @returns {Promise<boolean>} 如果用户有权限返回true，否则返回false
  */
-export const handlePermissionResult = async (interaction, hasPermission) => {
-    if (!hasPermission) {
-        await interaction.reply({
-            content: '你没有权限使用此命令。需要具有指定的身份组权限。',
-            flags: ['Ephemeral']
-        });
-        return false;
+export const checkAndHandlePermission = async (interaction, AdministratorRoleIds, options = {}) => {
+    const hasGlobalPermission = interaction.member.roles.cache.some(role => 
+        AdministratorRoleIds.includes(role.id)
+    );
+
+    // 如果需要检查频道权限
+    if (options.checkChannelPermission && !hasGlobalPermission) {
+        const channel = interaction.channel;
+        // 如果是子区，检查父频道的权限
+        if (channel.isThread()) {
+            const parentPermissions = channel.parent.permissionsFor(interaction.member);
+            if (parentPermissions.has('ManageMessages')) {
+                return true;
+            }
+        } else {
+            // 检查频道的权限
+            const channelPermissions = channel.permissionsFor(interaction.member);
+            if (channelPermissions.has('ManageMessages')) {
+                return true;
+            }
+        }
+    } else if (hasGlobalPermission) {
+        return true;
     }
-    return true;
+
+    // 如果没有权限，发送错误消息
+    const errorMessage = options.errorMessage || '你没有权限使用此命令。需要具有指定的身份组权限。';
+    await interaction.reply({
+        content: errorMessage,
+        flags: ['Ephemeral']
+    });
+    return false;
 };
 
 /**
@@ -95,61 +124,54 @@ export const checkChannelPermission = (member, channel, AdministratorRoleIds) =>
 };
 
 /**
- * 锁定并归档帖子（基础操作）
+ * 锁定并归档帖子
  * @param {ThreadChannel} thread - Discord帖子对象
  * @param {User} executor - 执行操作的用户
- * @param {string} [reason] - 操作原因（可选）
+ * @param {string} [reason] - 操作原因
+ * @param {Object} [options] - 可选配置
+ * @param {boolean} [options.isAdmin=false] - 是否为管理员操作
+ * @param {Object} [options.guildConfig] - 服务器配置（管理员操作必需）
  * @returns {Promise<void>}
  */
-export const lockAndArchiveThreadBase = async (thread, executor, reason) => {
-    // 发送通知到帖子中
-    await sendThreadNotification(thread, {
-        title: '帖子已被锁定并归档',
-        executorId: executor.id,
-        reason: reason || '楼主已结束讨论'  // 如果没有提供原因，使用默认原因
-    });
-
-    // 执行锁定和归档操作
-    await thread.setLocked(true, reason || '楼主已结束讨论');
-    await thread.setArchived(true, reason || '楼主已结束讨论');
-    
-    logTime(`楼主 ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
-};
-
-/**
- * 锁定并归档帖子（带管理日志）
- * @param {ThreadChannel} thread - Discord帖子对象
- * @param {User} executor - 执行操作的用户
- * @param {string} reason - 操作原因
- * @param {Object} guildConfig - 服务器配置
- * @returns {Promise<void>}
- */
-export const lockAndArchiveThreadWithLog = async (thread, executor, reason, guildConfig) => {
-    if (!reason) {
-        throw new Error('管理员必须提供锁定原因');
+export const lockAndArchiveThread = async (thread, executor, reason, options = {}) => {
+    // 如果是管理员操作，必须提供理由和服务器配置
+    if (options.isAdmin) {
+        if (!reason) {
+            throw new Error('管理员必须提供锁定原因');
+        }
+        if (!options.guildConfig) {
+            throw new Error('管理员操作必须提供服务器配置');
+        }
     }
 
-    // 发送通知
+    // 确保有理由（非管理员可以使用默认理由）
+    const finalReason = reason || '楼主已结束讨论';
+
+    // 发送通知到帖子中
     await sendThreadNotification(thread, {
-        title: '管理员锁定并归档了此帖子',
+        title: options.isAdmin ? '管理员锁定并归档了此帖子' : '帖子已被锁定并归档',
         executorId: executor.id,
-        reason: reason
+        reason: finalReason
     });
 
-    // 发送操作日志
-    await sendModerationLog(thread.client, guildConfig.moderationLogThreadId, {
-        title: '管理员锁定并归档帖子',
-        executorId: executor.id,
-        threadName: thread.name,
-        threadUrl: thread.url,
-        reason: reason
-    });
+    // 如果是管理员操作，发送到管理日志
+    if (options.isAdmin && options.guildConfig) {
+        await sendModerationLog(thread.client, options.guildConfig.moderationLogThreadId, {
+            title: '管理员锁定并归档帖子',
+            executorId: executor.id,
+            threadName: thread.name,
+            threadUrl: thread.url,
+            reason: finalReason
+        });
+    }
 
     // 执行锁定和归档操作
-    await thread.setLocked(true, reason);
-    await thread.setArchived(true, reason);
+    await thread.setLocked(true, finalReason);
+    await thread.setArchived(true, finalReason);
     
-    logTime(`管理员 ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
+    // 记录日志
+    const actorType = options.isAdmin ? '管理员' : '楼主';
+    logTime(`${actorType} ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
 };
 
 /**
@@ -265,17 +287,22 @@ export const handleBatchProgress = (current, total, intervals, lastProgressIndex
  * @param {string} commandName - 命令名称
  */
 export const handleCommandError = async (interaction, error, commandName) => {
-    logTime(`${commandName}执行出错: ${error}`, true);
+    // 使用handleDiscordError处理Discord API错误
+    const errorMessage = error instanceof DiscordAPIError ? 
+        handleDiscordError(error) : 
+        error.message;
+    
+    logTime(`${commandName}执行出错: ${errorMessage}`, true);
     
     try {
         if (interaction.deferred) {
             await interaction.editReply({
-                content: `❌ ${error.message}`,
+                content: `❌ ${errorMessage}`,
                 flags: ['Ephemeral']
             });
         } else {
             await interaction.reply({
-                content: `❌ ${error.message}`,
+                content: `❌ ${errorMessage}`,
                 flags: ['Ephemeral']
             });
         }
@@ -363,7 +390,4 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
         console.error(error.stack);
         return new Map();
     }
-};
-
-// 为了向后兼容，保留 lockAndArchiveThread 的别名
-export const lockAndArchiveThread = lockAndArchiveThreadBase; 
+}; 

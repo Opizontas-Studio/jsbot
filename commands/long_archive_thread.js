@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { analyzeThreads } from '../utils/analyzers.js';
-import { checkPermission, handlePermissionResult, measureTime } from '../utils/helper.js';
+import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
 /**
  * 清理命令 - 归档不活跃的子区
@@ -21,8 +21,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         const threshold = interaction.options.getInteger('阈值');
         const executionTimer = measureTime();
@@ -72,11 +71,7 @@ export default {
             });
 
         } catch (error) {
-            console.error('清理执行错误:', error);
-            await interaction.editReply({
-                content: `执行清理时出现错误: ${error.message}`,
-                flags: ['Ephemeral']
-            });
+            await handleCommandError(interaction, error, '清理子区');
         }
     },
 }; 

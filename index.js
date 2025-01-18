@@ -3,13 +3,14 @@ import { REST, Routes } from 'discord.js';
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { measureTime, loadCommandFiles, delay } from './utils/helper.js';
+import { measureTime, loadCommandFiles, delay, handleDiscordError } from './utils/helper.js';
 import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
 import { execSync } from 'child_process';
 import { globalTaskScheduler } from './tasks/scheduler.js';
 import { globalRequestQueue } from './utils/concurrency.js';
 import { dbManager } from './db/db.js';
+import { DiscordAPIError } from '@discordjs/rest';
 import './utils/logger.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -180,8 +181,13 @@ async function main() {
 
         // 先登录
         const loginTimer = measureTime();
-        await client.login(config.token);
-        logTime(`登录完成，用时: ${loginTimer()}秒`);
+        try {
+            await client.login(config.token);
+            logTime(`登录完成，用时: ${loginTimer()}秒`);
+        } catch (error) {
+            logTime(`登录失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error.message}`, true);
+            process.exit(1);
+        }
 
         // 加载事件
         await loadEvents();
@@ -217,7 +223,8 @@ async function main() {
                     // 添加延迟避免速率限制
                     await delay(500);
                 } catch (error) {
-                    logTime(`服务器 ${guildId} 命令部署失败: ${error.message}`, true);
+                    const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
+                    logTime(`服务器 ${guildId} 命令部署失败: ${errorMessage}`, true);
                     if (error.code === 50001) {
                         logTime('错误原因: Bot缺少必要权限', true);
                     }

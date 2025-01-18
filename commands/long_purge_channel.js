@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { checkPermission, handlePermissionResult, measureTime, delay } from '../utils/helper.js';
+import { checkAndHandlePermission, measureTime, delay, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 
@@ -18,8 +18,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         await interaction.deferReply({ flags: ['Ephemeral'] });
         const executionTimer = measureTime();
@@ -200,12 +199,7 @@ export default {
                 }
             });
         } catch (error) {
-            logTime(`执行清理命令时出错: ${error}`, true);
-            await interaction.editReply({
-                content: '❌ 执行命令时出现错误，请稍后重试。',
-                embeds: [],
-                components: []
-            });
+            await handleCommandError(interaction, error, '频道清理');
         }
     },
 }; 

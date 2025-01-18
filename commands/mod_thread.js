@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { checkChannelPermission, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
+import { checkAndHandlePermission, sendModerationLog, sendThreadNotification, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 /**
@@ -67,20 +67,6 @@ export default {
                 return;
             }
 
-            // 检查用户是否有执行权限
-            const hasPermission = checkChannelPermission(
-                interaction.member,
-                thread,
-                guildConfig.AdministratorRoleIds
-            );
-            
-            if (!hasPermission) {
-                await interaction.editReply({
-                    content: '你没有权限管理此帖子。需要具有该论坛的消息管理权限。'
-                });
-                return;
-            }
-
             // 检查父频道是否为论坛
             const parentChannel = thread.parent;
             if (!parentChannel || parentChannel.type !== ChannelType.GuildForum) {
@@ -89,6 +75,12 @@ export default {
                 });
                 return;
             }
+
+            // 检查用户是否有执行权限
+            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds, {
+                checkChannelPermission: true,
+                errorMessage: '你没有权限管理此帖子。需要具有该论坛的消息管理权限。'
+            })) return;
 
             const action = interaction.options.getString('操作');
             const reason = interaction.options.getString('理由');
@@ -100,6 +92,10 @@ export default {
                     actionResult = await thread.setLocked(true, reason);
                     break;
                 case 'unlock':
+                    // 如果帖子已归档，需要先取消归档
+                    if (thread.archived) {
+                        await thread.setArchived(false, `${reason} - 自动取消归档以解锁帖子`);
+                    }
                     actionResult = await thread.setLocked(false, reason);
                     break;
                 case 'archive':
@@ -154,17 +150,7 @@ export default {
 
         } catch (error) {
             logTime(`管理帖子时出错: ${error}`, true);
-            // 使用 editReply 处理错误
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ 执行操作时出错: ${error.message}`
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ 执行操作时出错: ${error.message}`,
-                    ephemeral: true
-                });
-            }
+            await handleCommandError(interaction, error, '管理帖子');
         }
     },
 }; 

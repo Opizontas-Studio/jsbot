@@ -4,6 +4,8 @@ import { globalRequestQueue } from './concurrency.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { DiscordAPIError } from '@discordjs/rest';
+import { handleDiscordError } from './helper.js';
 
 /**
  * 处理创建申请消息
@@ -45,7 +47,7 @@ export const createApplicationMessage = async (client) => {
                     delete messageIds.roleApplicationMessages[guildId];
                     writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
                 } catch (error) {
-                    logTime(`删除旧申请消息失败: ${error}`, true);
+                    logTime(`删除旧申请消息失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
                 }
             }
             continue;
@@ -100,7 +102,7 @@ export const createApplicationMessage = async (client) => {
                 logTime(`已在服务器 ${guildId} 创建新的身份组申请消息`);
             }, 3); // 用户指令优先级
         } catch (error) {
-            logTime(`在服务器 ${guildId} 创建身份组申请消息时出错: ${error}`, true);
+            logTime(`在服务器 ${guildId} 创建身份组申请消息时出错: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
         }
     }
 }; 

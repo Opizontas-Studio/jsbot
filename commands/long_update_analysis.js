@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { analyzeThreads } from '../utils/analyzers.js';
-import { checkPermission, handlePermissionResult, measureTime } from '../utils/helper.js';
+import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
 /**
  * 分析命令 - 生成子区活跃度统计报告
@@ -15,8 +15,7 @@ export default {
 
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
-        const hasPermission = checkPermission(interaction.member, guildConfig.AdministratorRoleIds);
-        if (!await handlePermissionResult(interaction, hasPermission)) return;
+        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         const executionTimer = measureTime();
 
@@ -41,11 +40,7 @@ export default {
             });
 
         } catch (error) {
-            console.error('分析执行错误:', error);
-            await interaction.editReply({
-                content: `执行分析时出现错误: ${error.message}`,
-                flags: ['Ephemeral']
-            });
+            await handleCommandError(interaction, error, '更新分析报告');
         }
     },
 };

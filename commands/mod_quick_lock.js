@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { handleCommandError, lockAndArchiveThreadWithLog } from '../utils/helper.js';
+import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 
 export default {
     cooldown: 10,
@@ -51,7 +51,10 @@ export default {
             const thread = interaction.channel;
 
             // 执行锁定操作
-            await lockAndArchiveThreadWithLog(thread, interaction.user, reason, guildConfig);
+            await lockAndArchiveThread(thread, interaction.user, reason, { 
+                isAdmin: true, 
+                guildConfig 
+            });
 
             await interaction.editReply({
                 content: `✅ 已成功锁定并归档帖子 "${thread.name}"`

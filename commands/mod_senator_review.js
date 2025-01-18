@@ -185,5 +185,5 @@ export default {
         } catch (error) {
             await handleCommandError(interaction, error, '议员快速审核');
         }
-    },
+    }
 }; 

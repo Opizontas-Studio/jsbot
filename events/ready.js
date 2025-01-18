@@ -24,11 +24,21 @@ export default {
             let message = '';
             let details = '';
             
+            const CLOSE_CODES = {
+                1000: '正常关闭',
+                1001: '服务器关闭',
+                1006: '异常关闭',
+                4000: '未知错误',
+                4004: '认证失败',
+                4011: '分片无效'
+            };
+            
             switch (status) {
                 case 'disconnected':
                     if (event) {
-                        message = `分片断开连接 (代码: ${event.code})`;
-                        details = `断开原因: ${event.reason || '未知'}, 是否清理: ${event.wasClean}`;
+                        const reason = CLOSE_CODES[event.code] || '未知原因';
+                        message = `分片断开连接 (代码: ${event.code} - ${reason})`;
+                        details = `是否清理: ${event.wasClean}`;
                     } else {
                         message = '分片断开连接';
                     }

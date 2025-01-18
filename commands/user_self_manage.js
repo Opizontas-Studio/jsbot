@@ -3,6 +3,7 @@ import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
 import { handleSingleThreadCleanup } from '../utils/cleaner.js';
 import { logTime } from '../utils/logger.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { handleConfirmationButton } from '../handlers/buttons.js';
 
 export default {
     cooldown: 10,
@@ -127,82 +128,61 @@ export default {
         if (subcommand === '删除') {
             await interaction.deferReply({ flags: ['Ephemeral'] });
 
-            const confirmButton = new ButtonBuilder()
-                .setCustomId('confirm_delete')
-                .setLabel('确认删除')
-                .setStyle(ButtonStyle.Danger);
-
-            const row = new ActionRowBuilder()
-                .addComponents(confirmButton);
-
-            const response = await interaction.editReply({
-                embeds: [{
-                    color: 0xff0000,
-                    title: '⚠️ 删除确认',
-                    description: `你确定要删除帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：此操作不可撤销！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}`,
-                    footer: {
-                        text: '此确认按钮将在5分钟后失效'
-                    }
-                }],
-                components: [row]
-            });
-
             try {
-                const confirmation = await response.awaitMessageComponent({
-                    filter: i => i.user.id === interaction.user.id,
-                    time: 300000
-                });
+                await handleConfirmationButton({
+                    interaction,
+                    customId: 'confirm_delete',
+                    buttonLabel: '确认删除',
+                    embed: {
+                        color: 0xff0000,
+                        title: '⚠️ 删除确认',
+                        description: `你确定要删除帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：此操作不可撤销！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}`
+                    },
+                    onConfirm: async (confirmation) => {
+                        await confirmation.update({
+                            content: '⏳ 正在删除帖子...',
+                            components: [],
+                            embeds: []
+                        });
 
-                if (confirmation.customId === 'confirm_delete') {
-                    await confirmation.update({
-                        content: '⏳ 正在删除帖子...',
-                        components: [],
-                        embeds: []
-                    });
-
-                    try {
-                        const threadName = thread.name;
-                        const userTag = interaction.user.tag;
-                        
-                        await thread.delete('作者自行删除');
-                        
-                        // 记录日志
-                        logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
-                        return;
-                    } catch (error) {
-                        // 如果删除过程中出现错误，尝试通知用户
+                        try {
+                            const threadName = thread.name;
+                            const userTag = interaction.user.tag;
+                            
+                            await thread.delete('作者自行删除');
+                            
+                            // 记录日志
+                            logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
+                        } catch (error) {
+                            // 如果删除过程中出现错误，尝试通知用户
+                            if (!thread.deleted) {
+                                await confirmation.editReply({
+                                    content: `❌ 删除失败: ${error.message}`,
+                                    components: [],
+                                    embeds: []
+                                }).catch(() => {
+                                    // 忽略编辑回复时的错误
+                                    logTime(`删除帖子失败: ${error.message}`, true);
+                                });
+                            }
+                            throw error;
+                        }
+                    },
+                    onError: async (error) => {
+                        // 只处理未被删除的情况
                         if (!thread.deleted) {
-                            await confirmation.editReply({
-                                content: `❌ 删除失败: ${error.message}`,
-                                components: [],
-                                embeds: []
-                            }).catch(() => {
-                                // 忽略编辑回复时的错误
-                                logTime(`删除帖子失败: ${error.message}`, true);
+                            await handleCommandError(interaction, error, '删除帖子').catch(() => {
+                                // 忽略错误处理时的错误
                             });
                         }
-                        throw error;
                     }
-                }
+                });
             } catch (error) {
                 // 只处理未被删除的情况
                 if (!thread.deleted) {
-                    if (error.code === 'InteractionCollectorError') {
-                        await interaction.editReply({
-                            embeds: [{
-                                color: 0x808080,
-                                title: '❌ 确认已超时',
-                                description: '删帖操作已取消。如需删除请重新执行命令。',
-                            }],
-                            components: []
-                        }).catch(() => {
-                            // 忽略编辑回复时的错误
-                        });
-                    } else {
-                        await handleCommandError(interaction, error, '删除帖子').catch(() => {
-                            // 忽略错误处理时的错误
-                        });
-                    }
+                    await handleCommandError(interaction, error, '删除帖子').catch(() => {
+                        // 忽略错误处理时的错误
+                    });
                 }
             }
         } 
@@ -211,64 +191,41 @@ export default {
             const reason = interaction.options.getString('理由');
             await interaction.deferReply({ flags: ['Ephemeral'] });
             
-            const confirmButton = new ButtonBuilder()
-                .setCustomId('confirm_lock')
-                .setLabel('确认锁定')
-                .setStyle(ButtonStyle.Danger);
-
-            const row = new ActionRowBuilder()
-                .addComponents(confirmButton);
-
-            const response = await interaction.editReply({
-                embeds: [{
-                    color: 0xff0000,
-                    title: '⚠️ 锁定确认',
-                    description: `你确定要锁定并关闭帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：锁定后其他人将无法回复！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}\n锁定原因：${reason || '未提供'}`,
-                    footer: {
-                        text: '此确认按钮将在5分钟后失效'
-                    }
-                }],
-                components: [row]
-            });
-
             try {
-                const confirmation = await response.awaitMessageComponent({
-                    filter: i => i.user.id === interaction.user.id,
-                    time: 300000
-                });
-
-                if (confirmation.customId === 'confirm_lock') {
-                    await confirmation.deferUpdate();
-                    await interaction.editReply({
-                        content: '⏳ 正在锁定帖子...',
-                        components: [],
-                        embeds: []
-                    });
-
-                    try {
-                        await lockAndArchiveThread(thread, interaction.user, reason || '楼主已结束讨论');
+                await handleConfirmationButton({
+                    interaction,
+                    customId: 'confirm_lock',
+                    buttonLabel: '确认锁定',
+                    embed: {
+                        color: 0xff0000,
+                        title: '⚠️ 锁定确认',
+                        description: `你确定要锁定并关闭帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：锁定后其他人将无法回复！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}\n锁定原因：${reason || '未提供'}`
+                    },
+                    onConfirm: async (confirmation) => {
+                        await confirmation.deferUpdate();
                         await interaction.editReply({
-                            content: '✅ 帖子已锁定并归档',
+                            content: '⏳ 正在锁定帖子...',
                             components: [],
                             embeds: []
                         });
-                    } catch (error) {
+
+                        try {
+                            await lockAndArchiveThread(thread, interaction.user, reason || '楼主已结束讨论');
+                            await interaction.editReply({
+                                content: '✅ 帖子已锁定并归档',
+                                components: [],
+                                embeds: []
+                            });
+                        } catch (error) {
+                            await handleCommandError(interaction, error, '锁定帖子');
+                        }
+                    },
+                    onError: async (error) => {
                         await handleCommandError(interaction, error, '锁定帖子');
                     }
-                }
+                });
             } catch (error) {
-                if (error.code === 'InteractionCollectorError') {
-                    await interaction.editReply({
-                        embeds: [{
-                            color: 0x808080,
-                            title: '❌ 确认已超时',
-                            description: '锁定操作已取消。如需锁定请重新执行命令。',
-                        }],
-                        components: []
-                    });
-                } else {
-                    await handleCommandError(interaction, error, '锁定帖子');
-                }
+                await handleCommandError(interaction, error, '锁定帖子');
             }
         }
         // 处理清理不活跃用户命令
@@ -296,17 +253,11 @@ export default {
                     return;
                 }
 
-                // 确认逻辑
-                const confirmButton = new ButtonBuilder()
-                    .setCustomId('confirm_clean')
-                    .setLabel('确认清理')
-                    .setStyle(ButtonStyle.Danger);
-
-                const row = new ActionRowBuilder()
-                    .addComponents(confirmButton);
-
-                const response = await interaction.editReply({
-                    embeds: [{
+                await handleConfirmationButton({
+                    interaction,
+                    customId: 'confirm_clean',
+                    buttonLabel: '确认清理',
+                    embed: {
                         color: 0xff0000,
                         title: '⚠️ 清理确认',
                         description: [
@@ -315,21 +266,9 @@ export default {
                             `**⚠️ 此操作将：至少清理：${memberCount - threshold} 人**`,
                             '- 优先移除未发言成员，若不足则会移除发言最少的成员',
                             '- 被移除的成员可以随时重新加入讨论'
-                        ].join('\n'),
-                        footer: {
-                            text: '此确认按钮将在5分钟后失效'
-                        }
-                    }],
-                    components: [row]
-                });
-
-                try {
-                    const confirmation = await response.awaitMessageComponent({
-                        filter: i => i.user.id === interaction.user.id,
-                        time: 300000
-                    });
-
-                    if (confirmation.customId === 'confirm_clean') {
+                        ].join('\n')
+                    },
+                    onConfirm: async (confirmation) => {
                         await confirmation.deferUpdate();
                         await interaction.editReply({
                             content: '⏳ 正在开始清理...',
@@ -341,21 +280,11 @@ export default {
                             await handleSingleThreadCleanup(interaction, guildConfig);
                             logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                         }, 0); // 该耗时任务独立进入队列
+                    },
+                    onError: async (error) => {
+                        await handleCommandError(interaction, error, '清理不活跃用户');
                     }
-                } catch (error) {
-                    if (error.code === 'InteractionCollectorError') {
-                        await interaction.editReply({
-                            embeds: [{
-                                color: 0x808080,
-                                title: '❌ 确认已超时',
-                                description: '清理操作已取消。如需清理请重新执行命令。',
-                            }],
-                            components: []
-                        });
-                    } else {
-                        throw error;
-                    }
-                }
+                });
             } catch (error) {
                 await handleCommandError(interaction, error, '清理不活跃用户');
             }

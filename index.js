@@ -7,6 +7,8 @@ import { measureTime, loadCommandFiles, delay } from './utils/helper.js';
 import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
 import { execSync } from 'child_process';
+import { globalTaskScheduler } from './tasks/scheduler.js';
+import { globalRequestQueue } from './utils/concurrency.js';
 import './utils/logger.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -100,10 +102,35 @@ async function loadEvents() {
 
 // 设置进程事件处理
 function setupProcessHandlers() {
-    const exitHandler = (signal) => {
+    const exitHandler = async (signal) => {
         logTime(`收到${signal}信号，正在关闭`);
-        client.destroy();
-        process.exit(0);
+        
+        try {
+            // 停止所有定时任务
+            if (globalTaskScheduler) {
+                globalTaskScheduler.stopAll();
+            }
+            
+            // 清理请求队列
+            if (globalRequestQueue) {
+                await globalRequestQueue.cleanup();
+            }
+            
+            // 等待一小段时间确保任务正确停止
+            await delay(500);
+            
+            // 销毁客户端连接
+            if (client.isReady()) {
+                await client.destroy();
+            }
+            
+            logTime('所有资源已清理完毕，正在退出');
+            process.exit(0);
+        } catch (error) {
+            logTime('退出过程中发生错误:', true);
+            console.error(error);
+            process.exit(1);
+        }
     };
 
     const errorHandler = (error, source) => {

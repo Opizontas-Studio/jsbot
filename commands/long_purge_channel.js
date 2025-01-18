@@ -1,6 +1,7 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { checkPermission, handlePermissionResult, measureTime, delay } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+import { handleConfirmationButton } from '../handlers/buttons.js';
 
 export default {
     cooldown: 10,
@@ -47,19 +48,12 @@ export default {
                 limit: 100,
                 before: endMessage.id 
             });
-            
-            // 创建确认按钮
-            const confirmButton = new ButtonBuilder()
-                .setCustomId('confirm_purge')
-                .setLabel('确认清理')
-                .setStyle(ButtonStyle.Danger);
 
-            const row = new ActionRowBuilder()
-                .addComponents(confirmButton);
-
-            // 发送确认消息
-            const response = await interaction.editReply({
-                embeds: [{
+            await handleConfirmationButton({
+                interaction,
+                customId: 'confirm_purge',
+                buttonLabel: '确认清理',
+                embed: {
                     color: 0xff0000,
                     title: '⚠️ 清理确认',
                     description: [
@@ -71,21 +65,9 @@ export default {
                         `- 清理时间范围：${endMessage.createdAt.toLocaleString()} 之前的消息`,
                         '',
                         '**⚠️ 警告：此操作不可撤销！**'
-                    ].join('\n'),
-                    footer: {
-                        text: '此确认按钮将在5分钟后失效'
-                    }
-                }],
-                components: [row]
-            });
-
-            try {
-                const confirmation = await response.awaitMessageComponent({
-                    filter: i => i.user.id === interaction.user.id,
-                    time: 300000
-                });
-
-                if (confirmation.customId === 'confirm_purge') {
+                    ].join('\n')
+                },
+                onConfirm: async (confirmation) => {
                     await confirmation.update({
                         content: '正在清理消息...',
                         embeds: [],
@@ -95,7 +77,7 @@ export default {
                     let deletedCount = 0;
                     let lastId = endMessage.id;
                     let batchSize = 100;
-                    
+
                     while (true) {
                         // 获取消息批次
                         const messageBatch = await channel.messages.fetch({ 
@@ -104,7 +86,7 @@ export default {
                         });
 
                         if (messageBatch.size === 0) break;
-                        
+
                         // 记录最后一条消息的ID
                         lastId = messageBatch.last().id;
 
@@ -144,17 +126,19 @@ export default {
 
                         // 每删除500条消息更新一次状态
                         if (deletedCount % 500 === 0) {
-                            await interaction.editReply({
-                                content: `已清理 ${deletedCount} 条消息...`
+                            await confirmation.editReply({
+                                content: `⏳ 已清理 ${deletedCount} 条消息...`
                             });
                         }
 
                         // 添加短暂延迟避免触发限制
-                        await delay(100);
+                        await delay(200);
                     }
 
                     const executionTime = executionTimer();
-                    await interaction.editReply({
+
+                    // 发送完成消息
+                    await confirmation.editReply({
                         content: [
                             '✅ 清理完成！',
                             `📊 共清理 ${deletedCount} 条消息`,
@@ -202,23 +186,23 @@ export default {
                             }]
                         });
                     }
-                }
-            } catch (error) {
-                if (error.code === 'InteractionCollectorError') {
+
+                    // 记录到控制台日志
+                    logTime(`管理员 ${interaction.user.tag} 清理了频道 ${channel.name} 中的 ${deletedCount} 条消息，耗时 ${executionTime}秒`);
+                },
+                onError: async (error) => {
+                    logTime(`清理消息时出错: ${error}`, true);
                     await interaction.editReply({
-                        content: '❌ 确认已超时，清理操作已取消。',
+                        content: '❌ 清理过程中出现错误，请稍后重试。',
                         embeds: [],
                         components: []
                     });
-                } else {
-                    throw error;
                 }
-            }
-
+            });
         } catch (error) {
-            console.error('清理执行错误:', error);
+            logTime(`执行清理命令时出错: ${error}`, true);
             await interaction.editReply({
-                content: `执行清理时出现错误: ${error.message}`,
+                content: '❌ 执行命令时出现错误，请稍后重试。',
                 embeds: [],
                 components: []
             });

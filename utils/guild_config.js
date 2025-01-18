@@ -15,13 +15,26 @@ export class GuildManager {
         }
 
         for (const [guildId, guildConfig] of Object.entries(config.guilds)) {
+            const automationConfig = guildConfig.automation || {};
             this.guilds.set(guildId, {
                 ...guildConfig,
-                analysisSchedule: {
-                    times: guildConfig.analysisSchedule?.times || [9, 21]
+                automation: {
+                    analysis: automationConfig.analysis || false,
+                    cleanup: {
+                        enabled: automationConfig.cleanup?.enabled || false,
+                        threshold: automationConfig.cleanup?.threshold || 960
+                    },
+                    logThreadId: automationConfig.logThreadId,
+                    whitelistedThreads: automationConfig.whitelistedThreads || []
                 }
             });
-            logTime(`已加载服务器配置: ${guildId}`);
+
+            // 构建状态信息
+            const features = [];
+            if (automationConfig.analysis) features.push('已启用分析');
+            if (automationConfig.cleanup?.enabled) features.push(`已启用清理(阈值:${automationConfig.cleanup.threshold || 960})`);
+            
+            logTime(`已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
         }
     }
 

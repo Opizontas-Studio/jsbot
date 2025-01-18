@@ -1,7 +1,8 @@
 import { Events, Collection } from 'discord.js';
 import { logTime } from '../utils/logger.js';
 import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
-import { handleButtonInteraction, handleModalSubmit } from '../utils/roleApplication.js';
+import { handleButton } from '../handlers/buttons.js';
+import { handleModal } from '../handlers/modals.js';
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
@@ -10,18 +11,21 @@ const cooldowns = new Collection();
 const DEFAULT_COOLDOWN = 5;
 
 /**
- * 处理Discord斜杠命令交互
+ * 处理Discord交互事件
  * @param {Interaction} interaction - Discord交互对象
  */
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        // 处理身份组申请相关的交互
+        // 处理按钮交互
         if (interaction.isButton()) {
-            await handleButtonInteraction(interaction);
+            await handleButton(interaction);
             return;
-        } else if (interaction.isModalSubmit()) {
-            await handleModalSubmit(interaction);
+        }
+        
+        // 处理模态框提交
+        if (interaction.isModalSubmit()) {
+            await handleModal(interaction);
             return;
         }
 

@@ -22,12 +22,17 @@ export class RequestQueue {
         // 定义有效的状态集合
         this.validStates = new Set(['ready', 'disconnected', 'reconnecting', 'error', 'resumed']);
         // 添加状态检查定时器
+        this.statusCheckInterval = null;
         this.startStatusCheck();
     }
 
     // 添加状态检查机制
     startStatusCheck() {
-        setInterval(() => {
+        if (this.statusCheckInterval) {
+            clearInterval(this.statusCheckInterval);
+        }
+        
+        this.statusCheckInterval = setInterval(() => {
             if (this.shardStatus.get(0) === 'reconnecting') {
                 // 如果队列仍在正常处理请求，说明连接实际上是正常的
                 if (this.currentProcessing > 0 && !this.paused) {
@@ -36,6 +41,40 @@ export class RequestQueue {
                 }
             }
         }, 60000); // 每分钟检查一次
+    }
+
+    // 清理资源
+    async cleanup() {
+        // 停止状态检查
+        if (this.statusCheckInterval) {
+            clearInterval(this.statusCheckInterval);
+            this.statusCheckInterval = null;
+        }
+
+        // 暂停队列，防止新任务被处理
+        this.pause();
+
+        // 等待当前正在处理的任务完成
+        if (this.currentProcessing > 0) {
+            logTime(`等待 ${this.currentProcessing} 个正在处理的任务完成...`);
+            while (this.currentProcessing > 0) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+
+        // 清理剩余的队列任务
+        if (this.queue.length > 0) {
+            logTime(`清理剩余的 ${this.queue.length} 个队列任务`);
+            for (const item of this.queue) {
+                item.reject(new Error('队列正在关闭'));
+            }
+            this.queue = [];
+        }
+
+        this.processing = false;
+        this.currentProcessing = 0;
+        this.shardStatus.clear();
+        logTime('请求队列资源已完全清理');
     }
 
     // 设置分片状态

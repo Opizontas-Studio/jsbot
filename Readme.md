@@ -11,6 +11,9 @@ Discord.js Bot Project
 ├── events/                     # 事件处理模块
 │   ├── interactionCreate.js   # 交互事件处理
 │   └── ready.js               # 就绪事件处理
+├── handlers/                   # 交互处理模块
+│   ├── buttons.js             # 按钮交互处理
+│   └── modals.js              # 模态框交互处理
 ├── utils/                      # 工具类模块
 │   ├── analyzers.js           # 子区分析工具
 │   ├── cleaner.js             # 清理工具
@@ -19,6 +22,8 @@ Discord.js Bot Project
 │   ├── helper.js              # 通用辅助函数
 │   ├── logger.js              # 日志管理
 │   └── roleApplication.js     # 身份组申请处理
+├── tasks/                      # 定时任务模块
+│   └── scheduler.js           # 定时任务管理器
 ├── data/                      # 数据存储目录
 │   └── messageIds.json        # 消息ID配置
 ├── config.json                # 配置文件
@@ -151,7 +156,7 @@ Discord.js Bot Project
 
 ## interactionCreate.js
 - 定义：处理所有的Discord交互事件
-- 导出：`Events.InteractionCreate`事件处理器
+- 导出：`client.on(Events.InteractionCreate, async (interaction) => {...})`
 - 功能：
   * 处理斜杠命令执行
   * 处理按钮交互
@@ -161,12 +166,47 @@ Discord.js Bot Project
 
 ## ready.js
 - 定义：处理机器人启动就绪事件
-- 导出：`Events.ClientReady`事件处理器
+- 导出：`client.once(Events.ClientReady, async (client) => {...})`
 - 功能：
   * 初始化定时分析任务
   * 创建身份组申请消息
   * 设置分片状态
   * 监听分片状态变化
+
+# 交互处理模块
+
+## buttons.js - 按钮交互处理
+- 定义：统一管理所有按钮交互的处理逻辑
+- 导出：`handleConfirmationButton({ interaction, customId, buttonLabel, embed, onConfirm, onTimeout, onError })`
+- 功能：
+  * 通用确认按钮处理
+  * 按钮交互路由分发
+  * 错误处理和日志记录
+  * 支持自定义超时时间
+  * 提供进度反馈机制
+
+## modals.js - 模态框交互处理
+- 定义：统一管理所有模态框交互的处理逻辑
+- 导出：`handleModal({ interaction, customId, fields, validator, onSubmit, onError })`
+- 功能：
+  * 模态框提交验证
+  * 表单数据处理
+  * 错误处理和反馈
+  * 支持多步骤表单
+  * 提供字段验证机制
+
+# 定时任务模块
+
+## scheduler.js - 定时任务管理器
+- 定义：统一管理所有定时任务的调度和执行
+- 导出：`globalTaskScheduler.schedule({ name, interval, task, onError, retryCount })`
+- 功能：
+  * 任务注册和取消
+  * 定时任务调度
+  * 资源清理管理
+  * 错误恢复机制
+  * 任务状态监控
+  * 支持优雅停止
 
 # 工具类模块
 
@@ -312,11 +352,3 @@ export const handleModalSubmit = async (interaction) => {...}                 //
   }
 }
 ```
-
-## 必读！！！注意事项
-1. 项目中任何需要等待用户操作的地方，都需要使用deferReply()，否则会报错！
-2. 项目中任何对Reply的调用都应该使用flags: ['Ephemeral']，不要使用Ephemeral = true，否则会报错！
-3. 项目尽可能遵循Discord.js的官方文档和最佳实践，以确保代码的稳定性和可维护性。
-4. 项目尽可能参考EC2024的代码风格，以确保代码的规范性和可读性。
-5. 命令文件内部不要互相调用，有公用的函数可以放在utils文件夹中，确保命令文件的独立性。
-6. 函数名和变量名要具体，来避免一个特化函数占据了通用功能函数的名称位置。

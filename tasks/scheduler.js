@@ -1,6 +1,7 @@
 import { logTime } from '../utils/logger.js';
 import { analyzeThreads } from '../utils/analyzers.js';
 import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
+import { dbManager } from '../db/db.js';
 
 /**
  * 定时任务管理器
@@ -8,6 +9,7 @@ import { globalRequestQueue, globalRateLimiter } from '../utils/concurrency.js';
  * - 子区分析和清理
  * - 处罚到期检查
  * - 投票状态更新
+ * - 数据库备份
  * - 其他周期性任务
  */
 class TaskScheduler {
@@ -30,6 +32,7 @@ class TaskScheduler {
         // 注册各类定时任务
         this.registerAnalysisTasks(client);
         this.registerPunishmentTasks(client);
+        this.registerDatabaseTasks();
 
         this.isInitialized = true;
         logTime('任务调度器初始化完成');
@@ -62,6 +65,43 @@ class TaskScheduler {
         this.addTask('voteUpdate', 3 * 60 * 1000, async () => {
             await this.updateVoteStatus(client);
         });
+    }
+
+    /**
+     * 注册数据库相关任务
+     */
+    registerDatabaseTasks() {
+        // 每天6点执行数据库备份
+        const backupInterval = 24 * 60 * 60 * 1000; // 24小时
+        const now = new Date();
+        const nextBackup = new Date(now);
+        nextBackup.setHours(6, 0, 0, 0);
+        if (nextBackup <= now) {
+            nextBackup.setDate(nextBackup.getDate() + 1);
+        }
+        
+        const timeUntilBackup = nextBackup - now;
+        
+        // 设置首次备份的定时器
+        setTimeout(() => {
+            this.executeDatabaseBackup();
+            // 设置后续每24小时执行一次的定时器
+            this.addTask('databaseBackup', backupInterval, () => this.executeDatabaseBackup());
+        }, timeUntilBackup);
+        
+        logTime(`数据库备份计划已设置，首次备份将在 ${nextBackup.toLocaleString()} 执行`);
+    }
+
+    /**
+     * 执行数据库备份
+     */
+    async executeDatabaseBackup() {
+        try {
+            await dbManager.backup();
+            logTime('数据库备份完成');
+        } catch (error) {
+            logTime(`数据库备份失败: ${error.message}`, true);
+        }
     }
 
     /**

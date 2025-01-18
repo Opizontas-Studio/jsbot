@@ -120,7 +120,15 @@ function setupProcessHandlers() {
             }
 
             // 关闭数据库连接
-            if (dbManager) {
+            if (dbManager && dbManager.getConnectionStatus()) {
+                // 在关闭前执行一次备份
+                try {
+                    await dbManager.backup();
+                    logTime('已完成关闭前的数据库备份');
+                } catch (error) {
+                    logTime('关闭前备份失败: ' + error.message, true);
+                }
+                
                 await dbManager.disconnect();
             }
             
@@ -188,7 +196,17 @@ async function main() {
         setupProcessHandlers();
 
         // 初始化数据库连接
-        await dbManager.connect();
+        try {
+            await dbManager.connect();
+            logTime('数据库连接已建立');
+        } catch (error) {
+            logTime('数据库初始化失败，无法继续运行:', true);
+            console.error('错误详情:', error);
+            if (error.details) {
+                console.error('额外信息:', error.details);
+            }
+            process.exit(1);
+        }
 
         // 初始化服务器管理器
         client.guildManager.initialize(config);
@@ -244,8 +262,14 @@ async function main() {
         client.commands = new Collection(commands);
 
     } catch (error) {
-        logTime(error.message, true);
-        console.error('Stack trace:', error.stack);
+        logTime('启动过程中发生错误:', true);
+        console.error(error);
+        
+        // 确保在发生错误时也能正确清理资源
+        if (dbManager && dbManager.getConnectionStatus()) {
+            await dbManager.disconnect();
+        }
+        
         process.exit(1);
     }
 }

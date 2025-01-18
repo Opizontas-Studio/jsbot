@@ -1,4 +1,5 @@
 import { dbManager } from './db.js';
+import { logTime } from '../utils/logger.js';
 
 class ProcessModel {
     /**
@@ -7,16 +8,25 @@ class ProcessModel {
      * @returns {Promise<Object>}
      */
     static async createProcess(data) {
-        const db = dbManager.getDb();
-        const { punishmentId, type, expireAt } = data;
-        
-        const result = await db.run(`
-            INSERT INTO processes (
-                punishmentId, type, expireAt
-            ) VALUES (?, ?, ?)
-        `, [punishmentId, type, expireAt]);
+        try {
+            const { punishmentId, type, expireAt } = data;
+            
+            const result = await dbManager.safeExecute('run', `
+                INSERT INTO processes (
+                    punishmentId, type, expireAt
+                ) VALUES (?, ?, ?)
+            `, [punishmentId, type, expireAt]);
 
-        return this.getProcessById(result.lastID);
+            // 清除相关缓存
+            dbManager.clearCache(`process_${result.lastID}`);
+            dbManager.clearCache(`punishment_processes_${punishmentId}`);
+            dbManager.clearCache('active_processes');
+
+            return this.getProcessById(result.lastID);
+        } catch (error) {
+            logTime(`创建流程记录失败: ${error.message}`, true);
+            throw error;
+        }
     }
 
     /**
@@ -25,12 +35,22 @@ class ProcessModel {
      * @returns {Promise<Object>}
      */
     static async getProcessById(id) {
-        const db = dbManager.getDb();
-        const process = await db.get('SELECT * FROM processes WHERE id = ?', [id]);
+        const cacheKey = `process_${id}`;
+        const cached = dbManager.getCache(cacheKey);
+        if (cached) return cached;
+
+        const process = await dbManager.safeExecute(
+            'get',
+            'SELECT * FROM processes WHERE id = ?',
+            [id]
+        );
+
         if (process) {
             process.votes = JSON.parse(process.votes);
             process.messageIds = JSON.parse(process.messageIds);
+            dbManager.setCache(cacheKey, process);
         }
+
         return process;
     }
 
@@ -40,18 +60,26 @@ class ProcessModel {
      * @returns {Promise<Array>}
      */
     static async getPunishmentProcesses(punishmentId) {
-        const db = dbManager.getDb();
-        const processes = await db.all(`
-            SELECT * FROM processes 
-            WHERE punishmentId = ?
-            ORDER BY createdAt DESC
-        `, [punishmentId]);
+        const cacheKey = `punishment_processes_${punishmentId}`;
+        const cached = dbManager.getCache(cacheKey);
+        if (cached) return cached;
 
-        return processes.map(process => ({
+        const processes = await dbManager.safeExecute(
+            'all',
+            `SELECT * FROM processes 
+            WHERE punishmentId = ?
+            ORDER BY createdAt DESC`,
+            [punishmentId]
+        );
+
+        const processesWithParsedData = processes.map(process => ({
             ...process,
             votes: JSON.parse(process.votes),
             messageIds: JSON.parse(process.messageIds)
         }));
+
+        dbManager.setCache(cacheKey, processesWithParsedData);
+        return processesWithParsedData;
     }
 
     /**
@@ -59,19 +87,27 @@ class ProcessModel {
      * @returns {Promise<Array>}
      */
     static async getActiveProcesses() {
-        const db = dbManager.getDb();
-        const now = Date.now();
-        const processes = await db.all(`
-            SELECT * FROM processes 
-            WHERE status IN ('pending', 'in_progress')
-            AND expireAt > ?
-        `, [now]);
+        const cacheKey = 'active_processes';
+        const cached = dbManager.getCache(cacheKey);
+        if (cached) return cached;
 
-        return processes.map(process => ({
+        const now = Date.now();
+        const processes = await dbManager.safeExecute(
+            'all',
+            `SELECT * FROM processes 
+            WHERE status IN ('pending', 'in_progress')
+            AND expireAt > ?`,
+            [now]
+        );
+
+        const processesWithParsedData = processes.map(process => ({
             ...process,
             votes: JSON.parse(process.votes),
             messageIds: JSON.parse(process.messageIds)
         }));
+
+        dbManager.setCache(cacheKey, processesWithParsedData);
+        return processesWithParsedData;
     }
 
     /**
@@ -83,14 +119,28 @@ class ProcessModel {
      * @returns {Promise<Object>}
      */
     static async updateProcessStatus(id, status, result = null, reason = '') {
-        const db = dbManager.getDb();
-        await db.run(`
-            UPDATE processes 
-            SET status = ?, result = ?, reason = ?, updatedAt = ?
-            WHERE id = ?
-        `, [status, result, reason, Date.now(), id]);
+        try {
+            await dbManager.safeExecute(
+                'run',
+                `UPDATE processes 
+                SET status = ?, result = ?, reason = ?, updatedAt = ?
+                WHERE id = ?`,
+                [status, result, reason, Date.now(), id]
+            );
 
-        return this.getProcessById(id);
+            // 清除相关缓存
+            const process = await this.getProcessById(id);
+            if (process) {
+                dbManager.clearCache(`process_${id}`);
+                dbManager.clearCache(`punishment_processes_${process.punishmentId}`);
+                dbManager.clearCache('active_processes');
+            }
+
+            return this.getProcessById(id);
+        } catch (error) {
+            logTime(`更新流程状态失败: ${error.message}`, true);
+            throw error;
+        }
     }
 
     /**
@@ -101,20 +151,33 @@ class ProcessModel {
      * @returns {Promise<Object>}
      */
     static async addVote(id, userId, vote) {
-        const db = dbManager.getDb();
-        const process = await this.getProcessById(id);
-        if (!process) return null;
+        return await dbManager.transaction(async (db) => {
+            try {
+                const process = await this.getProcessById(id);
+                if (!process) return null;
 
-        const votes = process.votes;
-        votes[userId] = vote;
+                const votes = process.votes;
+                votes[userId] = vote;
 
-        await db.run(`
-            UPDATE processes 
-            SET votes = ?, updatedAt = ?
-            WHERE id = ?
-        `, [JSON.stringify(votes), Date.now(), id]);
+                await dbManager.safeExecute(
+                    'run',
+                    `UPDATE processes 
+                    SET votes = ?, updatedAt = ?
+                    WHERE id = ?`,
+                    [JSON.stringify(votes), Date.now(), id]
+                );
 
-        return this.getProcessById(id);
+                // 清除相关缓存
+                dbManager.clearCache(`process_${id}`);
+                dbManager.clearCache(`punishment_processes_${process.punishmentId}`);
+                dbManager.clearCache('active_processes');
+
+                return this.getProcessById(id);
+            } catch (error) {
+                logTime(`添加投票失败: ${error.message}`, true);
+                throw error;
+            }
+        });
     }
 
     /**
@@ -124,14 +187,27 @@ class ProcessModel {
      * @returns {Promise<Object>}
      */
     static async updateMessageIds(id, messageIds) {
-        const db = dbManager.getDb();
-        await db.run(`
-            UPDATE processes 
-            SET messageIds = ?, updatedAt = ?
-            WHERE id = ?
-        `, [JSON.stringify(messageIds), Date.now(), id]);
+        try {
+            await dbManager.safeExecute(
+                'run',
+                `UPDATE processes 
+                SET messageIds = ?, updatedAt = ?
+                WHERE id = ?`,
+                [JSON.stringify(messageIds), Date.now(), id]
+            );
 
-        return this.getProcessById(id);
+            // 清除相关缓存
+            const process = await this.getProcessById(id);
+            if (process) {
+                dbManager.clearCache(`process_${id}`);
+                dbManager.clearCache(`punishment_processes_${process.punishmentId}`);
+            }
+
+            return this.getProcessById(id);
+        } catch (error) {
+            logTime(`更新消息ID列表失败: ${error.message}`, true);
+            throw error;
+        }
     }
 }
 

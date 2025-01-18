@@ -188,7 +188,7 @@ async function main() {
         setupProcessHandlers();
 
         // 初始化数据库连接
-        await dbManager.connect(config.mongodb.uri);
+        await dbManager.connect();
 
         // 初始化服务器管理器
         client.guildManager.initialize(config);

@@ -289,15 +289,63 @@ class ProcessModel {
     }
 
     /**
-     * 获取所有流程记录
+     * 获取用户相关的所有流程记录
+     * @param {string} userId - 用户ID
+     * @param {boolean} [includeCompleted=false] - 是否包含已完成记录
      * @returns {Promise<Array>} 流程记录列表
      */
-    static async getAllProcesses() {
+    static async getUserProcesses(userId, includeCompleted = false) {
         try {
+            const now = Date.now();
+            const query = `
+                SELECT p.* FROM processes p
+                JOIN punishments pun ON p.punishmentId = pun.id
+                WHERE pun.userId = ?
+                ${!includeCompleted ? `
+                    AND p.status IN ('pending', 'in_progress')
+                    AND p.expireAt > ?
+                ` : ''}
+                ORDER BY p.createdAt DESC
+            `;
+
             const processes = await dbManager.safeExecute(
                 'all',
-                `SELECT * FROM processes 
-                ORDER BY createdAt DESC`
+                query,
+                !includeCompleted ? [userId, now] : [userId]
+            );
+
+            return processes.map(p => ({
+                ...p,
+                votes: JSON.parse(p.votes),
+                messageIds: JSON.parse(p.messageIds)
+            }));
+        } catch (error) {
+            logTime(`获取用户流程记录失败: ${error.message}`, true);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取所有流程记录
+     * @param {boolean} [includeCompleted=false] - 是否包含已完成记录
+     * @returns {Promise<Array>} 流程记录列表
+     */
+    static async getAllProcesses(includeCompleted = false) {
+        try {
+            const now = Date.now();
+            const query = `
+                SELECT * FROM processes 
+                ${!includeCompleted ? `
+                    WHERE status IN ('pending', 'in_progress')
+                    AND expireAt > ?
+                ` : ''}
+                ORDER BY createdAt DESC
+            `;
+
+            const processes = await dbManager.safeExecute(
+                'all',
+                query,
+                !includeCompleted ? [now] : []
             );
 
             return processes.map(p => ({
@@ -310,33 +358,6 @@ class ProcessModel {
             throw error;
         }
     }
-
-    /**
-     * 获取用户相关的所有流程记录
-     * @param {string} userId - 用户ID
-     * @returns {Promise<Array>} 流程记录列表
-     */
-    static async getUserProcesses(userId) {
-        try {
-            const processes = await dbManager.safeExecute(
-                'all',
-                `SELECT p.* FROM processes p
-                JOIN punishments pun ON p.punishmentId = pun.id
-                WHERE pun.userId = ?
-                ORDER BY p.createdAt DESC`,
-                [userId]
-            );
-
-            return processes.map(p => ({
-                ...p,
-                votes: JSON.parse(p.votes),
-                messageIds: JSON.parse(p.messageIds)
-            }));
-        } catch (error) {
-            logTime(`获取用户流程记录失败: ${error.message}`, true);
-            throw error;
-        }
-    } 
 }
 
 export { ProcessModel }; 

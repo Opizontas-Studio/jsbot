@@ -58,8 +58,8 @@ class TaskScheduler {
      * @param {Client} client - Discord客户端实例
      */
     registerPunishmentTasks(client) {
-        // 处罚到期检查（每5分钟）
-        this.addTask('punishmentCheck', 5 * 60 * 1000, async () => {
+        // 处罚到期检查（每30秒）
+        this.addTask('punishmentCheck', 30 * 1000, async () => {
             try {
                 const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
                 for (const punishment of expiredPunishments) {
@@ -228,13 +228,7 @@ class TaskScheduler {
      */
     async executePunishmentExpiry(client, punishment) {
         try {
-            const guildConfig = client.guildManager.getGuildConfig(punishment.guildId);
-            if (!guildConfig) {
-                logTime(`无法获取服务器配置 [${punishment.guildId}]`, true);
-                return;
-            }
-            
-            await PunishmentService.handleExpiry(client, punishment, guildConfig);
+            await PunishmentService.handleExpiry(client, punishment);
         } catch (error) {
             logTime(`处理处罚到期失败: ${error.message}`, true);
         }

@@ -39,7 +39,7 @@ export default {
         // 获取服务器特定配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
         if (!guildConfig) {
-            await interaction.reply({ 
+            await interaction.editReply({ 
                 content: '此服务器尚未配置，无法使用命令。',
                 flags: ['Ephemeral']
             });
@@ -67,7 +67,7 @@ export default {
 
             if (now < expirationTime) {
                 const timeLeft = (expirationTime - now) / 1000;
-                await interaction.reply({
+                await interaction.editReply({
                     content: `⏳ 请等待 ${timeLeft.toFixed(1)} 秒后再使用 \`${command.data.name}\` 命令。`,
                     flags: ['Ephemeral']
                 });

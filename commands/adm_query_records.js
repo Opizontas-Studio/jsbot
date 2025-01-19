@@ -32,16 +32,16 @@ export default {
             const targetUser = interaction.options.getUser('用户');
 
             if (type === 'punishment') {
-                // 查询处罚记录
+                // 查询处罚记录：全库只查活跃，个人查所有历史
                 const punishments = targetUser ?
-                    await PunishmentModel.getUserPunishments(targetUser.id, interaction.guildId) :
-                    await PunishmentModel.getAllPunishments();
+                    await PunishmentModel.getUserPunishments(targetUser.id, true) : // 包含历史记录
+                    await PunishmentModel.getAllPunishments(false); // 只显示活跃记录
                 
                 if (!punishments || punishments.length === 0) {
                     await interaction.editReply({
                         content: targetUser ? 
-                            `✅ 用户 ${targetUser.tag} 在此服务器没有处罚记录` :
-                            '✅ 数据库中没有处罚记录',
+                            `✅ 用户 ${targetUser.tag} 没有任何处罚记录` :
+                            '✅ 数据库中没有活跃的处罚记录',
                         flags: ['Ephemeral']
                     });
                     return;
@@ -54,7 +54,6 @@ export default {
                     const pageRecords = punishments.slice(i, i + pageSize);
                     const fields = await Promise.all(pageRecords.map(async (p, index) => {
                         const executor = await interaction.client.users.fetch(p.executorId).catch(() => null);
-                        const target = await interaction.client.users.fetch(p.userId).catch(() => null);
                         
                         const typeText = {
                             ban: '永封',
@@ -63,37 +62,38 @@ export default {
                         };
 
                         const statusText = {
-                            active: '生效中',
-                            expired: '已到期',
-                            appealed: '已上诉',
-                            revoked: '已撤销'
+                            active: '🟢 生效中',
+                            expired: '⚪ 已到期',
+                            appealed: '🔵 已上诉',
+                            revoked: '🔴 已撤销'
                         };
 
+                        // 格式化处罚信息
+                        const punishmentInfo = [
+                            `**执行人:** ${executor ? `<@${executor.id}>` : '未知'}`,
+                            `**原因:** ${p.reason}`,
+                            `**时长:** ${formatPunishmentDuration(p.duration)}`,
+                            p.status === 'active' ? 
+                                `**到期时间:** ${p.duration === -1 ? '永久' : `<t:${Math.floor((p.createdAt + p.duration)/1000)}:R>`}` : 
+                                `**结束时间:** <t:${Math.floor(p.updatedAt/1000)}:R>`,
+                            p.status === 'revoked' ? `**撤销原因:** ${p.revokeReason || '无'}` : null,
+                            `**处罚ID:** ${p.id}`
+                        ].filter(Boolean).join('\n');
+
                         return {
-                            name: `#${i + index + 1} ${typeText[p.type]} (ID: ${p.id})`,
-                            value: [
-                                `目标: ${target ? target.tag : '未知'} (${p.userId})`,
-                                `服务器: ${p.guildId}`,
-                                `状态: ${statusText[p.status]}`,
-                                `原因: ${p.reason}`,
-                                `时长: ${formatPunishmentDuration(p.duration)}`,
-                                `执行人: ${executor ? executor.tag : '未知'} (${p.executorId})`,
-                                `执行时间: ${new Date(p.createdAt).toLocaleString()}`,
-                                p.status === 'active' ? 
-                                    `到期时间: ${p.expireAt === -1 ? '永久' : new Date(p.expireAt).toLocaleString()}` : 
-                                    `结束时间: ${new Date(p.updatedAt).toLocaleString()}`
-                            ].join('\n'),
+                            name: `${statusText[p.status]} ${typeText[p.type]} (#${i + index + 1})`,
+                            value: punishmentInfo,
                             inline: false
                         };
                     }));
 
                     pages.push({
                         embeds: [{
-                            color: 0x0099ff,
+                            color: targetUser ? 0x3498db : 0x0099ff, // 用户查询使用不同颜色
                             title: `处罚记录查询结果`,
                             description: targetUser ? 
-                                `用户 ${targetUser.tag} (${targetUser.id}) 的处罚记录` :
-                                '全库处罚记录',
+                                `用户 <@${targetUser.id}> 的处罚历史记录` :
+                                '当前活跃的处罚记录',
                             fields,
                             timestamp: new Date(),
                             footer: {
@@ -129,8 +129,8 @@ export default {
             } else {
                 // 查询流程记录
                 const processes = targetUser ?
-                    await ProcessModel.getUserProcesses(targetUser.id) :
-                    await ProcessModel.getAllProcesses();
+                    await ProcessModel.getUserProcesses(targetUser.id, false) :
+                    await ProcessModel.getAllProcesses(false);
                 
                 if (!processes || processes.length === 0) {
                     await interaction.editReply({

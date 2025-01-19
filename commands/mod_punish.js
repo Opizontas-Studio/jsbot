@@ -3,6 +3,7 @@ import { handleCommandError, checkAndHandlePermission } from '../utils/helper.js
 import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
 import PunishmentService from '../services/punishment_service.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 5,
@@ -75,18 +76,9 @@ export default {
                 return;
             }
 
-            // 基础处罚数据
-            const punishmentData = {
-                userId: target.id,
-                guildId: interaction.guildId,
-                reason,
-                executorId: interaction.user.id
-            };
-
             if (subcommand === '永封') {
                 const keepMessages = interaction.options.getBoolean('保留消息');
                 
-                // 添加确认窗口
                 await handleConfirmationButton({
                     interaction,
                     customId: 'confirm_ban',
@@ -106,22 +98,27 @@ export default {
                         ].join('\n')
                     },
                     onConfirm: async (confirmation) => {
-                        await confirmation.update({
-                            content: '正在执行永封...',
-                            embeds: [],
-                            components: []
+                        // 先更新交互消息
+                        await confirmation.deferUpdate();
+                        await interaction.editReply({
+                            content: '⏳ 正在执行永封...',
+                            components: [],
+                            embeds: []
                         });
 
-                        // 执行永封
-                        await PunishmentService.executePunishment(interaction.client, {
-                            ...punishmentData,
+                        const banData = {
                             type: 'ban',
+                            userId: target.id,
+                            reason,
                             duration: -1,
-                            keepMessages
-                        }, guildConfig);
+                            executorId: interaction.user.id,
+                            keepMessages: keepMessages,
+                            channelId: interaction.channelId
+                        };
 
-                        await confirmation.editReply({
-                            content: `✅ 已永久封禁用户 ${target.tag}`,
+                        const result = await PunishmentService.executePunishment(interaction.client, banData);
+                        await interaction.editReply({
+                            content: result.message,
                             flags: ['Ephemeral']
                         });
                     },
@@ -144,66 +141,33 @@ export default {
                     return;
                 }
 
-                // 执行禁言
-                await PunishmentService.executePunishment(interaction.client, {
-                    ...punishmentData,
+                const muteData = {
                     type: 'mute',
-                    duration: muteDuration
-                }, guildConfig);
+                    userId: target.id,
+                    reason,
+                    duration: muteDuration,
+                    executorId: interaction.user.id,
+                    channelId: interaction.channelId,
+                    warningDuration: warnTime ? calculatePunishmentDuration(warnTime) : null
+                };
 
-                // 如果有警告，同时创建警告记录
-                if (warnTime) {
-                    const warnDuration = calculatePunishmentDuration(warnTime);
-                    if (warnDuration === -1) {
-                        await interaction.editReply({
-                            content: '⚠️ 禁言已执行，但警告时长格式无效',
-                            flags: ['Ephemeral']
-                        });
-                        return;
-                    }
+                // 显示处理中消息
+                await interaction.editReply({
+                    content: '⏳ 正在执行禁言...',
+                    flags: ['Ephemeral']
+                });
 
-                    // 检查是否配置了警告身份组
-                    if (!guildConfig.WarnedRoleId) {
-                        await interaction.editReply({
-                            content: '⚠️ 禁言已执行，但未配置警告身份组，无法添加警告',
-                            flags: ['Ephemeral']
-                        });
-                        return;
-                    }
+                // 执行处罚
+                const result = await PunishmentService.executePunishment(interaction.client, muteData);
 
-                    try {
-                        // 添加警告身份组
-                        const member = await interaction.guild.members.fetch(target.id);
-                        await member.roles.add(guildConfig.WarnedRoleId);
-
-                        // 创建警告记录，使用传入的警告时长
-                        await PunishmentService.executePunishment(interaction.client, {
-                            ...punishmentData,
-                            type: 'warn',
-                            duration: warnDuration, // 直接使用传入的警告时长
-                            reason: `${reason} (禁言附加警告)`
-                        }, guildConfig);
-
-                        await interaction.editReply({
-                            content: `✅ 已对 ${target.tag} 执行禁言处罚并添加警告`,
-                            flags: ['Ephemeral']
-                        });
-                    } catch (error) {
-                        await interaction.editReply({
-                            content: `⚠️ 禁言已执行，但添加警告失败: ${error.message}`,
-                            flags: ['Ephemeral']
-                        });
-                    }
-                } else {
-                    await interaction.editReply({
-                        content: `✅ 已对 ${target.tag} 执行禁言处罚`,
-                        flags: ['Ephemeral']
-                    });
-                }
+                // 更新最终结果
+                await interaction.editReply({
+                    content: result.message,
+                    flags: ['Ephemeral']
+                });
             }
-
         } catch (error) {
             await handleCommandError(interaction, error, '处罚');
         }
-    },
-}; 
+    }
+};

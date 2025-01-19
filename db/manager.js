@@ -82,17 +82,17 @@ class DatabaseManager {
             CREATE TABLE IF NOT EXISTS punishments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 userId TEXT NOT NULL,
-                guildId TEXT NOT NULL,
                 type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')),
                 reason TEXT NOT NULL,
-                duration INTEGER NOT NULL,
-                expireAt INTEGER NOT NULL,
+                duration INTEGER NOT NULL DEFAULT -1,
+                warningDuration INTEGER DEFAULT NULL,
                 executorId TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'active' 
                     CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
                 synced INTEGER DEFAULT 0,
                 syncedServers TEXT DEFAULT '[]',
                 keepMessages INTEGER DEFAULT 0,
+                channelId TEXT,
                 createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
                 updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
             )
@@ -121,8 +121,8 @@ class DatabaseManager {
 
         // 创建索引
         await this.db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId, guildId);
-            CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, expireAt);
+            CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId);
+            CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, createdAt, duration);
             CREATE INDEX IF NOT EXISTS idx_punishments_sync ON punishments(synced);
             CREATE INDEX IF NOT EXISTS idx_processes_punishment ON processes(punishmentId);
             CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt);

@@ -36,7 +36,7 @@ export default {
                 4011: '分片无效'
             };
             
-            // 根据状态设置消息和详细信息
+            // 根据状态设置消息
             switch (status) {
                 case 'disconnected':
                     if (event) {
@@ -86,21 +86,22 @@ export default {
                 logTime(details, status === 'error');
             }
             
-            // 记录当前的连接统计
-            logTime(`连接统计 - 重连次数: ${reconnectionCount}, WebSocket延迟: ${client.ws.ping}ms${details ? ', ' + details : ''}`);
+            // 记录连接统计
+            logTime(`连接统计 - 重连次数: ${reconnectionCount}, ${details ? ', ' + details : ''}`);
             
+            // 统一设置状态
             globalRequestQueue.setShardStatus(status);
         };
 
-        // 事件监听
-        client.on('shardDisconnect', (event) => handleShardStatus('disconnected', event));
+        // 事件监听 - 只使用shard事件
+        client.on('shardDisconnect', (event) => {
+            // 正常关闭不处理
+            if (event.code === 1000 || event.code === 1001) return;
+            handleShardStatus('disconnected', event);
+        });
         client.on('shardReconnecting', () => handleShardStatus('reconnecting'));
         client.on('shardResumed', () => handleShardStatus('resumed'));
         client.on('shardError', (error) => handleShardStatus('error', error));
-        client.on('shardReady', () => {
-            handleShardStatus('ready');
-            // 确保在分片就绪时设置状态
-            globalRequestQueue.setShardStatus('ready');
-        });
+        client.on('shardReady', () => handleShardStatus('ready'));
     },
 }; 

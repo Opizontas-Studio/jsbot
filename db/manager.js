@@ -18,14 +18,24 @@ class DatabaseManager {
     constructor() {
         this._isConnected = false;
         this.db = null;
-        this._cache = new Map();
-        this._cacheTimeout = 5 * 60 * 1000; // 5分钟缓存过期
         
-        // 确保data目录存在
+        // 修改 LRU 缓存的实例化方式
+        this._cache = new Map(); // 暂时使用 Map 替代 LRU
+        this._cacheTimeout = 5 * 60 * 1000; // 5分钟过期
+        
+        // 确保数据目录存在
+        this._ensureDataDirectory();
+    }
+
+    _ensureDataDirectory() {
         try {
             if (!existsSync('./data')) {
                 mkdirSync('./data', { recursive: true });
                 logTime('已创建数据目录: ./data');
+            }
+            if (!existsSync('./data/backups')) {
+                mkdirSync('./data/backups', { recursive: true });
+                logTime('已创建备份目录: ./data/backups');
             }
         } catch (error) {
             logTime('创建数据目录失败: ' + error.message, true);
@@ -38,10 +48,7 @@ class DatabaseManager {
      * @returns {Promise<void>}
      */
     async connect() {
-        if (this._isConnected) {
-            logTime('数据库已连接');
-            return;
-        }
+        if (this._isConnected) return;
 
         try {
             const dbPath = path.join('data', 'database.sqlite');
@@ -53,70 +60,86 @@ class DatabaseManager {
                 mode: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE
             });
 
-            // 启用外键约束
-            await this.db.run('PRAGMA foreign_keys = ON');
+            // 启用WAL模式和外键约束
+            await this.db.exec('PRAGMA journal_mode = WAL');
+            await this.db.exec('PRAGMA foreign_keys = ON');
+            await this.db.exec('PRAGMA synchronous = NORMAL');
+            await this.db.exec('PRAGMA cache_size = -2000'); // 2MB cache
 
-            // 创建处罚表
-            await this.db.run(`
-                CREATE TABLE IF NOT EXISTS punishments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    userId TEXT NOT NULL,
-                    guildId TEXT NOT NULL,
-                    type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')),
-                    reason TEXT NOT NULL,
-                    duration INTEGER NOT NULL,
-                    expireAt INTEGER NOT NULL,
-                    executorId TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'active' 
-                        CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
-                    synced INTEGER DEFAULT 0,
-                    syncedServers TEXT DEFAULT '[]',
-                    createdAt INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-                    updatedAt INTEGER DEFAULT (strftime('%s', 'now') * 1000)
-                )
-            `);
-
-            // 创建流程表
-            await this.db.run(`
-                CREATE TABLE IF NOT EXISTS processes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    punishmentId INTEGER NOT NULL,
-                    type TEXT NOT NULL CHECK(type IN ('appeal', 'vote', 'debate')),
-                    status TEXT NOT NULL DEFAULT 'pending'
-                        CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
-                    createdAt INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-                    expireAt INTEGER NOT NULL,
-                    messageIds TEXT DEFAULT '[]',
-                    votes TEXT DEFAULT '{}',
-                    result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)),
-                    reason TEXT DEFAULT '',
-                    updatedAt INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-                    FOREIGN KEY(punishmentId) REFERENCES punishments(id) ON DELETE CASCADE
-                )
-            `);
-
-            // 创建索引
-            await this.db.run('CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId, guildId)');
-            await this.db.run('CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, expireAt)');
-            await this.db.run('CREATE INDEX IF NOT EXISTS idx_processes_punishment ON processes(punishmentId)');
-            await this.db.run('CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt)');
-
+            // 创建数据库表
+            await this._createTables();
+            
             this._isConnected = true;
             logTime('数据库初始化完成');
         } catch (error) {
-            this._isConnected = false;
-            this.db = null;
-            logTime(`数据库连接失败: ${error.message}`, true);
-            console.error('数据库连接错误详情:', error);
-            throw new DatabaseError(
-                '数据库连接失败',
-                'connect',
-                { 
-                    error: error.message,
-                    stack: error.stack
-                }
-            );
+            this._handleConnectionError(error);
         }
+    }
+
+    async _createTables() {
+        // 创建处罚表
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS punishments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                userId TEXT NOT NULL,
+                guildId TEXT NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')),
+                reason TEXT NOT NULL,
+                duration INTEGER NOT NULL,
+                expireAt INTEGER NOT NULL,
+                executorId TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active' 
+                    CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
+                synced INTEGER DEFAULT 0,
+                syncedServers TEXT DEFAULT '[]',
+                keepMessages INTEGER DEFAULT 0,
+                createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+                updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+            )
+        `);
+
+        // 创建流程表
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS processes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                punishmentId INTEGER NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('appeal', 'vote', 'debate')),
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
+                createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+                expireAt INTEGER NOT NULL,
+                messageIds TEXT DEFAULT '[]',
+                votes TEXT DEFAULT '{}',
+                redClaim TEXT,
+                blueClaim TEXT,
+                result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)),
+                reason TEXT DEFAULT '',
+                updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+                FOREIGN KEY(punishmentId) REFERENCES punishments(id) ON DELETE CASCADE
+            )
+        `);
+
+        // 创建索引
+        await this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId, guildId);
+            CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, expireAt);
+            CREATE INDEX IF NOT EXISTS idx_punishments_sync ON punishments(synced);
+            CREATE INDEX IF NOT EXISTS idx_processes_punishment ON processes(punishmentId);
+            CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt);
+            CREATE INDEX IF NOT EXISTS idx_processes_type ON processes(type);
+        `);
+    }
+
+    async _handleConnectionError(error) {
+        this._isConnected = false;
+        this.db = null;
+        logTime(`数据库连接失败: ${error.message}`, true);
+        console.error('数据库连接错误详情:', error);
+        throw new DatabaseError(
+            '数据库连接失败',
+            'connect',
+            { error: error.message, stack: error.stack }
+        );
     }
 
     /**
@@ -167,12 +190,11 @@ class DatabaseManager {
      * 缓存管理
      * @param {string} key - 缓存键
      * @param {any} data - 要缓存的数据
-     * @returns {void}
      */
     setCache(key, data) {
         this._cache.set(key, {
-            timestamp: Date.now(),
-            data
+            data,
+            timestamp: Date.now()
         });
     }
 
@@ -185,6 +207,9 @@ class DatabaseManager {
         const cached = this._cache.get(key);
         if (cached && (Date.now() - cached.timestamp < this._cacheTimeout)) {
             return cached.data;
+        }
+        if (cached) {
+            this._cache.delete(key);
         }
         return null;
     }
@@ -249,10 +274,12 @@ class DatabaseManager {
             await this.db.close();
             this._isConnected = false;
             this.db = null;
-            this._cache.clear();
+            // 修改清除缓存的方法
+            this._cache.clear?.() || this._cache.reset?.();
             logTime('数据库连接已关闭');
         } catch (error) {
             logTime(`关闭数据库连接时出错: ${error.message}`, true);
+            throw error; // 添加错误抛出以便于调试
         }
     }
 

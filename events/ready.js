@@ -4,6 +4,9 @@ import { globalRequestQueue } from '../utils/concurrency.js';
 import { createApplicationMessage } from '../services/roleApplication.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 
+// 添加重连计数器
+let reconnectionCount = 0;
+
 export default {
     name: Events.ClientReady,
     once: true,
@@ -45,12 +48,15 @@ export default {
                     }
                     break;
                 case 'reconnecting':
+                    reconnectionCount++; // 增加重连计数
                     message = '正在重新连接...';
                     details = `重连时间: ${new Date().toISOString()}`;
                     break;
                 case 'resumed':
                     message = '已恢复连接';
                     details = `恢复时间: ${new Date().toISOString()}, 重连延迟: ${client.ws.ping}ms`;
+                    // 在恢复连接时立即设置状态为ready
+                    globalRequestQueue.setShardStatus('ready');
                     break;
                 case 'error':
                     message = event ? `发生错误: ${event.message}` : '发生错误';
@@ -70,9 +76,7 @@ export default {
             }
             
             // 记录当前的连接统计
-            const shard = client.ws.shards.get(0);
-            const reconnectCount = shard ? shard.sequence || 0 : 0;
-            logTime(`连接统计 - 重连次数: ${reconnectCount}, WebSocket延迟: ${client.ws.ping}ms${details ? ', ' + details : ''}`);
+            logTime(`连接统计 - 重连次数: ${reconnectionCount}, WebSocket延迟: ${client.ws.ping}ms${details ? ', ' + details : ''}`);
             
             globalRequestQueue.setShardStatus(status);
         };
@@ -82,20 +86,10 @@ export default {
         client.on('shardReconnecting', () => handleShardStatus('reconnecting'));
         client.on('shardResumed', () => handleShardStatus('resumed'));
         client.on('shardError', (error) => handleShardStatus('error', error));
-        client.on('shardReady', () => handleShardStatus('ready'));
-
-        // 添加WebSocket状态监听
-        client.ws.on('ready', () => {
-            const shard = client.ws.shards.get(0);
-            const reconnectCount = shard ? shard.sequence || 0 : 0;
-            const sessionId = shard?.sessionId || '无';
-            
-            logTime('WebSocket连接就绪');
-            logTime(`WebSocket状态 - 重连次数: ${reconnectCount}, 延迟: ${client.ws.ping}ms, 会话ID: ${sessionId}`);
-            
-            if (globalRequestQueue.shardStatus.get(0) !== 'ready') {
-                globalRequestQueue.setShardStatus('ready');
-            }
+        client.on('shardReady', () => {
+            handleShardStatus('ready');
+            // 确保在分片就绪时设置状态
+            globalRequestQueue.setShardStatus('ready');
         });
     },
 }; 

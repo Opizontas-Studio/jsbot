@@ -33,9 +33,10 @@ export class RequestQueue {
         
         this.shardStatus.set(0, status);
         
-        if (status === 'disconnected' || status === 'error') {
+        // 只在致命错误时暂停队列
+        if (status === 'error') {
             this.pause();
-        } else if (status === 'ready' || status === 'resumed') {
+        } else if (status === 'ready' || status === 'resumed' || status === 'reconnecting') {
             this.resume();
         }
     }

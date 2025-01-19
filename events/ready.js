@@ -43,30 +43,41 @@ export default {
                         const reason = CLOSE_CODES[event.code] || '未知原因';
                         message = `连接断开 (代码: ${event.code} - ${reason})`;
                         details = `是否清理: ${event.wasClean}`;
+                        
+                        // 只有在特定错误码时才暂停队列
+                        if ([4004, 4011].includes(event.code)) {
+                            globalRequestQueue.pause();
+                        }
                     } else {
                         message = '连接断开';
                     }
                     break;
                 case 'reconnecting':
-                    reconnectionCount++; // 增加重连计数
+                    reconnectionCount++;
                     message = '正在重新连接...';
                     details = `重连时间: ${new Date().toISOString()}`;
+                    // 让队列继续处理
+                    globalRequestQueue.resume();
                     break;
                 case 'resumed':
                     message = '已恢复连接';
                     details = `恢复时间: ${new Date().toISOString()}, 重连延迟: ${client.ws.ping}ms`;
-                    // 在恢复连接时立即设置状态为ready
-                    globalRequestQueue.setShardStatus('ready');
+                    globalRequestQueue.resume();
                     break;
                 case 'error':
                     message = event ? `发生错误: ${event.message}` : '发生错误';
                     if (event) {
                         details = `错误堆栈: ${event.stack || '无'}, 错误代码: ${event.code || '无'}`;
+                        // 只在致命错误时暂停队列
+                        if (event.code === 'ECONNRESET' || event.code === 'TOKEN_INVALID') {
+                            globalRequestQueue.pause();
+                        }
                     }
                     break;
                 case 'ready':
                     message = '已就绪';
                     details = `WebSocket延迟: ${client.ws.ping}ms`;
+                    globalRequestQueue.resume();
                     break;
             }
             

@@ -50,7 +50,7 @@ export default {
                 case 'reconnecting':
                     reconnectionCount++;
                     message = '正在重新连接...';
-                    details = `重连时间: ${new Date().toISOString()}`;
+                    details = `重连次数: ${reconnectionCount}, 时间: ${new Date().toISOString()}`;
                     break;
                 case 'resumed':
                     message = '已恢复连接';
@@ -68,13 +68,11 @@ export default {
                     break;
             }
             
+            // 记录状态消息和详细信息
             logTime(message, status === 'error');
             if (details) {
                 logTime(details, status === 'error');
             }
-            
-            // 记录连接统计
-            logTime(`连接统计 - 重连次数: ${reconnectionCount}, ${details ? ', ' + details : ''}`);
             
             // 统一设置状态，让RequestQueue处理队列的暂停和恢复
             globalRequestQueue.setShardStatus(status);

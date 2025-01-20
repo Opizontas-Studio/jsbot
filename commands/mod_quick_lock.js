@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
+import { handleCommandError, lockAndArchiveThread, checkAndHandlePermission } from '../utils/helper.js';
 
 export default {
     cooldown: 10,
@@ -16,21 +16,19 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            // 检查用户是否有管理消息的权限
-            const channel = interaction.channel;
-            const memberPermissions = channel.permissionsFor(interaction.member);
-            
-            if (!memberPermissions.has(PermissionFlagsBits.ManageMessages)) {
-                await interaction.editReply({
-                    content: '你没有权限锁定此帖子。需要具有管理消息的权限。'
-                });
+            // 检查用户是否有管理消息的权限（只检查频道权限）
+            if (!await checkAndHandlePermission(interaction, [], { 
+                checkChannelPermission: true,
+                errorMessage: '你没有权限锁定此帖子。需要具有管理消息的权限。'
+            })) {
                 return;
             }
 
             // 验证当前频道是否为论坛帖子
             if (!interaction.channel.isThread()) {
                 await interaction.editReply({
-                    content: '❌ 当前频道不是子区或帖子'
+                    content: '❌ 当前频道不是子区或帖子',
+                    flags: ['Ephemeral']
                 });
                 return;
             }
@@ -39,7 +37,8 @@ export default {
             const parentChannel = interaction.channel.parent;
             if (!parentChannel || parentChannel.type !== ChannelType.GuildForum) {
                 await interaction.editReply({
-                    content: '❌ 此子区不属于论坛频道'
+                    content: '❌ 此子区不属于论坛频道',
+                    flags: ['Ephemeral']
                 });
                 return;
             }
@@ -54,7 +53,8 @@ export default {
             });
 
             await interaction.editReply({
-                content: `✅ 已成功锁定并归档帖子 "${thread.name}"`
+                content: `✅ 已成功锁定并归档帖子 "${thread.name}"`,
+                flags: ['Ephemeral']
             });
 
         } catch (error) {

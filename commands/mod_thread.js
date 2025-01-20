@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { checkAndHandlePermission, sendModerationLog, sendThreadNotification, handleCommandError } from '../utils/helper.js';
+import { sendModerationLog, sendThreadNotification, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 /**
@@ -73,11 +73,23 @@ export default {
                 return;
             }
 
-            // 检查用户是否有执行权限
-            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds, {
-                checkChannelPermission: true,
-                errorMessage: '你没有权限管理此帖子。需要具有该论坛的消息管理权限。'
-            })) return;
+            // 检查用户权限
+            const hasAdminRole = interaction.member.roles.cache.some(role => 
+                guildConfig.AdministratorRoleIds.includes(role.id)
+            );
+            const hasModRole = interaction.member.roles.cache.some(role => 
+                guildConfig.ModeratorRoleIds.includes(role.id)
+            );
+            const hasForumPermission = parentChannel.permissionsFor(interaction.member).has('ManageMessages');
+
+            // 如果既不是管理员也不是（版主+有论坛权限），则拒绝访问
+            if (!hasAdminRole && !(hasModRole && hasForumPermission)) {
+                await interaction.editReply({
+                    content: '❌ 你没有权限管理此帖子。需要具有管理员身份组或（版主身份组+该论坛的消息管理权限）。',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
 
             const action = interaction.options.getString('操作');
             const reason = interaction.options.getString('理由');

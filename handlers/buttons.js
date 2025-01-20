@@ -148,6 +148,41 @@ export const buttonHandlers = {
     // 处罚系统按钮处理器将在这里添加
     // 'punish_appeal': async (interaction) => {...},
     // 'punish_vote': async (interaction) => {...},
+
+    // 翻页按钮处理器
+    'page_prev': async (interaction) => {
+        const currentPage = parseInt(interaction.message.embeds[0].footer.text.match(/第 (\d+) 页/)[1]);
+        const totalPages = parseInt(interaction.message.embeds[0].footer.text.match(/共 (\d+) 页/)[1]);
+        const pages = interaction.message.client.pageCache.get(interaction.message.id);
+        
+        if (!pages) {
+            await interaction.reply({
+                content: '❌ 页面数据已过期，请重新执行查询命令',
+                flags: ['Ephemeral']
+            });
+            return;
+        }
+
+        const newPage = currentPage > 1 ? currentPage - 1 : totalPages;
+        await interaction.update(pages[newPage - 1]);
+    },
+
+    'page_next': async (interaction) => {
+        const currentPage = parseInt(interaction.message.embeds[0].footer.text.match(/第 (\d+) 页/)[1]);
+        const totalPages = parseInt(interaction.message.embeds[0].footer.text.match(/共 (\d+) 页/)[1]);
+        const pages = interaction.message.client.pageCache.get(interaction.message.id);
+        
+        if (!pages) {
+            await interaction.reply({
+                content: '❌ 页面数据已过期，请重新执行查询命令',
+                flags: ['Ephemeral']
+            });
+            return;
+        }
+
+        const newPage = currentPage < totalPages ? currentPage + 1 : 1;
+        await interaction.update(pages[newPage - 1]);
+    },
 };
 
 /**
@@ -157,6 +192,13 @@ export const buttonHandlers = {
 export async function handleButton(interaction) {
     // 如果是确认按钮（以confirm_开头），直接返回
     if (interaction.customId.startsWith('confirm_')) {
+        return;
+    }
+
+    // 处理按钮交互
+    if (interaction.customId.startsWith('appeal_')) {
+        const punishmentId = interaction.customId.split('_')[1];
+        await handleAppealButton(interaction, punishmentId);
         return;
     }
 

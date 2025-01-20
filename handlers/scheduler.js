@@ -2,6 +2,8 @@ import { logTime } from '../utils/logger.js';
 import { analyzeThreads } from '../services/analyzers.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { dbManager } from '../db/manager.js';
+import { PunishmentModel, ProcessModel } from '../db/models/index.js';
+import PunishmentService from '../services/punishment_service.js';
 
 /**
  * 定时任务管理器
@@ -56,14 +58,30 @@ class TaskScheduler {
      * @param {Client} client - Discord客户端实例
      */
     registerPunishmentTasks(client) {
-        // 处罚到期检查（每5分钟）
-        this.addTask('punishmentCheck', 5 * 60 * 1000, async () => {
-            await this.checkPunishments(client);
+        // 处罚到期检查（每30秒）
+        this.addTask('punishmentCheck', 30 * 1000, async () => {
+            try {
+                const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
+                for (const punishment of expiredPunishments) {
+                    // 执行处罚到期操作
+                    await this.executePunishmentExpiry(client, punishment);
+                }
+            } catch (error) {
+                logTime(`处理过期处罚失败: ${error.message}`, true);
+            }
         });
 
         // 投票状态更新（每3分钟）
         this.addTask('voteUpdate', 3 * 60 * 1000, async () => {
-            await this.updateVoteStatus(client);
+            try {
+                const expiredProcesses = await ProcessModel.handleExpiredProcesses();
+                for (const process of expiredProcesses) {
+                    // 执行流程到期操作
+                    await this.executeProcessExpiry(client, process);
+                }
+            } catch (error) {
+                logTime(`处理过期流程失败: ${error.message}`, true);
+            }
         });
     }
 
@@ -205,19 +223,23 @@ class TaskScheduler {
     }
 
     /**
-     * 检查处罚到期状态
-     * @param {Client} client - Discord客户端实例
+     * 执行处罚到期操作
+     * @private
      */
-    async checkPunishments(client) {
-        // TODO: 实现处罚到期检查逻辑
+    async executePunishmentExpiry(client, punishment) {
+        try {
+            await PunishmentService.handleExpiry(client, punishment);
+        } catch (error) {
+            logTime(`处理处罚到期失败: ${error.message}`, true);
+        }
     }
 
     /**
-     * 更新投票状态
-     * @param {Client} client - Discord客户端实例
+     * 执行流程到期操作
+     * @private
      */
-    async updateVoteStatus(client) {
-        // TODO: 实现投票状态更新逻辑
+    async executeProcessExpiry(client, process) {
+        // TODO: 实现流程到期的具体操作
     }
 
     /**

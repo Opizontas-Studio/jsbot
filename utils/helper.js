@@ -95,7 +95,7 @@ export const checkAndHandlePermission = async (interaction, AdministratorRoleIds
 
     // 如果没有权限，发送错误消息
     const errorMessage = options.errorMessage || '你没有权限使用此命令。需要具有指定的身份组权限。';
-    await interaction.reply({
+    await interaction.editReply({
         content: errorMessage,
         flags: ['Ephemeral']
     });

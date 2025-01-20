@@ -29,10 +29,10 @@ export const createApplicationMessage = async (client) => {
     // 为每个配置了身份组申请功能的服务器检查/创建申请消息
     for (const [guildId, guildConfig] of client.guildManager.guilds) {
         // 检查功能是否启用
-        if (!guildConfig.roleApplication?.enabled) {
+        if (!guildConfig?.roleApplication?.enabled) {
             // 如果功能被禁用，删除旧的申请消息（如果存在）
             const oldMessageId = messageIds.roleApplicationMessages[guildId];
-            if (oldMessageId) {
+            if (oldMessageId && guildConfig?.roleApplication?.creatorRoleThreadId) {
                 try {
                     await globalRequestQueue.add(async () => {
                         const channel = await client.channels.fetch(guildConfig.roleApplication.creatorRoleThreadId);
@@ -50,6 +50,11 @@ export const createApplicationMessage = async (client) => {
                 } catch (error) {
                     logTime(`删除旧申请消息失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
                 }
+            } else if (oldMessageId) {
+                // 如果有旧消息ID但没有配置，直接删除记录
+                delete messageIds.roleApplicationMessages[guildId];
+                writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
+                logTime(`清理服务器 ${guildId} 的旧申请消息记录（配置不完整）`);
             }
             continue;
         }

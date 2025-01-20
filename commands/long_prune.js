@@ -36,6 +36,7 @@ export default {
                         .setRequired(false))),
 
     async execute(interaction, guildConfig) {
+        // 检查权限
         if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
         const subcommand = interaction.options.getSubcommand();

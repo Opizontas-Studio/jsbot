@@ -16,7 +16,7 @@ Discord.js Bot Project
 │   └── modals.js              # 模态框交互处理
 │   └── scheduler.js           # 定时任务管理器
 ├── db/                         # 数据库模块
-│   ├── db.js                  # 数据库管理器
+│   ├── manager.js                  # 数据库管理器
 │   ├── punishment.js          # 处罚数据模型
 │   └── process.js             # 流程数据模型
 ├── utils/                      # 工具类模块

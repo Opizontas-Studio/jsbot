@@ -165,9 +165,25 @@ export default {
                 .setTimestamp();
 
             if (passed) {
-                // 添加身份组
-                await member.roles.add(guildConfig.roleApplication.senatorRoleId);
-                logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请`);
+                try {
+                    // 添加议员身份组
+                    await member.roles.add(guildConfig.roleApplication.senatorRoleId);
+                    
+                    // 如果没有创作者身份组，也一并添加
+                    if (!member.roles.cache.has(guildConfig.roleApplication.creatorRoleId)) {
+                        await member.roles.add(guildConfig.roleApplication.creatorRoleId);
+                        embed.addFields({
+                            name: '附加操作',
+                            value: '已同时授予创作者身份组',
+                            inline: false
+                        });
+                    }
+                    
+                    logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请`);
+                } catch (error) {
+                    logTime(`添加身份组失败: ${error.message}`, true);
+                    throw error;
+                }
             }
 
             // 在帖子中发送审核结果

@@ -54,9 +54,19 @@ class ProcessModel {
         );
 
         if (process) {
-            process.votes = JSON.parse(process.votes);
-            process.messageIds = JSON.parse(process.messageIds);
-            dbManager.setCache(cacheKey, process);
+            try {
+                process.votes = JSON.parse(process.votes || '{}');
+                process.messageIds = JSON.parse(process.messageIds || '[]');
+                process.details = JSON.parse(process.details || '{}');
+                process.supporters = JSON.parse(process.supporters || '[]');
+                dbManager.setCache(cacheKey, process);
+            } catch (error) {
+                logTime(`JSON解析失败 [getProcessById]: ${error.message}`, true);
+                process.votes = {};
+                process.messageIds = [];
+                process.details = {};
+                process.supporters = [];
+            }
         }
 
         return process;
@@ -350,11 +360,219 @@ class ProcessModel {
 
             return processes.map(p => ({
                 ...p,
-                votes: JSON.parse(p.votes),
-                messageIds: JSON.parse(p.messageIds)
+                votes: JSON.parse(p.votes || '{}'),
+                messageIds: JSON.parse(p.messageIds || '[]'),
+                details: JSON.parse(p.details || '{}'),
+                supporters: JSON.parse(p.supporters || '[]')
             }));
         } catch (error) {
             logTime(`获取全库流程记录失败: ${error.message}`, true);
+            throw error;
+        }
+    }
+
+    /**
+     * 创建新的议事流程
+     * @param {Object} data - 流程数据
+     * @param {string} data.type - 流程类型 (court_mute/court_ban)
+     * @param {string} data.targetId - 目标用户ID
+     * @param {string} data.executorId - 执行者ID
+     * @param {string} data.messageId - 议事消息ID
+     * @param {number} data.expireAt - 流程到期时间戳
+     * @param {Object} data.details - 处罚详情
+     * @returns {Promise<Object>} 流程记录
+     */
+    static async createCourtProcess(data) {
+        const { 
+            type, targetId, executorId,
+            messageId, expireAt, details
+        } = data;
+        
+        try {
+            const result = await dbManager.safeExecute('run', `
+                INSERT INTO processes (
+                    type, targetId, executorId,
+                    messageId, expireAt, status,
+                    details, supporters
+                ) VALUES (?, ?, ?, ?, ?, 'pending', ?, '[]')
+            `, [
+                type, targetId, executorId,
+                messageId, expireAt,
+                JSON.stringify(details)
+            ]);
+
+            return this.getProcessById(result.lastID);
+        } catch (error) {
+            logTime(`创建议事流程失败: ${error.message}`, true);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取议事流程
+     * @param {string} messageId - 议事消息ID
+     * @returns {Promise<Object>} 流程记录
+     */
+    static async getProcessByMessageId(messageId) {
+        const cacheKey = `process_msg_${messageId}`;
+        const cached = dbManager.getCache(cacheKey);
+        if (cached) return cached;
+
+        const process = await dbManager.safeExecute(
+            'get',
+            'SELECT * FROM processes WHERE messageId = ?',
+            [messageId]
+        );
+
+        if (process) {
+            try {
+                process.votes = JSON.parse(process.votes || '{}');
+                process.messageIds = JSON.parse(process.messageIds || '[]');
+                process.details = JSON.parse(process.details || '{}');
+                process.supporters = JSON.parse(process.supporters || '[]');
+                dbManager.setCache(cacheKey, process);
+            } catch (error) {
+                logTime(`JSON解析失败 [getProcessByMessageId]: ${error.message}`, true);
+                process.votes = {};
+                process.messageIds = [];
+                process.details = {};
+                process.supporters = [];
+            }
+        }
+
+        return process;
+    }
+
+    /**
+     * 获取用户是否已支持
+     * @param {string} messageId - 议事消息ID
+     * @param {string} userId - 用户ID
+     * @returns {Promise<boolean>} 是否已支持
+     */
+    static async hasSupported(messageId, userId) {
+        const process = await this.getProcessByMessageId(messageId);
+        if (!process) return false;
+
+        try {
+            const supporters = Array.isArray(process.supporters) ? process.supporters : [];
+            return supporters.includes(userId);
+        } catch (error) {
+            logTime(`检查支持状态失败: ${error.message}`, true);
+            return false;
+        }
+    }
+
+    /**
+     * 获取支持者数量
+     * @param {string} messageId - 议事消息ID
+     * @returns {Promise<number>} 支持者数量
+     */
+    static async getSupportCount(messageId) {
+        const process = await this.getProcessByMessageId(messageId);
+        if (!process) return 0;
+
+        try {
+            const supporters = Array.isArray(process.supporters) ? process.supporters : [];
+            return supporters.length;
+        } catch (error) {
+            logTime(`获取支持数量失败: ${error.message}`, true);
+            return 0;
+        }
+    }
+
+    /**
+     * 添加支持者并检查是否需要创建辩诉帖子
+     * @param {string} messageId - 议事消息ID
+     * @param {string} userId - 支持者ID
+     * @param {Object} guildConfig - 服务器配置
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<{process: Object, debateThread: Object|null}>} 更新后的流程记录和可能创建的辩诉帖子
+     */
+    static async addSupporter(messageId, userId, guildConfig, client) {
+        try {
+            const process = await this.getProcessByMessageId(messageId);
+            if (!process) throw new Error('议事流程不存在');
+
+            let supporters = [];
+            try {
+                supporters = Array.isArray(process.supporters) ? process.supporters : [];
+            } catch (error) {
+                logTime(`解析支持者列表失败，使用空列表: ${error.message}`, true);
+            }
+
+            if (supporters.includes(userId)) {
+                return { process, debateThread: null };
+            }
+
+            supporters.push(userId);
+            let debateThread = null;
+
+            // 检查是否达到所需支持数量
+            if (supporters.length === guildConfig.courtSystem.requiredSupports && !process.debateThreadId) {
+                // 创建辩诉帖子
+                const debateForum = await client.channels.fetch(guildConfig.courtSystem.debateForumId);
+                const details = process.details || {};
+                
+                debateThread = await debateForum.threads.create({
+                    name: `${details.embed?.title?.replace('申请', '辩诉') || '辩诉帖'}`,
+                    message: {
+                        embeds: [{
+                            ...(details.embed || {}),
+                            title: details.embed?.title?.replace('申请', '辩诉') || '辩诉帖',
+                            fields: [
+                                ...(details.embed?.fields?.filter(f => f) || []),
+                                {
+                                    name: '支持人数',
+                                    value: `${supporters.length || 0} 位议员`,
+                                    inline: true
+                                }
+                            ]
+                        }]
+                    }
+                });
+
+                // 获取执行者用户信息
+                const executor = await client.users.fetch(process.executorId).catch(() => null);
+                const target = await client.users.fetch(process.targetId).catch(() => null);
+
+                // 发送通知消息
+                if (executor && target) {
+                    await debateThread.send({
+                        content: `<@${target.id}> <@${executor.id}> 辩诉帖已创建，请双方当事人注意查看。`
+                    });
+                }
+
+                // 更新流程状态和辩诉帖子ID
+                await dbManager.safeExecute(
+                    'run',
+                    `UPDATE processes 
+                    SET status = 'in_progress', 
+                        debateThreadId = ?,
+                        supporters = ?,
+                        updatedAt = ?
+                    WHERE messageId = ?`,
+                    [debateThread.id, JSON.stringify(supporters), Date.now(), messageId]
+                );
+            } else {
+                // 仅更新支持者列表
+                await dbManager.safeExecute(
+                    'run',
+                    `UPDATE processes 
+                    SET supporters = ?, updatedAt = ?
+                    WHERE messageId = ?`,
+                    [JSON.stringify(supporters), Date.now(), messageId]
+                );
+            }
+
+            // 清除缓存
+            const process_id = process.id;
+            dbManager.clearCache(`process_${process_id}`);
+            dbManager.clearCache(`process_msg_${messageId}`);
+
+            const updatedProcess = await this.getProcessByMessageId(messageId);
+            return { process: updatedProcess, debateThread };
+        } catch (error) {
+            logTime(`添加支持者失败: ${error.message}`, true);
             throw error;
         }
     }

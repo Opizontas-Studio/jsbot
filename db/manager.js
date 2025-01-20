@@ -102,20 +102,22 @@ class DatabaseManager {
         await this.db.exec(`
             CREATE TABLE IF NOT EXISTS processes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                punishmentId INTEGER NOT NULL,
-                type TEXT NOT NULL CHECK(type IN ('appeal', 'vote', 'debate')),
+                type TEXT NOT NULL CHECK(
+                    type IN ('appeal', 'vote', 'debate', 'court_mute', 'court_ban')
+                ),
+                targetId TEXT NOT NULL,
+                executorId TEXT NOT NULL,
+                messageId TEXT UNIQUE,
+                debateThreadId TEXT,
                 status TEXT NOT NULL DEFAULT 'pending'
                     CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
-                createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
                 expireAt INTEGER NOT NULL,
-                messageIds TEXT DEFAULT '[]',
-                votes TEXT DEFAULT '{}',
-                redClaim TEXT,
-                blueClaim TEXT,
+                details TEXT DEFAULT '{}',
+                supporters TEXT DEFAULT '[]',
                 result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)),
                 reason TEXT DEFAULT '',
-                updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-                FOREIGN KEY(punishmentId) REFERENCES punishments(id) ON DELETE CASCADE
+                createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+                updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
             )
         `);
 
@@ -124,7 +126,9 @@ class DatabaseManager {
             CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId);
             CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, createdAt, duration);
             CREATE INDEX IF NOT EXISTS idx_punishments_sync ON punishments(synced);
-            CREATE INDEX IF NOT EXISTS idx_processes_punishment ON processes(punishmentId);
+            CREATE INDEX IF NOT EXISTS idx_processes_target ON processes(targetId);
+            CREATE INDEX IF NOT EXISTS idx_processes_message ON processes(messageId);
+            CREATE INDEX IF NOT EXISTS idx_processes_debate ON processes(debateThreadId);
             CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt);
             CREATE INDEX IF NOT EXISTS idx_processes_type ON processes(type);
         `);

@@ -243,11 +243,25 @@ async function handleCourtSupport(interaction, type) {
         let process = await ProcessModel.getProcessByMessageId(interaction.message.id);
         
         if (!process) {
+            // 从消息中获取申请人ID
+            const footer = interaction.message.embeds[0]?.footer;
+            const executorName = footer?.text?.replace('申请人：', '');
+            const executorMember = interaction.message.guild.members.cache
+                .find(member => member.displayName === executorName);
+
+            if (!executorMember) {
+                await interaction.reply({
+                    content: '❌ 无法找到申请人信息',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
             // 如果流程不存在，创建新的流程
             process = await ProcessModel.createCourtProcess({
                 type: `court_${type}`,
                 targetId,
-                executorId: originalInteractionId,
+                executorId: executorMember.id, // 使用正确的申请人ID
                 messageId: interaction.message.id,
                 expireAt: Date.now() + guildConfig.courtSystem.appealDuration,
                 details: {
@@ -271,8 +285,18 @@ async function handleCourtSupport(interaction, type) {
         // 更新消息
         const embed = interaction.message.embeds[0];
         const updatedFields = [...embed.fields];
-        const supportCountField = embed.fields.find(field => field.name === '当前支持');
-        const supportCount = JSON.parse(updatedProcess.supporters).length;
+        const supportCountField = updatedFields.find(field => field.name === '当前支持');
+        
+        let supporters = [];
+        try {
+            supporters = Array.isArray(updatedProcess.supporters) ? 
+                        updatedProcess.supporters : 
+                        JSON.parse(updatedProcess.supporters || '[]');
+        } catch (error) {
+            logTime(`解析supporters失败: ${error.message}`, true);
+        }
+        
+        const supportCount = supporters.length;
         
         if (supportCountField) {
             const fieldIndex = updatedFields.findIndex(field => field.name === '当前支持');
@@ -289,17 +313,22 @@ async function handleCourtSupport(interaction, type) {
             });
         }
 
+        const updatedEmbed = {
+            ...embed.data,
+            fields: updatedFields
+        };
+
+        if (debateThread) {
+            updatedEmbed.description = `${embed.description}\n\n✅ 已达到所需支持人数，辩诉帖已创建：${debateThread.url}`;
+        }
+
         await interaction.message.edit({
-            embeds: [{
-                ...embed,
-                fields: updatedFields
-            }]
+            embeds: [updatedEmbed],
+            components: debateThread ? [] : interaction.message.components // 如果创建了辩诉帖就移除按钮
         });
 
         // 发送确认消息
         let replyContent = `✅ 你已支持此${type === 'mute' ? '禁言' : '永封'}处罚申请，当前共有 ${supportCount} 位议员支持`;
-        
-        // 如果创建了辩诉帖子，添加链接
         if (debateThread) {
             replyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
         }

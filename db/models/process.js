@@ -389,6 +389,12 @@ class ProcessModel {
         } = data;
         
         try {
+            // 将申请人ID添加到details中
+            const enrichedDetails = {
+                ...details,
+                executorId // 存储申请人ID
+            };
+
             const result = await dbManager.safeExecute('run', `
                 INSERT INTO processes (
                     type, targetId, executorId,
@@ -398,7 +404,7 @@ class ProcessModel {
             `, [
                 type, targetId, executorId,
                 messageId, expireAt,
-                JSON.stringify(details)
+                JSON.stringify(enrichedDetails)
             ]);
 
             return this.getProcessById(result.lastID);
@@ -531,14 +537,20 @@ class ProcessModel {
                     }
                 });
 
-                // 获取执行者用户信息
-                const executor = await client.users.fetch(process.executorId).catch(() => null);
-                const target = await client.users.fetch(process.targetId).catch(() => null);
+                // 获取申请人和目标用户
+                const [executor, target] = await Promise.all([
+                    client.users.fetch(details.executorId).catch(() => null),
+                    client.users.fetch(process.targetId).catch(() => null)
+                ]);
 
                 // 发送通知消息
-                if (executor && target) {
+                if (executor && target) {             
                     await debateThread.send({
-                        content: `<@${target.id}> <@${executor.id}> 辩诉帖已创建，请双方当事人注意查看。`
+                        content: [
+                            `辩诉帖已创建，请双方当事人注意查看。`,
+                            `- 申请人：<@${executor.id}>`,
+                            `- 处罚对象：<@${target.id}>`
+                        ].join('\n')
                     });
                 }
 

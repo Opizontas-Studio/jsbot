@@ -161,7 +161,7 @@ export default {
                                 fields: [
                                     {
                                         name: '处罚对象',
-                                        value: `${target.tag} (<@${target.id}>)`,
+                                        value: `<@${target.id}>`,
                                         inline: true
                                     },
                                     {
@@ -272,7 +272,7 @@ export default {
                                 fields: [
                                     {
                                         name: '处罚对象',
-                                        value: `${target.tag} (<@${target.id}>)`,
+                                        value: `<@${target.id}>`,
                                         inline: true
                                     },
                                     {

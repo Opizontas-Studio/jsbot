@@ -71,8 +71,8 @@ class TaskScheduler {
             }
         });
 
-        // 投票状态更新（每3分钟）
-        this.addTask('voteUpdate', 3 * 60 * 1000, async () => {
+        // 投票状态更新（每30秒）
+        this.addTask('voteUpdate', 30 * 1000, async () => {
             try {
                 const expiredProcesses = await ProcessModel.handleExpiredProcesses();
                 for (const process of expiredProcesses) {
@@ -239,7 +239,60 @@ class TaskScheduler {
      * @private
      */
     async executeProcessExpiry(client, process) {
-        // TODO: 实现流程到期的具体操作
+        try {
+            // 只处理议事相关的流程
+            if (!process.type.startsWith('court_')) {
+                return;
+            }
+
+            // 从process.details中获取原始消息信息
+            const details = process.details ? JSON.parse(process.details) : {};
+            if (!details.embed) {
+                logTime(`无法获取流程详情: ${process.id}`, true);
+                return;
+            }
+
+            try {
+                // 获取服务器配置
+                const guildId = process.targetId.split('_')[0];
+                const guildConfig = client.guildManager.getGuildConfig(guildId);
+                if (!guildConfig?.courtSystem?.enabled) {
+                    logTime(`服务器 ${guildId} 未启用议事系统`, true);
+                    return;
+                }
+
+                // 获取原始消息
+                const courtChannel = await client.channels.fetch(guildConfig.courtSystem.courtChannelId);
+                if (!courtChannel) {
+                    logTime(`无法获取议事频道: ${guildConfig.courtSystem.courtChannelId}`, true);
+                    return;
+                }
+
+                const message = await courtChannel.messages.fetch(process.messageId);
+                if (message) {
+                    // 更新消息
+                    const embed = message.embeds[0];
+                    await message.edit({
+                        embeds: [{
+                            ...embed.data,
+                            description: `${embed.description}\n\n❌ 议事已过期，未达到所需支持人数`
+                        }],
+                        components: [] // 移除支持按钮
+                    });
+                }
+            } catch (error) {
+                logTime(`更新过期消息失败: ${error.message}`, true);
+            }
+
+            // 更新流程状态
+            await ProcessModel.updateStatus(process.id, 'completed', {
+                result: 'cancelled',
+                reason: '议事流程已过期，未达到所需支持人数'
+            });
+
+        } catch (error) {
+            logTime(`处理议事流程到期失败: ${error.message}`, true);
+        }
     }
 
     /**

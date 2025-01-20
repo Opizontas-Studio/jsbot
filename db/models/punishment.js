@@ -307,7 +307,36 @@ class PunishmentModel {
             logTime(`获取全库处罚记录失败: ${error.message}`, true);
             throw error;
         }
-    } 
+    }
+
+    /**
+     * 删除处罚记录
+     * @param {number} id - 处罚ID
+     * @returns {Promise<boolean>} 删除是否成功
+     */
+    static async deletePunishment(id) {
+        try {
+            const punishment = await this.getPunishmentById(id);
+            if (!punishment) {
+                throw new Error('处罚记录不存在');
+            }
+
+            await dbManager.safeExecute(
+                'run',
+                'DELETE FROM punishments WHERE id = ?',
+                [id]
+            );
+
+            // 清除相关缓存
+            this._clearRelatedCache(punishment.userId);
+            dbManager.clearCache(`punishment_${id}`);
+
+            return true;
+        } catch (error) {
+            logTime(`删除处罚记录失败: ${error.message}`, true);
+            return false;
+        }
+    }
 }
 
 export { PunishmentModel }; 

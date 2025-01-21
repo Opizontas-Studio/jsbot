@@ -1,5 +1,6 @@
 import { logTime } from '../utils/logger.js';
 import { globalBatchProcessor } from '../utils/concurrency.js';
+import { generateProgressReport } from '../utils/helper.js';
 
 /**
  * 发送子区清理报告
@@ -278,12 +279,12 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
         async (progress) => {
             if (progress.type === 'message_scan') {
                 await interaction.editReply({
-                    content: generateProgressReport(progress.messagesProcessed, progress.totalMessages, '正在统计活跃用户...'),
+                    content: `⏳ 正在统计消息历史... (已处理 ${progress.messagesProcessed} 条消息)`,
                     flags: ['Ephemeral']
                 });
             } else if (progress.type === 'member_remove') {
                 await interaction.editReply({
-                    content: generateProgressReport(progress.removedCount, progress.totalToRemove, '正在移除未发言成员...'),
+                    content: `⏳ 正在移除未发言成员... (${progress.removedCount}/${progress.totalToRemove})`,
                     flags: ['Ephemeral']
                 });
             }

@@ -6,6 +6,28 @@ import { PunishmentModel, ProcessModel } from '../db/models/index.js';
 import PunishmentService from '../services/punishment_service.js';
 
 /**
+ * 时间单位转换为毫秒
+ * @private
+ */
+const TIME_UNITS = {
+    SECOND: 1000,
+    MINUTE: 60 * 1000,
+    HOUR: 60 * 60 * 1000,
+    DAY: 24 * 60 * 60 * 1000
+};
+
+/**
+ * 格式化时间间隔
+ * @private
+ */
+const formatInterval = (ms) => {
+    if (ms >= TIME_UNITS.DAY) return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
+    if (ms >= TIME_UNITS.HOUR) return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
+    if (ms >= TIME_UNITS.MINUTE) return `${Math.floor(ms / TIME_UNITS.MINUTE)}分钟`;
+    return `${Math.floor(ms / TIME_UNITS.SECOND)}秒`;
+};
+
+/**
  * 定时任务管理器
  * 用于集中管理所有的定时任务，包括：
  * - 子区分析和清理
@@ -41,15 +63,91 @@ class TaskScheduler {
     }
 
     /**
+     * 添加定时任务
+     * @param {Object} options - 任务配置
+     * @param {string} options.taskId - 任务ID
+     * @param {number} options.interval - 任务间隔（毫秒）
+     * @param {Function} options.task - 任务函数
+     * @param {Date} [options.startAt] - 首次执行时间
+     * @param {boolean} [options.runImmediately=false] - 是否立即执行一次
+     */
+    addTask({ taskId, interval, task, startAt, runImmediately = false }) {
+        // 清除已存在的定时器
+        if (this.timers.has(taskId)) {
+            clearInterval(this.timers.get(taskId));
+            clearTimeout(this.timers.get(`${taskId}_initial`));
+        }
+
+        const scheduleTask = () => {
+            const timer = setInterval(async () => {
+                try {
+                    await task();
+                } catch (error) {
+                    logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
+                }
+            }, interval);
+
+            this.timers.set(taskId, timer);
+            this.tasks.set(taskId, { interval, task });
+        };
+
+        // 构建任务信息日志
+        const taskInfo = [
+            `定时任务: ${taskId}`,
+            `执行间隔: ${formatInterval(interval)}`
+        ];
+
+        if (startAt) {
+            const now = new Date();
+            const delay = startAt - now;
+            if (delay > 0) {
+                taskInfo.push(`首次执行: ${startAt.toLocaleString()}`);
+                const initialTimer = setTimeout(() => {
+                    scheduleTask();
+                    task(); // 在预定时间执行一次
+                }, delay);
+                this.timers.set(`${taskId}_initial`, initialTimer);
+            }
+        } else if (runImmediately) {
+            taskInfo.push('立即执行: 是');
+        }
+
+        // 输出统一格式的日志
+        logTime(taskInfo.join(' | '));
+
+        scheduleTask();
+        if (runImmediately) {
+            task().catch(error => {
+                logTime(`任务 ${taskId} 初始执行失败: ${error.message}`, true);
+            });
+        }
+    }
+
+    /**
      * 注册子区分析任务
      * @param {Client} client - Discord客户端实例
      */
     registerAnalysisTasks(client) {
         for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
-            // 只为启用了分析的服务器注册任务
-            if (guildConfig.automation?.analysis) {
-                this.scheduleAnalysis(client, guildId, guildConfig);
-            }
+            if (!guildConfig.automation?.analysis) continue;
+
+            // 计算下次整点执行时间
+            const now = new Date();
+            const nextRun = new Date(now);
+            nextRun.setHours(nextRun.getHours() + 1, 0, 0, 0);
+
+            this.addTask({
+                taskId: `analysis_${guildId}`,
+                interval: TIME_UNITS.HOUR,
+                startAt: nextRun,
+                task: async () => {
+                    try {
+                        await this.runScheduledTasks(client, guildConfig, guildId);
+                    } catch (error) {
+                        logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
+                    }
+                }
+            });
         }
     }
 
@@ -58,29 +156,37 @@ class TaskScheduler {
      * @param {Client} client - Discord客户端实例
      */
     registerPunishmentTasks(client) {
-        // 处罚到期检查（每30秒）
-        this.addTask('punishmentCheck', 30 * 1000, async () => {
-            try {
-                const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
-                for (const punishment of expiredPunishments) {
-                    // 执行处罚到期操作
-                    await this.executePunishmentExpiry(client, punishment);
+        // 处罚到期检查
+        this.addTask({
+            taskId: 'punishmentCheck',
+            interval: 30 * TIME_UNITS.SECOND,
+            runImmediately: true,
+            task: async () => {
+                try {
+                    const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
+                    for (const punishment of expiredPunishments) {
+                        await this.executePunishmentExpiry(client, punishment);
+                    }
+                } catch (error) {
+                    logTime(`处理过期处罚失败: ${error.message}`, true);
                 }
-            } catch (error) {
-                logTime(`处理过期处罚失败: ${error.message}`, true);
             }
         });
 
-        // 投票状态更新（每30秒）
-        this.addTask('voteUpdate', 30 * 1000, async () => {
-            try {
-                const expiredProcesses = await ProcessModel.handleExpiredProcesses();
-                for (const process of expiredProcesses) {
-                    // 执行流程到期操作
-                    await this.executeProcessExpiry(client, process);
+        // 投票状态更新
+        this.addTask({
+            taskId: 'voteUpdate',
+            interval: 30 * TIME_UNITS.SECOND,
+            runImmediately: true,
+            task: async () => {
+                try {
+                    const expiredProcesses = await ProcessModel.handleExpiredProcesses();
+                    for (const process of expiredProcesses) {
+                        await this.executeProcessExpiry(client, process);
+                    }
+                } catch (error) {
+                    logTime(`处理过期流程失败: ${error.message}`, true);
                 }
-            } catch (error) {
-                logTime(`处理过期流程失败: ${error.message}`, true);
             }
         });
     }
@@ -89,112 +195,27 @@ class TaskScheduler {
      * 注册数据库相关任务
      */
     registerDatabaseTasks() {
-        // 每天6点执行数据库备份
-        const backupInterval = 24 * 60 * 60 * 1000; // 24小时
+        // 计算下一个早上6点
         const now = new Date();
         const nextBackup = new Date(now);
         nextBackup.setHours(6, 0, 0, 0);
         if (nextBackup <= now) {
             nextBackup.setDate(nextBackup.getDate() + 1);
         }
-        
-        const timeUntilBackup = nextBackup - now;
-        
-        // 设置首次备份的定时器
-        setTimeout(() => {
-            this.executeDatabaseBackup();
-            // 设置后续每24小时执行一次的定时器
-            this.addTask('databaseBackup', backupInterval, () => this.executeDatabaseBackup());
-        }, timeUntilBackup);
-        
-        logTime(`数据库备份计划已设置，首次备份将在 ${nextBackup.toLocaleString()} 执行`);
-    }
 
-    /**
-     * 执行数据库备份
-     */
-    async executeDatabaseBackup() {
-        try {
-            await dbManager.backup();
-            logTime('数据库备份完成');
-        } catch (error) {
-            logTime(`数据库备份失败: ${error.message}`, true);
-        }
-    }
-
-    /**
-     * 添加定时任务
-     * @param {string} taskId - 任务ID
-     * @param {number} interval - 任务间隔（毫秒）
-     * @param {Function} task - 任务函数
-     */
-    addTask(taskId, interval, task) {
-        if (this.timers.has(taskId)) {
-            clearInterval(this.timers.get(taskId));
-        }
-
-        const timer = setInterval(async () => {
-            try {
-                await task();
-            } catch (error) {
-                logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
-            }
-        }, interval);
-
-        this.timers.set(taskId, timer);
-        this.tasks.set(taskId, { interval, task });
-        logTime(`已添加定时任务: ${taskId}, 间隔: ${interval}ms`);
-    }
-
-    /**
-     * 调度子区分析任务
-     * @param {Client} client - Discord客户端实例
-     * @param {string} guildId - 服务器ID
-     * @param {Object} guildConfig - 服务器配置
-     */
-    scheduleAnalysis(client, guildId, guildConfig) {
-        const scheduleNextRun = () => {
-            // 清除已存在的定时器
-            if (this.timers.has(`analysis_${guildId}`)) {
-                clearTimeout(this.timers.get(`analysis_${guildId}`));
-            }
-
-            // 计算下次执行时间
-            const now = new Date();
-            const nextRun = new Date(now);
-            
-            if (nextRun.getMinutes() >= 30) {
-                nextRun.setHours(nextRun.getHours() + 1);
-                nextRun.setMinutes(0);
-            } else {
-                nextRun.setMinutes(30);
-            }
-            nextRun.setSeconds(0);
-            nextRun.setMilliseconds(0);
-            
-            const timeUntilNextRun = nextRun - now;
-            
-            // 构建任务描述
-            const tasks = ['分析'];
-            if (guildConfig.automation?.cleanup?.enabled) {
-                tasks.push('清理');
-            }
-            
-            // 设置新的定时器
-            const timer = setTimeout(async () => {
+        this.addTask({
+            taskId: 'databaseBackup',
+            interval: TIME_UNITS.DAY,
+            startAt: nextBackup,
+            task: async () => {
                 try {
-                    await this.runScheduledTasks(client, guildConfig, guildId);
+                    await dbManager.backup();
+                    logTime('数据库备份完成');
                 } catch (error) {
-                    logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
-                } finally {
-                    scheduleNextRun();
+                    logTime(`数据库备份失败: ${error.message}`, true);
                 }
-            }, timeUntilNextRun);
-
-            this.timers.set(`analysis_${guildId}`, timer);
-        };
-
-        scheduleNextRun();
+            }
+        });
     }
 
     /**

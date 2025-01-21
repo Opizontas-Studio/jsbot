@@ -175,65 +175,138 @@ export class RequestQueue {
 }
 
 /**
- * 批量处理器
- * 用于控制批量操作的并发和延迟
+ * Discord API 速率限制处理器
+ * 用于控制API请求的发送速率，避免触发限制
  */
-export class BatchProcessor {
+class RateLimitedBatchProcessor {
     constructor() {
-        // 不同任务类型的批处理配置
-        this.configs = {
-            // 子区检查 - 较大批次，较短延迟
-            threadCheck: {
-                batchSize: 45,
-                delayMs: 100
+        // 路由限制配置
+        this.routeLimits = {
+            // 消息相关操作 - 5次/秒
+            messages: {
+                maxRequests: 5,
+                windowMs: 1000,
+                requests: [],
+                concurrency: 3  // 允许的并发数
             },
-            // 子区分析 - 大批次，较短延迟
-            threadAnalysis: {
-                batchSize: 25,
-                delayMs: 500
+            // 成员相关操作 - 5次/秒
+            members: {
+                maxRequests: 5,
+                windowMs: 1000,
+                requests: [],
+                concurrency: 3  // 允许的并发数
             },
-            // 消息历史 - 中等批次，较长延迟
-            messageHistory: {
-                batchSize: 10,
-                delayMs: 300
-            },
-            // 成员移除 - 小批次，较长延迟
-            memberRemove: {
-                batchSize: 5,
-                delayMs: 500
-            },
-            // 默认配置
+            // 其他操作 - 30次/秒
             default: {
-                batchSize: 10,
-                delayMs: 200
+                maxRequests: 40,
+                windowMs: 1000,
+                requests: [],
+                concurrency: 10  // 允许的并发数
             }
+        };
+
+        // 全局限制 - 50次/秒
+        this.globalLimit = {
+            maxRequests: 50,
+            windowMs: 1000,
+            requests: []
         };
     }
 
+    /**
+     * 获取操作类型对应的限制器
+     * @private
+     */
+    getLimiter(taskType) {
+        switch(taskType) {
+            case 'messageHistory':
+                return this.routeLimits.messages;
+            case 'memberRemove':
+                return this.routeLimits.members;
+            default:
+                return this.routeLimits.default;
+        }
+    }
+
+    /**
+     * 检查是否可以执行请求并等待合适的时机
+     * @private
+     */
+    async waitForRateLimit(limiter) {
+        while (true) {
+            const now = Date.now();
+            
+            // 清理过期的请求记录
+            limiter.requests = limiter.requests.filter(time => now - time < limiter.windowMs);
+            this.globalLimit.requests = this.globalLimit.requests.filter(time => now - time < this.globalLimit.windowMs);
+
+            // 如果在限制范围内，记录并继续
+            if (limiter.requests.length < limiter.maxRequests && 
+                this.globalLimit.requests.length < this.globalLimit.maxRequests) {
+                limiter.requests.push(now);
+                this.globalLimit.requests.push(now);
+                return;
+            }
+
+            // 计算需要等待的时间
+            const oldestRequest = Math.min(
+                ...limiter.requests,
+                ...this.globalLimit.requests
+            );
+            const waitTime = oldestRequest + limiter.windowMs - now;
+            await delay(waitTime);
+        }
+    }
+
+    /**
+     * 处理批量任务
+     * @param {Array} items - 要处理的项目数组
+     * @param {Function} processor - 处理函数
+     * @param {Function} progressCallback - 进度回调函数
+     * @param {string} taskType - 任务类型
+     * @returns {Promise<Array>} 处理结果数组
+     */
     async processBatch(items, processor, progressCallback = null, taskType = 'default') {
-        const config = this.configs[taskType] || this.configs.default;
-        const results = [];
+        const limiter = this.getLimiter(taskType);
+        const results = new Array(items.length);
+        let processedCount = 0;
         const totalItems = items.length;
 
-        for (let i = 0; i < items.length; i += config.batchSize) {
-            const batch = items.slice(i, i + config.batchSize);
-            const batchResults = await Promise.all(
-                batch.map(item => processor(item))
-            );
-            
-            results.push(...batchResults);
-
-            // 调用进度回调
-            if (progressCallback) {
-                const progress = Math.min(100, ((i + batch.length) / totalItems) * 100);
-                await progressCallback(progress, i + batch.length, totalItems);
-            }
-
-            // 添加延迟，除非是最后一批
-            if (i + config.batchSize < items.length) {
-                await new Promise(r => setTimeout(r, config.delayMs));
-            }
+        // 创建处理分组
+        const batchSize = Math.min(50, Math.ceil(items.length / limiter.concurrency));
+        const batches = [];
+        
+        for (let i = 0; i < items.length; i += batchSize) {
+            batches.push(items.slice(i, i + batchSize));
         }
+
+        // 并发处理每个批次
+        await Promise.all(batches.map(async (batch, batchIndex) => {
+            for (const item of batch) {
+                const index = batchIndex * batchSize + batch.indexOf(item);
+                
+                // 等待速率限制
+                await this.waitForRateLimit(limiter);
+                
+                // 执行任务
+                try {
+                    results[index] = await processor(item);
+                } catch (error) {
+                    results[index] = null;
+                    throw error;
+                }
+
+                // 更新进度
+                processedCount++;
+                if (progressCallback) {
+                    const progress = Math.min(100, (processedCount / totalItems) * 100);
+                    await progressCallback(progress, processedCount, totalItems);
+                }
+
+                // 添加小延迟避免请求过于密集
+                await delay(10);
+            }
+        }));
 
         return results;
     }
@@ -241,4 +314,4 @@ export class BatchProcessor {
 
 // 创建单例实例
 export const globalRequestQueue = new RequestQueue();
-export const globalBatchProcessor = new BatchProcessor(); 
+export const globalBatchProcessor = new RateLimitedBatchProcessor(); 

@@ -4,8 +4,10 @@ import { globalRequestQueue } from '../utils/concurrency.js';
 import { createApplicationMessage } from '../services/roleApplication.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 
-// 添加重连计数器
+// 添加重连计数器和时间记录
 let reconnectionCount = 0;
+let lastReconnectionTime = null;
+let reconnectionTimeout = null;
 
 export default {
     name: Events.ClientReady,
@@ -22,8 +24,14 @@ export default {
         // 初始化分片状态
         globalRequestQueue.setShardStatus('ready');
         
-        // 分片状态变化
+        // 分片状态处理函数
         const handleShardStatus = (status, event = null) => {
+            // 清除之前的超时
+            if (reconnectionTimeout) {
+                clearTimeout(reconnectionTimeout);
+                reconnectionTimeout = null;
+            }
+
             let message = '';
             let details = '';
             
@@ -49,10 +57,23 @@ export default {
                     break;
                 case 'reconnecting':
                     reconnectionCount++;
+                    lastReconnectionTime = Date.now();
+                    
+                    // 设置重连超时检查
+                    reconnectionTimeout = setTimeout(() => {
+                        if (client.ws.status === 6) { // WebSocket.CONNECTING
+                            logTime('重连超时，强制重置连接状态', true);
+                            handleShardStatus('ready');
+                            client.destroy().then(() => client.login(config.token));
+                        }
+                    }, 30000); // 30秒超时
+                    
                     message = '正在重新连接...';
                     details = `重连次数: ${reconnectionCount}, 时间: ${new Date().toISOString()}`;
                     break;
                 case 'resumed':
+                    reconnectionCount = 0;
+                    lastReconnectionTime = null;
                     message = '已恢复连接';
                     details = `恢复时间: ${new Date().toISOString()}, 重连延迟: ${client.ws.ping}ms`;
                     break;
@@ -63,6 +84,8 @@ export default {
                     }
                     break;
                 case 'ready':
+                    reconnectionCount = 0;
+                    lastReconnectionTime = null;
                     message = '已就绪';
                     details = `WebSocket延迟: ${client.ws.ping}ms`;
                     break;
@@ -74,19 +97,39 @@ export default {
                 logTime(details, status === 'error');
             }
             
-            // 统一设置状态，让RequestQueue处理队列的暂停和恢复
+            // 设置请求队列状态
             globalRequestQueue.setShardStatus(status);
         };
 
-        // 事件监听 - 只使用shard事件
+        // 事件监听
         client.on('shardDisconnect', (event) => {
-            // 正常关闭不处理
             if (event.code === 1000 || event.code === 1001) return;
             handleShardStatus('disconnected', event);
         });
-        client.on('shardReconnecting', () => handleShardStatus('reconnecting'));
-        client.on('shardResumed', () => handleShardStatus('resumed'));
-        client.on('shardError', (error) => handleShardStatus('error', error));
-        client.on('shardReady', () => handleShardStatus('ready'));
+        
+        client.on('shardReconnecting', () => {
+            handleShardStatus('reconnecting');
+        });
+        
+        client.on('shardResumed', () => {
+            handleShardStatus('resumed');
+        });
+        
+        client.on('shardReady', () => {
+            handleShardStatus('ready');
+        });
+
+        // 添加WebSocket状态检查
+        client.on('debug', (info) => {
+            if (info.includes('Session Limit Information')) {
+                logTime('收到会话限制信息: ' + info);
+            }
+            if (info.includes('[WS => Shard 0] Heartbeat acknowledged')) {
+                // 心跳正常，说明连接是活跃的
+                if (client.ws.status === 6) { // 如果仍在CONNECTING状态
+                    handleShardStatus('ready');
+                }
+            }
+        });
     },
 }; 

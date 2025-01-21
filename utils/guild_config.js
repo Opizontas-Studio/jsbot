@@ -28,37 +28,37 @@ export class GuildManager {
 
             // 创建服务器配置对象
             const serverConfig = {
-                id: guildId,
-                serverType: guildConfig.serverType || '',
-                moderationLogThreadId: guildConfig.moderationLogThreadId,
-                AdministratorRoleIds: guildConfig.AdministratorRoleIds || [],
-                ModeratorRoleIds: guildConfig.ModeratorRoleIds || [],
-                WarnedRoleId: guildConfig.WarnedRoleId,
+                id: guildId, // string - Discord服务器ID
+                serverType: guildConfig.serverType || '', // string - 服务器类型，'Main server' 或 'Sub server'
+                moderationLogThreadId: guildConfig.moderationLogThreadId, // string - 管理日志频道ID
+                AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
+                ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
+                WarnedRoleId: guildConfig.WarnedRoleId, // string - 警告角色ID
                 automation: {
-                    analysis: automationConfig.analysis || false,
+                    analysis: automationConfig.analysis || false, // boolean - 是否启用自动分析
                     cleanup: {
-                        enabled: automationConfig.cleanup?.enabled || false,
-                        threshold: automationConfig.cleanup?.threshold || 960
+                        enabled: automationConfig.cleanup?.enabled || false, // boolean - 是否启用自动清理
+                        threshold: automationConfig.cleanup?.threshold || 960 // number - 清理阈值（分钟）
                     },
-                    logThreadId: automationConfig.logThreadId,
-                    whitelistedThreads: automationConfig.whitelistedThreads || []
+                    logThreadId: automationConfig.logThreadId, // string - 自动化日志频道ID
+                    whitelistedThreads: automationConfig.whitelistedThreads || [] // string[] - 白名单主题ID数组
                 },
                 roleApplication: guildConfig.roleApplication || {
-                    enabled: false,
-                    logThreadId: null,
-                    creatorRoleThreadId: null,
-                    creatorRoleId: null,
-                    senatorRoleId: null,
-                    senatorRoleForumId: null
+                    enabled: false, // boolean - 是否启用角色申请系统
+                    logThreadId: null, // string | null - 角色申请日志频道ID
+                    creatorRoleThreadId: null, // string | null - 创作者角色主题ID
+                    creatorRoleId: null, // string | null - 创作者角色ID
+                    senatorRoleId: null, // string | null - 参议员角色ID
+                    senatorRoleForumId: null // string | null - 参议员论坛ID
                 },
                 courtSystem: guildConfig.courtSystem || {
-                    enabled: false,
-                    courtChannelId: null,
-                    debateForumId: null,
-                    senatorRoleId: null,
-                    appealDuration: 259200000,
-                    requiredSupports: 10,
-                    debateTagId: null
+                    enabled: false, // boolean - 是否启用法庭系统
+                    courtChannelId: null, // string | null - 法庭频道ID
+                    debateForumId: null, // string | null - 辩论论坛ID
+                    senatorRoleId: null, // string | null - 参议员角色ID
+                    appealDuration: 259200000, // number - 上诉持续时间（毫秒）
+                    requiredSupports: 10, // number - 所需支持票数
+                    debateTagId: null // string | null - 辩论标签ID
                 }
             };
 

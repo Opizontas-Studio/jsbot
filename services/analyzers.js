@@ -1,11 +1,11 @@
 import { ChannelFlags } from 'discord.js';
-import { delay, measureTime, handleDiscordError } from '../utils/helper.js';
+import { measureTime, handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { globalBatchProcessor } from '../utils/concurrency.js';
-import { Client, Collection } from 'discord.js';
+import { Client } from 'discord.js';
 
 const MESSAGE_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
 
@@ -273,7 +273,6 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         threadArray,
         async (thread) => {
             try {
-                await delay(50);
                 const messages = await thread.messages.fetch({ limit: 1 });
                 let lastMessage = messages.first();
                 
@@ -363,7 +362,6 @@ const cleanupThreads = async (validThreads, threshold) => {
         
         for (const threadInfo of threadsToArchive) {
             try {
-                await delay(50);
                 await threadInfo.thread.setArchived(true, '自动清理不活跃主题');
                 statistics.archivedThreads++;
             } catch (error) {

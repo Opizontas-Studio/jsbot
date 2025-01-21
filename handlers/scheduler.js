@@ -116,8 +116,19 @@ class TaskScheduler {
         }
 
         // 创建定时器
-        const timer = setInterval(wrappedTask, 
-            runImmediately ? interval : (initialDelay || interval));
+        let timer;
+        if (initialDelay > 0) {
+            // 首先设置一个一次性的定时器来处理首次执行
+            timer = setTimeout(() => {
+                wrappedTask();
+                // 然后设置固定间隔的定时器
+                timer = setInterval(wrappedTask, interval);
+                this.timers.set(taskId, timer);
+            }, initialDelay);
+        } else {
+            // 直接设置固定间隔的定时器
+            timer = setInterval(wrappedTask, interval);
+        }
 
         // 存储任务信息
         this.timers.set(taskId, timer);

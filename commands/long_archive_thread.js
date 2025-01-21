@@ -54,6 +54,20 @@ export default {
                 activeThreads
             );
 
+            // 在清理过程中添加进度更新
+            const remainingThreads = currentThreadCount - threshold;
+            const archivedCount = result.statistics.archivedThreads || 0;
+            
+            // 更新进度
+            await interaction.editReply({
+                content: generateProgressReport(archivedCount, remainingThreads, {
+                    prefix: '归档进度',
+                    suffix: `目标: ${threshold}个活跃子区`,
+                    progressChar: '📦'
+                }),
+                flags: ['Ephemeral']
+            });
+
             const executionTime = executionTimer();
 
             // 构建回复消息

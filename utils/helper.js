@@ -21,13 +21,6 @@ export const measureTime = () => {
 };
 
 /**
- * 延迟函数
- * @param {number} ms - 延迟时间（毫秒）
- * @returns {Promise<void>}
- */
-export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
  * 处理Discord API错误
  * @param {Error} error - 错误对象
  * @returns {string} 格式化的错误信息
@@ -254,34 +247,33 @@ export const sendThreadNotification = async (thread, notifyData) => {
  * 生成进度报告
  * @param {number} current - 当前进度
  * @param {number} total - 总数
- * @param {string} prefix - 前缀文本
+ * @param {Object} [options] - 可选配置
+ * @param {string} [options.prefix=''] - 前缀文本
+ * @param {string} [options.suffix=''] - 后缀文本
+ * @param {boolean} [options.showPercentage=true] - 是否显示百分比
+ * @param {boolean} [options.showNumbers=true] - 是否显示数字
+ * @param {string} [options.progressChar='⏳'] - 进度指示符
  * @returns {string} 格式化的进度信息
  */
-export const generateProgressReport = (current, total, prefix = '') => {
+export const generateProgressReport = (current, total, options = {}) => {
+    const {
+        prefix = '',
+        suffix = '',
+        showPercentage = true,
+        showNumbers = true,
+        progressChar = '⏳'
+    } = options;
+
     const progress = (current / total * 100).toFixed(1);
-    return `${prefix}${current}/${total} (${progress}%)`;
-};
+    const parts = [];
 
-/**
- * 处理分批进度报告
- * @param {number} current - 当前进度
- * @param {number} total - 总数
- * @param {number[]} intervals - 进度间隔点数组
- * @param {number} lastProgressIndex - 上次报告的间隔索引
- * @param {Function} callback - 进度回调函数
- * @returns {number} 新的进度索引
- */
-export const handleBatchProgress = (current, total, intervals, lastProgressIndex, callback) => {
-    const currentProgress = (current / total * 100);
-    const progressIndex = intervals.findIndex(interval => 
-        currentProgress >= interval && interval > (lastProgressIndex >= 0 ? intervals[lastProgressIndex] : 0)
-    );
+    if (prefix) parts.push(prefix);
+    if (progressChar) parts.push(progressChar);
+    if (showNumbers) parts.push(`${current}/${total}`);
+    if (showPercentage) parts.push(`(${progress}%)`);
+    if (suffix) parts.push(suffix);
 
-    if (progressIndex !== -1 && progressIndex > lastProgressIndex) {
-        callback(current, total);
-        return progressIndex;
-    }
-    return lastProgressIndex;
+    return parts.join(' ');
 };
 
 /**

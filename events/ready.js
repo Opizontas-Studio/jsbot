@@ -91,11 +91,8 @@ export default {
                     break;
             }
             
-            // 记录状态消息和详细信息
-            logTime(message, status === 'error');
-            if (details) {
-                logTime(details, status === 'error');
-            }
+            // 记录状态和详细信息
+            logTime(`${message}${details ? ` | ${details}` : ''}`, status === 'error');
             
             // 设置请求队列状态
             globalRequestQueue.setShardStatus(status);

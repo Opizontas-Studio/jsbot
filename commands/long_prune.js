@@ -151,7 +151,11 @@ async function handleAllThreads(interaction, guildConfig) {
             threadsToClean,
             async ({ thread }) => {
                 await interaction.editReply({
-                    content: generateProgressReport(cleanupResults.length + 1, threadsToClean.length, `正在处理 - ${thread.name}\n`),
+                    content: generateProgressReport(cleanupResults.length + 1, threadsToClean.length, {
+                        prefix: '正在处理子区清理',
+                        suffix: `- ${thread.name}`,
+                        progressChar: '🔄'
+                    }),
                     flags: ['Ephemeral']
                 });
 

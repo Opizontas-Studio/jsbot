@@ -1,18 +1,26 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { checkAndHandlePermission, measureTime, delay, handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, measureTime, handleCommandError, generateProgressReport } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
+import { globalBatchProcessor } from '../utils/concurrency.js';
 
 export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('频道完全清理')
-        .setDescription('清理指定消息之前的所有消息')
+        .setDescription('清理指定范围内的所有消息')
         .addStringOption(option =>
             option
                 .setName('终点消息id')
                 .setDescription('终点消息的ID（该消息及其之后的消息将被保留）')
                 .setRequired(true)
+                .setMinLength(17)
+                .setMaxLength(20))
+        .addStringOption(option =>
+            option
+                .setName('起点消息id')
+                .setDescription('起点消息的ID（该消息之前的消息将被保留）')
+                .setRequired(false)
                 .setMinLength(17)
                 .setMaxLength(20)),
 
@@ -23,29 +31,82 @@ export default {
         const executionTimer = measureTime();
 
         try {
-            const messageId = interaction.options.getString('终点消息id');
+            const endMessageId = interaction.options.getString('终点消息id');
+            const startMessageId = interaction.options.getString('起点消息id');
             
             // 验证消息ID格式
-            if (!/^\d{17,20}$/.test(messageId)) {
-                await interaction.editReply('❌ 无效的消息ID格式。请直接输入消息ID（17-20位数字）');
+            if (!/^\d{17,20}$/.test(endMessageId)) {
+                await interaction.editReply('❌ 无效的终点消息ID格式。请直接输入消息ID（17-20位数字）');
+                return;
+            }
+            if (startMessageId && !/^\d{17,20}$/.test(startMessageId)) {
+                await interaction.editReply('❌ 无效的起点消息ID格式。请直接输入消息ID（17-20位数字）');
                 return;
             }
 
             // 获取终点消息
             const channel = interaction.channel;
-            const endMessage = await channel.messages.fetch(messageId)
-                .catch(() => null);
+            const endMessage = await channel.messages.fetch(endMessageId).catch(() => null);
+            let startMessage = null;
 
             if (!endMessage) {
-                await interaction.editReply('❌ 无法找到指定的消息。请确保消息ID正确且在当前频道中');
+                await interaction.editReply('❌ 无法找到指定的终点消息。请确保消息ID正确且在当前频道中');
                 return;
             }
 
-            // 获取消息数量估算
-            const messages = await channel.messages.fetch({ 
-                limit: 100,
-                before: endMessage.id 
-            });
+            if (startMessageId) {
+                startMessage = await channel.messages.fetch(startMessageId).catch(() => null);
+                if (!startMessage) {
+                    await interaction.editReply('❌ 无法找到指定的起点消息。请确保消息ID正确且在当前频道中');
+                    return;
+                }
+                // 检查起点消息是否在终点消息之后
+                if (startMessage.createdTimestamp >= endMessage.createdTimestamp) {
+                    await interaction.editReply('❌ 起点消息必须在终点消息之前');
+                    return;
+                }
+            }
+
+            // 获取指定范围内的消息
+            let messages;
+            try {
+                // 直接获取指定范围内的消息（最多100条）
+                messages = await channel.messages.fetch({ 
+                    limit: 100,
+                    before: endMessage.id,
+                    after: startMessageId || '0'
+                });
+
+                // 如果消息数量为100条，说明可能还有更多消息
+                if (messages.size === 100) {
+                    let lastMessage = messages.last();
+                    let additionalMessages;
+                    
+                    // 继续获取剩余消息，直到获取完所有指定范围内的消息
+                    while (lastMessage && (!startMessageId || lastMessage.id !== startMessageId)) {
+                        additionalMessages = await channel.messages.fetch({
+                            limit: 100,
+                            before: lastMessage.id,
+                            after: startMessageId || '0'
+                        });
+
+                        if (additionalMessages.size === 0) break;
+                        
+                        messages = new Collection([...messages, ...additionalMessages]);
+                        lastMessage = additionalMessages.last();
+                    }
+                }
+            } catch (error) {
+                logTime(`获取消息时出错: ${error.message}`, true);
+                await interaction.editReply('❌ 获取消息时出现错误，请稍后重试');
+                return;
+            }
+
+            const totalMessages = messages.size;
+            if (totalMessages === 0) {
+                await interaction.editReply('❌ 指定范围内没有可以清理的消息');
+                return;
+            }
 
             await handleConfirmationButton({
                 interaction,
@@ -59,8 +120,9 @@ export default {
                         '',
                         '**清理范围：**',
                         `- 终点消息：${endMessage.content.slice(0, 100)}...`,
-                        `- 预计清理消息数：${messages.size}+`,
-                        `- 清理时间范围：${endMessage.createdAt.toLocaleString()} 之前的消息`,
+                        startMessage ? `- 起点消息：${startMessage.content.slice(0, 100)}...` : '- 起点：频道开始',
+                        `- 预计清理消息数：${totalMessages}`,
+                        `- 清理时间范围：${startMessage ? startMessage.createdAt.toLocaleString() + ' 至 ' : ''}${endMessage.createdAt.toLocaleString()}`,
                         '',
                         '**⚠️ 警告：此操作不可撤销！**'
                     ].join('\n')
@@ -73,64 +135,113 @@ export default {
                     });
 
                     let deletedCount = 0;
-                    let lastId = endMessage.id;
-                    let batchSize = 100;
+                    let processedCount = 0;
+                    const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
-                    while (true) {
-                        // 获取消息批次
-                        const messageBatch = await channel.messages.fetch({ 
-                            limit: batchSize,
-                            before: lastId 
-                        });
+                    // 分离新旧消息
+                    const recentMessages = Array.from(messages.values()).filter(msg => msg.createdTimestamp > twoWeeksAgo);
+                    const oldMessages = Array.from(messages.values()).filter(msg => msg.createdTimestamp <= twoWeeksAgo);
 
-                        if (messageBatch.size === 0) break;
-
-                        // 记录最后一条消息的ID
-                        lastId = messageBatch.last().id;
-
-                        // 过滤出14天内的消息用于批量删除
-                        const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-                        const recentMessages = messageBatch.filter(msg => msg.createdTimestamp > twoWeeksAgo);
-                        const oldMessages = messageBatch.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
-                        logTime(`开始批量删除 ${recentMessages.size} 条新消息`);
-                        logTime(`开始删除 ${oldMessages.size} 条旧消息`);
-
-                        // 批量删除新消息
-                        if (recentMessages.size > 0) {
-                            await channel.bulkDelete(recentMessages);
-                            await delay(200);
-                        }
-
-                        // 逐个删除旧消息
-                        if (oldMessages.size > 0) {
-                            // 每批5条消息
-                            const batchSize = 5;
-                            for (let i = 0; i < oldMessages.size; i += batchSize) {
-                                const batch = Array.from(oldMessages.values()).slice(i, i + batchSize);
+                    // 处理新消息（可以批量删除）
+                    if (recentMessages.length > 0) {
+                        // 如果消息数量小于等于100，直接一次性删除
+                        if (recentMessages.length <= 100) {
+                            try {
+                                await channel.bulkDelete(recentMessages);
+                                deletedCount += recentMessages.length;
+                                processedCount += recentMessages.length;
                                 
-                                // 每条等待200ms
-                                for (const message of batch) {
-                                    await message.delete()
-                                        .catch(error => logTime(`删除旧消息失败: ${error.message}`, true));
-                                    await delay(200);
-                                }
-                                
-                                // 每批5条后等待1秒
-                                await delay(1000);
+                                await confirmation.editReply({
+                                    content: generateProgressReport(processedCount, totalMessages, {
+                                        prefix: '清理进度',
+                                        suffix: `(批量删除了 ${recentMessages.length} 条新消息)`,
+                                        progressChar: '🗑️'
+                                    })
+                                });
+                            } catch (error) {
+                                logTime(`批量删除消息失败: ${error.message}`, true);
                             }
+                        } else {
+                            // 将消息分成100条一组进行批量删除
+                            const recentMessageBatches = [];
+                            for (let i = 0; i < recentMessages.length; i += 100) {
+                                recentMessageBatches.push(recentMessages.slice(i, i + 100));
+                            }
+
+                            await globalBatchProcessor.processBatch(
+                                recentMessageBatches,
+                                async (messageBatch) => {
+                                    try {
+                                        await channel.bulkDelete(messageBatch);
+                                        deletedCount += messageBatch.length;
+                                        processedCount += messageBatch.length;
+                                        
+                                        await confirmation.editReply({
+                                            content: generateProgressReport(processedCount, totalMessages, {
+                                                prefix: '清理进度',
+                                                suffix: `(批量删除了 ${messageBatch.length} 条新消息)`,
+                                                progressChar: '🗑️'
+                                            })
+                                        });
+                                    } catch (error) {
+                                        logTime(`批量删除消息失败: ${error.message}`, true);
+                                    }
+                                },
+                                null,
+                                'messages'
+                            );
                         }
+                    }
 
-                        deletedCount += messageBatch.size;
-
-                        // 每删除500条消息更新一次状态
-                        if (deletedCount % 500 === 0) {
+                    // 处理旧消息（需要逐个删除）
+                    if (oldMessages.length > 0) {
+                        // 如果旧消息数量较少，直接逐个删除
+                        if (oldMessages.length <= 10) {
+                            for (const message of oldMessages) {
+                                try {
+                                    await message.delete();
+                                    deletedCount++;
+                                    processedCount++;
+                                } catch (error) {
+                                    logTime(`删除旧消息失败: ${error.message}`, true);
+                                }
+                            }
+                            // 更新一次进度
                             await confirmation.editReply({
-                                content: `⏳ 已清理 ${deletedCount} 条消息...`
+                                content: generateProgressReport(processedCount, totalMessages, {
+                                    prefix: '清理进度',
+                                    suffix: '(完成旧消息删除)',
+                                    progressChar: '🗑️'
+                                })
                             });
+                        } else {
+                            // 使用批处理器处理大量旧消息
+                            await globalBatchProcessor.processBatch(
+                                oldMessages,
+                                async (message) => {
+                                    try {
+                                        await message.delete();
+                                        deletedCount++;
+                                        processedCount++;
+                                        
+                                        // 每删除5条消息更新一次进度
+                                        if (processedCount % 5 === 0) {
+                                            await confirmation.editReply({
+                                                content: generateProgressReport(processedCount, totalMessages, {
+                                                    prefix: '清理进度',
+                                                    suffix: '(正在逐个删除旧消息)',
+                                                    progressChar: '🗑️'
+                                                })
+                                            });
+                                        }
+                                    } catch (error) {
+                                        logTime(`删除旧消息失败: ${error.message}`, true);
+                                    }
+                                },
+                                null,
+                                'messages'
+                            );
                         }
-
-                        // 添加短暂延迟避免触发限制
-                        await delay(200);
                     }
 
                     const executionTime = executionTimer();
@@ -166,7 +277,9 @@ export default {
                                     },
                                     {
                                         name: '清理范围',
-                                        value: `${endMessage.createdAt.toLocaleString()} 之前的消息`,
+                                        value: startMessage 
+                                            ? `${startMessage.createdAt.toLocaleString()} 至 ${endMessage.createdAt.toLocaleString()}`
+                                            : `${endMessage.createdAt.toLocaleString()} 之前的消息`,
                                         inline: false
                                     },
                                     {

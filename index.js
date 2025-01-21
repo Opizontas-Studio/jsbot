@@ -8,13 +8,13 @@ import { Client, Collection, Events, GatewayIntentBits, REST, Routes } from 'dis
 import { DiscordAPIError } from '@discordjs/rest';
 
 // 本地工具函数
-import { measureTime, loadCommandFiles, delay, handleDiscordError, getVersionInfo } from './utils/helper.js';
+import { measureTime, loadCommandFiles, handleDiscordError, getVersionInfo } from './utils/helper.js';
 import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
 
 // 本地功能模块
 import { globalTaskScheduler } from './handlers/scheduler.js';
-import { globalRequestQueue } from './utils/concurrency.js';
+import { globalRequestQueue, delay } from './utils/concurrency.js';
 import { dbManager } from './db/manager.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));

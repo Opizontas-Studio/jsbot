@@ -3,7 +3,6 @@ import { handleCommandError, checkAndHandlePermission } from '../utils/helper.js
 import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
 import PunishmentService from '../services/punishment_service.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
-import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 5,

@@ -1,5 +1,5 @@
 import { logTime } from '../utils/logger.js';
-import { PunishmentModel } from '../db/models/index.js';
+import { PunishmentModel } from '../db/models/punishment.js';
 import { 
     executePunishmentAction, 
     sendModLogNotification, 

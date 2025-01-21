@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { formatPunishmentDuration } from '../utils/punishment_helper.js';
-import { PunishmentModel, ProcessModel } from '../db/models/index.js';
+import { PunishmentModel } from '../db/models/punishment.js';
+import { ProcessModel } from '../db/models/process.js';
 
 export default {
     cooldown: 3,
@@ -129,8 +130,8 @@ export default {
             } else {
                 // 查询流程记录
                 const processes = targetUser ?
-                    await ProcessModel.getUserProcesses(targetUser.id, false) :
-                    await ProcessModel.getAllProcesses(false);
+                    await ProcessModel.getUserProcesses(targetUser.id, true) : // 包含历史记录
+                    await ProcessModel.getAllProcesses(false); // 只显示进行中和待处理的记录
                 
                 if (!processes || processes.length === 0) {
                     await interaction.editReply({
@@ -148,38 +149,39 @@ export default {
                 for (let i = 0; i < processes.length; i += pageSize) {
                     const pageRecords = processes.slice(i, i + pageSize);
                     const fields = await Promise.all(pageRecords.map(async (p, index) => {
-                        const punishment = await PunishmentModel.getPunishmentById(p.punishmentId);
-                        
                         const typeText = {
                             appeal: '上诉',
                             vote: '投票',
-                            debate: '辩诉'
+                            debate: '辩诉',
+                            court_mute: '禁言议事',
+                            court_ban: '永封议事'
                         };
 
                         const statusText = {
-                            pending: '待处理',
-                            in_progress: '进行中',
-                            completed: '已完成',
-                            rejected: '已拒绝',
-                            cancelled: '已取消'
+                            pending: '⚪ 待处理',
+                            in_progress: '🟡 进行中',
+                            completed: '🟢 已完成',
+                            rejected: '🔴 已拒绝',
+                            cancelled: '⚫ 已取消'
                         };
 
+                        // 获取执行人和目标用户信息
+                        const [executor, target] = await Promise.all([
+                            interaction.client.users.fetch(p.executorId).catch(() => null),
+                            interaction.client.users.fetch(p.targetId).catch(() => null)
+                        ]);
+
                         return {
-                            name: `#${i + index + 1} ${typeText[p.type]} (ID: ${p.id})`,
+                            name: `${statusText[p.status]} ${typeText[p.type]} (#${i + index + 1})`,
                             value: [
-                                `关联处罚ID: ${p.punishmentId}`,
-                                punishment ? [
-                                    `处罚类型: ${punishment.type}`,
-                                    `处罚目标: ${punishment.userId}`,
-                                    `处罚服务器: ${punishment.guildId}`
-                                ].join('\n') : '关联处罚已删除',
-                                `状态: ${statusText[p.status]}`,
-                                p.redClaim ? `红方诉求: ${p.redClaim}` : null,
-                                p.blueClaim ? `蓝方诉求: ${p.blueClaim}` : null,
-                                `开始时间: ${new Date(p.createdAt).toLocaleString()}`,
+                                `**执行人:** ${executor ? `<@${executor.id}>` : '未知'}`,
+                                `**目标用户:** ${target ? `<@${target.id}>` : '未知'}`,
+                                `**状态:** ${statusText[p.status]}`,
                                 p.status === 'completed' ? 
-                                    `结果: ${p.result || '无'}\n原因: ${p.reason || '无'}` : 
-                                    `到期时间: ${new Date(p.expireAt).toLocaleString()}`
+                                    `**结果:** ${p.result || '无'}\n**原因:** ${p.reason || '无'}` : 
+                                    `**到期时间:** <t:${Math.floor(p.expireAt/1000)}:R>`,
+                                p.debateThreadId ? `**辩诉帖:** <#${p.debateThreadId}>` : null,
+                                `**流程ID:** ${p.id}`
                             ].filter(Boolean).join('\n'),
                             inline: false
                         };

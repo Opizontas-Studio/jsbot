@@ -1,6 +1,5 @@
 import { dbManager } from '../manager.js';
 import { logTime } from '../../utils/logger.js';
-import { ProcessModel } from './process.js';
 
 class PunishmentModel {
     /**
@@ -41,21 +40,6 @@ class PunishmentModel {
     }
 
     /**
-     * 创建处罚记录和关联流程
-     * @param {Object} punishmentData - 处罚数据
-     * @param {Object} processData - 流程数据
-     * @returns {Promise<Object>}
-     */
-    static async createPunishmentWithProcess(punishmentData, processData) {
-        return await dbManager.transaction(async (db) => {
-            const punishment = await this.createPunishment(punishmentData);
-            processData.punishmentId = punishment.id;
-            const process = await ProcessModel.createProcess(processData);
-            return { punishment, process };
-        });
-    }
-
-    /**
      * 获取处罚记录
      * @param {number} id - 处罚ID
      * @returns {Promise<Object>} 处罚记录
@@ -78,36 +62,6 @@ class PunishmentModel {
                 Number(punishment.warningDuration) : null;
             punishment.syncedServers = JSON.parse(punishment.syncedServers);
             
-            dbManager.setCache(cacheKey, punishment);
-        }
-
-        return punishment;
-    }
-
-    /**
-     * 获取用户的活跃处罚
-     * @param {string} userId - 用户ID
-     * @returns {Promise<Object>} 活跃处罚记录
-     */
-    static async getActivePunishment(userId) {
-        const now = Date.now();
-        const cacheKey = `active_punishment_${userId}`;
-        const cached = dbManager.getCache(cacheKey);
-        if (cached) return cached;
-
-        const punishment = await dbManager.safeExecute(
-            'get',
-            `SELECT * FROM punishments 
-            WHERE userId = ? 
-            AND status = 'active' 
-            AND (duration = -1 OR createdAt + duration > ?)
-            ORDER BY createdAt DESC LIMIT 1`,
-            [userId, now]
-        );
-
-        if (punishment) {
-            punishment.syncedServers = JSON.parse(punishment.syncedServers);
-            punishment.keepMessages = Boolean(punishment.keepMessages);
             dbManager.setCache(cacheKey, punishment);
         }
 
@@ -153,21 +107,6 @@ class PunishmentModel {
 
         dbManager.setCache(cacheKey, processedPunishments);
         return processedPunishments;
-    }
-
-    /**
-     * 获取需要同步的处罚记录
-     * @returns {Promise<Array>} 待同步的处罚记录列表
-     */
-    static async getPendingSyncs() {
-        return await dbManager.safeExecute(
-            'all',
-            `SELECT * FROM punishments 
-            WHERE synced = 0 
-            AND status = 'active'
-            AND (duration = -1 OR createdAt + duration > ?)`,
-            [Date.now()]
-        );
     }
 
     /**

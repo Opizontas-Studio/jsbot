@@ -1,5 +1,7 @@
 import { logTime } from './logger.js';
-import { delay } from './helper.js';
+
+// 延迟函数
+export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * 全局请求队列

@@ -1,7 +1,9 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { handleCommandError, checkAndHandlePermission } from '../utils/helper.js';
-import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
+import { handleCommandError } from '../utils/helper.js';
+import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishment_helper.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
+import CourtService from '../services/court_service.js';
+import { ProcessModel } from '../db/models/process.js';
 
 export default {
     cooldown: 5,
@@ -108,6 +110,17 @@ export default {
                     return;
                 }
 
+                // 检查撤销身份组
+                if (revokeRole) {
+                    if (!member.roles.cache.has(revokeRole.id)) {
+                        await interaction.editReply({
+                            content: `❌ 目标用户 ${target.tag} 并没有 ${revokeRole.name} 身份组`,
+                            flags: ['Ephemeral']
+                        });
+                        return;
+                    }
+                }
+
                 let warningDuration = null;
                 if (warningTime) {
                     warningDuration = calculatePunishmentDuration(warningTime);
@@ -127,15 +140,17 @@ export default {
                     buttonLabel: '确认提交',
                     embed: {
                         color: 0xFF9900,
-                        title: '⚖️ 议事区申请确认',
+                        title: revokeRole ? 
+                            `禁言处罚及身份组撤销申请` : 
+                            `禁言处罚申请`,
                         description: [
                             `你确定要向议事区提交对 ${target.tag} 的处罚申请吗？`,
                             '',
                             '**处罚详情：**',
                             `- 类型：禁言`,
                             `- 目标：${target.tag} (${target.id})`,
-                            `- 时长：${muteTime}`,
-                            warningTime ? `- 附加警告期：${warningTime}` : null,
+                            `- 时长：${formatPunishmentDuration(muteDuration)}`,
+                            warningTime ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}` : null,
                             revokeRole ? `- 撤销身份组：${revokeRole.name}` : null,
                             `- 理由：${reason}`,
                             '',
@@ -153,10 +168,12 @@ export default {
                         const expireTime = new Date(Date.now() + guildConfig.courtSystem.appealDuration);
                         
                         // 发送议事申请消息
-                        await courtChannel.send({
+                        const message = await courtChannel.send({
                             embeds: [{
                                 color: 0xFF9900,
-                                title: '⚖️ 禁言处罚申请',
+                                title: revokeRole ? 
+                                    `禁言处罚及身份组撤销申请` : 
+                                    `禁言处罚申请`,
                                 description: `议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
                                 fields: [
                                     {
@@ -166,12 +183,12 @@ export default {
                                     },
                                     {
                                         name: '禁言时长',
-                                        value: muteTime,
+                                        value: formatPunishmentDuration(muteDuration),
                                         inline: true
                                     },
                                     warningTime ? {
                                         name: '附加警告期',
-                                        value: warningTime,
+                                        value: formatPunishmentDuration(warningDuration),
                                         inline: true
                                     } : null,
                                     revokeRole ? {
@@ -202,6 +219,26 @@ export default {
                             }]
                         });
 
+                        // 创建新的议事流程
+                        const process = await ProcessModel.createCourtProcess({
+                            type: 'court_mute',
+                            targetId: target.id,
+                            executorId: interaction.user.id,
+                            messageId: message.id,
+                            expireAt: expireTime.getTime(),
+                            details: {
+                                embed: message.embeds[0].toJSON(),
+                                muteTime,
+                                warningTime,
+                                revokeRoleId: revokeRole?.id
+                            }
+                        });
+
+                        // 调度流程到期处理
+                        if (process) {
+                            await CourtService.scheduleProcess(process, interaction.client);
+                        }
+
                         // 发送通知到当前频道
                         await interaction.channel.send({
                             embeds: [{
@@ -211,8 +248,8 @@ export default {
                                     `<@${interaction.user.id}> 已创建对 <@${target.id}> 的禁言处罚申请`,
                                     '',
                                     '**申请详情：**',
-                                    `- 禁言时长：${muteTime}`,
-                                    warningTime ? `- 附加警告期：${warningTime}` : null,
+                                    `- 禁言时长：${formatPunishmentDuration(muteDuration)}`,
+                                    warningTime ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}` : null,
                                     revokeRole ? `- 撤销身份组：${revokeRole.name}` : null,
                                     `- 处罚理由：${reason}`,
                                     '',
@@ -264,10 +301,10 @@ export default {
                         const expireTime = new Date(Date.now() + guildConfig.courtSystem.appealDuration);
                         
                         // 发送议事申请消息
-                        await courtChannel.send({
+                        const message = await courtChannel.send({
                             embeds: [{
                                 color: 0xFF0000,
-                                title: '⚖️ 永封处罚申请',
+                                title: '永封处罚申请',
                                 description: `议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
                                 fields: [
                                     {
@@ -302,6 +339,24 @@ export default {
                                 }]
                             }]
                         });
+
+                        // 创建新的议事流程
+                        const process = await ProcessModel.createCourtProcess({
+                            type: 'court_ban',
+                            targetId: target.id,
+                            executorId: interaction.user.id,
+                            messageId: message.id,
+                            expireAt: expireTime.getTime(),
+                            details: {
+                                embed: message.embeds[0].toJSON(),
+                                keepMessages
+                            }
+                        });
+
+                        // 调度流程到期处理
+                        if (process) {
+                            await CourtService.scheduleProcess(process, interaction.client);
+                        }
 
                         // 发送通知到当前频道
                         await interaction.channel.send({

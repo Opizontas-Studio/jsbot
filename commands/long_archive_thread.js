@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { analyzeThreads } from '../services/analyzers.js';
+import { cleanupInactiveThreads } from '../services/analyzers.js';
 import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
 /**
@@ -46,10 +46,27 @@ export default {
                 return;
             }
 
-            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
-                clean: true,
-                threshold: threshold || 960
-            }, activeThreads);
+            const result = await cleanupInactiveThreads(
+                interaction.client, 
+                guildConfig, 
+                interaction.guildId, 
+                threshold,
+                activeThreads
+            );
+
+            // 在清理过程中添加进度更新
+            const remainingThreads = currentThreadCount - threshold;
+            const archivedCount = result.statistics.archivedThreads || 0;
+            
+            // 更新进度
+            await interaction.editReply({
+                content: generateProgressReport(archivedCount, remainingThreads, {
+                    prefix: '归档进度',
+                    suffix: `目标: ${threshold}个活跃子区`,
+                    progressChar: '📦'
+                }),
+                flags: ['Ephemeral']
+            });
 
             const executionTime = executionTimer();
 

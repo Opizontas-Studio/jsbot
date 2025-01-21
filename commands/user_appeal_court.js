@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { handleCommandError, checkAndHandlePermission } from '../utils/helper.js';
+import { handleCommandError } from '../utils/helper.js';
 import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 
@@ -106,6 +106,17 @@ export default {
                         flags: ['Ephemeral']
                     });
                     return;
+                }
+
+                // 检查撤销身份组
+                if (revokeRole) {
+                    if (!member.roles.cache.has(revokeRole.id)) {
+                        await interaction.editReply({
+                            content: `❌ 目标用户 ${target.tag} 并没有 ${revokeRole.name} 身份组`,
+                            flags: ['Ephemeral']
+                        });
+                        return;
+                    }
                 }
 
                 let warningDuration = null;

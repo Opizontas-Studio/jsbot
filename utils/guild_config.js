@@ -49,6 +49,14 @@ export class GuildManager {
                     creatorRoleId: null,
                     senatorRoleId: null,
                     senatorRoleForumId: null
+                },
+                courtSystem: guildConfig.courtSystem || {
+                    enabled: false,
+                    courtChannelId: null,
+                    debateForumId: null,
+                    senatorRoleId: null,
+                    appealDuration: 259200000,
+                    requiredSupports: 10
                 }
             };
 

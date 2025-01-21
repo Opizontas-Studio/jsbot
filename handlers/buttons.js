@@ -2,6 +2,7 @@ import { logTime } from '../utils/logger.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType, Collection } from 'discord.js';
 import { DiscordAPIError } from '@discordjs/rest';
 import { handleDiscordError } from '../utils/helper.js';
+import { ProcessModel } from '../db/models/process.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -183,7 +184,168 @@ export const buttonHandlers = {
         const newPage = currentPage < totalPages ? currentPage + 1 : 1;
         await interaction.update(pages[newPage - 1]);
     },
+
+    // 议事区支持按钮处理器
+    'support_mute': async (interaction) => {
+        await handleCourtSupport(interaction, 'mute');
+    },
+
+    'support_ban': async (interaction) => {
+        await handleCourtSupport(interaction, 'ban');
+    },
 };
+
+/**
+ * 处理议事区支持按钮
+ * @param {ButtonInteraction} interaction - Discord按钮交互对象
+ * @param {string} type - 处罚类型 ('mute' | 'ban')
+ */
+async function handleCourtSupport(interaction, type) {
+    // 检查议事系统是否启用
+    const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+    if (!guildConfig?.courtSystem?.enabled) {
+        await interaction.reply({
+            content: '❌ 此服务器未启用议事系统',
+            flags: ['Ephemeral']
+        });
+        return;
+    }
+
+    // 检查是否为议员
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+        await interaction.reply({
+            content: '❌ 只有议员可以参与议事投票',
+            flags: ['Ephemeral']
+        });
+        return;
+    }
+
+    // 解析按钮ID获取目标用户ID和原始交互ID
+    const [, , targetId, originalInteractionId] = interaction.customId.split('_');
+
+    // 检查冷却时间
+    const now = Date.now();
+    const cooldownKey = `court_support:${interaction.user.id}:${targetId}`;
+    const cooldownTime = cooldowns.get(cooldownKey);
+
+    if (cooldownTime && now < cooldownTime) {
+        const timeLeft = Math.ceil((cooldownTime - now) / 1000);
+        await interaction.reply({
+            content: `❌ 请等待 ${timeLeft} 秒后再次投票`,
+            flags: ['Ephemeral']
+        });
+        return;
+    }
+
+    try {
+        // 获取或创建议事流程
+        let process = await ProcessModel.getProcessByMessageId(interaction.message.id);
+        
+        if (!process) {
+            // 从消息中获取申请人ID
+            const footer = interaction.message.embeds[0]?.footer;
+            const executorName = footer?.text?.replace('申请人：', '');
+            const executorMember = interaction.message.guild.members.cache
+                .find(member => member.displayName === executorName);
+
+            if (!executorMember) {
+                await interaction.reply({
+                    content: '❌ 无法找到申请人信息',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            // 如果流程不存在，创建新的流程
+            process = await ProcessModel.createCourtProcess({
+                type: `court_${type}`,
+                targetId,
+                executorId: executorMember.id, // 使用正确的申请人ID
+                messageId: interaction.message.id,
+                expireAt: Date.now() + guildConfig.courtSystem.appealDuration,
+                details: {
+                    embed: interaction.message.embeds[0]
+                }
+            });
+        }
+
+        // 添加支持者并可能创建辩诉帖子
+        const { process: updatedProcess, debateThread } = await ProcessModel.addSupporter(
+            interaction.message.id,
+            interaction.user.id,
+            guildConfig,
+            interaction.client
+        );
+
+        // 设置冷却时间
+        cooldowns.set(cooldownKey, now + 60000);
+        setTimeout(() => cooldowns.delete(cooldownKey), 60000);
+
+        // 更新消息
+        const embed = interaction.message.embeds[0];
+        const updatedFields = [...embed.fields];
+        const supportCountField = updatedFields.find(field => field.name === '当前支持');
+        
+        let supporters = [];
+        try {
+            supporters = Array.isArray(updatedProcess.supporters) ? 
+                        updatedProcess.supporters : 
+                        JSON.parse(updatedProcess.supporters || '[]');
+        } catch (error) {
+            logTime(`解析supporters失败: ${error.message}`, true);
+        }
+        
+        const supportCount = supporters.length;
+        
+        if (supportCountField) {
+            const fieldIndex = updatedFields.findIndex(field => field.name === '当前支持');
+            updatedFields[fieldIndex] = {
+                name: '当前支持',
+                value: `${supportCount} 位议员`,
+                inline: true
+            };
+        } else {
+            updatedFields.push({
+                name: '当前支持',
+                value: `${supportCount} 位议员`,
+                inline: true
+            });
+        }
+
+        const updatedEmbed = {
+            ...embed.data,
+            fields: updatedFields
+        };
+
+        if (debateThread) {
+            updatedEmbed.description = `${embed.description}\n\n✅ 已达到所需支持人数，辩诉帖已创建：${debateThread.url}`;
+        }
+
+        await interaction.message.edit({
+            embeds: [updatedEmbed],
+            components: debateThread ? [] : interaction.message.components // 如果创建了辩诉帖就移除按钮
+        });
+
+        // 发送确认消息
+        let replyContent = `✅ 你已支持此${type === 'mute' ? '禁言' : '永封'}处罚申请，当前共有 ${supportCount} 位议员支持`;
+        if (debateThread) {
+            replyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
+        }
+
+        await interaction.reply({
+            content: replyContent,
+            flags: ['Ephemeral']
+        });
+
+    } catch (error) {
+        logTime(`处理议事支持失败: ${error.message}`, true);
+        await interaction.reply({
+            content: '❌ 处理支持请求时出错，请稍后重试',
+            flags: ['Ephemeral']
+        });
+    }
+}
 
 /**
  * 统一的按钮交互处理函数
@@ -193,6 +355,16 @@ export async function handleButton(interaction) {
     // 如果是确认按钮（以confirm_开头），直接返回
     if (interaction.customId.startsWith('confirm_')) {
         return;
+    }
+
+    // 处理支持按钮
+    if (interaction.customId.startsWith('support_')) {
+        const [action, type, ...rest] = interaction.customId.split('_');
+        const handler = buttonHandlers[`${action}_${type}`];
+        if (handler) {
+            await handler(interaction);
+            return;
+        }
     }
 
     // 处理按钮交互

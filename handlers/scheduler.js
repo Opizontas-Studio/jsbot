@@ -1,14 +1,12 @@
 import { logTime } from '../utils/logger.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { dbManager } from '../db/manager.js';
-import { PunishmentModel, ProcessModel } from '../db/models/index.js';
+import { PunishmentModel } from '../db/models/punishment.js';
+import { ProcessModel } from '../db/models/process.js';
 import PunishmentService from '../services/punishment_service.js';
 import { analyzeForumActivity, cleanupInactiveThreads } from '../services/analyzers.js';
 
-/**
- * 时间单位转换为毫秒
- * @private
- */
+//时间单位转换为毫秒 @private
 const TIME_UNITS = {
     SECOND: 1000,
     MINUTE: 60 * 1000,
@@ -16,10 +14,8 @@ const TIME_UNITS = {
     DAY: 24 * 60 * 60 * 1000
 };
 
-/**
- * 格式化时间间隔
- * @private
- */
+
+//格式化时间间隔 @private
 const formatInterval = (ms) => {
     if (ms >= TIME_UNITS.DAY) return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
     if (ms >= TIME_UNITS.HOUR) return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
@@ -43,10 +39,7 @@ class TaskScheduler {
         this.isInitialized = false;
     }
 
-    /**
-     * 初始化任务调度器
-     * @param {Client} client - Discord客户端实例
-     */
+    //初始化任务调度器
     initialize(client) {
         if (this.isInitialized) {
             logTime('任务调度器已经初始化');
@@ -135,10 +128,7 @@ class TaskScheduler {
         this.tasks.set(taskId, { interval, task });
     }
 
-    /**
-     * 移除指定任务
-     * @param {string} taskId - 任务ID
-     */
+    //移除指定任务
     removeTask(taskId) {
         if (this.timers.has(taskId)) {
             clearInterval(this.timers.get(taskId));
@@ -147,10 +137,7 @@ class TaskScheduler {
         }
     }
 
-    /**
-     * 注册子区分析任务
-     * @param {Client} client - Discord客户端实例
-     */
+    //注册子区分析和清理任务
     registerAnalysisTasks(client) {
         for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
             if (!guildConfig.automation?.analysis) continue;
@@ -166,7 +153,7 @@ class TaskScheduler {
                 startAt: nextRun,
                 task: async () => {
                     try {
-                        await this.runScheduledTasks(client, guildConfig, guildId);
+                        await this.executeThreadTasks(client, guildConfig, guildId);
                     } catch (error) {
                         logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
                     }
@@ -175,10 +162,7 @@ class TaskScheduler {
         }
     }
 
-    /**
-     * 注册处罚系统相关任务
-     * @param {Client} client - Discord客户端实例
-     */
+    //注册处罚系统相关任务
     registerPunishmentTasks(client) {
         // 处罚到期检查
         this.addTask({
@@ -215,9 +199,7 @@ class TaskScheduler {
         });
     }
 
-    /**
-     * 注册数据库相关任务
-     */
+    //注册数据库相关任务
     registerDatabaseTasks() {
         // 计算下一个早上6点
         const now = new Date();
@@ -242,13 +224,8 @@ class TaskScheduler {
         });
     }
 
-    /**
-     * 执行子区分析任务
-     * @param {Client} client - Discord客户端实例
-     * @param {Object} guildConfig - 服务器配置
-     * @param {string} guildId - 服务器ID
-     */
-    async runScheduledTasks(client, guildConfig, guildId) {
+    //执行子区分析和清理任务
+    async executeThreadTasks(client, guildConfig, guildId) {
         try {
             await globalRequestQueue.add(async () => {
                 // 获取活跃子区数据
@@ -270,10 +247,7 @@ class TaskScheduler {
         }
     }
 
-    /**
-     * 执行处罚到期操作
-     * @private
-     */
+    //执行处罚到期操作
     async executePunishmentExpiry(client, punishment) {
         try {
             await PunishmentService.handleExpiry(client, punishment);
@@ -282,10 +256,7 @@ class TaskScheduler {
         }
     }
 
-    /**
-     * 执行流程到期操作
-     * @private
-     */
+    //执行流程到期操作
     async executeProcessExpiry(client, process) {
         try {
             // 只处理议事相关的流程
@@ -343,9 +314,7 @@ class TaskScheduler {
         }
     }
 
-    /**
-     * 停止所有任务
-     */
+    //停止所有任务
     stopAll() {
         const taskCount = this.timers.size;
         
@@ -361,10 +330,7 @@ class TaskScheduler {
         this.isInitialized = false;
     }
 
-    /**
-     * 重启所有任务
-     * @param {Client} client - Discord客户端实例
-     */
+    //重启所有任务
     restart(client) {
         this.stopAll();
         this.initialize(client);

@@ -13,30 +13,34 @@ Discord.js Bot Project
 │   └── ready.js               # 就绪事件处理
 ├── handlers/                   # 交互处理模块
 │   ├── buttons.js             # 按钮交互处理
-│   └── modals.js              # 模态框交互处理
+│   ├── modals.js              # 模态框交互处理
 │   └── scheduler.js           # 定时任务管理器
 ├── db/                         # 数据库模块
 │   ├── manager.js             # 数据库管理器
-│   ├── models/                # 数据模型目录
-│   │   ├── punishment.js      # 处罚数据模型
-│   │   └── process.js         # 流程数据模型
+│   └── models/                # 数据模型目录
+│       ├── punishment.js      # 处罚数据模型
+│       └── process.js         # 流程数据模型
 ├── utils/                      # 工具类模块
 │   ├── concurrency.js         # 队列和并发控制
 │   ├── guild_config.js        # 服务器配置管理
 │   ├── helper.js              # 通用辅助函数
 │   ├── logger.js              # 日志管理
-│   └── punishment_helper.js    # 处罚相关辅助函数
+│   └── punishment_helper.js   # 处罚相关辅助函数
 ├── services/                   # 服务类模块
 │   ├── analyzers.js           # 活跃子区分析工具
 │   ├── cleaner.js             # 子区成员清理工具
-│   ├── punishment_service.js   # 处罚系统服务
+│   ├── punishment_service.js  # 处罚系统服务
 │   └── roleApplication.js     # 身份组申请处理
 ├── data/                      # 数据存储目录
 │   ├── database.sqlite        # SQLite数据库文件
 │   └── messageIds.json        # 消息ID配置
+├── logs/                      # 日志文件目录
 ├── config.json                # 配置文件
 ├── index.js                   # 主入口文件
 ├── package.json              # 项目配置
+├── package-lock.json         # 依赖版本锁定
+├── .gitignore               # Git忽略配置
+├── .gitattributes          # Git属性配置
 ├── eslint.config.js          # ESLint配置
 └── Readme.md                 # 项目说明
 ```
@@ -64,6 +68,13 @@ Discord.js Bot Project
 
 ## 管理员命令
 
+### adm_query_records.js - 查询记录
+- 查询处罚和申诉记录
+- 支持多种查询条件和过滤器
+- 分页显示查询结果
+- 导出查询结果
+- 需要管理员权限
+
 ### adm_lockdown.js - 服务器邀请控制
 - 控制服务器邀请链接的启用/禁用
 - 需要管理员权限
@@ -83,13 +94,6 @@ Discord.js Bot Project
 - 显示清理进度
 - 记录清理操作日志
 
-### adm_query_records.js - 处罚记录查询
-- 查询指定用户的处罚记录
-- 支持多种查询条件筛选
-- 分页显示查询结果
-- 显示处罚详细信息
-- 支持导出查询结果
-
 ### adm_shard_status.js - 系统状态查看
 - 显示当前系统运行状态
 - 包含版本信息、运行时间、内存使用情况
@@ -103,21 +107,21 @@ Discord.js Bot Project
 - 自动处理命令差异
 - 记录同步日志
 
+### adm_query_records.js - 查询记录
+- 查询数据库中的记录
+- 需要管理员权限
+- 支持多种查询条件
+- 返回查询结果
+
 ## 版主命令
 
 ### mod_punish.js - 处罚系统
-- 支持警告/禁言/封禁等多种处罚类型
+- 对用户执行处罚操作
+- 支持禁言/警告/封禁等多种处罚类型
 - 自动同步处罚到其他服务器
-- 支持处罚原因记录
+- 记录处罚原因和执行者
 - 支持处罚时长设置
-- 自动处理处罚到期
-- 记录完整处罚历史
-
-### mod_quick_lock.js - 快速锁定
-- 快速锁定并归档当前帖子
-- 需要管理消息权限
-- 记录操作原因
-- 发送通知和日志
+- 自动发送处罚通知
 
 ### mod_senator_review.js - 议员审核
 - 快速处理议员申请帖
@@ -129,12 +133,26 @@ Discord.js Bot Project
 - 发送详细的审核结果通知
 - 记录审核操作日志
 
+### mod_quick_lock.js - 快速锁定
+- 快速锁定并归档当前帖子
+- 需要管理消息权限
+- 记录操作原因
+- 发送通知和日志
+
 ### mod_thread.js - 帖子管理
 - 支持帖子锁定、解锁、开启、关闭、标注、取消标注操作
 - 需要该频道管理消息权限
 - 解锁锁定会发送操作通知到帖子中
 
 ## 用户命令
+
+### user_appeal_court.js - 申诉法院
+- 处理用户的申诉请求
+- 支持多种申诉类型
+- 自动创建申诉流程
+- 记录申诉过程和结果
+- 发送申诉状态通知
+- 支持申诉投票系统
 
 ### user_dm.js - 发送私聊通知
 - 通过机器人向指定用户发送私聊通知
@@ -169,6 +187,7 @@ Discord.js Bot Project
 - 自动归档不活跃帖子
 - 发送详细的清理报告
 - 支持白名单配置
+- 自动跳过重要子区
 
 ### long_prune.js - 子区成员清理
 - 支持单个子区或全服清理模式
@@ -196,6 +215,8 @@ Discord.js Bot Project
 - 记录处理失败的操作
 - 支持自动化定时执行
 - 可配置分析范围和阈值
+- 生成详细的活跃度报告
+- 自动标记异常数据
 
 # events/ - 事件处理模块
 
@@ -246,7 +267,7 @@ Discord.js Bot Project
 
 # db/ - 数据库模块
 
-## db.js - 数据库管理器
+## manager.js - 数据库管理器
 - 使用SQLite3作为轻量级数据库
 - 数据文件位于`data/database.sqlite`
 - 自动创建表结构和索引
@@ -254,45 +275,50 @@ Discord.js Bot Project
 - 使用JSON字段存储复杂数据
 - 自动管理时间戳
 - 内置数据完整性检查
+- 支持事务处理
+- 提供数据备份功能
 
-## punishments.js - 处罚记录表
+## models/punishment.js - 处罚记录表
 ```sql
 CREATE TABLE punishments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     userId TEXT NOT NULL,           -- 被处罚用户ID
-    guildId TEXT NOT NULL,          -- 服务器ID
-    type TEXT NOT NULL,             -- 处罚类型：ban/mute
+    type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')), -- 处罚类型
     reason TEXT NOT NULL,           -- 处罚原因
-    duration INTEGER NOT NULL,      -- 持续时间（毫秒），永封为-1
-    warningDuration INTEGER,        -- 警告持续时间（毫秒）
+    duration INTEGER NOT NULL DEFAULT -1, -- 持续时间（毫秒），永封为-1
+    warningDuration INTEGER DEFAULT NULL, -- 警告时长
     executorId TEXT NOT NULL,       -- 执行者ID
-    status TEXT NOT NULL,           -- 状态：active/expired/appealed/revoked
+    status TEXT NOT NULL DEFAULT 'active' -- 状态
+        CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
     synced INTEGER DEFAULT 0,       -- 是否已同步
     syncedServers TEXT DEFAULT '[]', -- 已同步的服务器列表（JSON数组）
     keepMessages INTEGER DEFAULT 0,  -- 是否保留消息
-    channelId TEXT,                 -- 处罚执行的频道ID
-    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间戳
-    updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间戳
+    channelId TEXT,                -- 处罚执行的频道ID
+    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
+    updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
 )
 ```
 
-## processes.js - 流程记录表
+## models/process.js - 流程记录表
 ```sql
 CREATE TABLE processes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    punishmentId INTEGER NOT NULL,  -- 关联的处罚ID
-    type TEXT NOT NULL,             -- 流程类型：appeal/vote/debate
-    status TEXT NOT NULL,           -- 状态：pending/in_progress/completed/rejected/cancelled
-    expireAt INTEGER NOT NULL,      -- 到期时间戳
-    messageIds TEXT DEFAULT '[]',   -- 相关消息ID列表（JSON数组）
-    votes TEXT DEFAULT '{}',        -- 投票记录（JSON对象）
-    redClaim TEXT,                 -- 红方诉求
-    blueClaim TEXT,                -- 蓝方诉求
-    result TEXT,                   -- 结果：approved/rejected/cancelled
-    reason TEXT,                   -- 结果原因
-    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间戳
-    updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 更新时间戳
-    FOREIGN KEY(punishmentId) REFERENCES punishments(id) ON DELETE CASCADE
+    type TEXT NOT NULL CHECK(       -- 流程类型
+        type IN ('appeal', 'vote', 'debate', 'court_mute', 'court_ban')
+    ),
+    targetId TEXT NOT NULL,         -- 目标用户ID
+    executorId TEXT NOT NULL,       -- 执行者ID
+    messageId TEXT UNIQUE,          -- 议事消息ID
+    debateThreadId TEXT,           -- 辩诉帖子ID
+    status TEXT NOT NULL DEFAULT 'pending' -- 状态
+        CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
+    expireAt INTEGER NOT NULL,      -- 到期时间
+    details TEXT DEFAULT '{}',      -- 处理详情（JSON对象）
+    supporters TEXT DEFAULT '[]',   -- 支持者列表（JSON数组）
+    result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)), -- 结果
+    reason TEXT DEFAULT '',         -- 原因
+    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
+    updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
 )
 ```
 
@@ -304,38 +330,46 @@ CREATE TABLE processes (
   * 返回: 分析结果
   * 支持自动化定时执行
   * 可配置分析范围和阈值
+  * 生成详细的活跃度报告
+  * 自动标记异常数据
+  * 支持多种分析维度
+  * 提供趋势分析功能
 
 ## cleaner.js - 清理工具
 - `sendThreadReport(thread, result)` - 发送子区清理报告
   * 参数: 子区对象、清理结果
   * 支持详细的统计信息显示
+  * 自动格式化报告内容
 - `cleanThreadMembers(thread, threshold, options, progressCallback)` - 清理子区成员
   * 参数: 子区对象、目标阈值、选项、进度回调
   * 支持白名单检查
   * 自动识别活跃/不活跃成员
   * 批量处理成员移除
   * 支持进度报告
+  * 自动重试失败操作
 - `handleSingleThreadCleanup(interaction, guildConfig)` - 处理单个子区清理
   * 参数: 交互对象、服务器配置
   * 支持阈值自定义
   * 自动检查权限和条件
   * 发送清理结果通知
+  * 记录清理操作日志
 
 ## punishment_service.js - 处罚系统服务
-- `executePunishment(interaction, punishmentData)` - 执行处罚
-  * 参数: 交互对象、处罚数据
+- `handlePunishment(punishment)` - 处理处罚
+  * 参数: 处罚对象
   * 支持多种处罚类型
   * 自动同步到其他服务器
-  * 处理处罚到期
   * 记录处罚历史
-- `syncPunishment(punishment, targetGuilds)` - 同步处罚
-  * 参数: 处罚对象、目标服务器列表
-  * 确保处罚在所有服务器生效
-  * 处理同步失败的情况
-- `checkExpiredPunishments()` - 检查过期处罚
-  * 自动解除过期处罚
-  * 发送处罚解除通知
-  * 更新处罚状态
+  * 管理处罚状态
+  * 处理处罚到期
+  * 发送处罚通知
+- `handleAppeal(appeal)` - 处理申诉
+  * 参数: 申诉对象
+  * 创建申诉流程
+  * 管理投票系统
+  * 记录申诉过程
+  * 发送状态更新
+  * 执行申诉结果
 
 ## roleApplication.js - 身份组申请
 - `createApplicationMessage(client)` - 创建申请消息
@@ -345,6 +379,8 @@ CREATE TABLE processes (
   * 保存消息ID配置
   * 支持功能开关检查
   * 自动清理失效消息
+  * 管理申请流程
+  * 记录申请历史
 
 # utils/ - 工具类模块
 
@@ -425,16 +461,10 @@ CREATE TABLE processes (
   * 日志频道配置
   * 状态信息构建
 
-## punishment_helper.js - 处罚辅助函数
-- `formatPunishmentEmbed(punishment)` - 格式化处罚信息
+## punishment_helper.js - 处罚相关辅助函数
+- `handlePunishment(punishment)` - 处理处罚
   * 参数: 处罚对象
-  * 返回: 格式化的处罚信息嵌入
-- `validatePunishmentDuration(duration)` - 验证处罚时长
-  * 参数: 处罚时长
-  * 返回: 验证结果
-- `calculateExpireTime(duration)` - 计算到期时间
-  * 参数: 处罚时长
-  * 返回: 到期时间戳
+  * 支持处罚执行和记录
 
 # 主要文件说明
 

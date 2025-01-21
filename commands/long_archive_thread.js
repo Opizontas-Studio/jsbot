@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { analyzeThreads } from '../services/analyzers.js';
+import { cleanupInactiveThreads } from '../services/analyzers.js';
 import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
 /**
@@ -46,10 +46,13 @@ export default {
                 return;
             }
 
-            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId, {
-                clean: true,
-                threshold: threshold || 960
-            }, activeThreads);
+            const result = await cleanupInactiveThreads(
+                interaction.client, 
+                guildConfig, 
+                interaction.guildId, 
+                threshold,
+                activeThreads
+            );
 
             const executionTime = executionTimer();
 

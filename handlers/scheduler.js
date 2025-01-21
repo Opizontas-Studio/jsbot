@@ -1,9 +1,9 @@
 import { logTime } from '../utils/logger.js';
-import { analyzeThreads } from '../services/analyzers.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { dbManager } from '../db/manager.js';
 import { PunishmentModel, ProcessModel } from '../db/models/index.js';
 import PunishmentService from '../services/punishment_service.js';
+import { analyzeForumActivity, cleanupInactiveThreads } from '../services/analyzers.js';
 
 /**
  * 时间单位转换为毫秒
@@ -73,23 +73,26 @@ class TaskScheduler {
      */
     addTask({ taskId, interval, task, startAt, runImmediately = false }) {
         // 清除已存在的定时器
-        if (this.timers.has(taskId)) {
-            clearInterval(this.timers.get(taskId));
-            clearTimeout(this.timers.get(`${taskId}_initial`));
-        }
+        this.removeTask(taskId);
 
-        const scheduleTask = () => {
-            const timer = setInterval(async () => {
-                try {
-                    await task();
-                } catch (error) {
-                    logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
-                }
-            }, interval);
-
-            this.timers.set(taskId, timer);
-            this.tasks.set(taskId, { interval, task });
+        // 包装任务执行函数，统一错误处理
+        const wrappedTask = async () => {
+            try {
+                await task();
+            } catch (error) {
+                logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
+            }
         };
+
+        // 计算首次执行的延迟
+        let initialDelay = 0;
+        if (startAt) {
+            const now = new Date();
+            initialDelay = startAt - now;
+            if (initialDelay <= 0) {
+                initialDelay = interval - (-initialDelay % interval);
+            }
+        }
 
         // 构建任务信息日志
         const taskInfo = [
@@ -98,16 +101,8 @@ class TaskScheduler {
         ];
 
         if (startAt) {
-            const now = new Date();
-            const delay = startAt - now;
-            if (delay > 0) {
-                taskInfo.push(`首次执行: ${startAt.toLocaleString()}`);
-                const initialTimer = setTimeout(() => {
-                    scheduleTask();
-                    task(); // 在预定时间执行一次
-                }, delay);
-                this.timers.set(`${taskId}_initial`, initialTimer);
-            }
+            const executionTime = new Date(Date.now() + initialDelay);
+            taskInfo.push(`首次执行: ${executionTime.toLocaleString()}`);
         } else if (runImmediately) {
             taskInfo.push('立即执行: 是');
         }
@@ -115,11 +110,29 @@ class TaskScheduler {
         // 输出统一格式的日志
         logTime(taskInfo.join(' | '));
 
-        scheduleTask();
+        // 如果需要立即执行
         if (runImmediately) {
-            task().catch(error => {
-                logTime(`任务 ${taskId} 初始执行失败: ${error.message}`, true);
-            });
+            wrappedTask();
+        }
+
+        // 创建定时器
+        const timer = setInterval(wrappedTask, 
+            runImmediately ? interval : (initialDelay || interval));
+
+        // 存储任务信息
+        this.timers.set(taskId, timer);
+        this.tasks.set(taskId, { interval, task });
+    }
+
+    /**
+     * 移除指定任务
+     * @param {string} taskId - 任务ID
+     */
+    removeTask(taskId) {
+        if (this.timers.has(taskId)) {
+            clearInterval(this.timers.get(taskId));
+            this.timers.delete(taskId);
+            this.tasks.delete(taskId);
         }
     }
 
@@ -227,15 +240,18 @@ class TaskScheduler {
     async runScheduledTasks(client, guildConfig, guildId) {
         try {
             await globalRequestQueue.add(async () => {
-                if (guildConfig.automation?.analysis) {
-                    await analyzeThreads(client, guildConfig, guildId);
-                }
+                // 获取活跃子区数据
+                const guild = await client.guilds.fetch(guildId);
+                const activeThreads = await guild.channels.fetchActiveThreads();
 
+                // 执行分析和清理
+                if (guildConfig.automation?.analysis) {
+                    await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
+                }
+                
                 if (guildConfig.automation?.cleanup?.enabled) {
-                    await analyzeThreads(client, guildConfig, guildId, {
-                        clean: true,
-                        threshold: guildConfig.automation.cleanup.threshold || 960
-                    });
+                    const threshold = guildConfig.automation.cleanup.threshold || 960;
+                    await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
                 }
             }, 0);
         } catch (error) {
@@ -320,15 +336,17 @@ class TaskScheduler {
      * 停止所有任务
      */
     stopAll() {
-        let stoppedCount = 0;
-        for (const [taskId, timer] of this.timers) {
+        const taskCount = this.timers.size;
+        
+        for (const timer of this.timers.values()) {
             clearInterval(timer);
-            stoppedCount++;
         }
-        if (stoppedCount > 0) {
-            logTime(`已停止 ${stoppedCount} 个定时任务`);
+        
+        if (taskCount > 0) {
+            logTime(`已停止 ${taskCount} 个定时任务`);
         }
         this.timers.clear();
+        this.tasks.clear();
         this.isInitialized = false;
     }
 

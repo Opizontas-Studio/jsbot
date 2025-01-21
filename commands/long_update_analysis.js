@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { analyzeThreads } from '../services/analyzers.js';
+import { analyzeForumActivity } from '../services/analyzers.js';
 import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
 
 /**
@@ -15,11 +15,11 @@ export default {
     async execute(interaction, guildConfig) {
         // 检查用户是否有执行权限
         if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
-
+        
         const executionTimer = measureTime();
 
         try {
-            const result = await analyzeThreads(interaction.client, guildConfig, interaction.guildId);
+            const result = await analyzeForumActivity(interaction.client, guildConfig, interaction.guildId);
             const executionTime = executionTimer();
 
             // 构建回复消息

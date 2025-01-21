@@ -4,6 +4,7 @@ import { dbManager } from '../db/manager.js';
 import { PunishmentModel } from '../db/models/punishment.js';
 import { ProcessModel } from '../db/models/process.js';
 import PunishmentService from '../services/punishment_service.js';
+import CourtService from '../services/court_service.js';
 import { analyzeForumActivity, cleanupInactiveThreads } from '../services/analyzers.js';
 
 //时间单位转换为毫秒 @private
@@ -181,19 +182,16 @@ class TaskScheduler {
             }
         });
 
-        // 投票状态更新
+        // 加载并调度所有未过期的流程
         this.addTask({
-            taskId: 'voteUpdate',
-            interval: 30 * TIME_UNITS.SECOND,
+            taskId: 'processScheduler',
+            interval: 24 * TIME_UNITS.HOUR, // 每24小时重新加载一次，以防遗漏
             runImmediately: true,
             task: async () => {
                 try {
-                    const expiredProcesses = await ProcessModel.handleExpiredProcesses();
-                    for (const process of expiredProcesses) {
-                        await this.executeProcessExpiry(client, process);
-                    }
+                    await CourtService.loadAndScheduleProcesses(client);
                 } catch (error) {
-                    logTime(`处理过期流程失败: ${error.message}`, true);
+                    logTime(`加载和调度流程失败: ${error.message}`, true);
                 }
             }
         });

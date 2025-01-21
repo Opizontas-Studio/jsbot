@@ -29,6 +29,7 @@ export class GuildManager {
             // 创建服务器配置对象
             const serverConfig = {
                 id: guildId,
+                serverType: guildConfig.serverType || '',
                 moderationLogThreadId: guildConfig.moderationLogThreadId,
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [],
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [],
@@ -56,7 +57,8 @@ export class GuildManager {
                     debateForumId: null,
                     senatorRoleId: null,
                     appealDuration: 259200000,
-                    requiredSupports: 10
+                    requiredSupports: 10,
+                    debateTagId: null
                 }
             };
 

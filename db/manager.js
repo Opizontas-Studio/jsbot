@@ -305,6 +305,72 @@ class DatabaseManager {
         }
         return this.db;
     }
+
+    /**
+     * 更新数组类型字段
+     * @param {string} table - 表名
+     * @param {string} field - 字段名
+     * @param {string} value - 要添加的值
+     * @param {Object} where - 查询条件
+     * @returns {Promise<Object>} 更新后的记录
+     */
+    async updateArrayField(table, field, value, where) {
+        const whereClause = Object.entries(where)
+            .map(([key]) => `${key} = ?`)
+            .join(' AND ');
+        const whereValues = Object.values(where);
+
+        try {
+            // 获取当前记录
+            const record = await this.safeExecute(
+                'get',
+                `SELECT * FROM ${table} WHERE ${whereClause}`,
+                whereValues
+            );
+
+            if (!record) {
+                throw new DatabaseError('记录不存在', 'updateArrayField');
+            }
+
+            // 解析当前数组
+            let currentArray = [];
+            try {
+                currentArray = JSON.parse(record[field] || '[]');
+            } catch (error) {
+                logTime(`解析${field}失败，使用空数组: ${error.message}`, true);
+            }
+
+            // 如果值存在则移除，不存在则添加
+            const index = currentArray.indexOf(value);
+            if (index !== -1) {
+                currentArray.splice(index, 1);
+            } else {
+                currentArray.push(value);
+            }
+
+            // 更新记录
+            await this.safeExecute(
+                'run',
+                `UPDATE ${table} 
+                SET ${field} = ?, updatedAt = ?
+                WHERE ${whereClause}`,
+                [JSON.stringify(currentArray), Date.now(), ...whereValues]
+            );
+
+            // 返回更新后的记录
+            return this.safeExecute(
+                'get',
+                `SELECT * FROM ${table} WHERE ${whereClause}`,
+                whereValues
+            );
+        } catch (error) {
+            throw new DatabaseError(
+                error.message,
+                'updateArrayField',
+                { table, field, value, where }
+            );
+        }
+    }
 }
 
 export const dbManager = new DatabaseManager();

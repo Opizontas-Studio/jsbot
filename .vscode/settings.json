@@ -2,6 +2,7 @@
   "[typescript][javascript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   },
+  "editor.tabSize": 4,
   "eslint.format.enable": true,
   "editor.codeActionsOnSave": {
     "source.addMissingImports.ts": "explicit",

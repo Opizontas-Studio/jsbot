@@ -9,19 +9,19 @@ import { logTime } from '../utils/logger.js';
 
 // 时间单位转换为毫秒 @private
 const TIME_UNITS = {
-  SECOND: 1000,
-  MINUTE: 60 * 1000,
-  HOUR: 60 * 60 * 1000,
-  DAY: 24 * 60 * 60 * 1000,
+    SECOND: 1000,
+    MINUTE: 60 * 1000,
+    HOUR: 60 * 60 * 1000,
+    DAY: 24 * 60 * 60 * 1000,
 };
 
 
 // 格式化时间间隔 @private
 const formatInterval = (ms) => {
-  if (ms >= TIME_UNITS.DAY) return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
-  if (ms >= TIME_UNITS.HOUR) return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
-  if (ms >= TIME_UNITS.MINUTE) return `${Math.floor(ms / TIME_UNITS.MINUTE)}分钟`;
-  return `${Math.floor(ms / TIME_UNITS.SECOND)}秒`;
+    if (ms >= TIME_UNITS.DAY) return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
+    if (ms >= TIME_UNITS.HOUR) return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
+    if (ms >= TIME_UNITS.MINUTE) return `${Math.floor(ms / TIME_UNITS.MINUTE)}分钟`;
+    return `${Math.floor(ms / TIME_UNITS.SECOND)}秒`;
 };
 
 /**
@@ -34,14 +34,14 @@ const formatInterval = (ms) => {
  * - 其他周期性任务
  */
 class TaskScheduler {
-  constructor() {
+    constructor() {
 	    this.timers = new Map(); // 存储定时器ID
 	    this.tasks = new Map(); // 存储任务配置
 	    this.isInitialized = false;
-  }
+    }
 
-  // 初始化任务调度器
-  initialize(client) {
+    // 初始化任务调度器
+    initialize(client) {
 	    if (this.isInitialized) {
 	        logTime('任务调度器已经初始化');
 	        return;
@@ -54,9 +54,9 @@ class TaskScheduler {
 
 	    this.isInitialized = true;
 	    logTime('任务调度器初始化完成');
-  }
+    }
 
-  /**
+    /**
 	 * 添加定时任务
 	 * @param {Object} options - 任务配置
 	 * @param {string} options.taskId - 任务ID
@@ -65,7 +65,7 @@ class TaskScheduler {
 	 * @param {Date} [options.startAt] - 首次执行时间
 	 * @param {boolean} [options.runImmediately=false] - 是否立即执行一次
 	 */
-  addTask({ taskId, interval, task, startAt, runImmediately = false }) {
+    addTask({ taskId, interval, task, startAt, runImmediately = false }) {
 	    // 清除已存在的定时器
 	    this.removeTask(taskId);
 
@@ -127,19 +127,19 @@ class TaskScheduler {
 	    // 存储任务信息
 	    this.timers.set(taskId, timer);
 	    this.tasks.set(taskId, { interval, task });
-  }
+    }
 
-  // 移除指定任务
-  removeTask(taskId) {
+    // 移除指定任务
+    removeTask(taskId) {
 	    if (this.timers.has(taskId)) {
 	        clearInterval(this.timers.get(taskId));
 	        this.timers.delete(taskId);
 	        this.tasks.delete(taskId);
 	    }
-  }
+    }
 
-  // 注册子区分析和清理任务
-  registerAnalysisTasks(client) {
+    // 注册子区分析和清理任务
+    registerAnalysisTasks(client) {
 	    for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
 	        if (!guildConfig.automation?.analysis) continue;
 
@@ -161,10 +161,10 @@ class TaskScheduler {
 	            },
 	        });
 	    }
-  }
+    }
 
-  // 注册处罚系统相关任务
-  registerPunishmentTasks(client) {
+    // 注册处罚系统相关任务
+    registerPunishmentTasks(client) {
 	    // 处罚到期检查
 	    this.addTask({
 	        taskId: 'punishmentCheck',
@@ -195,10 +195,10 @@ class TaskScheduler {
 	            }
 	        },
 	    });
-  }
+    }
 
-  // 注册数据库相关任务
-  registerDatabaseTasks() {
+    // 注册数据库相关任务
+    registerDatabaseTasks() {
 	    // 计算下一个早上6点
 	    const now = new Date();
 	    const nextBackup = new Date(now);
@@ -220,10 +220,10 @@ class TaskScheduler {
 	            }
 	        },
 	    });
-  }
+    }
 
-  // 执行子区分析和清理任务
-  async executeThreadTasks(client, guildConfig, guildId) {
+    // 执行子区分析和清理任务
+    async executeThreadTasks(client, guildConfig, guildId) {
 	    try {
 	        await globalRequestQueue.add(async () => {
 	            // 获取活跃子区数据
@@ -243,19 +243,19 @@ class TaskScheduler {
 	    } catch (error) {
 	        logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
 	    }
-  }
+    }
 
-  // 执行处罚到期操作
-  async executePunishmentExpiry(client, punishment) {
+    // 执行处罚到期操作
+    async executePunishmentExpiry(client, punishment) {
 	    try {
 	        await PunishmentService.handleExpiry(client, punishment);
 	    } catch (error) {
 	        logTime(`处理处罚到期失败: ${error.message}`, true);
 	    }
-  }
+    }
 
-  // 执行流程到期操作
-  async executeProcessExpiry(client, process) {
+    // 执行流程到期操作
+    async executeProcessExpiry(client, process) {
 	    try {
 	        // 只处理议事相关的流程
 	        if (!process.type.startsWith('court_')) {
@@ -310,10 +310,10 @@ class TaskScheduler {
 	    } catch (error) {
 	        logTime(`处理议事流程到期失败: ${error.message}`, true);
 	    }
-  }
+    }
 
-  // 停止所有任务
-  stopAll() {
+    // 停止所有任务
+    stopAll() {
 	    const taskCount = this.timers.size;
 
 	    for (const timer of this.timers.values()) {
@@ -326,13 +326,13 @@ class TaskScheduler {
 	    this.timers.clear();
 	    this.tasks.clear();
 	    this.isInitialized = false;
-  }
+    }
 
-  // 重启所有任务
-  restart(client) {
+    // 重启所有任务
+    restart(client) {
 	    this.stopAll();
 	    this.initialize(client);
-  }
+    }
 }
 
 // 创建全局单例

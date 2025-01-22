@@ -13,20 +13,20 @@ const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
  * @param {Client} client - Discord客户端
  */
 export const createApplicationMessage = async (client) => {
-  // 读取消息ID配置
-  let messageIds;
-  try {
+    // 读取消息ID配置
+    let messageIds;
+    try {
 	    messageIds = JSON.parse(readFileSync(messageIdsPath, 'utf8'));
 	    if (!messageIds.roleApplicationMessages) {
 	        messageIds.roleApplicationMessages = {};
 	    }
-  } catch (error) {
+    } catch (error) {
 	    logTime(`读取消息ID配置失败: ${error}`, true);
 	    return;
-  }
+    }
 
-  // 为每个配置了身份组申请功能的服务器检查/创建申请消息
-  for (const [guildId, guildConfig] of client.guildManager.guilds) {
+    // 为每个配置了身份组申请功能的服务器检查/创建申请消息
+    for (const [guildId, guildConfig] of client.guildManager.guilds) {
 	    // 检查功能是否启用
 	    if (!guildConfig?.roleApplication?.enabled) {
 	        // 如果功能被禁用，删除旧的申请消息（如果存在）
@@ -109,5 +109,5 @@ export const createApplicationMessage = async (client) => {
 	    } catch (error) {
 	        logTime(`在服务器 ${guildId} 创建身份组申请消息时出错: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
 	    }
-  }
+    }
 };

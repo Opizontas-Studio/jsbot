@@ -9,8 +9,8 @@ import { logTime } from '../utils/logger.js';
  * 支持单个子区清理和全服清理两种模式
  */
 export default {
-  cooldown: 10,
-  data: new SlashCommandBuilder()
+    cooldown: 10,
+    data: new SlashCommandBuilder()
 	    .setName('清理子区不活跃用户')
 	    .setDescription('清理子区中的不活跃用户')
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
@@ -35,7 +35,7 @@ export default {
 	                    .setMaxValue(1000)
 	                    .setRequired(false))),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -51,32 +51,32 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '清理子区不活跃用户');
 	    }
-  },
+    },
 };
 
 /**
  * 处理全服子区的清理
  */
 async function handleAllThreads(interaction, guildConfig) {
-  const threshold = interaction.options.getInteger('阈值') || 980;
-  logTime(`开始执行全服清理，阈值: ${threshold}`);
+    const threshold = interaction.options.getInteger('阈值') || 980;
+    logTime(`开始执行全服清理，阈值: ${threshold}`);
 
-  const activeThreads = await interaction.guild.channels.fetchActiveThreads();
-  const threads = activeThreads.threads.filter(thread =>
+    const activeThreads = await interaction.guild.channels.fetchActiveThreads();
+    const threads = activeThreads.threads.filter(thread =>
 	    !guildConfig.automation.whitelistedThreads?.includes(thread.id),
-  );
+    );
 
-  logTime(`已获取活跃子区列表，共 ${threads.size} 个子区`);
+    logTime(`已获取活跃子区列表，共 ${threads.size} 个子区`);
 
-  await interaction.editReply({
+    await interaction.editReply({
 	    content: '⏳ 正在检查所有子区人数...',
 	    flags: ['Ephemeral'],
-  });
+    });
 
-  // 使用Map存储结果
-  let skippedCount = 0;
+    // 使用Map存储结果
+    let skippedCount = 0;
 
-  try {
+    try {
 	    // 使用批处理器处理子区检查
 	    const results = await globalBatchProcessor.processBatch(
 	        Array.from(threads.values()),
@@ -184,18 +184,18 @@ async function handleAllThreads(interaction, guildConfig) {
 	    // 发送总结报告
 	    await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);
 
-  } catch (error) {
+    } catch (error) {
 	    await handleCommandError(interaction, error, '全服清理');
-  }
+    }
 }
 
 /**
  * 发送全服清理总结报告
  */
 async function sendSummaryReport(interaction, results, threshold, guildConfig) {
-  // 发送管理日志
-  const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
-  await moderationChannel.send({
+    // 发送管理日志
+    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
+    await moderationChannel.send({
 	    embeds: [{
 	        color: 0x0099ff,
 	        title: '全服子区清理报告',
@@ -216,16 +216,16 @@ async function sendSummaryReport(interaction, results, threshold, guildConfig) {
 	        timestamp: new Date(),
 	        footer: { text: '论坛管理系统' },
 	    }],
-  });
+    });
 
-  // 计算总结数据
-  const summary = results.reduce((acc, curr) => ({
+    // 计算总结数据
+    const summary = results.reduce((acc, curr) => ({
 	    totalOriginal: acc.totalOriginal + curr.originalCount,
 	    totalRemoved: acc.totalRemoved + curr.removedCount,
-  }), { totalOriginal: 0, totalRemoved: 0 });
+    }), { totalOriginal: 0, totalRemoved: 0 });
 
-  // 发送执行结果
-  await interaction.editReply({
+    // 发送执行结果
+    await interaction.editReply({
 	    content: [
 	        '✅ 全服子区清理完成！',
 	        `🎯 目标阈值: ${threshold}`,
@@ -234,5 +234,5 @@ async function sendSummaryReport(interaction, results, threshold, guildConfig) {
 	        `🚫 总移除人数: ${summary.totalRemoved}`,
 	    ].join('\n'),
 	    flags: ['Ephemeral'],
-  });
+    });
 }

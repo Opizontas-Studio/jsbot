@@ -4,8 +4,8 @@ import { checkAndHandlePermission, handleCommandError, sendModerationLog } from 
 import { logTime } from '../utils/logger.js';
 
 export default {
-  cooldown: 10,
-  data: new SlashCommandBuilder()
+    cooldown: 10,
+    data: new SlashCommandBuilder()
 	    .setName('暂停邀请')
 	    .setDescription('管理服务器的邀请功能')
 	    .addStringOption(option =>
@@ -21,7 +21,7 @@ export default {
 	            .setDescription('执行此操作的原因')
 	            .setRequired(true)),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -139,5 +139,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '暂停邀请');
 	    }
-  },
+    },
 };

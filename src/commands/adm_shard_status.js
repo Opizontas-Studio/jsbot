@@ -4,12 +4,12 @@ import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js
 import { logTime } from '../utils/logger.js';
 
 export default {
-  cooldown: 3,
-  data: new SlashCommandBuilder()
+    cooldown: 3,
+    data: new SlashCommandBuilder()
 	    .setName('系统状态')
 	    .setDescription('查看当前系统运行状态'),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    try {
 	        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -75,5 +75,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '系统状态');
 	    }
-  },
+    },
 };

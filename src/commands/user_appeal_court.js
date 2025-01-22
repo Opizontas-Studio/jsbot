@@ -6,8 +6,8 @@ import { handleCommandError } from '../utils/helper.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishment_helper.js';
 
 export default {
-  cooldown: 5,
-  data: new SlashCommandBuilder()
+    cooldown: 5,
+    data: new SlashCommandBuilder()
 	    .setName('申请上庭')
 	    .setDescription('向议事区提交处罚申请')
 	    .addSubcommand(subcommand =>
@@ -61,7 +61,7 @@ export default {
 	            ),
 	    ),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    // 检查议事系统是否启用
 	    if (!guildConfig.courtSystem?.enabled) {
 	        await interaction.editReply({
@@ -388,5 +388,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '申请上庭');
 	    }
-  },
+    },
 };

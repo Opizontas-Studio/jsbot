@@ -9,9 +9,9 @@ let reconnectionCount = 0;
 let reconnectionTimeout = null;
 
 export default {
-  name: Events.ClientReady,
-  once: true,
-  async execute(client) {
+    name: Events.ClientReady,
+    once: true,
+    async execute(client) {
 	    logTime(`已登录: ${client.user.tag}`);
 
 	    // 初始化所有定时任务
@@ -84,5 +84,5 @@ export default {
 	            logTime('收到会话限制信息: ' + info);
 	        }
 	    });
-  },
+    },
 };

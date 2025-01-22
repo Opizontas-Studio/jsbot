@@ -5,8 +5,8 @@ import { checkAndHandlePermission, generateProgressReport, handleCommandError, m
 import { logTime } from '../utils/logger.js';
 
 export default {
-  cooldown: 10,
-  data: new SlashCommandBuilder()
+    cooldown: 10,
+    data: new SlashCommandBuilder()
 	    .setName('频道完全清理')
 	    .setDescription('清理指定范围内的所有消息')
 	    .addStringOption(option =>
@@ -24,7 +24,7 @@ export default {
 	            .setMinLength(17)
 	            .setMaxLength(20)),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -313,5 +313,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '频道清理');
 	    }
-  },
+    },
 };

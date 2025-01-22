@@ -5,8 +5,8 @@ import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js
 import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
 
 export default {
-  cooldown: 5,
-  data: new SlashCommandBuilder()
+    cooldown: 5,
+    data: new SlashCommandBuilder()
 	    .setName('处罚')
 	    .setDescription('对用户执行处罚')
 	    .addSubcommand(subcommand =>
@@ -56,7 +56,7 @@ export default {
 	    )
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -168,5 +168,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '处罚');
 	    }
-  },
+    },
 };

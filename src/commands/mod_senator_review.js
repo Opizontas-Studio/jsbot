@@ -3,13 +3,13 @@ import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
-  cooldown: 10,
-  data: new SlashCommandBuilder()
+    cooldown: 10,
+    data: new SlashCommandBuilder()
 	    .setName('议员快速审核')
 	    .setDescription('快速审核议员申请帖')
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    try {
 	        // 检查服务器是否启用身份组申请功能
 	        if (!guildConfig?.roleApplication?.enabled) {
@@ -199,5 +199,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '议员快速审核');
 	    }
-  },
+    },
 };

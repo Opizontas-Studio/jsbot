@@ -154,9 +154,6 @@ class CourtService {
 							const now = Date.now();
 							const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
 
-							// 更新处罚状态
-							await PunishmentModel.updateStatus(punishmentId, 'appealed', '上诉申请已通过，进入辩诉阶段');
-
 							// 获取主服务器配置
 							const mainGuildConfig = message.client.guildManager.getGuildConfig(message.guildId);
 							if (!mainGuildConfig?.courtSystem?.appealDebateRoleId) {
@@ -518,15 +515,16 @@ class CourtService {
 	        );
 
 	        // 根据操作类型（添加/移除）返回不同的消息
-	        const supporters = JSON.parse(updatedProcess.supporters || '[]');
+	        const supporters = Array.isArray(updatedProcess.supporters) ?
+	            updatedProcess.supporters :
+	            JSON.parse(updatedProcess.supporters || '[]');
 	        let replyContent;
 	        let debateThread = null;
 
 	        if (hasSupported) {
 	            // 移除支持的情况
 	            replyContent = `✅ 你已移除对此${process.type === 'court_mute' ? '禁言' : '永封'}处罚申请的支持，当前共有 ${supporters.length} 位议员支持`;
-	        }
-			else {
+	        } else {
 	            // 添加支持的情况
 	            replyContent = `✅ 你已支持此${process.type === 'court_mute' ? '禁言' : '永封'}处罚申请，当前共有 ${supporters.length} 位议员支持`;
 
@@ -535,12 +533,36 @@ class CourtService {
 	                // 创建辩诉帖子
 	                debateThread = await this.createDebateThread(updatedProcess, guildConfig, client);
 
-	                // 更新流程状态为completed，并记录辩诉帖ID
+	                // 更新流程状态为completed
 	                await ProcessModel.updateStatus(updatedProcess.id, 'completed', {
 	                    result: 'approved',
 	                    reason: '已达到所需支持人数，辩诉帖已创建',
 	                    debateThreadId: debateThread.id,
 	                });
+
+	                // 获取处罚ID并更新处罚状态
+	                const details = typeof process.details === 'object' ?
+	                    process.details :
+	                    JSON.parse(process.details || '{}');
+
+	                // 确保处罚ID存在且为数字类型
+	                const punishmentId = parseInt(details.punishmentId);
+	                if (!isNaN(punishmentId)) {
+	                    // 先获取处罚记录确认存在
+	                    const punishment = await PunishmentModel.getPunishmentById(punishmentId);
+	                    if (punishment && punishment.status === 'active') {
+	                        await PunishmentModel.updateStatus(
+	                            punishmentId,
+	                            'appealed',
+	                            '上诉申请已通过，进入辩诉阶段',
+	                        );
+	                        logTime(`处罚 ${punishmentId} 状态已更新为辩诉阶段`);
+	                    } else {
+	                        logTime(`处罚 ${punishmentId} 不存在或状态不是 active`, true);
+	                    }
+	                } else {
+	                    logTime(`无效的处罚ID: ${details.punishmentId}`, true);
+	                }
 
 	                replyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
 	            }
@@ -561,8 +583,7 @@ class CourtService {
 	        }
 
 	        return { process: finalProcess, debateThread, replyContent };
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`添加/移除支持者失败: ${error.message}`, true);
 	        throw error;
 	    }

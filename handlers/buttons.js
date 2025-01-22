@@ -89,12 +89,44 @@ export async function handleConfirmationButton({
 }
 
 /**
+ * 检查并设置冷却时间
+ * @param {string} type - 操作类型
+ * @param {string} userId - 用户ID
+ * @param {number} [duration=60000] - 冷却时间（毫秒）
+ * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
+ */
+function checkCooldown(type, userId, duration = 10000) {
+	const now = Date.now();
+	const cooldownKey = `${type}:${userId}`;
+	const cooldownTime = cooldowns.get(cooldownKey);
+
+	if (cooldownTime && now < cooldownTime) {
+		return Math.ceil((cooldownTime - now) / 1000);
+	}
+
+	// 设置冷却时间
+	cooldowns.set(cooldownKey, now + duration);
+	setTimeout(() => cooldowns.delete(cooldownKey), duration);
+	return null;
+}
+
+/**
  * 按钮处理器映射
  * 每个处理器函数接收一个 ButtonInteraction 参数
  */
 export const buttonHandlers = {
 	// 身份组申请按钮处理器
 	'apply_creator_role': async (interaction) => {
+	    // 检查冷却时间
+	    const cooldownLeft = checkCooldown('roleapply', interaction.user.id);
+	    if (cooldownLeft) {
+	        await interaction.reply({
+	            content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
+	            flags: ['Ephemeral'],
+	        });
+	        return;
+	    }
+
 	    // 检查功能是否启用
 	    const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 	    if (!guildConfig?.roleApplication?.enabled) {
@@ -115,24 +147,6 @@ export const buttonHandlers = {
 	        });
 	        return;
 	    }
-
-	    // 检查冷却时间
-	    const now = Date.now();
-	    const cooldownKey = `roleapply:${interaction.user.id}`;
-	    const cooldownTime = cooldowns.get(cooldownKey);
-
-	    if (cooldownTime && now < cooldownTime) {
-	        const timeLeft = Math.ceil((cooldownTime - now) / 1000);
-	        await interaction.reply({
-	            content: `❌ 请等待 ${timeLeft} 秒后再次申请`,
-	            flags: ['Ephemeral'],
-	        });
-	        return;
-	    }
-
-	    // 设置60秒冷却时间
-	    cooldowns.set(cooldownKey, now + 60000);
-	    setTimeout(() => cooldowns.delete(cooldownKey), 60000);
 
 	    // 显示申请表单
 	    const modal = new ModalBuilder()
@@ -211,6 +225,16 @@ export const buttonHandlers = {
  * @param {string} type - 处罚类型 ('mute' | 'ban' | 'appeal')
  */
 async function handleCourtSupport(interaction, type) {
+	// 检查冷却时间
+	const cooldownLeft = checkCooldown('court_support', interaction.user.id);
+	if (cooldownLeft) {
+	    await interaction.reply({
+	        content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
+	        flags: ['Ephemeral'],
+	    });
+	    return;
+	}
+
 	// 检查议事系统是否启用
 	const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 	if (!guildConfig?.courtSystem?.enabled) {
@@ -233,20 +257,6 @@ async function handleCourtSupport(interaction, type) {
 
 	// 解析按钮ID获取目标用户ID和原始交互ID
 	const [, , targetId] = interaction.customId.split('_');
-
-	// 检查冷却时间
-	const now = Date.now();
-	const cooldownKey = `court_support:${interaction.user.id}:${targetId}`;
-	const cooldownTime = cooldowns.get(cooldownKey);
-
-	if (cooldownTime && now < cooldownTime) {
-	    const timeLeft = Math.ceil((cooldownTime - now) / 1000);
-	    await interaction.reply({
-	        content: `❌ 请等待 ${timeLeft} 秒后再次投票`,
-	        flags: ['Ephemeral'],
-	    });
-	    return;
-	}
 
 	try {
 		// 先发送一个延迟响应
@@ -275,10 +285,6 @@ async function handleCourtSupport(interaction, type) {
 	        interaction.client,
 	    );
 
-	    // 设置冷却时间
-	    cooldowns.set(cooldownKey, now + 60000);
-	    setTimeout(() => cooldowns.delete(cooldownKey), 60000);
-
 	    // 发送确认消息
 	    await interaction.editReply({
 	        content: replyContent,
@@ -306,6 +312,16 @@ async function handleCourtSupport(interaction, type) {
  */
 async function handleAppealButton(interaction, punishmentId) {
 	try {
+		// 检查冷却时间
+		const cooldownLeft = checkCooldown('appeal', interaction.user.id);
+		if (cooldownLeft) {
+			await interaction.reply({
+				content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
+
 		// 获取处罚记录
 		const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
 		if (!punishment) {
@@ -316,31 +332,46 @@ async function handleAppealButton(interaction, punishmentId) {
 			return;
 		}
 
-		// 检查处罚时长是否小于24小时
-		const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
-		if (isShortPunishment) {
-			await interaction.reply({
-				content: '❌ 处罚时长小于24小时，不予受理上诉申请',
-				flags: ['Ephemeral'],
-			});
-			return;
-		}
+		// 调试日志
+		logTime(`处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
 
-		// 检查处罚是否已过期
-		const now = Date.now();
-		const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
-		if (isPunishmentExpired) {
+		// 检查处罚状态
+		if (punishment.status !== 'active') {
+			let message = '❌ 无法提交上诉：';
+			switch (punishment.status) {
+			case 'appealed':
+				message += '该处罚已进入辩诉阶段';
+				break;
+			case 'expired':
+				message += '该处罚已过期';
+				break;
+			case 'revoked':
+				message += '该处罚已被撤销';
+				break;
+			default:
+				message += '处罚状态异常';
+			}
+
+			// 尝试更新原始消息以移除上诉按钮
+			try {
+				// 先获取或创建 DM 频道
+				const dmChannel = await interaction.user.createDM();
+				if (dmChannel) {
+					const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
+					if (originalMessage?.components?.length > 0) {
+						await originalMessage.edit({
+							components: [],
+						});
+					}
+				}
+			} catch (error) {
+				logTime(`无法更新私信消息组件: ${error.message}`, true);
+			}
+
 			await interaction.reply({
-				content: '❌ 处罚已到期，无需上诉',
+				content: message,
 				flags: ['Ephemeral'],
 			});
-			// 编辑原消息，移除上诉按钮
-			if (interaction.message) {
-				await interaction.message.edit({
-					embeds: interaction.message.embeds,
-					components: [],
-				});
-			}
 			return;
 		}
 
@@ -348,7 +379,7 @@ async function handleAppealButton(interaction, punishmentId) {
 		const userProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
 		const hasActiveAppeal = userProcesses.some(p =>
 			p.type === 'appeal' &&
-			['pending', 'in_progress'].includes(p.status),
+            ['pending', 'in_progress'].includes(p.status),
 		);
 
 		if (hasActiveAppeal) {
@@ -368,9 +399,9 @@ async function handleAppealButton(interaction, punishmentId) {
 			.setCustomId('appeal_content')
 			.setLabel('请详细说明你的上诉理由')
 			.setStyle(TextInputStyle.Paragraph)
-			.setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由')
+			.setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n最少50字，最多1500字，如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。')
 			.setMinLength(50)
-			.setMaxLength(1000)
+			.setMaxLength(1500)
 			.setRequired(true);
 
 		const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);
@@ -379,7 +410,7 @@ async function handleAppealButton(interaction, punishmentId) {
 		await interaction.showModal(modal);
 	}
 	catch (error) {
-		logTime(`显示上诉表单失败: ${error.message}`, true);
+		logTime(`处理上诉按钮点击失败: ${error.message}`, true);
 		await interaction.reply({
 			content: '❌ 处理上诉请求时出错，请稍后重试',
 			flags: ['Ephemeral'],

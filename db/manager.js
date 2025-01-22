@@ -229,8 +229,8 @@ class DatabaseManager {
 	clearCache(key = null) {
 	    if (key) {
 	        this._cache.delete(key);
-	    }
-		else {
+	    } else {
+	        logTime('清除所有缓存');
 	        this._cache.clear();
 	    }
 	}

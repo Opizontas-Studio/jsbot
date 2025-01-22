@@ -183,9 +183,6 @@ export const modalHandlers = {
 				return;
 			}
 
-			// 获取上诉内容
-			const appealContent = interaction.fields.getTextInputValue('appeal_content');
-
 			// 获取处罚记录
 			const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
 			if (!punishment) {
@@ -195,6 +192,33 @@ export const modalHandlers = {
 				});
 				return;
 			}
+
+			// 再次检查处罚状态
+			if (punishment.status !== 'active') {
+				let message = '❌ 无法提交上诉：';
+				switch (punishment.status) {
+				case 'appealed':
+					message += '该处罚已进入辩诉阶段';
+					break;
+				case 'expired':
+					message += '该处罚已过期';
+					break;
+				case 'revoked':
+					message += '该处罚已被撤销';
+					break;
+				default:
+					message += '处罚状态异常';
+				}
+
+				await interaction.reply({
+					content: message,
+					flags: ['Ephemeral'],
+				});
+				return;
+			}
+
+			// 获取上诉内容
+			const appealContent = interaction.fields.getTextInputValue('appeal_content');
 
 			// 获取处罚执行者信息
 			const executor = await interaction.client.users.fetch(punishment.executorId);

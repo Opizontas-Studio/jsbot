@@ -122,6 +122,8 @@ class PunishmentModel {
 	    if (!punishment) throw new Error('处罚记录不存在');
 
 	    try {
+	        logTime(`正在更新处罚状态: ID=${id}, 旧状态=${punishment.status}, 新状态=${status}`);
+
 	        await dbManager.safeExecute(
 	            'run',
 	            `UPDATE punishments 
@@ -131,8 +133,8 @@ class PunishmentModel {
 	            [status, reason, reason, Date.now(), id],
 	        );
 
-	        // 清除相关缓存
-	        this._clearRelatedCache(punishment.userId);
+	        // 使用修改后的清除缓存函数
+	        this._clearRelatedCache(punishment.userId, id);
 
 	        return this.getPunishmentById(id);
 	    }
@@ -161,8 +163,8 @@ class PunishmentModel {
 	            [1, JSON.stringify(syncedServers), Date.now(), id],
 	        );
 
-	        // 清除相关缓存
-	        this._clearRelatedCache(punishment.userId);
+	        // 使用修改后的清除缓存函数
+	        this._clearRelatedCache(punishment.userId, id);
 
 	        return this.getPunishmentById(id);
 	    }
@@ -176,11 +178,19 @@ class PunishmentModel {
 	 * 清除相关缓存
 	 * @private
 	 * @param {string} userId - 用户ID
+	 * @param {number} [punishmentId] - 处罚ID（可选）
 	 */
-	static _clearRelatedCache(userId) {
+	static _clearRelatedCache(userId, punishmentId = null) {
+	    // 清除用户相关的所有缓存
 	    dbManager.clearCache(`active_punishment_${userId}`);
-	    dbManager.clearCache(`user_punishments_${userId}`);
-	    // 其他相关缓存...
+	    dbManager.clearCache(`user_punishments_${userId}_true`);
+	    dbManager.clearCache(`user_punishments_${userId}_false`);
+
+	    // 如果提供了处罚ID，清除特定处罚的缓存
+	    if (punishmentId) {
+	        dbManager.clearCache(`punishment_${punishmentId}`);
+	    }
+
 	}
 
 	/**
@@ -272,8 +282,7 @@ class PunishmentModel {
 	        );
 
 	        // 清除相关缓存
-	        this._clearRelatedCache(punishment.userId);
-	        dbManager.clearCache(`punishment_${id}`);
+	        this._clearRelatedCache(punishment.userId, id);
 
 	        return true;
 	    }

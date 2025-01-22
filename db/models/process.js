@@ -69,8 +69,13 @@ class ProcessModel {
 	            ],
 	        );
 
-	        // 清除相关缓存
-	        this._clearRelatedCache(process.punishmentId);
+	        // 使用修改后的清除缓存函数
+	        this._clearRelatedCache(
+	            process.targetId,
+	            process.executorId,
+	            id,
+	            process.messageId
+	        );
 
 	        return this.getProcessById(id);
 	    }
@@ -83,11 +88,29 @@ class ProcessModel {
 	/**
 	 * 清除相关缓存
 	 * @private
-	 * @param {number} punishmentId - 处罚ID
+	 * @param {string} targetId - 目标用户ID
+	 * @param {string} executorId - 执行者ID
+	 * @param {number} [processId] - 流程ID（可选）
+	 * @param {string} [messageId] - 消息ID（可选）
 	 */
-	static _clearRelatedCache(punishmentId) {
-	    dbManager.clearCache(`active_process_${punishmentId}`);
-	    dbManager.clearCache(`process_${punishmentId}`);
+	static _clearRelatedCache(targetId, executorId, processId = null, messageId = null) {
+	    // 清除用户相关的所有缓存（目标用户和执行者）
+	    ['true', 'false'].forEach(includeCompleted => {
+	        dbManager.clearCache(`user_processes_${targetId}_${includeCompleted}`);
+	        if (executorId !== targetId) {
+	            dbManager.clearCache(`user_processes_${executorId}_${includeCompleted}`);
+	        }
+	    });
+
+	    // 如果提供了流程ID，清除特定流程的缓存
+	    if (processId) {
+	        dbManager.clearCache(`process_${processId}`);
+	    }
+
+	    // 如果提供了消息ID，清除消息相关的缓存
+	    if (messageId) {
+	        dbManager.clearCache(`process_msg_${messageId}`);
+	    }
 	}
 
 	/**
@@ -215,10 +238,9 @@ class ProcessModel {
 	    } = data;
 
 	    try {
-	        // 将申请人ID添加到details中
 	        const enrichedDetails = {
 	            ...details,
-	            executorId, // 存储申请人ID
+	            executorId,
 	        };
 
 	        const result = await dbManager.safeExecute('run', `
@@ -232,6 +254,9 @@ class ProcessModel {
 	            messageId, expireAt,
 	            JSON.stringify(enrichedDetails),
 	        ]);
+
+	        // 清除相关缓存
+	        this._clearRelatedCache(targetId, executorId, result.lastID, messageId);
 
 	        return this.getProcessById(result.lastID);
 	    }

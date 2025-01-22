@@ -13,3 +13,19 @@ config.json
 # 依赖
 node_modules/
 package-lock.json
+
+# TypeScript 编译结果
+dist/
+
+# 操作系统相关文件
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.Trash-*
+$RECYCLE.BIN/
+.TemporaryItems
+ehthumbs.db
+Thumbs.db

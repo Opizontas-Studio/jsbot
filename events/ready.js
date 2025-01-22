@@ -63,19 +63,19 @@ export default {
 	    };
 
 	    // 事件监听器
-	    client.ws.on('close', () => { 
+	    client.ws.on('close', () => {
 	        handleShardStatus(WebSocketShardStatus.Idle);
 	    });
 
-	    client.ws.on('reconnecting', () => { 
+	    client.ws.on('reconnecting', () => {
 	        handleShardStatus(WebSocketShardStatus.Connecting);
 	    });
 
-	    client.ws.on('ready', () => { 
+	    client.ws.on('ready', () => {
 	        handleShardStatus(WebSocketShardStatus.Ready);
 	    });
 
-	    client.ws.on('resumed', () => { 
+	    client.ws.on('resumed', () => {
 	        handleShardStatus(WebSocketShardStatus.Ready);
 	    });
 

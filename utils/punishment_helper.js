@@ -170,7 +170,16 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
 export const sendAppealNotification = async (channel, target, punishment) => {
 	try {
 	    const executor = await channel.client.users.fetch(punishment.executorId);
-	    const embed = {
+
+	    // 检查处罚时长是否小于24小时
+	    const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
+
+	    // 检查处罚是否已过期
+	    const now = Date.now();
+	    const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
+
+	    // 频道通知的 embed
+	    const channelEmbed = {
 	        color: 0xFF0000,
 	        title: `${getPunishmentTypeText(punishment.type)}通知`,
 	        description: [
@@ -181,11 +190,9 @@ export const sendAppealNotification = async (channel, target, punishment) => {
 	            punishment.warningDuration ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}` : null,
 	            `• 处罚理由：${punishment.reason || '未提供原因'}`,
 	            '',
-	            '**上诉说明**',
-	            '- 点击下方按钮开始上诉流程，周期3天',
-	            '- 请在控件中提交详细的上诉文章',
-	            '- 需至少10位议员匿名赞同才能进入辩诉流程',
-	            '- 请注意查看私信消息，了解上诉进展',
+	            isShortPunishment ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。' :
+	                isPunishmentExpired ? '⚠️ 处罚已到期，无需上诉。' :
+	                '如需上诉，请查看私信消息。',
 	        ].filter(Boolean).join('\n'),
 	        footer: {
 	            text: `由管理员 ${executor.tag} 执行`,
@@ -193,7 +200,36 @@ export const sendAppealNotification = async (channel, target, punishment) => {
 	        timestamp: new Date(),
 	    };
 
-	    const components = [{
+	    // 私信通知的 embed
+	    const dmEmbed = {
+	        color: 0xFF0000,
+	        title: `${getPunishmentTypeText(punishment.type)}通知`,
+	        description: [
+	            `处罚对象：<@${target.id}>`,
+	            '',
+	            '**处罚详情**',
+	            `• 处罚期限：${formatPunishmentDuration(punishment.duration)}`,
+	            punishment.warningDuration ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}` : null,
+	            `• 处罚理由：${punishment.reason || '未提供原因'}`,
+	            '',
+	            isShortPunishment ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。' :
+	                isPunishmentExpired ? '⚠️ 处罚已到期，无需上诉。' :
+	                [
+	                    '**上诉说明**',
+	                    '- 点击下方按钮开始上诉流程，周期3天',
+	                    '- 请在控件中提交详细的上诉文章',
+	                    '- 需至少10位议员匿名赞同才能进入辩诉流程',
+	                    '- 请注意查看私信消息，了解上诉进展',
+	                ].join('\n'),
+	        ].filter(Boolean).join('\n'),
+	        footer: {
+	            text: `由管理员 ${executor.tag} 执行`,
+	        },
+	        timestamp: new Date(),
+	    };
+
+	    // 只有在处罚未过期且时长大于24小时时才添加上诉按钮
+	    const appealComponents = !isShortPunishment && !isPunishmentExpired ? [{
 	        type: 1,
 	        components: [{
 	            type: 2,
@@ -203,14 +239,17 @@ export const sendAppealNotification = async (channel, target, punishment) => {
 	            emoji: '📝',
 	            disabled: false,
 	        }],
-	    }];
+	    }] : [];
 
-	    // 发送到频道
-	    await channel.send({ embeds: [embed], components });
+	    // 发送到频道（不包含上诉按钮）
+	    await channel.send({ embeds: [channelEmbed] });
 
-	    // 尝试发送私信
+	    // 尝试发送私信（包含上诉按钮和详细说明）
 	    try {
-	        await target.send({ embeds: [embed], components });
+	        await target.send({
+	            embeds: [dmEmbed],
+	            components: appealComponents,
+	        });
 	    }
 		catch (error) {
 	        logTime(`无法发送私信到用户 ${target.tag}: ${error.message}`);

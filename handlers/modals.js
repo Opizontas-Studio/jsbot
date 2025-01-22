@@ -309,9 +309,18 @@ export const modalHandlers = {
  * @param {ModalSubmitInteraction} interaction - Discord模态框提交交互对象
  */
 export async function handleModal(interaction) {
-	// 获取基础模态框ID（去除可能的附加参数）
-	const baseModalId = interaction.customId.split('_').slice(0, 2).join('_');
-	const handler = modalHandlers[baseModalId];
+	// 获取基础模态框ID
+	let modalId;
+	if (interaction.customId.includes('appeal_modal_')) {
+		// 处理上诉模态框 ID (appeal_modal_123 -> appeal_modal)
+		modalId = interaction.customId.split('_').slice(0, 2).join('_');
+	} else {
+		// 处理其他模态框 ID (保持原样)
+		modalId = interaction.customId;
+	}
+
+	const handler = modalHandlers[modalId];
+
 	if (!handler) {
 		logTime(`未找到模态框处理器: ${interaction.customId}`, true);
 		return;
@@ -319,8 +328,7 @@ export async function handleModal(interaction) {
 
 	try {
 		await handler(interaction);
-	}
-	catch (error) {
+	} catch (error) {
 		logTime(`模态框处理出错 [${interaction.customId}]: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
 		if (!interaction.replied && !interaction.deferred) {
 			await interaction.reply({

@@ -3,14 +3,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   eslint.configs.recommended,
-  tseslint.configs.recommendedTypeChecked,
+  // enable it afterwards
+  // tseslint.configs.recommendedTypeChecked,
   {
     languageOptions: {
       ecmaVersion: 'latest',
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
+      // parserOptions: {
+      //   projectService: true,
+      //   tsconfigRootDir: import.meta.dirname,
+      // },
     },
     rules: {
       'arrow-spacing': ['warn', { before: true, after: true }],

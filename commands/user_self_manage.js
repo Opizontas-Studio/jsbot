@@ -1,13 +1,13 @@
-import { SlashCommandBuilder, ChannelType } from 'discord.js';
-import { lockAndArchiveThread, handleCommandError } from '../utils/helper.js';
-import { handleSingleThreadCleanup } from '../services/cleaner.js';
-import { logTime } from '../utils/logger.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
+import { handleSingleThreadCleanup } from '../services/cleaner.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
+import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
-	cooldown: 10,
-	data: new SlashCommandBuilder()
+  cooldown: 10,
+  data: new SlashCommandBuilder()
 	    .setName('自助管理')
 	    .setDescription('管理你自己的帖子')
 	    .addSubcommand(subcommand =>
@@ -49,7 +49,7 @@ export default {
 	                    .setMaxValue(1000)
 	                    .setRequired(false))),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    const subcommand = interaction.options.getSubcommand();
 
 	    // 检查是否在论坛帖子中使用
@@ -134,8 +134,7 @@ export default {
 	                });
 	                throw error;
 	            }
-	        }
-			catch (error) {
+	        } catch (error) {
 	            await handleCommandError(interaction, error, '标注消息');
 	        }
 	        return;
@@ -168,8 +167,7 @@ export default {
 
 	                        // 记录日志
 	                        logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
-	                    }
-						catch (error) {
+	                    } catch (error) {
 	                        // 如果删除过程中出现错误，尝试通知用户
 	                        if (!thread.deleted) {
 	                            await confirmation.editReply({
@@ -193,8 +191,7 @@ export default {
 	                    }
 	                },
 	            });
-	        }
-			catch (error) {
+	        } catch (error) {
 	            // 只处理未被删除的情况
 	            if (!thread.deleted) {
 	                await handleCommandError(interaction, error, '删除帖子').catch(() => {
@@ -231,8 +228,7 @@ export default {
 	                            components: [],
 	                            embeds: [],
 	                        });
-	                    }
-						catch (error) {
+	                    } catch (error) {
 	                        await handleCommandError(interaction, error, '锁定帖子');
 	                    }
 	                },
@@ -240,8 +236,7 @@ export default {
 	                    await handleCommandError(interaction, error, '锁定帖子');
 	                },
 	            });
-	        }
-			catch (error) {
+	        } catch (error) {
 	            await handleCommandError(interaction, error, '锁定帖子');
 	        }
 	    }
@@ -300,10 +295,9 @@ export default {
 	                    await handleCommandError(interaction, error, '清理不活跃用户');
 	                },
 	            });
-	        }
-			catch (error) {
+	        } catch (error) {
 	            await handleCommandError(interaction, error, '清理不活跃用户');
 	        }
 	    }
-	},
+  },
 };

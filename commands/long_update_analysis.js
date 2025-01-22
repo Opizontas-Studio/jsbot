@@ -1,18 +1,18 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { analyzeForumActivity } from '../services/analyzers.js';
-import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';
 
 /**
  * 分析命令 - 生成子区活跃度统计报告
  * 统计所有子区的活跃状态，并在日志频道更新分析报告
  */
 export default {
-	cooldown: 10, // 设置10秒冷却时间
-	data: new SlashCommandBuilder()
+  cooldown: 10, // 设置10秒冷却时间
+  data: new SlashCommandBuilder()
 	    .setName('更新分析报告')
 	    .setDescription('分析论坛子区活跃度统计'),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    // 检查用户是否有执行权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -39,9 +39,8 @@ export default {
 	            flags: ['Ephemeral'],
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '更新分析报告');
 	    }
-	},
+  },
 };

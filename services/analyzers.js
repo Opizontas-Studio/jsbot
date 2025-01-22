@@ -1,10 +1,10 @@
 import { ChannelFlags } from 'discord.js';
-import { measureTime, handleDiscordError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
 import { promises as fs } from 'fs';
-import { join, dirname } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { globalBatchProcessor } from '../utils/concurrency.js';
+import { handleDiscordError, measureTime } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 const MESSAGE_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
 
@@ -13,35 +13,34 @@ const MESSAGE_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'da
  * 处理分析报告的格式化和发送
  */
 export class DiscordLogger {
-	/**
+  /**
 	 * @param {Client} client - Discord客户端
 	 * @param {string} guildId - 服务器ID
 	 * @param {Object} guildConfig - 服务器配置
 	 */
-	constructor(client, guildId, guildConfig) {
+  constructor(client, guildId, guildConfig) {
 	    this.client = client;
 	    this.guildId = guildId;
 	    this.logChannelId = guildConfig.automation.logThreadId;
 	    this.logChannel = null;
 	    this.messageIds = null;
-	}
+  }
 
-	/**
+  /**
 	 * 初始化日志频道
 	 * @throws {Error} 如果无法获取日志频道
 	 */
-	async initialize() {
+  async initialize() {
 	    try {
 	        this.logChannel = await this.client.channels.fetch(this.logChannelId);
 	        // 加载或创建消息ID配置
 	        await this.loadMessageIds();
-	    }
-		catch (error) {
+	    } catch (error) {
 	        throw new Error(`无法初始化服务器 ${this.guildId} 的日志频道: ${error.message}`);
 	    }
-	}
+  }
 
-	async loadMessageIds() {
+  async loadMessageIds() {
 	    try {
 	        const data = await fs.readFile(MESSAGE_IDS_PATH, 'utf8');
 	        this.messageIds = JSON.parse(data);
@@ -57,8 +56,7 @@ export class DiscordLogger {
 	            }
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        // 如果文件不存在或解析失败，创建新的配置
 	        logTime(`加载消息ID配置失败，将创建新配置: ${error.message}`, true);
 	        this.messageIds = {
@@ -70,21 +68,20 @@ export class DiscordLogger {
 	        };
 	    }
 	    await this.saveMessageIds();
-	}
+  }
 
-	async saveMessageIds() {
+  async saveMessageIds() {
 	    await fs.writeFile(MESSAGE_IDS_PATH, JSON.stringify(this.messageIds, null, 2));
-	}
+  }
 
-	async getOrCreateMessage(type) {
+  async getOrCreateMessage(type) {
 	    const messageIds = this.messageIds.analysisMessages[type];
 	    const guildMessageId = messageIds[this.guildId];
 
 	    if (guildMessageId) {
 	        try {
 	            return await this.logChannel.messages.fetch(guildMessageId);
-	        }
-			catch (error) {
+	        } catch (error) {
 	            // 如果消息不存在，从配置中删除
 	            logTime(`消息ID配置中不存在消息: ${error.message}`, true);
 	            delete messageIds[this.guildId];
@@ -109,14 +106,14 @@ export class DiscordLogger {
 	    this.messageIds.analysisMessages[type][this.guildId] = message.id;
 	    await this.saveMessageIds();
 	    return message;
-	}
+  }
 
-	/**
+  /**
 	 * 发送不活跃子区列表
 	 * 展示最不活跃的前10个非置顶子区
 	 * @param {Array<Object>} threadInfoArray - 子区信息数组
 	 */
-	async sendInactiveThreadsList(threadInfoArray) {
+  async sendInactiveThreadsList(threadInfoArray) {
 	    if (!this.logChannel) throw new Error('日志频道未初始化');
 
 	    // 过滤掉置顶的子区
@@ -141,15 +138,15 @@ export class DiscordLogger {
 
 	    const message = await this.getOrCreateMessage('top10');
 	    await message.edit({ embeds: [embed] });
-	}
+  }
 
-	/**
+  /**
 	 * 发送统计报告
 	 * 展示子区活跃度的整体统计信息
 	 * @param {Object} statistics - 统计数据
 	 * @param {Array<Object>} failedOperations - 失败记录
 	 */
-	async sendStatisticsReport(statistics, failedOperations) {
+  async sendStatisticsReport(statistics, failedOperations) {
 	    if (!this.logChannel) throw new Error('日志频道未初始化');
 
 	    const embed = {
@@ -192,16 +189,16 @@ export class DiscordLogger {
 
 	    const message = await this.getOrCreateMessage('statistics');
 	    await message.edit({ embeds: [embed] });
-	}
+  }
 
-	/**
+  /**
 	 * 发送清理报告
 	 * 展示子区清理的结果统计
 	 * @param {Object} statistics - 统计数据
 	 * @param {Array<Object>} failedOperations - 失败记录
 	 * @param {number} threshold - 清理阈值
 	 */
-	async sendCleanReport(statistics, failedOperations, threshold) {
+  async sendCleanReport(statistics, failedOperations, threshold) {
 	    if (!this.logChannel) throw new Error('日志频道未初始化');
 
 	    const embed = {
@@ -235,7 +232,7 @@ export class DiscordLogger {
 
 	    const message = await this.getOrCreateMessage('cleanup');
 	    await message.edit({ embeds: [embed] });
-	}
+  }
 }
 
 /**
@@ -243,7 +240,7 @@ export class DiscordLogger {
  * @private
  */
 const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
-	if (!activeThreads) {
+  if (!activeThreads) {
 	    const guild = await client.guilds.fetch(guildId)
 	        .catch(error => {
 	            throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
@@ -253,9 +250,9 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 	        .catch(error => {
 	            throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
 	        });
-	}
+  }
 
-	const statistics = {
+  const statistics = {
 	    totalThreads: activeThreads.threads.size,
 	    archivedThreads: 0,
 	    skippedPinnedThreads: 0,
@@ -266,14 +263,14 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 	        over24h: 0,
 	    },
 	    forumDistribution: {},
-	};
+  };
 
-	const failedOperations = [];
-	const currentTime = Date.now();
-	const threadArray = Array.from(activeThreads.threads.values());
+  const failedOperations = [];
+  const currentTime = Date.now();
+  const threadArray = Array.from(activeThreads.threads.values());
 
-	// 使用globalBatchProcessor处理消息获取
-	const batchResults = await globalBatchProcessor.processBatch(
+  // 使用globalBatchProcessor处理消息获取
+  const batchResults = await globalBatchProcessor.processBatch(
 	    threadArray,
 	    async (thread) => {
 	        try {
@@ -303,8 +300,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 	                messageCount: thread.messageCount || 0,
 	                isPinned: thread.flags.has(ChannelFlags.Pinned),
 	            };
-	        }
-			catch (error) {
+	        } catch (error) {
 	            failedOperations.push({
 	                threadId: thread.id,
 	                threadName: thread.name,
@@ -317,14 +313,14 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 	    },
 	    null,
 	    'threadAnalysis',
-	);
+  );
 
-	const validThreads = batchResults
+  const validThreads = batchResults
 	    .filter(result => result !== null)
 	    .sort((a, b) => b.inactiveHours - a.inactiveHours);
 
-	// 合并统计
-	validThreads.forEach(thread => {
+  // 合并统计
+  validThreads.forEach(thread => {
 	    if (thread.inactiveHours >= 72) statistics.inactiveThreads.over72h++;
 	    if (thread.inactiveHours >= 48) statistics.inactiveThreads.over48h++;
 	    if (thread.inactiveHours >= 24) statistics.inactiveThreads.over24h++;
@@ -336,9 +332,9 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 	        };
 	    }
 	    statistics.forumDistribution[thread.parentId].count++;
-	});
+  });
 
-	return { statistics, failedOperations, validThreads };
+  return { statistics, failedOperations, validThreads };
 };
 
 /**
@@ -346,22 +342,22 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
  * @private
  */
 const cleanupThreads = async (validThreads, threshold) => {
-	const statistics = {
+  const statistics = {
 	    totalThreads: validThreads.length,
 	    archivedThreads: 0,
 	    skippedPinnedThreads: 0,
 	    processedWithErrors: 0,
-	};
-	const failedOperations = [];
+  };
+  const failedOperations = [];
 
-	// 计算需要归档的数量，考虑置顶帖
-	const pinnedCount = validThreads.filter(t => t.isPinned).length;
-	statistics.skippedPinnedThreads = pinnedCount;
+  // 计算需要归档的数量，考虑置顶帖
+  const pinnedCount = validThreads.filter(t => t.isPinned).length;
+  statistics.skippedPinnedThreads = pinnedCount;
 
-	const targetCount = Math.max(threshold - pinnedCount, 0);
-	const nonPinnedThreads = validThreads.filter(t => !t.isPinned);
+  const targetCount = Math.max(threshold - pinnedCount, 0);
+  const nonPinnedThreads = validThreads.filter(t => !t.isPinned);
 
-	if (nonPinnedThreads.length > targetCount) {
+  if (nonPinnedThreads.length > targetCount) {
 	    const threadsToArchive = nonPinnedThreads
 	        .slice(0, nonPinnedThreads.length - targetCount);
 
@@ -369,8 +365,7 @@ const cleanupThreads = async (validThreads, threshold) => {
 	        try {
 	            await threadInfo.thread.setArchived(true, '自动清理不活跃主题');
 	            statistics.archivedThreads++;
-	        }
-			catch (error) {
+	        } catch (error) {
 	            failedOperations.push({
 	                threadId: threadInfo.threadId,
 	                threadName: threadInfo.name,
@@ -380,21 +375,21 @@ const cleanupThreads = async (validThreads, threshold) => {
 	            statistics.processedWithErrors++;
 	        }
 	    }
-	}
+  }
 
-	return { statistics, failedOperations };
+  return { statistics, failedOperations };
 };
 
 /**
  * 分析子区活跃度并生成报告
  */
 export const analyzeForumActivity = async (client, guildConfig, guildId, activeThreads = null) => {
-	const totalTimer = measureTime();
-	logTime(`开始分析服务器 ${guildId} 的子区活跃度`);
+  const totalTimer = measureTime();
+  logTime(`开始分析服务器 ${guildId} 的子区活跃度`);
 
-	const logger = new DiscordLogger(client, guildId, guildConfig);
+  const logger = new DiscordLogger(client, guildId, guildConfig);
 
-	try {
+  try {
 	    await logger.initialize();
 
 	    // 收集数据
@@ -408,23 +403,22 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
 	    const executionTime = totalTimer();
 	    logTime(`活跃度分析完成 - 处理了 ${statistics.totalThreads} 个子区，用时: ${executionTime}秒`);
 	    return { statistics, failedOperations, validThreads };
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime(`服务器 ${guildId} 活跃度分析失败: ${error.message}`, true);
 	    throw error;
-	}
+  }
 };
 
 /**
  * 清理不活跃子区
  */
 export const cleanupInactiveThreads = async (client, guildConfig, guildId, threshold, activeThreads = null) => {
-	const totalTimer = measureTime();
-	logTime(`开始清理服务器 ${guildId} 的不活跃子区`);
+  const totalTimer = measureTime();
+  logTime(`开始清理服务器 ${guildId} 的不活跃子区`);
 
-	const logger = new DiscordLogger(client, guildId, guildConfig);
+  const logger = new DiscordLogger(client, guildId, guildConfig);
 
-	try {
+  try {
 	    await logger.initialize();
 
 	    // 收集数据
@@ -444,9 +438,8 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
 	    const executionTime = totalTimer();
 	    logTime(`清理操作完成 - 清理了 ${cleanupResult.statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
 	    return { statistics, failedOperations };
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime(`服务器 ${guildId} 清理操作失败: ${error.message}`, true);
 	    throw error;
-	}
+  }
 };

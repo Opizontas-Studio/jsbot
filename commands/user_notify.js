@@ -3,19 +3,19 @@ import { handleCommandError } from '../utils/helper.js';
 
 // 定义颜色映射
 const COLORS = {
-	'蓝色': 0x0099ff,
-	'绿色': 0x00ff00,
-	'紫色': 0x9b59b6,
-	'粉色': 0xff69b4,
-	'青色': 0x00ffff,
+  '蓝色': 0x0099ff,
+  '绿色': 0x00ff00,
+  '紫色': 0x9b59b6,
+  '粉色': 0xff69b4,
+  '青色': 0x00ffff,
 };
 
 export default {
-	// 设置命令冷却时间为60秒
-	cooldown: 60,
+  // 设置命令冷却时间为60秒
+  cooldown: 60,
 
-	// 定义命令
-	data: new SlashCommandBuilder()
+  // 定义命令
+  data: new SlashCommandBuilder()
 	    .setName('发送通知')
 	    .setDescription('在当前频道发送一个通知控件，冷却60秒，请谨慎使用')
 	    .addStringOption(option =>
@@ -48,7 +48,7 @@ export default {
 	            ),
 	    ),
 
-	async execute(interaction) {
+  async execute(interaction) {
 	    try {
 	        const channel = interaction.channel;
 
@@ -79,9 +79,8 @@ export default {
 	            content: '✅ 通知已发送',
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '发送通知');
 	    }
-	},
+  },
 };

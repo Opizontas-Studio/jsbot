@@ -3,16 +3,16 @@ import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 const COLORS = {
-	'蓝色': 0x0099ff,
-	'绿色': 0x00ff00,
-	'紫色': 0x9b59b6,
-	'粉色': 0xff69b4,
-	'青色': 0x00ffff,
+  '蓝色': 0x0099ff,
+  '绿色': 0x00ff00,
+  '紫色': 0x9b59b6,
+  '粉色': 0xff69b4,
+  '青色': 0x00ffff,
 };
 
 export default {
-	cooldown: 60,
-	data: new SlashCommandBuilder()
+  cooldown: 60,
+  data: new SlashCommandBuilder()
 	    .setName('私聊通知')
 	    .setDescription('通过机器人向指定用户发送私聊通知')
 	    .addUserOption(option =>
@@ -50,7 +50,7 @@ export default {
 	            ),
 	    ),
 
-	async execute(interaction) {
+  async execute(interaction) {
 	    try {
 	        // 获取目标用户
 	        const targetUser = interaction.options.getUser('目标用户');
@@ -104,21 +104,18 @@ export default {
 	            // 记录日志
 	            logTime(`${interaction.user.tag} 通过bot向 ${targetUser.tag} 发送了一条私聊通知`);
 
-	        }
-			catch (error) {
+	        } catch (error) {
 	            if (error.code === 50007) {
 	                await interaction.editReply({
 	                    content: `❌ 无法发送私聊消息给 ${targetUser.tag}。该用户可能已关闭私聊权限。`,
 	                });
-	            }
-				else {
+	            } else {
 	                throw error;
 	            }
 	        }
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '发送私聊通知');
 	    }
-	},
+  },
 };

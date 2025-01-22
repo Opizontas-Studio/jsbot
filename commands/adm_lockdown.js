@@ -1,11 +1,11 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleCommandError, checkAndHandlePermission, sendModerationLog } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
+import { checkAndHandlePermission, handleCommandError, sendModerationLog } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
-	cooldown: 10,
-	data: new SlashCommandBuilder()
+  cooldown: 10,
+  data: new SlashCommandBuilder()
 	    .setName('暂停邀请')
 	    .setDescription('管理服务器的邀请功能')
 	    .addStringOption(option =>
@@ -21,7 +21,7 @@ export default {
 	            .setDescription('执行此操作的原因')
 	            .setRequired(true)),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -97,16 +97,14 @@ export default {
 	                            components: [],
 	                            embeds: [],
 	                        });
-	                    }
-						else {
+	                    } else {
 	                        await interaction.editReply({
 	                            content: '❓ 服务器邀请功能已经处于暂停状态',
 	                            components: [],
 	                            embeds: [],
 	                        });
 	                    }
-	                }
-					else if (features.includes('INVITES_DISABLED')) {
+	                } else if (features.includes('INVITES_DISABLED')) {
 	                        await guild.edit({
 	                            features: features.filter(f => f !== 'INVITES_DISABLED'),
 	                        });
@@ -126,8 +124,7 @@ export default {
 	                            components: [],
 	                            embeds: [],
 	                        });
-	                    }
-					else {
+	                    } else {
 	                        await interaction.editReply({
 	                            content: '❓ 服务器邀请功能已经处于开放状态',
 	                            components: [],
@@ -139,9 +136,8 @@ export default {
 	                await handleCommandError(interaction, error, '暂停邀请');
 	            },
 	        });
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '暂停邀请');
 	    }
-	},
+  },
 };

@@ -1,5 +1,5 @@
-import { logTime } from './logger.js';
 import { WebSocketShardStatus } from 'discord.js';
+import { logTime } from './logger.js';
 
 // 延迟函数
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -9,7 +9,7 @@ export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
  * 用于控制和序列化异步请求
  */
 export class RequestQueue {
-	constructor() {
+  constructor() {
 	    this.queue = [];
 	    this.processing = false;
 	    this.maxConcurrent = 5;
@@ -28,10 +28,10 @@ export class RequestQueue {
 	        WebSocketShardStatus.Resuming,
 	        WebSocketShardStatus.Ready,
 	    ]);
-	}
+  }
 
-	// 设置分片状态
-	setShardStatus(status) {
+  // 设置分片状态
+  setShardStatus(status) {
 	    if (!this.validStates.has(status)) {
 	        throw new Error(`无效的分片状态: ${status}`);
 	    }
@@ -60,10 +60,10 @@ export class RequestQueue {
 	            }, 2000);
 	            break;
 	    }
-	}
+  }
 
-	// 添加任务到队列
-	async add(task, priority = 0) {
+  // 添加任务到队列
+  async add(task, priority = 0) {
 	    return new Promise((resolve, reject) => {
 	        const queueItem = {
 	            task,
@@ -77,17 +77,16 @@ export class RequestQueue {
 	        const index = this.queue.findIndex(item => item.priority < priority);
 	        if (index === -1) {
 	            this.queue.push(queueItem);
-	        }
-			else {
+	        } else {
 	            this.queue.splice(index, 0, queueItem);
 	        }
 
 	        this.process();
 	    });
-	}
+  }
 
-	// 处理队列中的任务
-	async process() {
+  // 处理队列中的任务
+  async process() {
 	    if (this.paused) return;
 
 	    // 检查是否可以处理更多任务
@@ -110,8 +109,7 @@ export class RequestQueue {
 	            const result = await item.task();
 	            this.stats.processed++;
 	            item.resolve(result);
-	        }
-			catch (error) {
+	        } catch (error) {
 	            if (item.retries < this.maxRetries) {
 	                item.retries++;
 	                this.stats.retried++;
@@ -119,18 +117,15 @@ export class RequestQueue {
 	                const index = this.queue.findIndex(qItem => qItem.priority < item.priority);
 	                if (index === -1) {
 	                    this.queue.push(item);
-	                }
-					else {
+	                } else {
 	                    this.queue.splice(index, 0, item);
 	                }
 	                logTime(`任务重试 (${item.retries}/${this.maxRetries}): ${error.message}`);
-	            }
-				else {
+	            } else {
 	                this.stats.failed++;
 	                item.reject(error);
 	            }
-	        }
-			finally {
+	        } finally {
 	            this.currentProcessing--;
 	            await delay(50);
 	        }
@@ -144,18 +139,18 @@ export class RequestQueue {
 	        await delay(0);
 	        this.process();
 	    }
-	}
+  }
 
-	// 暂停请求队列
-	pause() {
+  // 暂停请求队列
+  pause() {
 	    if (!this.paused) {
 	        this.paused = true;
 	        logTime('请求队列已暂停');
 	    }
-	}
+  }
 
-	// 恢复请求队列
-	resume() {
+  // 恢复请求队列
+  resume() {
 	    if (this.paused) {
 	        this.paused = false;
 	        logTime('请求队列已恢复');
@@ -163,19 +158,19 @@ export class RequestQueue {
 	            this.process();
 	        }
 	    }
-	}
+  }
 
-	// 获取统计信息
-	getStats() {
+  // 获取统计信息
+  getStats() {
 	    return {
 	        ...this.stats,
 	        queueLength: this.queue.length,
 	        currentProcessing: this.currentProcessing,
 	    };
-	}
+  }
 
-	// 清理请求队列
-	async cleanup() {
+  // 清理请求队列
+  async cleanup() {
 	    this.pause();
 
 	    if (this.currentProcessing > 0) {
@@ -197,7 +192,7 @@ export class RequestQueue {
 	    this.currentProcessing = 0;
 	    this.shardStatus.clear();
 	    logTime('请求队列资源已完全清理');
-	}
+  }
 }
 
 /**
@@ -205,7 +200,7 @@ export class RequestQueue {
  * 用于控制API请求的发送速率，避免触发限制
  */
 class RateLimitedBatchProcessor {
-	constructor() {
+  constructor() {
 	    // 路由限制配置
 	    this.routeLimits = {
 	        // 消息相关操作 - 5次/秒
@@ -237,13 +232,13 @@ class RateLimitedBatchProcessor {
 	        windowMs: 1000,
 	        requests: [],
 	    };
-	}
+  }
 
-	/**
+  /**
 	 * 获取操作类型对应的限制器
 	 * @private
 	 */
-	getLimiter(taskType) {
+  getLimiter(taskType) {
 	    switch (taskType) {
 	        case 'messageHistory':
 	            return this.routeLimits.messages;
@@ -252,13 +247,13 @@ class RateLimitedBatchProcessor {
 	        default:
 	            return this.routeLimits.default;
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 检查是否可以执行请求并等待合适的时机
 	 * @private
 	 */
-	async waitForRateLimit(limiter) {
+  async waitForRateLimit(limiter) {
 	    while (true) {
 	        const now = Date.now();
 
@@ -282,9 +277,9 @@ class RateLimitedBatchProcessor {
 	        const waitTime = oldestRequest + limiter.windowMs - now;
 	        await delay(waitTime);
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 处理批量任务
 	 * @param {Array} items - 要处理的项目数组
 	 * @param {Function} processor - 处理函数
@@ -292,7 +287,7 @@ class RateLimitedBatchProcessor {
 	 * @param {string} taskType - 任务类型
 	 * @returns {Promise<Array>} 处理结果数组
 	 */
-	async processBatch(items, processor, progressCallback = null, taskType = 'default') {
+  async processBatch(items, processor, progressCallback = null, taskType = 'default') {
 	    const limiter = this.getLimiter(taskType);
 	    const results = new Array(items.length);
 	    let processedCount = 0;
@@ -317,8 +312,7 @@ class RateLimitedBatchProcessor {
 	            // 执行任务
 	            try {
 	                results[index] = await processor(item);
-	            }
-				catch (error) {
+	            } catch (error) {
 	                results[index] = null;
 	                throw error;
 	            }
@@ -336,7 +330,7 @@ class RateLimitedBatchProcessor {
 	    }));
 
 	    return results;
-	}
+  }
 }
 
 // 创建单例实例

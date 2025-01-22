@@ -1,11 +1,11 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
-import { logTime } from '../utils/logger.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { DiscordAPIError } from '@discordjs/rest';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleDiscordError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 const messageIdsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
 
@@ -14,21 +14,20 @@ const messageIdsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'data
  * @param {Client} client - Discord客户端
  */
 export const createApplicationMessage = async (client) => {
-	// 读取消息ID配置
-	let messageIds;
-	try {
+  // 读取消息ID配置
+  let messageIds;
+  try {
 	    messageIds = JSON.parse(readFileSync(messageIdsPath, 'utf8'));
 	    if (!messageIds.roleApplicationMessages) {
 	        messageIds.roleApplicationMessages = {};
 	    }
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime(`读取消息ID配置失败: ${error}`, true);
 	    return;
-	}
+  }
 
-	// 为每个配置了身份组申请功能的服务器检查/创建申请消息
-	for (const [guildId, guildConfig] of client.guildManager.guilds) {
+  // 为每个配置了身份组申请功能的服务器检查/创建申请消息
+  for (const [guildId, guildConfig] of client.guildManager.guilds) {
 	    // 检查功能是否启用
 	    if (!guildConfig?.roleApplication?.enabled) {
 	        // 如果功能被禁用，删除旧的申请消息（如果存在）
@@ -48,12 +47,10 @@ export const createApplicationMessage = async (client) => {
 	                // 清除消息ID记录
 	                delete messageIds.roleApplicationMessages[guildId];
 	                writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
-	            }
-				catch (error) {
+	            } catch (error) {
 	                logTime(`删除旧申请消息失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
 	            }
-	        }
-			else if (oldMessageId) {
+	        } else if (oldMessageId) {
 	            // 如果有旧消息ID但没有配置，直接删除记录
 	            delete messageIds.roleApplicationMessages[guildId];
 	            writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2));
@@ -80,8 +77,7 @@ export const createApplicationMessage = async (client) => {
 	                    await channel.messages.fetch(existingMessageId);
 	                    logTime(`服务器 ${guildId} 的申请消息已存在，无需重新创建`);
 	                    return;
-	                }
-					catch (error) {
+	                } catch (error) {
 	                    logTime(`服务器 ${guildId} 的现有申请消息已失效: ${error.message}`, true);
 	                }
 	            }
@@ -111,9 +107,8 @@ export const createApplicationMessage = async (client) => {
 
 	            logTime(`已在服务器 ${guildId} 创建新的身份组申请消息`);
 	        }, 3); // 用户指令优先级
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`在服务器 ${guildId} 创建身份组申请消息时出错: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
 	    }
-	}
+  }
 };

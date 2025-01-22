@@ -6,22 +6,22 @@ import { logTime } from './logger.js';
  * @returns {number} 处罚时长(毫秒)，永封返回-1
  */
 export const calculatePunishmentDuration = (duration) => {
-	if (duration === 'permanent') return -1;
+  if (duration === 'permanent') return -1;
 
-	const regex = /(\d+)([dhm])/g;
-	let total = 0;
-	let match;
+  const regex = /(\d+)([dhm])/g;
+  let total = 0;
+  let match;
 
-	while ((match = regex.exec(duration)) !== null) {
+  while ((match = regex.exec(duration)) !== null) {
 	    const [, value, unit] = match;
 	    switch (unit) {
 	        case 'd': total += parseInt(value) * 24 * 60 * 60 * 1000; break;
 	        case 'h': total += parseInt(value) * 60 * 60 * 1000; break;
 	        case 'm': total += parseInt(value) * 60 * 1000; break;
 	    }
-	}
+  }
 
-	return total || -1;
+  return total || -1;
 };
 
 /**
@@ -30,18 +30,18 @@ export const calculatePunishmentDuration = (duration) => {
  * @returns {string} 格式化的时长字符串
  */
 export const formatPunishmentDuration = (duration) => {
-	if (duration === -1) return '永久';
+  if (duration === -1) return '永久';
 
-	const days = Math.floor(duration / (24 * 60 * 60 * 1000));
-	const hours = Math.floor((duration % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-	const minutes = Math.floor((duration % (60 * 60 * 1000)) / (60 * 1000));
+  const days = Math.floor(duration / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((duration % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((duration % (60 * 60 * 1000)) / (60 * 1000));
 
-	const parts = [];
-	if (days > 0) parts.push(`${days}天`);
-	if (hours > 0) parts.push(`${hours}小时`);
-	if (minutes > 0) parts.push(`${minutes}分钟`);
+  const parts = [];
+  if (days > 0) parts.push(`${days}天`);
+  if (hours > 0) parts.push(`${hours}小时`);
+  if (minutes > 0) parts.push(`${minutes}分钟`);
 
-	return parts.join('');
+  return parts.join('');
 };
 
 /**
@@ -51,7 +51,7 @@ export const formatPunishmentDuration = (duration) => {
  * @returns {Promise<boolean>} 执行是否成功
  */
 export const executePunishmentAction = async (guild, punishment) => {
-	try {
+  try {
 	    if (!guild || !guild.members) {
 	        logTime(`无效的服务器对象: ${JSON.stringify(guild)}`, true);
 	        return false;
@@ -94,14 +94,13 @@ export const executePunishmentAction = async (guild, punishment) => {
 	    }
 
 	    return true;
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime(`在服务器 ${guild.name} 执行处罚失败: ${error.message}`, true);
 	    if (error.stack) {
 	        logTime(`错误堆栈: ${error.stack}`, true);
 	    }
 	    return false;
-	}
+  }
 };
 
 /**
@@ -113,7 +112,7 @@ export const executePunishmentAction = async (guild, punishment) => {
  * @returns {Promise<boolean>} 发送是否成功
  */
 export const sendModLogNotification = async (channel, punishment, executor, target) => {
-	try {
+  try {
 	    const embed = {
 	        color: 0xFF0000,
 	        title: `用户已被${getPunishmentTypeText(punishment.type)}`,
@@ -153,11 +152,10 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
 
 	    await channel.send({ embeds: [embed] });
 	    return true;
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime(`发送管理日志通知失败: ${error.message}`, true);
 	    return false;
-	}
+  }
 };
 
 /**
@@ -168,7 +166,7 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
  * @returns {Promise<boolean>} 发送是否成功
  */
 export const sendAppealNotification = async (channel, target, punishment) => {
-	try {
+  try {
 	    const executor = await channel.client.users.fetch(punishment.executorId);
 
 	    // 检查处罚时长是否小于24小时
@@ -250,24 +248,22 @@ export const sendAppealNotification = async (channel, target, punishment) => {
 	            embeds: [dmEmbed],
 	            components: appealComponents,
 	        });
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`无法发送私信到用户 ${target.tag}: ${error.message}`);
 	    }
 
 	    return true;
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime(`发送上诉通知失败: ${error.message}`, true);
 	    return false;
-	}
+  }
 };
 
 /**
  * 获取处罚类型的中文描述
  */
 const getPunishmentTypeText = (type) => ({
-	ban: '永封',
-	mute: '禁言',
-	warn: '警告',
+  ban: '永封',
+  mute: '禁言',
+  warn: '警告',
 })[type] || type;

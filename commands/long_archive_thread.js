@@ -1,14 +1,14 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { cleanupInactiveThreads } from '../services/analyzers.js';
-import { checkAndHandlePermission, measureTime, handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';
 
 /**
  * 清理命令 - 归档不活跃的子区
  * 当活跃子区数量超过阈值时，自动归档最不活跃的子区
  */
 export default {
-	cooldown: 10, // 设置10秒冷却时间
-	data: new SlashCommandBuilder()
+  cooldown: 10, // 设置10秒冷却时间
+  data: new SlashCommandBuilder()
 	    .setName('清理活跃贴')
 	    .setDescription('清理不活跃的子区')
 	    .addIntegerOption(option =>
@@ -19,7 +19,7 @@ export default {
 	            .setMaxValue(1000),
 	    ),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    // 检查用户是否有执行权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -84,9 +84,8 @@ export default {
 	            flags: ['Ephemeral'],
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '清理子区');
 	    }
-	},
+  },
 };

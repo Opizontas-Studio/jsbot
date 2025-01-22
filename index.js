@@ -1,41 +1,41 @@
 // Node.js模块
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 // Discord.js库
-import { Client, Collection, Events, GatewayIntentBits, REST, Routes, Options } from 'discord.js';
 import { DiscordAPIError } from '@discordjs/rest';
+import { Client, Collection, Events, GatewayIntentBits, Options, REST, Routes } from 'discord.js';
 
 // 本地工具函数
-import { measureTime, loadCommandFiles, handleDiscordError, getVersionInfo } from './utils/helper.js';
-import { logTime } from './utils/logger.js';
 import GuildManager from './utils/guild_config.js';
+import { getVersionInfo, handleDiscordError, loadCommandFiles, measureTime } from './utils/helper.js';
+import { logTime } from './utils/logger.js';
 
 // 本地功能模块
-import { globalTaskScheduler } from './handlers/scheduler.js';
-import { globalRequestQueue, delay } from './utils/concurrency.js';
 import { dbManager } from './db/manager.js';
+import { globalTaskScheduler } from './handlers/scheduler.js';
+import { delay, globalRequestQueue } from './utils/concurrency.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(readFileSync(join(currentDir, 'config.json'), 'utf8'));
 
 // 初始化客户端
 const client = new Client({
-	shards: 'auto', // 启用内部分片
-	intents: [
+  shards: 'auto', // 启用内部分片
+  intents: [
 	    GatewayIntentBits.Guilds,
 	    GatewayIntentBits.GuildMessages,
 	    GatewayIntentBits.MessageContent,
 	    GatewayIntentBits.GuildMembers,
 	    GatewayIntentBits.DirectMessages,
-	],
-	// 重连配置
-	presence: {
+  ],
+  // 重连配置
+  presence: {
 	    status: 'online',
-	},
-	// 重连策略
-	sweepers: {
+  },
+  // 重连策略
+  sweepers: {
 	    // 清理过期的消息和线程
 	    messages: {
 	        interval: 3600, // 1小时清理一次
@@ -45,25 +45,25 @@ const client = new Client({
 	        interval: 3600,
 	        lifetime: 7200,
 	    },
-	},
-	makeCache: Options.cacheWithLimits({
+  },
+  makeCache: Options.cacheWithLimits({
 	    MessageManager: {
 	        maxSize: 200,
 	    },
-	}),
-	failIfNotExists: false,
+  }),
+  failIfNotExists: false,
 });
 
 // 监控速率限制和API响应
 client.rest
-	.on('rateLimited', (rateLimitData) => {
+  .on('rateLimited', (rateLimitData) => {
 	    logTime(`速率超限: • 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${rateLimitData.timeToReset}ms - 全局: ${rateLimitData.global ? '是' : '否'} - 限制: ${rateLimitData.limit || '未知'}`, true);
-	})
-	.on('response', (request, response) => {
+  })
+  .on('response', (request, response) => {
 	    if (response.status === 429) { // 429是速率限制状态码
 	        logTime(`API受限: • 路由: ${request.route} - 方法: ${request.method} - 状态: ${response.status} - 重试延迟: ${response.headers.get('retry-after')}ms`, true);
 	    }
-	});
+  });
 
 // 初始化命令集合和GuildManager
 client.commands = new Collection();
@@ -71,11 +71,11 @@ client.guildManager = new GuildManager();
 
 // 加载事件处理器
 async function loadEvents() {
-	const eventsPath = join(currentDir, 'events');
-	const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-	let loadedEvents = 0;
+  const eventsPath = join(currentDir, 'events');
+  const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+  let loadedEvents = 0;
 
-	for (const file of eventFiles) {
+  for (const file of eventFiles) {
 	    try {
 	        const eventPath = join(eventsPath, file);
 	        // 转换为 file:// URL
@@ -93,25 +93,23 @@ async function loadEvents() {
 
 	            if (evt.once) {
 	                client.once(evt.name, (...args) => evt.execute(...args));
-	            }
-				else {
+	            } else {
 	                client.on(evt.name, (...args) => evt.execute(...args));
 	            }
 	            loadedEvents++;
 	        }
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`加载事件文件 ${file} 失败:`, true);
 	        console.error(error.stack);
 	    }
-	}
-	logTime(`已加载 ${loadedEvents} 个事件处理器`);
+  }
+  logTime(`已加载 ${loadedEvents} 个事件处理器`);
 }
 
 // 设置进程事件处理
 function setupProcessHandlers() {
-	// 优雅关闭处理函数
-	const gracefulShutdown = async (signal) => {
+  // 优雅关闭处理函数
+  const gracefulShutdown = async (signal) => {
 	    logTime(`收到${signal}信号，正在关闭`);
 
 	    try {
@@ -130,8 +128,7 @@ function setupProcessHandlers() {
 	            // 在关闭前执行一次备份
 	            try {
 	                await dbManager.backup();
-	            }
-				catch (error) {
+	            } catch (error) {
 	                logTime('关闭前备份失败: ' + error.message, true);
 	            }
 
@@ -148,22 +145,21 @@ function setupProcessHandlers() {
 
 	        logTime('所有资源已清理完毕，正在退出');
 	        process.exit(0);
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime('退出过程中发生错误:', true);
 	        console.error(error);
 	        process.exit(1);
 	    }
-	};
+  };
 
-	// 进程信号处理
-	process.on('SIGINT', () => gracefulShutdown('退出'));
-	process.on('SIGTERM', () => gracefulShutdown('终止'));
+  // 进程信号处理
+  process.on('SIGINT', () => gracefulShutdown('退出'));
+  process.on('SIGTERM', () => gracefulShutdown('终止'));
 }
 
 // 主函数
 async function main() {
-	try {
+  try {
 	    // 在开始时记录版本信息
 	    const versionInfo = getVersionInfo();
 	    if (versionInfo) {
@@ -177,8 +173,7 @@ async function main() {
 	    try {
 	        await dbManager.connect();
 	        logTime('数据库连接已建立');
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime('数据库初始化失败，无法继续运行:', true);
 	        console.error('错误详情:', error);
 	        if (error.details) {
@@ -195,8 +190,7 @@ async function main() {
 	    try {
 	        await client.login(config.token);
 	        logTime(`登录完成，用时: ${loginTimer()}秒`);
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`登录失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error.message}`, true);
 	        process.exit(1);
 	    }
@@ -234,8 +228,7 @@ async function main() {
 
 	                // 添加延迟避免速率限制
 	                await delay(500);
-	            }
-				catch (error) {
+	            } catch (error) {
 	                const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
 	                logTime(`服务器 ${guildId} 命令部署失败: ${errorMessage}`, true);
 	                if (error.code === 50001) {
@@ -248,8 +241,7 @@ async function main() {
 	    // 加载命令到客户端集合中
 	    client.commands = new Collection(commands);
 
-	}
-	catch (error) {
+  } catch (error) {
 	    logTime('启动过程中发生错误:', true);
 	    console.error(error);
 
@@ -259,7 +251,7 @@ async function main() {
 	    }
 
 	    process.exit(1);
-	}
+  }
 }
 
 // 万剑归宗

@@ -1,16 +1,15 @@
-import { SlashCommandBuilder, Collection } from 'discord.js';
-import { REST, Routes } from 'discord.js';
-import { measureTime, loadCommandFiles, checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
-import { join, dirname } from 'node:path';
+import { Collection, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkAndHandlePermission, handleCommandError, loadCommandFiles, measureTime } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
-	data: new SlashCommandBuilder()
+  data: new SlashCommandBuilder()
 	    .setName('同步指令')
 	    .setDescription('检查并同步当前服务器的Discord指令'),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    // 检查用户是否有执行权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -97,9 +96,8 @@ export default {
 	            content: `✅ 命令同步完成，总用时: ${deployTimer()}秒\n${statusReport.join('\n')}`,
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '同步命令');
 	    }
-	},
+  },
 };

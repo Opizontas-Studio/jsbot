@@ -1,12 +1,12 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { handleCommandError, checkAndHandlePermission } from '../utils/helper.js';
-import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
-import PunishmentService from '../services/punishment_service.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
+import PunishmentService from '../services/punishment_service.js';
+import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { calculatePunishmentDuration } from '../utils/punishment_helper.js';
 
 export default {
-	cooldown: 5,
-	data: new SlashCommandBuilder()
+  cooldown: 5,
+  data: new SlashCommandBuilder()
 	    .setName('处罚')
 	    .setDescription('对用户执行处罚')
 	    .addSubcommand(subcommand =>
@@ -56,7 +56,7 @@ export default {
 	    )
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -126,8 +126,7 @@ export default {
 	                },
 	            });
 
-	        }
-			else if (subcommand === '禁言') {
+	        } else if (subcommand === '禁言') {
 	            const muteTime = interaction.options.getString('时长');
 	            const warnTime = interaction.options.getString('警告');
 
@@ -166,9 +165,8 @@ export default {
 	                flags: ['Ephemeral'],
 	            });
 	        }
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '处罚');
 	    }
-	},
+  },
 };

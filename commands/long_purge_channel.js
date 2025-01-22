@@ -1,12 +1,12 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { checkAndHandlePermission, measureTime, handleCommandError, generateProgressReport } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalBatchProcessor } from '../utils/concurrency.js';
+import { checkAndHandlePermission, generateProgressReport, handleCommandError, measureTime } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
-	cooldown: 10,
-	data: new SlashCommandBuilder()
+  cooldown: 10,
+  data: new SlashCommandBuilder()
 	    .setName('频道完全清理')
 	    .setDescription('清理指定范围内的所有消息')
 	    .addStringOption(option =>
@@ -24,7 +24,7 @@ export default {
 	            .setMinLength(17)
 	            .setMaxLength(20)),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    // 检查权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -96,8 +96,7 @@ export default {
 	                    lastMessage = additionalMessages.last();
 	                }
 	            }
-	        }
-			catch (error) {
+	        } catch (error) {
 	            logTime(`获取消息时出错: ${error.message}`, true);
 	            await interaction.editReply('❌ 获取消息时出现错误，请稍后重试');
 	            return;
@@ -159,12 +158,10 @@ export default {
 	                                    progressChar: '🗑️',
 	                                }),
 	                            });
-	                        }
-							catch (error) {
+	                        } catch (error) {
 	                            logTime(`批量删除消息失败: ${error.message}`, true);
 	                        }
-	                    }
-						else {
+	                    } else {
 	                        // 将消息分成100条一组进行批量删除
 	                        const recentMessageBatches = [];
 	                        for (let i = 0; i < recentMessages.length; i += 100) {
@@ -186,8 +183,7 @@ export default {
 	                                            progressChar: '🗑️',
 	                                        }),
 	                                    });
-	                                }
-									catch (error) {
+	                                } catch (error) {
 	                                    logTime(`批量删除消息失败: ${error.message}`, true);
 	                                }
 	                            },
@@ -206,8 +202,7 @@ export default {
 	                                await message.delete();
 	                                deletedCount++;
 	                                processedCount++;
-	                            }
-								catch (error) {
+	                            } catch (error) {
 	                                logTime(`删除旧消息失败: ${error.message}`, true);
 	                            }
 	                        }
@@ -219,8 +214,7 @@ export default {
 	                                progressChar: '🗑️',
 	                            }),
 	                        });
-	                    }
-						else {
+	                    } else {
 	                        // 使用批处理器处理大量旧消息
 	                        await globalBatchProcessor.processBatch(
 	                            oldMessages,
@@ -240,8 +234,7 @@ export default {
 	                                            }),
 	                                        });
 	                                    }
-	                                }
-									catch (error) {
+	                                } catch (error) {
 	                                    logTime(`删除旧消息失败: ${error.message}`, true);
 	                                }
 	                            },
@@ -317,9 +310,8 @@ export default {
 	                });
 	            },
 	        });
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '频道清理');
 	    }
-	},
+  },
 };

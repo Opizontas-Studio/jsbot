@@ -3,16 +3,16 @@ import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 const COLORS = {
-  '蓝色': 0x0099ff,
-  '绿色': 0x00ff00,
-  '紫色': 0x9b59b6,
-  '粉色': 0xff69b4,
-  '青色': 0x00ffff,
+    '蓝色': 0x0099ff,
+    '绿色': 0x00ff00,
+    '紫色': 0x9b59b6,
+    '粉色': 0xff69b4,
+    '青色': 0x00ffff,
 };
 
 export default {
-  cooldown: 60,
-  data: new SlashCommandBuilder()
+    cooldown: 60,
+    data: new SlashCommandBuilder()
 	    .setName('私聊通知')
 	    .setDescription('通过机器人向指定用户发送私聊通知')
 	    .addUserOption(option =>
@@ -50,7 +50,7 @@ export default {
 	            ),
 	    ),
 
-  async execute(interaction) {
+    async execute(interaction) {
 	    try {
 	        // 获取目标用户
 	        const targetUser = interaction.options.getUser('目标用户');
@@ -117,5 +117,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '发送私聊通知');
 	    }
-  },
+    },
 };

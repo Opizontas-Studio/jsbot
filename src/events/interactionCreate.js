@@ -16,8 +16,8 @@ const DEFAULT_COOLDOWN = 5;
  * @param {Interaction} interaction - Discord交互对象
  */
 export default {
-  name: Events.InteractionCreate,
-  async execute(interaction) {
+    name: Events.InteractionCreate,
+    async execute(interaction) {
 	    // 处理按钮交互
 	    if (interaction.isButton()) {
 	        await handleButton(interaction);
@@ -104,5 +104,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, command.data.name);
 	    }
-  },
+    },
 };

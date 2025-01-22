@@ -6,8 +6,8 @@ import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
-  cooldown: 10,
-  data: new SlashCommandBuilder()
+    cooldown: 10,
+    data: new SlashCommandBuilder()
 	    .setName('自助管理')
 	    .setDescription('管理你自己的帖子')
 	    .addSubcommand(subcommand =>
@@ -49,7 +49,7 @@ export default {
 	                    .setMaxValue(1000)
 	                    .setRequired(false))),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    const subcommand = interaction.options.getSubcommand();
 
 	    // 检查是否在论坛帖子中使用
@@ -199,9 +199,8 @@ export default {
 	                });
 	            }
 	        }
-	    }
-	    // 处理锁定并关闭命令
-	    else if (subcommand === '锁定并关闭') {
+	    } else if (subcommand === '锁定并关闭') {
+            // 处理锁定并关闭命令
 	        const reason = interaction.options.getString('理由');
 	        try {
 	            await handleConfirmationButton({
@@ -239,9 +238,8 @@ export default {
 	        } catch (error) {
 	            await handleCommandError(interaction, error, '锁定帖子');
 	        }
-	    }
-	    // 处理清理不活跃用户命令
-	    else if (subcommand === '清理不活跃用户') {
+	    } else if (subcommand === '清理不活跃用户') {
+            // 处理清理不活跃用户命令
 	        try {
 	            const threshold = interaction.options.getInteger('阈值') || 950;
 
@@ -299,5 +297,5 @@ export default {
 	            await handleCommandError(interaction, error, '清理不活跃用户');
 	        }
 	    }
-  },
+    },
 };

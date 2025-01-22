@@ -22,20 +22,20 @@ const config = JSON.parse(readFileSync(join(process.cwd(), 'config.json'), 'utf8
 
 // 初始化客户端
 const client = new Client({
-  shards: 'auto', // 启用内部分片
-  intents: [
+    shards: 'auto', // 启用内部分片
+    intents: [
 	    GatewayIntentBits.Guilds,
 	    GatewayIntentBits.GuildMessages,
 	    GatewayIntentBits.MessageContent,
 	    GatewayIntentBits.GuildMembers,
 	    GatewayIntentBits.DirectMessages,
-  ],
-  // 重连配置
-  presence: {
+    ],
+    // 重连配置
+    presence: {
 	    status: 'online',
-  },
-  // 重连策略
-  sweepers: {
+    },
+    // 重连策略
+    sweepers: {
 	    // 清理过期的消息和线程
 	    messages: {
 	        interval: 3600, // 1小时清理一次
@@ -45,25 +45,25 @@ const client = new Client({
 	        interval: 3600,
 	        lifetime: 7200,
 	    },
-  },
-  makeCache: Options.cacheWithLimits({
+    },
+    makeCache: Options.cacheWithLimits({
 	    MessageManager: {
 	        maxSize: 200,
 	    },
-  }),
-  failIfNotExists: false,
+    }),
+    failIfNotExists: false,
 });
 
 // 监控速率限制和API响应
 client.rest
-  .on('rateLimited', (rateLimitData) => {
+    .on('rateLimited', (rateLimitData) => {
 	    logTime(`速率超限: • 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${rateLimitData.timeToReset}ms - 全局: ${rateLimitData.global ? '是' : '否'} - 限制: ${rateLimitData.limit || '未知'}`, true);
-  })
-  .on('response', (request, response) => {
+    })
+    .on('response', (request, response) => {
 	    if (response.status === 429) { // 429是速率限制状态码
 	        logTime(`API受限: • 路由: ${request.route} - 方法: ${request.method} - 状态: ${response.status} - 重试延迟: ${response.headers.get('retry-after')}ms`, true);
 	    }
-  });
+    });
 
 // 初始化命令集合和GuildManager
 client.commands = new Collection();
@@ -71,11 +71,11 @@ client.guildManager = new GuildManager();
 
 // 加载事件处理器
 async function loadEvents() {
-  const eventsPath = join(currentDir, 'events');
-  const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-  let loadedEvents = 0;
+    const eventsPath = join(currentDir, 'events');
+    const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+    let loadedEvents = 0;
 
-  for (const file of eventFiles) {
+    for (const file of eventFiles) {
 	    try {
 	        const eventPath = join(eventsPath, file);
 	        // 转换为 file:// URL
@@ -102,14 +102,14 @@ async function loadEvents() {
 	        logTime(`加载事件文件 ${file} 失败:`, true);
 	        console.error(error.stack);
 	    }
-  }
-  logTime(`已加载 ${loadedEvents} 个事件处理器`);
+    }
+    logTime(`已加载 ${loadedEvents} 个事件处理器`);
 }
 
 // 设置进程事件处理
 function setupProcessHandlers() {
-  // 优雅关闭处理函数
-  const gracefulShutdown = async (signal) => {
+    // 优雅关闭处理函数
+    const gracefulShutdown = async (signal) => {
 	    logTime(`收到${signal}信号，正在关闭`);
 
 	    try {
@@ -150,16 +150,16 @@ function setupProcessHandlers() {
 	        console.error(error);
 	        process.exit(1);
 	    }
-  };
+    };
 
-  // 进程信号处理
-  process.on('SIGINT', () => gracefulShutdown('退出'));
-  process.on('SIGTERM', () => gracefulShutdown('终止'));
+    // 进程信号处理
+    process.on('SIGINT', () => gracefulShutdown('退出'));
+    process.on('SIGTERM', () => gracefulShutdown('终止'));
 }
 
 // 主函数
 async function main() {
-  try {
+    try {
 	    // 在开始时记录版本信息
 	    const versionInfo = getVersionInfo();
 	    if (versionInfo) {
@@ -241,7 +241,7 @@ async function main() {
 	    // 加载命令到客户端集合中
 	    client.commands = new Collection(commands);
 
-  } catch (error) {
+    } catch (error) {
 	    logTime('启动过程中发生错误:', true);
 	    console.error(error);
 
@@ -251,7 +251,7 @@ async function main() {
 	    }
 
 	    process.exit(1);
-  }
+    }
 }
 
 // 万剑归宗

@@ -9,7 +9,7 @@ const noop = () => undefined;
  * @param {Object} result - 清理结果
  */
 export const sendThreadReport = async (thread, result) => {
-  try {
+    try {
 	    await thread.send({
 	        embeds: [{
 	            color: 0xffcc00,
@@ -35,9 +35,9 @@ export const sendThreadReport = async (thread, result) => {
 	            timestamp: new Date(),
 	        }],
 	    });
-  } catch (error) {
+    } catch (error) {
 	    logTime(`发送子区报告失败 ${thread.name}: ${error.message}`, true);
-  }
+    }
 };
 
 /**
@@ -50,7 +50,7 @@ export const sendThreadReport = async (thread, result) => {
  * @returns {Promise<Object>} 清理结果
  */
 export const cleanThreadMembers = async (thread, threshold, options = {}, progressCallback = noop) => {
-  try {
+    try {
 	    // 检查白名单
 	    if (options.whitelistedThreads?.includes(thread.id)) {
 	        return {
@@ -221,14 +221,14 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 
 	    return result;
 
-  } catch (error) {
+    } catch (error) {
 	    logTime(`清理子区 ${thread.name} 时出错: ${error.message}`, true);
 	    return {
 	        status: 'error',
 	        name: thread.name,
 	        error: error.message,
 	    };
-  }
+    }
 };
 
 /**
@@ -238,31 +238,31 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
  * @returns {Promise<void>}
  */
 export async function handleSingleThreadCleanup(interaction, guildConfig) {
-  if (!interaction.channel.isThread()) {
+    if (!interaction.channel.isThread()) {
 	    await interaction.editReply({
 	        content: '❌ 此命令只能在子区中使用',
 	        flags: ['Ephemeral'],
 	    });
 	    return;
-  }
+    }
 
-  const thread = interaction.channel;
-  const threshold = interaction.options.getInteger('阈值') || 950;
+    const thread = interaction.channel;
+    const threshold = interaction.options.getInteger('阈值') || 950;
 
-  // 检查白名单
-  if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
+    // 检查白名单
+    if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
 	    await interaction.editReply({
 	        content: '✅ 此子区在白名单中，已跳过清理。',
 	        flags: ['Ephemeral'],
 	    });
 	    return;
-  }
+    }
 
-  // 提前检查成员数量
-  const members = await thread.members.fetch();
-  const memberCount = members.size;
+    // 提前检查成员数量
+    const members = await thread.members.fetch();
+    const memberCount = members.size;
 
-  if (memberCount < threshold) {
+    if (memberCount < threshold) {
 	    await interaction.editReply({
 	        embeds: [{
 	            color: 0x808080,
@@ -271,9 +271,9 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
 	        }],
 	    });
 	    return;
-  }
+    }
 
-  const result = await cleanThreadMembers(
+    const result = await cleanThreadMembers(
 	    thread,
 	    threshold,
 	    { sendThreadReport: true },
@@ -290,9 +290,9 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
 	            });
 	        }
 	    },
-  );
+    );
 
-  await handleCleanupResult(interaction, result, threshold);
+    await handleCleanupResult(interaction, result, threshold);
 }
 
 /**
@@ -300,7 +300,7 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
  * @private
  */
 async function handleCleanupResult(interaction, result, threshold) {
-  if (result.status === 'skipped') {
+    if (result.status === 'skipped') {
 	    const message = result.reason === 'whitelisted'
 	        ? '✅ 此子区在白名单中，已跳过清理。'
 	        : `✅ 当前子区人数(${result.memberCount})已经在限制范围内，无需清理。`;
@@ -310,15 +310,15 @@ async function handleCleanupResult(interaction, result, threshold) {
 	        flags: ['Ephemeral'],
 	    });
 	    return;
-  }
+    }
 
-  if (result.status === 'error') {
+    if (result.status === 'error') {
 	    throw new Error(result.error);
-  }
+    }
 
-  // 发送操作日志
-  const moderationChannel = await interaction.client.channels.fetch(interaction.guildConfig.moderationLogThreadId);
-  await moderationChannel.send({
+    // 发送操作日志
+    const moderationChannel = await interaction.client.channels.fetch(interaction.guildConfig.moderationLogThreadId);
+    await moderationChannel.send({
 	    embeds: [{
 	        color: 0x0099ff,
 	        title: '子区清理报告',
@@ -338,10 +338,10 @@ async function handleCleanupResult(interaction, result, threshold) {
 	        timestamp: new Date(),
 	        footer: { text: '论坛管理系统' },
 	    }],
-  });
+    });
 
-  // 回复执行结果
-  await interaction.editReply({
+    // 回复执行结果
+    await interaction.editReply({
 	    content: [
 	        '✅ 子区清理完成！',
 	        `🎯 目标阈值: ${threshold}`,
@@ -351,5 +351,5 @@ async function handleCleanupResult(interaction, result, threshold) {
 	        `👤 当前人数: ${result.originalCount - result.removedCount}`,
 	    ].join('\n'),
 	    flags: ['Ephemeral'],
-  });
+    });
 }

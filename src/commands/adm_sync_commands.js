@@ -5,11 +5,11 @@ import { checkAndHandlePermission, handleCommandError, loadCommandFiles, measure
 import { logTime } from '../utils/logger.js';
 
 export default {
-  data: new SlashCommandBuilder()
+    data: new SlashCommandBuilder()
 	    .setName('同步指令')
 	    .setDescription('检查并同步当前服务器的Discord指令'),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    // 检查用户是否有执行权限
 	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
 
@@ -99,5 +99,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '同步命令');
 	    }
-  },
+    },
 };

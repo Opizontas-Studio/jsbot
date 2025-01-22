@@ -5,8 +5,8 @@ import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js
 import { formatPunishmentDuration } from '../utils/punishment_helper.js';
 
 export default {
-  cooldown: 3,
-  data: new SlashCommandBuilder()
+    cooldown: 3,
+    data: new SlashCommandBuilder()
 	    .setName('查询记录')
 	    .setDescription('查询数据库记录')
 	    .addStringOption(option =>
@@ -24,7 +24,7 @@ export default {
 	            .setRequired(false),
 	    ),
 
-  async execute(interaction, guildConfig) {
+    async execute(interaction, guildConfig) {
 	    try {
 	        // 检查管理员权限
 	        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
@@ -230,5 +230,5 @@ export default {
 	    } catch (error) {
 	        await handleCommandError(interaction, error, '查询记录');
 	    }
-  },
+    },
 };

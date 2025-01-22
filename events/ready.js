@@ -22,7 +22,7 @@ export default {
 	    await createApplicationMessage(client);
 
 	    // 初始化分片状态
-	    globalRequestQueue.setShardStatus('ready');
+	    globalRequestQueue.setShardStatus(WebSocketShardStatus.Ready);
 
 	    // 修改分片状态处理函数
 	    const handleShardStatus = (status) => {

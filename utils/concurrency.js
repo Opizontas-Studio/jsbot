@@ -1,4 +1,5 @@
 import { logTime } from './logger.js';
+import { WebSocketShardStatus } from 'discord.js';
 
 // 延迟函数
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -21,7 +22,12 @@ export class RequestQueue {
 	    };
 	    this.paused = false;
 	    this.shardStatus = new Map();
-	    this.validStates = new Set(['ready', 'disconnected', 'reconnecting', 'error', 'resumed']);
+	    this.validStates = new Set([
+	        WebSocketShardStatus.Idle,
+	        WebSocketShardStatus.Connecting,
+	        WebSocketShardStatus.Resuming,
+	        WebSocketShardStatus.Ready,
+	    ]);
 	}
 
 	// 设置分片状态
@@ -35,12 +41,24 @@ export class RequestQueue {
 
 	    this.shardStatus.set(0, status);
 
-	    // 只在致命错误时暂停队列
-	    if (status === 'error') {
-	        this.pause();
-	    }
-		else if (status === 'ready' || status === 'resumed' || status === 'reconnecting') {
-	        this.resume();
+	    // 根据状态执行相应操作
+	    switch (status) {
+	        case WebSocketShardStatus.Idle:
+	            this.pause();
+	            break;
+	        case WebSocketShardStatus.Ready:
+	            this.resume();
+	            break;
+	        case WebSocketShardStatus.Connecting:
+	        case WebSocketShardStatus.Resuming:
+	            // 短暂暂停后自动恢复
+	            this.pause();
+	            setTimeout(() => {
+	                if (this.shardStatus.get(0) === status) {
+	                    this.resume();
+	                }
+	            }, 2000);
+	            break;
 	    }
 	}
 

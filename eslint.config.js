@@ -8,7 +8,6 @@ export default [
 		},
 		rules: {
 			'arrow-spacing': ['warn', { before: true, after: true }],
-			'brace-style': ['error', 'stroustrup', { allowSingleLine: true }],
 			'comma-dangle': ['error', 'always-multiline'],
 			'comma-spacing': 'error',
 			'comma-style': 'error',

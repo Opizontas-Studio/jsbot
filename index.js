@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 // Discord.js库
-import { Client, Collection, Events, GatewayIntentBits, REST, Routes } from 'discord.js';
+import { Client, Collection, Events, GatewayIntentBits, REST, Routes, Options } from 'discord.js';
 import { DiscordAPIError } from '@discordjs/rest';
 
 // 本地工具函数
@@ -22,6 +22,7 @@ const config = JSON.parse(readFileSync(join(currentDir, 'config.json'), 'utf8'))
 
 // 初始化客户端
 const client = new Client({
+	shards: 'auto', // 启用内部分片
 	intents: [
 	    GatewayIntentBits.Guilds,
 	    GatewayIntentBits.GuildMessages,
@@ -29,19 +30,28 @@ const client = new Client({
 	    GatewayIntentBits.GuildMembers,
 	    GatewayIntentBits.DirectMessages,
 	],
-	// 分片配置
-	shards: [0], // 使用单分片
-	failIfNotExists: false,
 	// 重连配置
 	presence: {
 	    status: 'online',
 	},
 	// 重连策略
-	restWsBridgeTimeout: 10000,
-	restTimeOffset: 750,
-	restRequestTimeout: 15000,
-	retryLimit: 5,
-	waitGuildTimeout: 15000,
+	sweepers: {
+	    // 清理过期的消息和线程
+	    messages: {
+	        interval: 3600, // 1小时清理一次
+	        lifetime: 7200, // 保留2小时
+	    },
+	    threads: {
+	        interval: 3600,
+	        lifetime: 7200,
+	    },
+	},
+	makeCache: Options.cacheWithLimits({
+	    MessageManager: {
+	        maxSize: 200,
+	    },
+	}),
+	failIfNotExists: false,
 });
 
 // 监控速率限制和API响应

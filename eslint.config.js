@@ -1,6 +1,6 @@
-const js = require('@eslint/js');
+import js from '@eslint/js';
 
-module.exports = [
+export default [
 	js.configs.recommended,
 	{
 		languageOptions: {
@@ -22,7 +22,6 @@ module.exports = [
 			'no-console': 'off',
 			'no-empty-function': 'error',
 			'no-floating-decimal': 'error',
-			'no-inline-comments': 'error',
 			'no-lonely-if': 'error',
 			'no-multi-spaces': 'error',
 			'no-multiple-empty-lines': ['error', { max: 2, maxEOF: 1, maxBOF: 0 }],

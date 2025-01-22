@@ -4,25 +4,24 @@
   "main": "start.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "deploy": "node commands/adm_sync_commands.js",
-    "start:log": "node index.js | tee -a ./logs/bot.log"
+	"start": "node index.js",
+	"deploy": "node commands/adm_sync_commands.js",
+	"start:log": "node index.js | tee -a ./logs/bot.log"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "discord.js": "^14.17.3",
-    "node-cron": "^3.0.3",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
-    "undici": "^7.2.1",
-    "winston": "^3.11.0",
-    "winston-daily-rotate-file": "^5.0.0"
+	"discord.js": "^14.17.3",
+	"node-cron": "^3.0.3",
+	"sqlite": "^5.1.1",
+	"sqlite3": "^5.1.7",
+	"winston": "^3.11.0",
+	"winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.18.0",
-    "eslint": "^9.18.0"
+	"@eslint/js": "^9.18.0",
+	"eslint": "^9.18.0"
   }
 }

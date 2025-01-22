@@ -16,8 +16,6 @@ export const modalHandlers = {
     // 身份组申请模态框处理器
     'creator_role_modal': async (interaction) => {
 	    try {
-	        await interaction.deferReply({ flags: ['Ephemeral'] });
-
 	        const threadLink = interaction.fields.getTextInputValue('thread_link');
 	        const matches = threadLink.match(/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/);
 
@@ -307,22 +305,19 @@ export const modalHandlers = {
             }
 
             // 发送确认消息
-            await interaction.reply({
+            await interaction.editReply({
                 content: '✅ 上诉申请已提交到议事区，请等待议员审议',
                 flags: ['Ephemeral'],
             });
 
         } catch (error) {
             logTime(`处理上诉表单提交失败: ${error.message}`, true);
-            await interaction.reply({
+            await interaction.editReply({
                 content: '❌ 处理上诉申请时出错，请稍后重试',
                 flags: ['Ephemeral'],
             });
         }
     },
-
-    // 处罚系统模态框处理器将在这里添加
-    // 'punishment_reason_modal': async (interaction) => {...},
 };
 
 /**
@@ -352,7 +347,7 @@ export async function handleModal(interaction) {
     } catch (error) {
         logTime(`模态框处理出错 [${interaction.customId}]: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error}`, true);
         if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: `❌ ${error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试。'}`,
                 flags: ['Ephemeral'],
             });

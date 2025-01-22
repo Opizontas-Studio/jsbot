@@ -24,11 +24,12 @@ export default {
 	        return;
 	    }
 
-	    // 处理模态框提交
-	    if (interaction.isModalSubmit()) {
-	        await handleModal(interaction);
-	        return;
-	    }
+        // 处理模态框提交
+        if (interaction.isModalSubmit()) {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+            await handleModal(interaction);
+            return;
+        }
 
 	    // 只处理斜杠命令
 	    if (!interaction.isChatInputCommand()) return;

@@ -221,10 +221,13 @@ export const buttonHandlers = {
  * @param {string} type - 处罚类型 ('mute' | 'ban' | 'appeal')
  */
 async function handleCourtSupport(interaction, type) {
+    // 先发送一个延迟响应
+    await interaction.deferReply({ flags: ['Ephemeral'] });
+
     // 检查冷却时间
     const cooldownLeft = checkCooldown('court_support', interaction.user.id);
     if (cooldownLeft) {
-	    await interaction.reply({
+	    await interaction.editReply({
 	        content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
 	        flags: ['Ephemeral'],
 	    });
@@ -234,7 +237,7 @@ async function handleCourtSupport(interaction, type) {
     // 检查议事系统是否启用
     const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
     if (!guildConfig?.courtSystem?.enabled) {
-	    await interaction.reply({
+	    await interaction.editReply({
 	        content: '❌ 此服务器未启用议事系统',
 	        flags: ['Ephemeral'],
 	    });
@@ -244,7 +247,7 @@ async function handleCourtSupport(interaction, type) {
     // 检查是否为议员
     const member = await interaction.guild.members.fetch(interaction.user.id);
     if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
-	    await interaction.reply({
+	    await interaction.editReply({
 	        content: '❌ 只有议员可以参与议事投票',
 	        flags: ['Ephemeral'],
 	    });
@@ -255,9 +258,6 @@ async function handleCourtSupport(interaction, type) {
     const [, , targetId] = interaction.customId.split('_');
 
     try {
-    // 先发送一个延迟响应
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
 	    // 获取或创建议事流程
 	    const { error } = await CourtService.getOrCreateProcess(
 	        interaction.message,
@@ -432,7 +432,7 @@ export async function handleButton(interaction) {
         }
     }
 
-    // 处理按钮交互
+    // 处理上诉按钮
     if (interaction.customId.startsWith('appeal_')) {
         const punishmentId = interaction.customId.split('_')[1];
         await handleAppealButton(interaction, punishmentId);

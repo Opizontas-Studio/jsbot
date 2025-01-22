@@ -35,15 +35,28 @@ function Stop-Bot {
 	return (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
 }
 
+function Build-TypeScript {
+    Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Building TypeScript files..."
+    $buildProcess = Start-Process cmd -ArgumentList "/c npm run build" -PassThru -NoNewWindow -Wait -WorkingDirectory $scriptPath
+    if ($buildProcess.ExitCode -ne 0) {
+        throw "TypeScript build failed with exit code $($buildProcess.ExitCode)"
+    }
+    Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] TypeScript build completed successfully"
+}
+
 while ($true) {
   try {
       # Change to script directory
       Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Changing to script directory..."
       Set-Location -Path $scriptPath
       
-      # Start Bot using npm start
+      # Build TypeScript files
+      Build-TypeScript
+      
+      # Start Bot using the compiled JavaScript
       Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Starting Discord Bot..."
-      $process = Start-Process npm -ArgumentList "start" -PassThru -WindowStyle Normal
+      $nodePath = (Get-Command node).Source
+      $process = Start-Process $nodePath -ArgumentList "dist/index.js" -PassThru -WindowStyle Normal -WorkingDirectory $scriptPath
       
       # Wait for 4 hours
       Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot started with PID: $($process.Id)"
@@ -61,6 +74,8 @@ while ($true) {
   }
   catch {
       Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Error occurred: $_"
+      Write-Host $_.Exception.Message
+      Write-Host $_.ScriptStackTrace
       Start-Sleep -Seconds 30
   }
 } 

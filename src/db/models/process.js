@@ -1,13 +1,13 @@
-import { dbManager } from '../manager.js';
 import { logTime } from '../../utils/logger.js';
+import { dbManager } from '../manager.js';
 
 class ProcessModel {
-	/**
+  /**
 	 * 获取流程记录
 	 * @param {number} id - 流程ID
 	 * @returns {Promise<Object>} 流程记录
 	 */
-	static async getProcessById(id) {
+  static async getProcessById(id) {
 	    const cacheKey = `process_${id}`;
 	    const cached = dbManager.getCache(cacheKey);
 	    if (cached) return cached;
@@ -25,8 +25,7 @@ class ProcessModel {
 	            process.details = JSON.parse(process.details || '{}');
 	            process.supporters = JSON.parse(process.supporters || '[]');
 	            dbManager.setCache(cacheKey, process);
-	        }
-			catch (error) {
+	        } catch (error) {
 	            logTime(`JSON解析失败 [getProcessById]: ${error.message}`, true);
 	            process.votes = {};
 	            process.messageIds = [];
@@ -36,9 +35,9 @@ class ProcessModel {
 	    }
 
 	    return process;
-	}
+  }
 
-	/**
+  /**
 	 * 更新流程状态
 	 * @param {number} id - 流程ID
 	 * @param {string} status - 新状态
@@ -47,7 +46,7 @@ class ProcessModel {
 	 * @param {string} [options.reason] - 状态更新原因
 	 * @returns {Promise<Object>} 更新后的流程记录
 	 */
-	static async updateStatus(id, status, options = {}) {
+  static async updateStatus(id, status, options = {}) {
 	    const process = await this.getProcessById(id);
 	    if (!process) throw new Error('流程记录不存在');
 
@@ -74,18 +73,17 @@ class ProcessModel {
 	            process.targetId,
 	            process.executorId,
 	            id,
-	            process.messageId
+	            process.messageId,
 	        );
 
 	        return this.getProcessById(id);
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`更新流程状态失败: ${error.message}`, true);
 	        throw error;
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 清除相关缓存
 	 * @private
 	 * @param {string} targetId - 目标用户ID
@@ -93,7 +91,7 @@ class ProcessModel {
 	 * @param {number} [processId] - 流程ID（可选）
 	 * @param {string} [messageId] - 消息ID（可选）
 	 */
-	static _clearRelatedCache(targetId, executorId, processId = null, messageId = null) {
+  static _clearRelatedCache(targetId, executorId, processId = null, messageId = null) {
 	    // 清除用户相关的所有缓存（目标用户和执行者）
 	    ['true', 'false'].forEach(includeCompleted => {
 	        dbManager.clearCache(`user_processes_${targetId}_${includeCompleted}`);
@@ -111,13 +109,13 @@ class ProcessModel {
 	    if (messageId) {
 	        dbManager.clearCache(`process_msg_${messageId}`);
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 检查并处理过期的流程
 	 * @returns {Promise<Array>} 已处理的过期流程列表
 	 */
-	static async handleExpiredProcesses() {
+  static async handleExpiredProcesses() {
 	    const now = Date.now();
 
 	    try {
@@ -137,20 +135,19 @@ class ProcessModel {
 	        }
 
 	        return expiredProcesses;
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`处理过期流程失败: ${error.message}`, true);
 	        throw error;
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 获取用户相关的所有流程记录
 	 * @param {string} userId - 用户ID
 	 * @param {boolean} [includeCompleted=false] - 是否包含已完成记录
 	 * @returns {Promise<Array>} 流程记录列表
 	 */
-	static async getUserProcesses(userId, includeCompleted = false) {
+  static async getUserProcesses(userId, includeCompleted = false) {
 	    try {
 	        const now = Date.now();
 	        const query = `
@@ -176,19 +173,18 @@ class ProcessModel {
 	            details: JSON.parse(p.details || '{}'),
 	            supporters: JSON.parse(p.supporters || '[]'),
 	        }));
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`获取用户流程记录失败: ${error.message}`, true);
 	        throw error;
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 获取所有流程记录
 	 * @param {boolean} [includeCompleted=false] - 是否包含已完成记录
 	 * @returns {Promise<Array>} 流程记录列表
 	 */
-	static async getAllProcesses(includeCompleted = false) {
+  static async getAllProcesses(includeCompleted = false) {
 	    try {
 	        const now = Date.now();
 	        const query = `
@@ -213,14 +209,13 @@ class ProcessModel {
 	            details: JSON.parse(p.details || '{}'),
 	            supporters: JSON.parse(p.supporters || '[]'),
 	        }));
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`获取全库流程记录失败: ${error.message}`, true);
 	        throw error;
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 创建新的议事流程
 	 * @param {Object} data - 流程数据
 	 * @param {string} data.type - 流程类型 (court_mute/court_ban)
@@ -231,7 +226,7 @@ class ProcessModel {
 	 * @param {Object} data.details - 处罚详情
 	 * @returns {Promise<Object>} 流程记录
 	 */
-	static async createCourtProcess(data) {
+  static async createCourtProcess(data) {
 	    const {
 	        type, targetId, executorId,
 	        messageId, expireAt, details,
@@ -259,19 +254,18 @@ class ProcessModel {
 	        this._clearRelatedCache(targetId, executorId, result.lastID, messageId);
 
 	        return this.getProcessById(result.lastID);
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`创建议事流程失败: ${error.message}`, true);
 	        throw error;
 	    }
-	}
+  }
 
-	/**
+  /**
 	 * 获取议事流程
 	 * @param {string} messageId - 议事消息ID
 	 * @returns {Promise<Object>} 流程记录
 	 */
-	static async getProcessByMessageId(messageId) {
+  static async getProcessByMessageId(messageId) {
 	    const cacheKey = `process_msg_${messageId}`;
 	    const cached = dbManager.getCache(cacheKey);
 	    if (cached) return cached;
@@ -289,8 +283,7 @@ class ProcessModel {
 	            process.details = JSON.parse(process.details || '{}');
 	            process.supporters = JSON.parse(process.supporters || '[]');
 	            dbManager.setCache(cacheKey, process);
-	        }
-			catch (error) {
+	        } catch (error) {
 	            logTime(`JSON解析失败 [getProcessByMessageId]: ${error.message}`, true);
 	            process.votes = {};
 	            process.messageIds = [];
@@ -300,7 +293,7 @@ class ProcessModel {
 	    }
 
 	    return process;
-	}
+  }
 }
 
 export { ProcessModel };

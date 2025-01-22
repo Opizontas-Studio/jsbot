@@ -1,35 +1,36 @@
+import { logTime } from '../utils/logger.js';
 import { dbManager } from '../db/manager.js';
 import { ProcessModel } from '../db/models/process.js';
 import { PunishmentModel } from '../db/models/punishment.js';
-import { logTime } from '../utils/logger.js';
 
 class CourtService {
-  /**
+	/**
 	 * 检查用户是否已经支持过
 	 * @param {Object} process - 流程记录
 	 * @param {string} userId - 用户ID
 	 * @returns {boolean} 是否已支持
 	 */
-  static hasSupported(process, userId) {
+	static hasSupported(process, userId) {
 	    try {
 	        const supporters = Array.isArray(process.supporters) ?
 	            process.supporters :
 	            JSON.parse(process.supporters || '[]');
 	        return supporters.includes(userId);
-	    } catch (error) {
+	    }
+		catch (error) {
 	        logTime(`检查支持状态失败: ${error.message}`, true);
 	        return false;
 	    }
-  }
+	}
 
-  /**
+	/**
 	 * 创建辩诉帖子
 	 * @param {Object} process - 流程记录
 	 * @param {Object} guildConfig - 服务器配置
 	 * @param {Object} client - Discord客户端
 	 * @returns {Promise<Object>} 创建的辩诉帖子
 	 */
-  static async createDebateThread(process, guildConfig, client) {
+	static async createDebateThread(process, guildConfig, client) {
 	    const debateForum = await client.channels.fetch(guildConfig.courtSystem.debateForumId);
 	    const details = JSON.parse(process.details || '{}');
 
@@ -70,9 +71,9 @@ class CourtService {
 	    }
 
 	    return debateThread;
-  }
+	}
 
-  /**
+	/**
 	 * 更新议事消息
 	 * @param {Object} message - Discord消息对象
 	 * @param {Object} process - 流程记录
@@ -82,242 +83,243 @@ class CourtService {
 	 * @param {boolean} [options.removeComponents] - 是否移除交互组件
 	 * @returns {Promise<{supportCount: number, debateThreadUrl: string|null}>}
 	 */
-  static async updateCourtMessage(message, process, options = {}) {
-    const { debateThread, isExpired, removeComponents = false } = options;
-    const embed = message.embeds[0];
-    const updatedFields = [...embed.fields];
-    const supportCountField = updatedFields.find(field => field.name === '支持人数');
+	static async updateCourtMessage(message, process, options = {}) {
+		const { debateThread, isExpired, removeComponents = false } = options;
+		const embed = message.embeds[0];
+		const updatedFields = [...embed.fields];
+		const supportCountField = updatedFields.find(field => field.name === '支持人数');
 
-    let supporters = [];
-    try {
-      supporters = Array.isArray(process.supporters) ?
-        supporters = process.supporters :
-        JSON.parse(process.supporters || '[]');
-    } catch (error) {
-      logTime(`解析supporters失败: ${error.message}`, true);
-    }
+		let supporters = [];
+		try {
+			supporters = Array.isArray(process.supporters) ?
+				supporters = process.supporters :
+				JSON.parse(process.supporters || '[]');
+		}
+		catch (error) {
+			logTime(`解析supporters失败: ${error.message}`, true);
+		}
 
-    const supportCount = supporters.length;
+		const supportCount = supporters.length;
 
-    // 更新支持人数字段
-    if (supportCountField) {
-      const fieldIndex = updatedFields.findIndex(field => field.name === '支持人数');
-      updatedFields[fieldIndex] = {
-        name: '支持人数',
-        value: `${supportCount} 位议员`,
-        inline: true,
-      };
-    } else {
-      updatedFields.push({
-        name: '支持人数',
-        value: `${supportCount} 位议员`,
-        inline: true,
-      });
-    }
+		// 更新支持人数字段
+		if (supportCountField) {
+			const fieldIndex = updatedFields.findIndex(field => field.name === '支持人数');
+			updatedFields[fieldIndex] = {
+				name: '支持人数',
+				value: `${supportCount} 位议员`,
+				inline: true,
+			};
+		}
+		else {
+			updatedFields.push({
+				name: '支持人数',
+				value: `${supportCount} 位议员`,
+				inline: true,
+			});
+		}
 
-    const updatedEmbed = {
-      ...embed.data,
-      fields: updatedFields,
-    };
+		const updatedEmbed = {
+			...embed.data,
+			fields: updatedFields,
+		};
 
-    // 发送私信通知并更新消息描述
-    try {
-      const executor = await message.client.users.fetch(process.executorId);
-      const target = await message.client.users.fetch(process.targetId);
+		// 发送私信通知并更新消息描述
+		try {
+			const executor = await message.client.users.fetch(process.executorId);
+			const target = await message.client.users.fetch(process.targetId);
 
-      if (isExpired) {
-        // 过期状态
-        updatedEmbed.description = `${embed.description}\n\n❌ 议事已过期，未达到所需支持人数`;
-        // 过期通知
-        const expiredContent = process.type === 'appeal' ?
-          '❌ 您提交的上诉申请已过期，很遗憾未能获得足够议员支持。' :
-          '❌ 您提交的处罚申请已过期，很遗憾未能获得足够议员支持。';
-        // 根据流程类型通知相应用户
-        await (process.type === 'appeal' ? target : executor).send({
-          content: expiredContent,
-          flags: ['Ephemeral'],
-        });
-      } else if (debateThread) {
-        // 辩诉帖创建状态
-        updatedEmbed.description = `${embed.description}\n\n✅ 已达到所需支持人数，辩诉帖已创建：${debateThread.url}`;
+			if (isExpired) {
+				// 过期状态
+				updatedEmbed.description = `${embed.description}\n\n❌ 议事已过期，未达到所需支持人数`;
+				// 过期通知
+				const expiredContent = process.type === 'appeal' ?
+					'❌ 您提交的上诉申请已过期，很遗憾未能获得足够议员支持。' :
+					'❌ 您提交的处罚申请已过期，很遗憾未能获得足够议员支持。';
+				// 根据流程类型通知相应用户
+				await (process.type === 'appeal' ? target : executor).send({
+					content: expiredContent,
+					flags: ['Ephemeral'],
+				});
+			} else if (debateThread) {
+				// 辩诉帖创建状态
+				updatedEmbed.description = `${embed.description}\n\n✅ 已达到所需支持人数，辩诉帖已创建：${debateThread.url}`;
 
-        // 获取处罚记录并处理
-        if (process.type === 'appeal') {
-          const punishmentId = process.details?.punishmentId;
-          if (punishmentId) {
-            const punishment = await PunishmentModel.getPunishmentById(punishmentId);
-            if (punishment) {
-              // 检查处罚是否已过期
-              const now = Date.now();
-              const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
+				// 获取处罚记录并处理
+				if (process.type === 'appeal') {
+					const punishmentId = process.details?.punishmentId;
+					if (punishmentId) {
+						const punishment = await PunishmentModel.getPunishmentById(punishmentId);
+						if (punishment) {
+							// 检查处罚是否已过期
+							const now = Date.now();
+							const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
 
-              // 更新处罚状态
-              await PunishmentModel.updateStatus(punishmentId, 'appealed', '上诉申请已通过，进入辩诉阶段');
+							// 获取主服务器配置
+							const mainGuildConfig = message.client.guildManager.getGuildConfig(message.guildId);
+							if (!mainGuildConfig?.courtSystem?.appealDebateRoleId) {
+								logTime('未配置辩诉通行身份组ID', true);
+								return;
+							}
 
-              // 获取主服务器配置
-              const mainGuildConfig = message.client.guildManager.getGuildConfig(message.guildId);
-              if (!mainGuildConfig?.courtSystem?.appealDebateRoleId) {
-                logTime('未配置辩诉通行身份组ID', true);
-                return;
-              }
+							// 如果处罚未过期，在所有服务器中移除处罚
+							if (!isPunishmentExpired) {
+								const allGuilds = Array.from(message.client.guildManager.guilds.values());
+								const successfulServers = [];
+								const failedServers = [];
 
-              // 如果处罚未过期，在所有服务器中移除处罚
-              if (!isPunishmentExpired) {
-                const allGuilds = Array.from(message.client.guildManager.guilds.values());
-                const successfulServers = [];
-                const failedServers = [];
+								for (const guildData of allGuilds) {
+									try {
+										if (!guildData || !guildData.id) {
+											logTime('跳过无效的服务器配置', true);
+											continue;
+										}
 
-                for (const guildData of allGuilds) {
-                  try {
-                    if (!guildData || !guildData.id) {
-                      logTime('跳过无效的服务器配置', true);
-                      continue;
-                    }
+										const guild = await message.client.guilds.fetch(guildData.id).catch(() => null);
+										if (!guild) {
+											logTime(`无法获取服务器 ${guildData.id}`, true);
+											failedServers.push({
+												id: guildData.id,
+												name: guildData.name || guildData.id,
+											});
+											continue;
+										}
 
-                    const guild = await message.client.guilds.fetch(guildData.id).catch(() => null);
-                    if (!guild) {
-                      logTime(`无法获取服务器 ${guildData.id}`, true);
-                      failedServers.push({
-                        id: guildData.id,
-                        name: guildData.name || guildData.id,
-                      });
-                      continue;
-                    }
+										const targetMember = await guild.members.fetch(target.id).catch(() => null);
+										if (!targetMember) {
+											logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
+											continue;
+										}
 
-                    const targetMember = await guild.members.fetch(target.id).catch(() => null);
-                    if (!targetMember) {
-                      logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
-                      continue;
-                    }
+										// 根据处罚类型执行不同的解除操作
+										if (punishment.type === 'ban') {
+											// 解除封禁
+											await guild.bans.remove(target.id, '上诉申请通过')
+												.then(() => {
+													logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的封禁`);
+													successfulServers.push(guild.name);
+												})
+												.catch(error => {
+													logTime(`在服务器 ${guild.name} 解除封禁失败: ${error.message}`, true);
+													failedServers.push({
+														id: guild.id,
+														name: guild.name,
+													});
+												});
+										} else if (punishment.type === 'mute') {
+											// 解除禁言
+											await targetMember.timeout(null, '上诉申请通过')
+												.then(() => {
+													logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的禁言`);
+													successfulServers.push(guild.name);
+												})
+												.catch(error => {
+													logTime(`在服务器 ${guild.name} 解除禁言失败: ${error.message}`, true);
+													failedServers.push({
+														id: guild.id,
+														name: guild.name,
+													});
+												});
 
-                    // 根据处罚类型执行不同的解除操作
-                    if (punishment.type === 'ban') {
-                      // 解除封禁
-                      await guild.bans.remove(target.id, '上诉申请通过')
-                        .then(() => {
-                          logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的封禁`);
-                          successfulServers.push(guild.name);
-                        })
-                        .catch(error => {
-                          logTime(`在服务器 ${guild.name} 解除封禁失败: ${error.message}`, true);
-                          failedServers.push({
-                            id: guild.id,
-                            name: guild.name,
-                          });
-                        });
-                    } else if (punishment.type === 'mute') {
-                      // 解除禁言
-                      await targetMember.timeout(null, '上诉申请通过')
-                        .then(() => {
-                          logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的禁言`);
-                          successfulServers.push(guild.name);
-                        })
-                        .catch(error => {
-                          logTime(`在服务器 ${guild.name} 解除禁言失败: ${error.message}`, true);
-                          failedServers.push({
-                            id: guild.id,
-                            name: guild.name,
-                          });
-                        });
+											// 移除警告身份组
+											if (guildData.WarnedRoleId) {
+												await targetMember.roles.remove(guildData.WarnedRoleId, '上诉申请通过')
+													.then(() => logTime(`已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`))
+													.catch(error => logTime(`在服务器 ${guild.name} 移除警告身份组失败: ${error.message}`, true));
+											}
+										}
+									}
+									catch (error) {
+										logTime(`在服务器 ${guildData.id} 处理处罚解除失败: ${error.message}`, true);
+										failedServers.push({
+											id: guildData.id,
+											name: guildData.name || guildData.id,
+										});
+									}
+								}
 
-                      // 移除警告身份组
-                      if (guildData.WarnedRoleId) {
-                        await targetMember.roles.remove(guildData.WarnedRoleId, '上诉申请通过')
-                          .then(() => logTime(`已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`))
-                          .catch(error => logTime(`在服务器 ${guild.name} 移除警告身份组失败: ${error.message}`, true));
-                      }
-                    }
-                  } catch (error) {
-                    logTime(`在服务器 ${guildData.id} 处理处罚解除失败: ${error.message}`, true);
-                    failedServers.push({
-                      id: guildData.id,
-                      name: guildData.name || guildData.id,
-                    });
-                  }
-                }
+								// 记录执行结果
+								if (successfulServers.length > 0) {
+									logTime(`处罚解除成功的服务器: ${successfulServers.join(', ')}`);
+								}
+								if (failedServers.length > 0) {
+									logTime(`处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
+								}
+							}
 
-                // 记录执行结果
-                if (successfulServers.length > 0) {
-                  logTime(`处罚解除成功的服务器: ${successfulServers.join(', ')}`);
-                }
-                if (failedServers.length > 0) {
-                  logTime(`处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
-                }
-              }
+							// 在主服务器添加辩诉通行身份组
+							const mainGuild = await message.client.guilds.fetch(mainGuildConfig.id).catch(() => null);
+							if (mainGuild) {
+								const targetMember = await mainGuild.members.fetch(target.id).catch(() => null);
+								if (targetMember) {
+									await targetMember.roles.add(mainGuildConfig.courtSystem.appealDebateRoleId, '上诉申请通过')
+										.then(() => logTime(`已添加用户 ${target.tag} 的辩诉通行身份组`))
+										.catch(error => logTime(`添加辩诉通行身份组失败: ${error.message}`, true));
+								}
+							}
 
-              // 在主服务器添加辩诉通行身份组
-              const mainGuild = await message.client.guilds.fetch(mainGuildConfig.id).catch(() => null);
-              if (mainGuild) {
-                const targetMember = await mainGuild.members.fetch(target.id).catch(() => null);
-                if (targetMember) {
-                  await targetMember.roles.add(mainGuildConfig.courtSystem.appealDebateRoleId, '上诉申请通过')
-                    .then(() => logTime(`已添加用户 ${target.tag} 的辩诉通行身份组`))
-                    .catch(error => logTime(`添加辩诉通行身份组失败: ${error.message}`, true));
-                }
-              }
-
-              // 辩诉帖创建通知
-              const notifyContent = '✅ 有关您的上诉申请已获得足够议员支持。\n' +
+							// 辩诉帖创建通知
+							const notifyContent = '✅ 有关您的上诉申请已获得足够议员支持。\n' +
 								(isPunishmentExpired ? '- 另外，处罚已过期\n' : '- 上诉期间处罚限制已解除\n') +
 								'- 已为您添加辩诉通行身份组\n' +
 								`辩诉帖已创建：${debateThread.url}`;
 
-              // 通知双方
-              await executor.send({
-                content: notifyContent,
-                flags: ['Ephemeral'],
-              });
-              await target.send({
-                content: notifyContent,
-                flags: ['Ephemeral'],
-              });
-            }
-          }
-        } else {
-          // 处理上庭申请
-          const notifyContent = `✅ 您的处罚申请已获得足够议员支持，辩诉帖已创建：${debateThread.url}`;
+							// 通知双方
+							await executor.send({
+								content: notifyContent,
+								flags: ['Ephemeral'],
+							});
+							await target.send({
+								content: notifyContent,
+								flags: ['Ephemeral'],
+							});
+						}
+					}
+				} else {
+					// 处理上庭申请
+					const notifyContent = `✅ 您的处罚申请已获得足够议员支持，辩诉帖已创建：${debateThread.url}`;
 
-          // 通知双方
-          await executor.send({
-            content: notifyContent,
-            flags: ['Ephemeral'],
-          });
-          await target.send({
-            content: notifyContent,
-            flags: ['Ephemeral'],
-          });
-        }
-      }
-    } catch (error) {
-      logTime(`发送私信通知失败: ${error.message}`, true);
-    }
+					// 通知双方
+					await executor.send({
+						content: notifyContent,
+						flags: ['Ephemeral'],
+					});
+					await target.send({
+						content: notifyContent,
+						flags: ['Ephemeral'],
+					});
+				}
+			}
+		}
+		catch (error) {
+			logTime(`发送私信通知失败: ${error.message}`, true);
+		}
 
-    // 更新消息
-    await message.edit({
-      embeds: [updatedEmbed],
-      components: (removeComponents || debateThread || isExpired) ? [] : message.components,
-    });
+		// 更新消息
+		await message.edit({
+			embeds: [updatedEmbed],
+			components: (removeComponents || debateThread || isExpired) ? [] : message.components,
+		});
 
-    return {
-      supportCount,
-      debateThreadUrl: debateThread?.url || null,
-    };
-  }
+		return {
+			supportCount,
+			debateThreadUrl: debateThread?.url || null,
+		};
+	}
 
-  /**
+	/**
 	 * 从消息中获取申请人信息
 	 * @private
 	 * @param {Object} message - Discord消息对象
 	 * @returns {Object|null} 申请人成员对象
 	 */
-  static _getExecutorFromMessage(message) {
+	static _getExecutorFromMessage(message) {
 	    const footer = message.embeds[0]?.footer;
 	    const executorName = footer?.text?.replace('申请人：', '');
 	    return message.guild.members.cache
 	        .find(member => member.displayName === executorName);
-  }
+	}
 
-  /**
+	/**
 	 * 获取或创建议事流程
 	 * @param {Object} message - Discord消息对象
 	 * @param {string} targetId - 目标用户ID
@@ -325,56 +327,57 @@ class CourtService {
 	 * @param {Object} guildConfig - 服务器配置
 	 * @returns {Promise<{process: Object|null, error: string|null}>} 流程对象和可能的错误信息
 	 */
-  static async getOrCreateProcess(message, targetId, type, guildConfig) {
-    try {
-      let process = await ProcessModel.getProcessByMessageId(message.id);
+	static async getOrCreateProcess(message, targetId, type, guildConfig) {
+		try {
+			let process = await ProcessModel.getProcessByMessageId(message.id);
 
-      if (!process) {
-        // 检查是否已存在活跃流程
-        const userProcesses = await ProcessModel.getUserProcesses(targetId, false);
-        const activeProcess = userProcesses.find(p =>
-          p.type === `court_${type}` &&
+			if (!process) {
+				// 检查是否已存在活跃流程
+				const userProcesses = await ProcessModel.getUserProcesses(targetId, false);
+				const activeProcess = userProcesses.find(p =>
+					p.type === `court_${type}` &&
 					['pending', 'in_progress'].includes(p.status),
-        );
+				);
 
-        if (activeProcess) {
-          return { error: '已存在相关的议事流程' };
-        }
+				if (activeProcess) {
+					return { error: '已存在相关的议事流程' };
+				}
 
-        const executorMember = this._getExecutorFromMessage(message);
-        if (!executorMember) {
-          return { process: null, error: '无法找到申请人信息' };
-        }
+				const executorMember = this._getExecutorFromMessage(message);
+				if (!executorMember) {
+					return { process: null, error: '无法找到申请人信息' };
+				}
 
-        process = await ProcessModel.createCourtProcess({
-          type: `court_${type}`,
-          targetId,
-          executorId: executorMember.id,
-          messageId: message.id,
-          expireAt: Date.now() + guildConfig.courtSystem.appealDuration,
-          details: {
-            embed: message.embeds[0],
-          },
-        });
+				process = await ProcessModel.createCourtProcess({
+					type: `court_${type}`,
+					targetId,
+					executorId: executorMember.id,
+					messageId: message.id,
+					expireAt: Date.now() + guildConfig.courtSystem.appealDuration,
+					details: {
+						embed: message.embeds[0],
+					},
+				});
 
-        // 设置初始状态为in_progress
-        await ProcessModel.updateStatus(process.id, 'in_progress');
-      }
+				// 设置初始状态为in_progress
+				await ProcessModel.updateStatus(process.id, 'in_progress');
+			}
 
-      return { process, error: null };
-    } catch (error) {
-      logTime(`获取或创建议事流程失败: ${error.message}`, true);
-      return { process: null, error: '处理流程时出错，请稍后重试' };
-    }
-  }
+			return { process, error: null };
+		}
+		catch (error) {
+			logTime(`获取或创建议事流程失败: ${error.message}`, true);
+			return { process: null, error: '处理流程时出错，请稍后重试' };
+		}
+	}
 
-  /**
+	/**
 	 * 处理流程到期
 	 * @param {Object} process - 流程记录
 	 * @param {Object} client - Discord客户端
 	 * @returns {Promise<void>}
 	 */
-  static async handleProcessExpiry(process, client) {
+	static async handleProcessExpiry(process, client) {
 	    try {
 	        // 从guildManager中获取主服务器配置
 	        const guildIds = client.guildManager.getGuildIds();
@@ -416,18 +419,19 @@ class CourtService {
 	            reason: '议事流程已过期，未达到所需支持人数',
 	        });
 
-	    } catch (error) {
+	    }
+		catch (error) {
 	        logTime(`处理议事流程到期失败: ${error.message}`, true);
 	    }
-  }
+	}
 
-  /**
+	/**
 	 * 调度单个流程的到期处理
 	 * @param {Object} process - 流程记录
 	 * @param {Object} client - Discord客户端
 	 * @returns {Promise<void>}
 	 */
-  static async scheduleProcess(process, client) {
+	static async scheduleProcess(process, client) {
 	    try {
 	        // 检查是否为议事流程
 	        if (!process.type.startsWith('court_')) return;
@@ -444,7 +448,8 @@ class CourtService {
 	        if (timeUntilExpiry <= 0) {
 	            // 已过期，直接处理
 	            await this.handleProcessExpiry(process, client);
-	        } else {
+	        }
+			else {
 	            // 设置定时器
 	            setTimeout(async () => {
 	                // 在执行到期处理前再次检查流程状态
@@ -458,17 +463,18 @@ class CourtService {
 
 	            logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
 	        }
-	    } catch (error) {
+	    }
+		catch (error) {
 	        logTime(`调度流程失败: ${error.message}`, true);
 	    }
-  }
+	}
 
-  /**
+	/**
 	 * 加载并调度所有未过期的流程
 	 * @param {Object} client - Discord客户端
 	 * @returns {Promise<void>}
 	 */
-  static async loadAndScheduleProcesses(client) {
+	static async loadAndScheduleProcesses(client) {
 	    try {
 	        // 获取所有未完成的流程
 	        const processes = await ProcessModel.getAllProcesses(false);
@@ -478,12 +484,13 @@ class CourtService {
 	        }
 
 	        logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
-	    } catch (error) {
+	    }
+		catch (error) {
 	        logTime(`加载和调度流程失败: ${error.message}`, true);
 	    }
-  }
+	}
 
-  /**
+	/**
 	 * 添加支持者并处理后续流程
 	 * @param {string} messageId - 议事消息ID
 	 * @param {string} userId - 支持者ID
@@ -491,7 +498,7 @@ class CourtService {
 	 * @param {Object} client - Discord客户端
 	 * @returns {Promise<{process: Object, debateThread: Object|null}>} 更新后的流程记录和可能创建的辩诉帖子
 	 */
-  static async addSupporter(messageId, userId, guildConfig, client) {
+	static async addSupporter(messageId, userId, guildConfig, client) {
 	    try {
 	        const process = await ProcessModel.getProcessByMessageId(messageId);
 	        if (!process) throw new Error('议事流程不存在');
@@ -508,7 +515,9 @@ class CourtService {
 	        );
 
 	        // 根据操作类型（添加/移除）返回不同的消息
-	        const supporters = JSON.parse(updatedProcess.supporters || '[]');
+	        const supporters = Array.isArray(updatedProcess.supporters) ?
+	            updatedProcess.supporters :
+	            JSON.parse(updatedProcess.supporters || '[]');
 	        let replyContent;
 	        let debateThread = null;
 
@@ -524,12 +533,36 @@ class CourtService {
 	                // 创建辩诉帖子
 	                debateThread = await this.createDebateThread(updatedProcess, guildConfig, client);
 
-	                // 更新流程状态为completed，并记录辩诉帖ID
+	                // 更新流程状态为completed
 	                await ProcessModel.updateStatus(updatedProcess.id, 'completed', {
 	                    result: 'approved',
 	                    reason: '已达到所需支持人数，辩诉帖已创建',
 	                    debateThreadId: debateThread.id,
 	                });
+
+	                // 获取处罚ID并更新处罚状态
+	                const details = typeof process.details === 'object' ?
+	                    process.details :
+	                    JSON.parse(process.details || '{}');
+
+	                // 确保处罚ID存在且为数字类型
+	                const punishmentId = parseInt(details.punishmentId);
+	                if (!isNaN(punishmentId)) {
+	                    // 先获取处罚记录确认存在
+	                    const punishment = await PunishmentModel.getPunishmentById(punishmentId);
+	                    if (punishment && punishment.status === 'active') {
+	                        await PunishmentModel.updateStatus(
+	                            punishmentId,
+	                            'appealed',
+	                            '上诉申请已通过，进入辩诉阶段',
+	                        );
+	                        logTime(`处罚 ${punishmentId} 状态已更新为辩诉阶段`);
+	                    } else {
+	                        logTime(`处罚 ${punishmentId} 不存在或状态不是 active`, true);
+	                    }
+	                } else {
+	                    logTime(`无效的处罚ID: ${details.punishmentId}`, true);
+	                }
 
 	                replyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
 	            }
@@ -554,7 +587,7 @@ class CourtService {
 	        logTime(`添加/移除支持者失败: ${error.message}`, true);
 	        throw error;
 	    }
-  }
+	}
 }
 
 export default CourtService;

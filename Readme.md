@@ -3,50 +3,53 @@
 ## 项目结构
 
 ```txt
-├── commands/                  # 命令处理模块
-│   ├── adm_*.js               # 管理员命令
-│   ├── mod_*.js               # 版主命令
-│   ├── user_*.js              # 用户命令
-│   └── long_*.js              # 长时间运行的后台命令
+├── src/
+│   ├── commands/                  # 命令处理模块
+│   │   ├── adm_*.js               # 管理员命令
+│   │   ├── mod_*.js               # 版主命令
+│   │   ├── user_*.js              # 用户命令
+│   │   └── long_*.js              # 长时间运行的后台命令
+│   │
+│   ├── events/                    # 事件处理模块
+│   │   ├── interactionCreate.js   # 交互事件处理
+│   │   └── ready.js               # 就绪事件处理
+│   │
+│   ├── handlers/                  # 交互处理模块
+│   │   ├── buttons.js             # 按钮交互处理
+│   │   ├── modals.js              # 模态框交互处理
+│   │   └── scheduler.js           # 定时任务管理器
+│   │
+│   ├── db/                        # 数据库模块
+│   │   ├── manager.js             # 数据库管理器
+│   │   └── models/                # 数据模型目录
+│   │       ├── punishment.js      # 处罚数据模型
+│   │       └── process.js         # 流程数据模型
+│   │
+│   ├── utils/                     # 工具类模块
+│   │   ├── concurrency.js         # 队列和并发控制
+│   │   ├── guild_config.js        # 服务器配置管理
+│   │   ├── helper.js              # 通用辅助函数
+│   │   ├── logger.js              # 日志管理
+│   │   └── punishment_helper.js   # 处罚相关辅助函数
+│   │
+│   └── services/                  # 服务类模块
+│       ├── analyzers.js           # 活跃子区分析工具
+│       ├── cleaner.js             # 子区成员清理工具
+│       ├── punishment_service.js  # 处罚系统服务
+│       └── roleApplication.js     # 身份组申请处理
 │
-├── events/                    # 事件处理模块
-│   ├── interactionCreate.js   # 交互事件处理
-│   └── ready.js               # 就绪事件处理
+├── test/
 │
-├── handlers/                  # 交互处理模块
-│   ├── buttons.js             # 按钮交互处理
-│   ├── modals.js              # 模态框交互处理
-│   └── scheduler.js           # 定时任务管理器
+├── data/                # 数据存储目录
+│   ├── database.sqlite  # SQLite数据库文件
+│   └── messageIds.json  # 消息ID配置
 │
-├── db/                        # 数据库模块
-│   ├── manager.js             # 数据库管理器
-│   └── models/                # 数据模型目录
-│       ├── punishment.js      # 处罚数据模型
-│       └── process.js         # 流程数据模型
+├── logs/  # 日志文件目录
 │
-├── utils/                     # 工具类模块
-│   ├── concurrency.js         # 队列和并发控制
-│   ├── guild_config.js        # 服务器配置管理
-│   ├── helper.js              # 通用辅助函数
-│   ├── logger.js              # 日志管理
-│   └── punishment_helper.js   # 处罚相关辅助函数
-│
-├── services/                  # 服务类模块
-│   ├── analyzers.js           # 活跃子区分析工具
-│   ├── cleaner.js             # 子区成员清理工具
-│   ├── punishment_service.js  # 处罚系统服务
-│   └── roleApplication.js     # 身份组申请处理
-│
-├── data/                      # 数据存储目录
-│   ├── database.sqlite        # SQLite数据库文件
-│   └── messageIds.json        # 消息ID配置
-│
-├── logs/                      # 日志文件目录
-│
-├── config.json                # 配置文件
-├── index.js                   # 主入口文件
-├── package.json               # 项目配置
-└── eslint.config.js           # ESLint配置
+├── config.json       # 配置文件
+├── index.js          # 主入口文件
+├── package.json      # 项目配置
+└── eslint.config.js  # ESLint配置
 ```
 
 ## commands/ - Discord命令

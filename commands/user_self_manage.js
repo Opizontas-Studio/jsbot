@@ -55,7 +55,7 @@ export default {
 	    // 检查是否在论坛帖子中使用
 	    if (!interaction.channel.isThread() ||
 	        !interaction.channel.parent?.type === ChannelType.GuildForum) {
-	        await interaction.reply({
+	        await interaction.editReply({
 	            content: '❌ 此命令只能在论坛帖子中使用',
 	            flags: ['Ephemeral'],
 	        });
@@ -66,7 +66,7 @@ export default {
 
 	    // 检查是否为帖子作者
 	    if (thread.ownerId !== interaction.user.id) {
-	        await interaction.reply({
+	        await interaction.editReply({
 	            content: '❌ 只有帖子作者才能管理此帖子',
 	            flags: ['Ephemeral'],
 	        });
@@ -87,36 +87,53 @@ export default {
 	                return;
 	            }
 
-	            const [, channelId, messageId] = matches;
-	            const channel = await interaction.client.channels.fetch(channelId);
-	            const message = await channel.messages.fetch(messageId);
+	            const [, guildId, channelId, messageId] = matches;
 
-	            if (!message) {
+	            // 验证消息是否在当前服务器
+	            if (guildId !== interaction.guildId) {
 	                await interaction.editReply({
-	                    content: '❌ 找不到指定的消息',
+	                    content: '❌ 只能标注当前服务器的消息',
 	                });
 	                return;
 	            }
 
-	            await interaction.editReply({
-	                content: '⏳ 正在处理...',
-	            });
-
-	            if (action === 'pin') {
-	                await message.pin();
+	            // 验证消息是否在当前帖子
+	            if (channelId !== interaction.channelId) {
 	                await interaction.editReply({
-	                    content: '✅ 消息已标注',
+	                    content: '❌ 只能标注当前帖子内的消息',
 	                });
-	                logTime(`楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
-	            }
-				else {
-	                await message.unpin();
-	                await interaction.editReply({
-	                    content: '✅ 消息已取消标注',
-	                });
-	                logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+	                return;
 	            }
 
+	            try {
+	                const message = await interaction.channel.messages.fetch(messageId);
+
+	                if (!message) {
+	                    await interaction.editReply({
+	                        content: '❌ 找不到指定的消息',
+	                    });
+	                    return;
+	                }
+
+	                if (action === 'pin') {
+	                    await message.pin();
+	                    await interaction.editReply({
+	                        content: '✅ 消息已标注',
+	                    });
+	                    logTime(`楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+	                } else {
+	                    await message.unpin();
+	                    await interaction.editReply({
+	                        content: '✅ 消息已取消标注',
+	                    });
+	                    logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+	                }
+	            } catch (error) {
+	                await interaction.editReply({
+	                    content: `❌ 标注操作失败: ${error.message}`,
+	                });
+	                throw error;
+	            }
 	        }
 			catch (error) {
 	            await handleCommandError(interaction, error, '标注消息');

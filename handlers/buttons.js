@@ -3,6 +3,8 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBu
 import { DiscordAPIError } from '@discordjs/rest';
 import { handleDiscordError } from '../utils/helper.js';
 import CourtService from '../services/court_service.js';
+import { PunishmentModel } from '../db/models/punishment.js';
+import { ProcessModel } from '../db/models/process.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -197,12 +199,16 @@ export const buttonHandlers = {
 	'support_ban': async (interaction) => {
 	    await handleCourtSupport(interaction, 'ban');
 	},
+
+	'support_appeal': async (interaction) => {
+		await handleCourtSupport(interaction, 'appeal');
+	},
 };
 
 /**
  * 处理议事区支持按钮
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
- * @param {string} type - 处罚类型 ('mute' | 'ban')
+ * @param {string} type - 处罚类型 ('mute' | 'ban' | 'appeal')
  */
 async function handleCourtSupport(interaction, type) {
 	// 检查议事系统是否启用
@@ -243,6 +249,9 @@ async function handleCourtSupport(interaction, type) {
 	}
 
 	try {
+		// 先发送一个延迟响应
+		await interaction.deferReply({ flags: ['Ephemeral'] });
+
 	    // 获取或创建议事流程
 	    const { error } = await CourtService.getOrCreateProcess(
 	        interaction.message,
@@ -252,9 +261,8 @@ async function handleCourtSupport(interaction, type) {
 	    );
 
 	    if (error) {
-	        await interaction.reply({
+	        await interaction.editReply({
 	            content: `❌ ${error}`,
-	            flags: ['Ephemeral'],
 	        });
 	        return;
 	    }
@@ -272,18 +280,110 @@ async function handleCourtSupport(interaction, type) {
 	    setTimeout(() => cooldowns.delete(cooldownKey), 60000);
 
 	    // 发送确认消息
-	    await interaction.reply({
+	    await interaction.editReply({
 	        content: replyContent,
-	        flags: ['Ephemeral'],
 	    });
-
 	}
 	catch (error) {
 	    logTime(`处理议事支持失败: ${error.message}`, true);
-	    await interaction.reply({
-	        content: '❌ 处理支持请求时出错，请稍后重试',
-	        flags: ['Ephemeral'],
-	    });
+	    if (!interaction.replied && !interaction.deferred) {
+	        await interaction.reply({
+	            content: '❌ 处理支持请求时出错，请稍后重试',
+	            flags: ['Ephemeral'],
+	        });
+	    } else {
+	        await interaction.editReply({
+	            content: '❌ 处理支持请求时出错，请稍后重试',
+	        });
+	    }
+	}
+}
+
+/**
+ * 处理上诉按钮点击
+ * @param {ButtonInteraction} interaction - Discord按钮交互对象
+ * @param {string} punishmentId - 处罚ID
+ */
+async function handleAppealButton(interaction, punishmentId) {
+	try {
+		// 获取处罚记录
+		const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
+		if (!punishment) {
+			await interaction.reply({
+				content: '❌ 找不到相关的处罚记录',
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
+
+		// 检查处罚时长是否小于24小时
+		const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
+		if (isShortPunishment) {
+			await interaction.reply({
+				content: '❌ 处罚时长小于24小时，不予受理上诉申请',
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
+
+		// 检查处罚是否已过期
+		const now = Date.now();
+		const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
+		if (isPunishmentExpired) {
+			await interaction.reply({
+				content: '❌ 处罚已到期，无需上诉',
+				flags: ['Ephemeral'],
+			});
+			// 编辑原消息，移除上诉按钮
+			if (interaction.message) {
+				await interaction.message.edit({
+					embeds: interaction.message.embeds,
+					components: [],
+				});
+			}
+			return;
+		}
+
+		// 检查是否已有活跃的上诉流程
+		const userProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
+		const hasActiveAppeal = userProcesses.some(p =>
+			p.type === 'appeal' &&
+			['pending', 'in_progress'].includes(p.status),
+		);
+
+		if (hasActiveAppeal) {
+			await interaction.reply({
+				content: '❌ 你已有正在进行的上诉',
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
+
+		// 创建上诉表单
+		const modal = new ModalBuilder()
+			.setCustomId(`appeal_modal_${punishmentId}`)
+			.setTitle('提交上诉申请');
+
+		const appealContentInput = new TextInputBuilder()
+			.setCustomId('appeal_content')
+			.setLabel('请详细说明你的上诉理由')
+			.setStyle(TextInputStyle.Paragraph)
+			.setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由')
+			.setMinLength(50)
+			.setMaxLength(1000)
+			.setRequired(true);
+
+		const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);
+		modal.addComponents(firstActionRow);
+
+		await interaction.showModal(modal);
+	}
+	catch (error) {
+		logTime(`显示上诉表单失败: ${error.message}`, true);
+		await interaction.reply({
+			content: '❌ 处理上诉请求时出错，请稍后重试',
+			flags: ['Ephemeral'],
+		});
 	}
 }
 
@@ -294,47 +394,47 @@ async function handleCourtSupport(interaction, type) {
 export async function handleButton(interaction) {
 	// 如果是确认按钮（以confirm_开头），直接返回
 	if (interaction.customId.startsWith('confirm_')) {
-	    return;
+		return;
 	}
 
 	// 处理支持按钮
 	if (interaction.customId.startsWith('support_')) {
-	    const [action, type] = interaction.customId.split('_');
-	    const handler = buttonHandlers[`${action}_${type}`];
-	    if (handler) {
-	        await handler(interaction);
-	        return;
-	    }
+		const [action, type] = interaction.customId.split('_');
+		const handler = buttonHandlers[`${action}_${type}`];
+		if (handler) {
+			await handler(interaction);
+			return;
+		}
 	}
 
 	// 处理按钮交互
 	if (interaction.customId.startsWith('appeal_')) {
-	    const punishmentId = interaction.customId.split('_')[1];
-	    await handleAppealButton(interaction, punishmentId);
-	    return;
+		const punishmentId = interaction.customId.split('_')[1];
+		await handleAppealButton(interaction, punishmentId);
+		return;
 	}
 
 	const handler = buttonHandlers[interaction.customId];
 	if (!handler) {
-	    logTime(`未找到按钮处理器: ${interaction.customId}`, true);
-	    return;
+		logTime(`未找到按钮处理器: ${interaction.customId}`, true);
+		return;
 	}
 
 	try {
-	    await handler(interaction);
+		await handler(interaction);
 	}
 	catch (error) {
-	    const errorMessage = error instanceof DiscordAPIError ?
-	        handleDiscordError(error) :
-	        '处理请求时出现错误，请稍后重试。';
+		const errorMessage = error instanceof DiscordAPIError ?
+			handleDiscordError(error) :
+			'处理请求时出现错误，请稍后重试。';
 
-	    logTime(`按钮处理出错 [${interaction.customId}]: ${errorMessage}`, true);
+		logTime(`按钮处理出错 [${interaction.customId}]: ${errorMessage}`, true);
 
-	    if (!interaction.replied && !interaction.deferred) {
-	        await interaction.reply({
-	            content: `❌ ${errorMessage}`,
-	            flags: ['Ephemeral'],
-	        });
-	    }
+		if (!interaction.replied && !interaction.deferred) {
+			await interaction.reply({
+				content: `❌ ${errorMessage}`,
+				flags: ['Ephemeral'],
+			});
+		}
 	}
 }

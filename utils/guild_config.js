@@ -59,6 +59,7 @@ export class GuildManager {
 	                appealDuration: 259200000, // number - 上诉持续时间（毫秒）
 	                requiredSupports: 10, // number - 所需支持票数
 	                debateTagId: null, // string | null - 辩论标签ID
+	                appealDebateRoleId: null, // string | null - 辩诉通行身份组ID
 	            },
 	        };
 

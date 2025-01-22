@@ -5,12 +5,13 @@
     ],
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*"
       ]
     },
     "target": "ESNext",
     "module": "NodeNext",
     "outDir": "dist",
+    "sourceRoot": "src",
     "moduleDetection": "auto",
     "moduleResolution": "nodenext",
     "allowUmdGlobalAccess": true,
@@ -28,6 +29,10 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
+  "include": [
+    "src/**/*.js",
+    "src/**/*.ts",
+  ],
   "exclude": [
     "**/node_modules/**",
     "**/dist/**"

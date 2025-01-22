@@ -1,15 +1,15 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
+import { ChannelType, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
-	cooldown: 10,
-	data: new SlashCommandBuilder()
+  cooldown: 10,
+  data: new SlashCommandBuilder()
 	    .setName('议员快速审核')
 	    .setDescription('快速审核议员申请帖')
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    try {
 	        // 检查服务器是否启用身份组申请功能
 	        if (!guildConfig?.roleApplication?.enabled) {
@@ -143,8 +143,7 @@ export default {
 	                    reactions: maxReactions,
 	                    server: thread.guild.name,
 	                });
-	            }
-				catch (error) {
+	            } catch (error) {
 	                console.error('处理链接时出错:', error);
 	            }
 	        }
@@ -181,8 +180,7 @@ export default {
 	                }
 
 	                logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请`);
-	            }
-				catch (error) {
+	            } catch (error) {
 	                logTime(`添加身份组失败: ${error.message}`, true);
 	                throw error;
 	            }
@@ -198,9 +196,8 @@ export default {
 	                '❌ 审核未通过，反应数不足',
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '议员快速审核');
 	    }
-	},
+  },
 };

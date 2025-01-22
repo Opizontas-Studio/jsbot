@@ -1,9 +1,9 @@
-import { Events, Collection } from 'discord.js';
-import { logTime } from '../utils/logger.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
+import { Collection, Events } from 'discord.js';
 import { handleButton } from '../handlers/buttons.js';
 import { handleModal } from '../handlers/modals.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleCommandError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 // 创建一个用于存储冷却时间的集合
 const cooldowns = new Collection();
@@ -16,8 +16,8 @@ const DEFAULT_COOLDOWN = 5;
  * @param {Interaction} interaction - Discord交互对象
  */
 export default {
-	name: Events.InteractionCreate,
-	async execute(interaction) {
+  name: Events.InteractionCreate,
+  async execute(interaction) {
 	    // 处理按钮交互
 	    if (interaction.isButton()) {
 	        await handleButton(interaction);
@@ -86,14 +86,11 @@ export default {
 
 	        if (commandName.startsWith('adm_')) {
 	            priority = 5; // 管理级任务最高优先级
-	        }
-			else if (commandName.startsWith('mod_')) {
+	        } else if (commandName.startsWith('mod_')) {
 	            priority = 4; // 管理员任务次高优先级
-	        }
-			else if (commandName.startsWith('user_')) {
+	        } else if (commandName.startsWith('user_')) {
 	            priority = 3; // 用户任务中等优先级
-	        }
-			else if (commandName.startsWith('long_')) {
+	        } else if (commandName.startsWith('long_')) {
 	            priority = 2; // 耗时后台任务较低优先级
 	        }
 
@@ -104,9 +101,8 @@ export default {
 	            },
 	            priority,
 	        );
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, command.data.name);
 	    }
-	},
+  },
 };

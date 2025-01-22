@@ -1,5 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { sendModerationLog, sendThreadNotification, handleCommandError } from '../utils/helper.js';
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { handleCommandError, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 /**
@@ -8,8 +8,8 @@ import { logTime } from '../utils/logger.js';
  * 注意：标注功能是将帖子标注到论坛顶部，而不是标注帖子内的消息
  */
 export default {
-	cooldown: 10,
-	data: new SlashCommandBuilder()
+  cooldown: 10,
+  data: new SlashCommandBuilder()
 	    .setName('管理帖子')
 	    .setDescription('管理论坛帖子')
 	    .addStringOption(option =>
@@ -37,7 +37,7 @@ export default {
 	    )
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    const threadUrl = interaction.options.getString('帖子链接');
 
 	    try {
@@ -156,10 +156,9 @@ export default {
 
 	        logTime(`用户 ${interaction.user.tag} ${actionDesc}了帖子 ${thread.name}`);
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        logTime(`管理帖子时出错: ${error}`, true);
 	        await handleCommandError(interaction, error, '管理帖子');
 	    }
-	},
+  },
 };

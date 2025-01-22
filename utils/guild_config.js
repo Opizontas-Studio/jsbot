@@ -1,15 +1,15 @@
 import { logTime } from './logger.js';
 
 export class GuildManager {
-	constructor() {
+  constructor() {
 	    this.guilds = new Map();
-	}
+  }
 
-	/**
+  /**
 	 * 初始化服务器配置
 	 * @param {Object} config - 配置对象
 	 */
-	initialize(config) {
+  initialize(config) {
 	    if (!config.guilds || typeof config.guilds !== 'object') {
 	        throw new Error('配置文件缺少guilds对象');
 	    }
@@ -74,14 +74,14 @@ export class GuildManager {
 	    }
 
 	    logTime(`服务器配置加载完成，当前已配置 ${this.guilds.size} 个服务器`);
-	}
+  }
 
-	/**
+  /**
 	 * 获取服务器配置
 	 * @param {string} guildId - 服务器ID
 	 * @returns {Object|null} 服务器配置对象
 	 */
-	getGuildConfig(guildId) {
+  getGuildConfig(guildId) {
 	    if (!guildId) {
 	        logTime('尝试获取配置时 guildId 为空', true);
 	        return null;
@@ -94,15 +94,15 @@ export class GuildManager {
 	    }
 
 	    return config;
-	}
+  }
 
-	/**
+  /**
 	 * 获取所有已配置的服务器ID
 	 * @returns {string[]} 服务器ID数组
 	 */
-	getGuildIds() {
+  getGuildIds() {
 	    return Array.from(this.guilds.keys());
-	}
+  }
 }
 
 export default GuildManager;

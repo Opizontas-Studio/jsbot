@@ -1,9 +1,9 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
-import { handleCommandError, lockAndArchiveThread, checkAndHandlePermission } from '../utils/helper.js';
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { checkAndHandlePermission, handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 
 export default {
-	cooldown: 10,
-	data: new SlashCommandBuilder()
+  cooldown: 10,
+  data: new SlashCommandBuilder()
 	    .setName('一键锁定关贴')
 	    .setDescription('锁定并归档当前论坛帖子')
 	    .addStringOption(option =>
@@ -14,7 +14,7 @@ export default {
 	    // 设置命令需要的默认权限为管理消息
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-	async execute(interaction, guildConfig) {
+  async execute(interaction, guildConfig) {
 	    try {
 	        // 检查用户是否有管理消息的权限（只检查频道权限）
 	        if (!await checkAndHandlePermission(interaction, [], {
@@ -57,9 +57,8 @@ export default {
 	            flags: ['Ephemeral'],
 	        });
 
-	    }
-		catch (error) {
+	    } catch (error) {
 	        await handleCommandError(interaction, error, '一键锁定关贴');
 	    }
-	},
+  },
 };

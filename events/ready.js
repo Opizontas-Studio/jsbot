@@ -1,18 +1,17 @@
-import { Events } from 'discord.js';
-import { WebSocketShardStatus } from 'discord.js';
-import { logTime } from '../utils/logger.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
-import { createApplicationMessage } from '../services/roleApplication.js';
+import { Events, WebSocketShardStatus } from 'discord.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
+import { createApplicationMessage } from '../services/roleApplication.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
+import { logTime } from '../utils/logger.js';
 
 // 添加重连计数器和时间记录
 let reconnectionCount = 0;
 let reconnectionTimeout = null;
 
 export default {
-	name: Events.ClientReady,
-	once: true,
-	async execute(client) {
+  name: Events.ClientReady,
+  once: true,
+  async execute(client) {
 	    logTime(`已登录: ${client.user.tag}`);
 
 	    // 初始化所有定时任务
@@ -85,5 +84,5 @@ export default {
 	            logTime('收到会话限制信息: ' + info);
 	        }
 	    });
-	},
+  },
 };

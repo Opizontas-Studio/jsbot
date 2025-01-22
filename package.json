@@ -4,10 +4,12 @@
   "main": "start.js",
   "type": "module",
   "scripts": {
-    "fixlint": "npx eslint . --fix",
-    "start": "tsc -p tsconfig.json && node dist/index.js",
-    "deploy": "tsc -p tsconfig.json && node dist/commands/adm_sync_commands.js",
-    "start:log": "tsc -p tsconfig.json && node dist/index.js | tee -a ./logs/bot.log"
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/index.js",
+    "dev": "tsc -w -p tsconfig.json",
+    "deploy": "npm run build && node dist/commands/adm_sync_commands.js",
+    "start:log": "npm run build && node dist/index.js | tee -a ./logs/bot.log",
+    "fixlint": "npx eslint . --fix"
   },
   "keywords": [],
   "author": "",

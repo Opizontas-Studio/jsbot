@@ -1,10 +1,10 @@
-import { DiscordAPIError } from '@discordjs/rest';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Collection, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { ProcessModel } from '../db/models/process.js';
-import { PunishmentModel } from '../db/models/punishment.js';
-import CourtService from '../services/court_service.js';
-import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, Collection } from 'discord.js';
+import { DiscordAPIError } from '@discordjs/rest';
+import { handleDiscordError } from '../utils/helper.js';
+import CourtService from '../services/court_service.js';
+import { PunishmentModel } from '../db/models/punishment.js';
+import { ProcessModel } from '../db/models/process.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -23,36 +23,36 @@ const cooldowns = new Collection();
  * @returns {Promise<void>}
  */
 export async function handleConfirmationButton({
-  interaction,
-  embed,
-  customId,
-  buttonLabel,
-  onConfirm,
-  onTimeout,
-  onError,
-  timeout = 300000,
+	interaction,
+	embed,
+	customId,
+	buttonLabel,
+	onConfirm,
+	onTimeout,
+	onError,
+	timeout = 300000,
 }) {
-  // 创建确认按钮
-  const confirmButton = new ButtonBuilder()
+	// 创建确认按钮
+	const confirmButton = new ButtonBuilder()
 	    .setCustomId(customId)
 	    .setLabel(buttonLabel)
 	    .setStyle(ButtonStyle.Danger);
 
-  const row = new ActionRowBuilder()
+	const row = new ActionRowBuilder()
 	    .addComponents(confirmButton);
 
-  // 添加默认的页脚文本
-  if (!embed.footer) {
+	// 添加默认的页脚文本
+	if (!embed.footer) {
 	    embed.footer = { text: '此确认按钮将在5分钟后失效' };
-  }
+	}
 
-  // 发送确认消息
-  const response = await interaction.editReply({
+	// 发送确认消息
+	const response = await interaction.editReply({
 	    embeds: [embed],
 	    components: [row],
-  });
+	});
 
-  try {
+	try {
 	    const confirmation = await response.awaitMessageComponent({
 	        filter: i => i.user.id === interaction.user.id,
 	        time: timeout,
@@ -61,11 +61,13 @@ export async function handleConfirmationButton({
 	    if (confirmation.customId === customId) {
 	        await onConfirm(confirmation);
 	    }
-  } catch (error) {
+	}
+	catch (error) {
 	    if (error.code === 'InteractionCollectorError') {
 	        if (onTimeout) {
 	            await onTimeout(interaction);
-	        } else {
+	        }
+			else {
 	            // 默认的超时处理
 	            await interaction.editReply({
 	                embeds: [{
@@ -76,12 +78,36 @@ export async function handleConfirmationButton({
 	                components: [],
 	            });
 	        }
-	    } else if (onError) {
+	    }
+		else if (onError) {
 	        await onError(error);
-	    } else {
+	    }
+		else {
 	        throw error;
 	    }
-  }
+	}
+}
+
+/**
+ * 检查并设置冷却时间
+ * @param {string} type - 操作类型
+ * @param {string} userId - 用户ID
+ * @param {number} [duration=60000] - 冷却时间（毫秒）
+ * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
+ */
+function checkCooldown(type, userId, duration = 10000) {
+	const now = Date.now();
+	const cooldownKey = `${type}:${userId}`;
+	const cooldownTime = cooldowns.get(cooldownKey);
+
+	if (cooldownTime && now < cooldownTime) {
+		return Math.ceil((cooldownTime - now) / 1000);
+	}
+
+	// 设置冷却时间
+	cooldowns.set(cooldownKey, now + duration);
+	setTimeout(() => cooldowns.delete(cooldownKey), duration);
+	return null;
 }
 
 /**
@@ -89,8 +115,18 @@ export async function handleConfirmationButton({
  * 每个处理器函数接收一个 ButtonInteraction 参数
  */
 export const buttonHandlers = {
-  // 身份组申请按钮处理器
-  'apply_creator_role': async (interaction) => {
+	// 身份组申请按钮处理器
+	'apply_creator_role': async (interaction) => {
+	    // 检查冷却时间
+	    const cooldownLeft = checkCooldown('roleapply', interaction.user.id);
+	    if (cooldownLeft) {
+	        await interaction.reply({
+	            content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
+	            flags: ['Ephemeral'],
+	        });
+	        return;
+	    }
+
 	    // 检查功能是否启用
 	    const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 	    if (!guildConfig?.roleApplication?.enabled) {
@@ -112,24 +148,6 @@ export const buttonHandlers = {
 	        return;
 	    }
 
-	    // 检查冷却时间
-	    const now = Date.now();
-	    const cooldownKey = `roleapply:${interaction.user.id}`;
-	    const cooldownTime = cooldowns.get(cooldownKey);
-
-	    if (cooldownTime && now < cooldownTime) {
-	        const timeLeft = Math.ceil((cooldownTime - now) / 1000);
-	        await interaction.reply({
-	            content: `❌ 请等待 ${timeLeft} 秒后再次申请`,
-	            flags: ['Ephemeral'],
-	        });
-	        return;
-	    }
-
-	    // 设置60秒冷却时间
-	    cooldowns.set(cooldownKey, now + 60000);
-	    setTimeout(() => cooldowns.delete(cooldownKey), 60000);
-
 	    // 显示申请表单
 	    const modal = new ModalBuilder()
 	        .setCustomId('creator_role_modal')
@@ -146,14 +164,14 @@ export const buttonHandlers = {
 	    modal.addComponents(firstActionRow);
 
 	    await interaction.showModal(modal);
-  },
+	},
 
-  // 处罚系统按钮处理器将在这里添加
-  // 'punish_appeal': async (interaction) => {...},
-  // 'punish_vote': async (interaction) => {...},
+	// 处罚系统按钮处理器将在这里添加
+	// 'punish_appeal': async (interaction) => {...},
+	// 'punish_vote': async (interaction) => {...},
 
-  // 翻页按钮处理器
-  'page_prev': async (interaction) => {
+	// 翻页按钮处理器
+	'page_prev': async (interaction) => {
 	    const currentPage = parseInt(interaction.message.embeds[0].footer.text.match(/第 (\d+) 页/)[1]);
 	    const totalPages = parseInt(interaction.message.embeds[0].footer.text.match(/共 (\d+) 页/)[1]);
 	    const pages = interaction.message.client.pageCache.get(interaction.message.id);
@@ -168,9 +186,9 @@ export const buttonHandlers = {
 
 	    const newPage = currentPage > 1 ? currentPage - 1 : totalPages;
 	    await interaction.update(pages[newPage - 1]);
-  },
+	},
 
-  'page_next': async (interaction) => {
+	'page_next': async (interaction) => {
 	    const currentPage = parseInt(interaction.message.embeds[0].footer.text.match(/第 (\d+) 页/)[1]);
 	    const totalPages = parseInt(interaction.message.embeds[0].footer.text.match(/共 (\d+) 页/)[1]);
 	    const pages = interaction.message.client.pageCache.get(interaction.message.id);
@@ -185,20 +203,20 @@ export const buttonHandlers = {
 
 	    const newPage = currentPage < totalPages ? currentPage + 1 : 1;
 	    await interaction.update(pages[newPage - 1]);
-  },
+	},
 
-  // 议事区支持按钮处理器
-  'support_mute': async (interaction) => {
+	// 议事区支持按钮处理器
+	'support_mute': async (interaction) => {
 	    await handleCourtSupport(interaction, 'mute');
-  },
+	},
 
-  'support_ban': async (interaction) => {
+	'support_ban': async (interaction) => {
 	    await handleCourtSupport(interaction, 'ban');
-  },
+	},
 
-  'support_appeal': async (interaction) => {
-    await handleCourtSupport(interaction, 'appeal');
-  },
+	'support_appeal': async (interaction) => {
+		await handleCourtSupport(interaction, 'appeal');
+	},
 };
 
 /**
@@ -207,46 +225,42 @@ export const buttonHandlers = {
  * @param {string} type - 处罚类型 ('mute' | 'ban' | 'appeal')
  */
 async function handleCourtSupport(interaction, type) {
-  // 检查议事系统是否启用
-  const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-  if (!guildConfig?.courtSystem?.enabled) {
+	// 检查冷却时间
+	const cooldownLeft = checkCooldown('court_support', interaction.user.id);
+	if (cooldownLeft) {
+	    await interaction.reply({
+	        content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
+	        flags: ['Ephemeral'],
+	    });
+	    return;
+	}
+
+	// 检查议事系统是否启用
+	const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+	if (!guildConfig?.courtSystem?.enabled) {
 	    await interaction.reply({
 	        content: '❌ 此服务器未启用议事系统',
 	        flags: ['Ephemeral'],
 	    });
 	    return;
-  }
+	}
 
-  // 检查是否为议员
-  const member = await interaction.guild.members.fetch(interaction.user.id);
-  if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+	// 检查是否为议员
+	const member = await interaction.guild.members.fetch(interaction.user.id);
+	if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
 	    await interaction.reply({
 	        content: '❌ 只有议员可以参与议事投票',
 	        flags: ['Ephemeral'],
 	    });
 	    return;
-  }
+	}
 
-  // 解析按钮ID获取目标用户ID和原始交互ID
-  const [, , targetId] = interaction.customId.split('_');
+	// 解析按钮ID获取目标用户ID和原始交互ID
+	const [, , targetId] = interaction.customId.split('_');
 
-  // 检查冷却时间
-  const now = Date.now();
-  const cooldownKey = `court_support:${interaction.user.id}:${targetId}`;
-  const cooldownTime = cooldowns.get(cooldownKey);
-
-  if (cooldownTime && now < cooldownTime) {
-	    const timeLeft = Math.ceil((cooldownTime - now) / 1000);
-	    await interaction.reply({
-	        content: `❌ 请等待 ${timeLeft} 秒后再次投票`,
-	        flags: ['Ephemeral'],
-	    });
-	    return;
-  }
-
-  try {
-    // 先发送一个延迟响应
-    await interaction.deferReply({ flags: ['Ephemeral'] });
+	try {
+		// 先发送一个延迟响应
+		await interaction.deferReply({ flags: ['Ephemeral'] });
 
 	    // 获取或创建议事流程
 	    const { error } = await CourtService.getOrCreateProcess(
@@ -271,15 +285,12 @@ async function handleCourtSupport(interaction, type) {
 	        interaction.client,
 	    );
 
-	    // 设置冷却时间
-	    cooldowns.set(cooldownKey, now + 60000);
-	    setTimeout(() => cooldowns.delete(cooldownKey), 60000);
-
 	    // 发送确认消息
 	    await interaction.editReply({
 	        content: replyContent,
 	    });
-  } catch (error) {
+	}
+	catch (error) {
 	    logTime(`处理议事支持失败: ${error.message}`, true);
 	    if (!interaction.replied && !interaction.deferred) {
 	        await interaction.reply({
@@ -291,7 +302,7 @@ async function handleCourtSupport(interaction, type) {
 	            content: '❌ 处理支持请求时出错，请稍后重试',
 	        });
 	    }
-  }
+	}
 }
 
 /**
@@ -300,85 +311,111 @@ async function handleCourtSupport(interaction, type) {
  * @param {string} punishmentId - 处罚ID
  */
 async function handleAppealButton(interaction, punishmentId) {
-  try {
-    // 获取处罚记录
-    const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-    if (!punishment) {
-      await interaction.reply({
-        content: '❌ 找不到相关的处罚记录',
-        flags: ['Ephemeral'],
-      });
-      return;
-    }
+	try {
+		// 检查冷却时间
+		const cooldownLeft = checkCooldown('appeal', interaction.user.id);
+		if (cooldownLeft) {
+			await interaction.reply({
+				content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
 
-    // 检查处罚时长是否小于24小时
-    const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
-    if (isShortPunishment) {
-      await interaction.reply({
-        content: '❌ 处罚时长小于24小时，不予受理上诉申请',
-        flags: ['Ephemeral'],
-      });
-      return;
-    }
+		// 获取处罚记录
+		const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
+		if (!punishment) {
+			await interaction.reply({
+				content: '❌ 找不到相关的处罚记录',
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
 
-    // 检查处罚是否已过期
-    const now = Date.now();
-    const isPunishmentExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
-    if (isPunishmentExpired) {
-      await interaction.reply({
-        content: '❌ 处罚已到期，无需上诉',
-        flags: ['Ephemeral'],
-      });
-      // 编辑原消息，移除上诉按钮
-      if (interaction.message) {
-        await interaction.message.edit({
-          embeds: interaction.message.embeds,
-          components: [],
-        });
-      }
-      return;
-    }
+		// 调试日志
+		logTime(`处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
 
-    // 检查是否已有活跃的上诉流程
-    const userProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
-    const hasActiveAppeal = userProcesses.some(p =>
-      p.type === 'appeal' &&
-			['pending', 'in_progress'].includes(p.status),
-    );
+		// 检查处罚状态
+		if (punishment.status !== 'active') {
+			let message = '❌ 无法提交上诉：';
+			switch (punishment.status) {
+			case 'appealed':
+				message += '该处罚已进入辩诉阶段';
+				break;
+			case 'expired':
+				message += '该处罚已过期';
+				break;
+			case 'revoked':
+				message += '该处罚已被撤销';
+				break;
+			default:
+				message += '处罚状态异常';
+			}
 
-    if (hasActiveAppeal) {
-      await interaction.reply({
-        content: '❌ 你已有正在进行的上诉',
-        flags: ['Ephemeral'],
-      });
-      return;
-    }
+			// 尝试更新原始消息以移除上诉按钮
+			try {
+				// 先获取或创建 DM 频道
+				const dmChannel = await interaction.user.createDM();
+				if (dmChannel) {
+					const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
+					if (originalMessage?.components?.length > 0) {
+						await originalMessage.edit({
+							components: [],
+						});
+					}
+				}
+			} catch (error) {
+				logTime(`无法更新私信消息组件: ${error.message}`, true);
+			}
 
-    // 创建上诉表单
-    const modal = new ModalBuilder()
-      .setCustomId(`appeal_modal_${punishmentId}`)
-      .setTitle('提交上诉申请');
+			await interaction.reply({
+				content: message,
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
 
-    const appealContentInput = new TextInputBuilder()
-      .setCustomId('appeal_content')
-      .setLabel('请详细说明你的上诉理由')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由')
-      .setMinLength(50)
-      .setMaxLength(1000)
-      .setRequired(true);
+		// 检查是否已有活跃的上诉流程
+		const userProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
+		const hasActiveAppeal = userProcesses.some(p =>
+			p.type === 'appeal' &&
+            ['pending', 'in_progress'].includes(p.status),
+		);
 
-    const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);
-    modal.addComponents(firstActionRow);
+		if (hasActiveAppeal) {
+			await interaction.reply({
+				content: '❌ 你已有正在进行的上诉',
+				flags: ['Ephemeral'],
+			});
+			return;
+		}
 
-    await interaction.showModal(modal);
-  } catch (error) {
-    logTime(`显示上诉表单失败: ${error.message}`, true);
-    await interaction.reply({
-      content: '❌ 处理上诉请求时出错，请稍后重试',
-      flags: ['Ephemeral'],
-    });
-  }
+		// 创建上诉表单
+		const modal = new ModalBuilder()
+			.setCustomId(`appeal_modal_${punishmentId}`)
+			.setTitle('提交上诉申请');
+
+		const appealContentInput = new TextInputBuilder()
+			.setCustomId('appeal_content')
+			.setLabel('请详细说明你的上诉理由')
+			.setStyle(TextInputStyle.Paragraph)
+			.setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n最少50字，最多1500字，如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。')
+			.setMinLength(50)
+			.setMaxLength(1500)
+			.setRequired(true);
+
+		const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);
+		modal.addComponents(firstActionRow);
+
+		await interaction.showModal(modal);
+	}
+	catch (error) {
+		logTime(`处理上诉按钮点击失败: ${error.message}`, true);
+		await interaction.reply({
+			content: '❌ 处理上诉请求时出错，请稍后重试',
+			flags: ['Ephemeral'],
+		});
+	}
 }
 
 /**
@@ -386,48 +423,49 @@ async function handleAppealButton(interaction, punishmentId) {
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
  */
 export async function handleButton(interaction) {
-  // 如果是确认按钮（以confirm_开头），直接返回
-  if (interaction.customId.startsWith('confirm_')) {
-    return;
-  }
+	// 如果是确认按钮（以confirm_开头），直接返回
+	if (interaction.customId.startsWith('confirm_')) {
+		return;
+	}
 
-  // 处理支持按钮
-  if (interaction.customId.startsWith('support_')) {
-    const [action, type] = interaction.customId.split('_');
-    const handler = buttonHandlers[`${action}_${type}`];
-    if (handler) {
-      await handler(interaction);
-      return;
-    }
-  }
+	// 处理支持按钮
+	if (interaction.customId.startsWith('support_')) {
+		const [action, type] = interaction.customId.split('_');
+		const handler = buttonHandlers[`${action}_${type}`];
+		if (handler) {
+			await handler(interaction);
+			return;
+		}
+	}
 
-  // 处理按钮交互
-  if (interaction.customId.startsWith('appeal_')) {
-    const punishmentId = interaction.customId.split('_')[1];
-    await handleAppealButton(interaction, punishmentId);
-    return;
-  }
+	// 处理按钮交互
+	if (interaction.customId.startsWith('appeal_')) {
+		const punishmentId = interaction.customId.split('_')[1];
+		await handleAppealButton(interaction, punishmentId);
+		return;
+	}
 
-  const handler = buttonHandlers[interaction.customId];
-  if (!handler) {
-    logTime(`未找到按钮处理器: ${interaction.customId}`, true);
-    return;
-  }
+	const handler = buttonHandlers[interaction.customId];
+	if (!handler) {
+		logTime(`未找到按钮处理器: ${interaction.customId}`, true);
+		return;
+	}
 
-  try {
-    await handler(interaction);
-  } catch (error) {
-    const errorMessage = error instanceof DiscordAPIError ?
-      handleDiscordError(error) :
-      '处理请求时出现错误，请稍后重试。';
+	try {
+		await handler(interaction);
+	}
+	catch (error) {
+		const errorMessage = error instanceof DiscordAPIError ?
+			handleDiscordError(error) :
+			'处理请求时出现错误，请稍后重试。';
 
-    logTime(`按钮处理出错 [${interaction.customId}]: ${errorMessage}`, true);
+		logTime(`按钮处理出错 [${interaction.customId}]: ${errorMessage}`, true);
 
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: `❌ ${errorMessage}`,
-        flags: ['Ephemeral'],
-      });
-    }
-  }
+		if (!interaction.replied && !interaction.deferred) {
+			await interaction.reply({
+				content: `❌ ${errorMessage}`,
+				flags: ['Ephemeral'],
+			});
+		}
+	}
 }

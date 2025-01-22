@@ -2,7 +2,6 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-$indexPath = Join-Path $scriptPath "index.js"
 
 function Stop-Bot {
     param (
@@ -38,9 +37,13 @@ function Stop-Bot {
 
 while ($true) {
     try {
-        # Start Bot
+        # Change to script directory
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Changing to script directory..."
+        Set-Location -Path $scriptPath
+        
+        # Start Bot using npm start
         Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Starting Discord Bot..."
-        $process = Start-Process node -ArgumentList $indexPath -PassThru -WindowStyle Normal
+        $process = Start-Process npm -ArgumentList "start" -PassThru -WindowStyle Normal
         
         # Wait for 4 hours
         Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot started with PID: $($process.Id)"

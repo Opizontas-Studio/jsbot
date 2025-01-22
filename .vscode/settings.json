@@ -1,0 +1,16 @@
+{
+    "[typescript][javascript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    },
+    "editor.codeActionsOnSave": {
+        "source.addMissingImports.ts": "explicit",
+        "source.fixAll.eslint": "explicit",
+        "source.fixAll.markdownlint": "explicit",
+        "source.fixAll.ts": "explicit",
+        "source.organizeImports": "explicit",
+        "source.organizeLinkDefinitions": "explicit",
+        "source.removeUnused.ts": "explicit",
+        "source.removeUnusedImports": "explicit",
+        "source.sortImports": "explicit",
+    }
+}

@@ -31,7 +31,7 @@ const consoleTransport = new winston.transports.Console({
 
 // 创建旋转日志文件传输
 const dailyRotateFile = new winston.transports.DailyRotateFile({
-  filename: path.join('logs', '%DATE%.log'),
+  filename: path.join(process.cwd(), 'logs', '%DATE%.log'),
   datePattern: 'YYYY-MM-DD',
   maxSize: '20m',
   maxFiles: '14d',

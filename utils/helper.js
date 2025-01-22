@@ -4,8 +4,6 @@ import { RESTJSONErrorCodes } from 'discord-api-types/v10';
 import { readFileSync } from 'fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { logTime } from './logger.js';
 
 /**
@@ -396,8 +394,7 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
  */
 export const getVersionInfo = () => {
   try {
-	    const currentDir = dirname(fileURLToPath(import.meta.url));
-	    const packagePath = join(currentDir, '..', 'package.json');
+	    const packagePath = join(process.cwd(), 'package.json');
 	    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
 	    const version = 'v' + packageJson.version;
 	    const commitHash = execSync('git rev-parse --short HEAD').toString().trim();

@@ -1,12 +1,11 @@
 import { ChannelFlags } from 'discord.js';
 import { promises as fs } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { globalBatchProcessor } from '../utils/concurrency.js';
 import { handleDiscordError, measureTime } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
-const MESSAGE_IDS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
+const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
 
 /**
  * Discord日志管理器

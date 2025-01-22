@@ -18,7 +18,7 @@ import { globalTaskScheduler } from './handlers/scheduler.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
-const config = JSON.parse(readFileSync(join(currentDir, 'config.json'), 'utf8'));
+const config = JSON.parse(readFileSync(join(process.cwd(), 'config.json'), 'utf8'));
 
 // 初始化客户端
 const client = new Client({

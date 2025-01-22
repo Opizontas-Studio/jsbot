@@ -51,7 +51,7 @@ class DatabaseManager {
 	    if (this._isConnected) return;
 
 	    try {
-	        const dbPath = path.join('data', 'database.sqlite');
+	        const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
 	        // 打开数据库连接
 	        this.db = await open({
@@ -235,7 +235,7 @@ class DatabaseManager {
 	 * @returns {Promise<void>}
 	 */
   async backup() {
-	    const backupDir = './data/backups';
+	    const backupDir = path.join(process.cwd(), './data/backups');
 	    const backupFile = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
 	    const backupPath = path.join(backupDir, backupFile);
 
@@ -254,7 +254,7 @@ class DatabaseManager {
 
 	        // 复制数据库文件
 	        copyFileSync(
-	            path.join('data', 'database.sqlite'),
+	            path.join(process.cwd(), 'data', 'database.sqlite'),
 	            backupPath,
 	        );
 

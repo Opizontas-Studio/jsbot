@@ -1,13 +1,12 @@
 import { DiscordAPIError } from '@discordjs/rest';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
-const messageIdsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'messageIds.json');
+const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
 
 /**
  * 处理创建申请消息

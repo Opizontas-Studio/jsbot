@@ -14,6 +14,9 @@ config.json
 node_modules/
 package-lock.json
 
+# TypeScript 编译结果
+dist/
+
 # 操作系统相关文件
 .DS_Store
 .AppleDouble

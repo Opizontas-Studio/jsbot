@@ -311,21 +311,21 @@
 
 ```sql
 CREATE TABLE punishments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    userId TEXT NOT NULL,           -- 被处罚用户ID
-    type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')), -- 处罚类型
-    reason TEXT NOT NULL,           -- 处罚原因
-    duration INTEGER NOT NULL DEFAULT -1, -- 持续时间（毫秒），永封为-1
-    warningDuration INTEGER DEFAULT NULL, -- 警告时长
-    executorId TEXT NOT NULL,       -- 执行者ID
-    status TEXT NOT NULL DEFAULT 'active' -- 状态
-        CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
-    synced INTEGER DEFAULT 0,       -- 是否已同步
-    syncedServers TEXT DEFAULT '[]', -- 已同步的服务器列表（JSON数组）
-    keepMessages INTEGER DEFAULT 0,  -- 是否保留消息
-    channelId TEXT,                -- 处罚执行的频道ID
-    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
-    updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ userId TEXT NOT NULL,           -- 被处罚用户ID
+ type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')), -- 处罚类型
+ reason TEXT NOT NULL,           -- 处罚原因
+ duration INTEGER NOT NULL DEFAULT -1, -- 持续时间（毫秒），永封为-1
+ warningDuration INTEGER DEFAULT NULL, -- 警告时长
+ executorId TEXT NOT NULL,       -- 执行者ID
+ status TEXT NOT NULL DEFAULT 'active' -- 状态
+     CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
+ synced INTEGER DEFAULT 0,       -- 是否已同步
+ syncedServers TEXT DEFAULT '[]', -- 已同步的服务器列表（JSON数组）
+ keepMessages INTEGER DEFAULT 0,  -- 是否保留消息
+ channelId TEXT,                -- 处罚执行的频道ID
+ createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
+ updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
 )
 ```
 
@@ -333,23 +333,23 @@ CREATE TABLE punishments (
 
 ```sql
 CREATE TABLE processes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL CHECK(       -- 流程类型
-        type IN ('appeal', 'vote', 'debate', 'court_mute', 'court_ban')
-    ),
-    targetId TEXT NOT NULL,         -- 目标用户ID
-    executorId TEXT NOT NULL,       -- 执行者ID
-    messageId TEXT UNIQUE,          -- 议事消息ID
-    debateThreadId TEXT,           -- 辩诉帖子ID
-    status TEXT NOT NULL DEFAULT 'pending' -- 状态
-        CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
-    expireAt INTEGER NOT NULL,      -- 到期时间
-    details TEXT DEFAULT '{}',      -- 处理详情（JSON对象）
-    supporters TEXT DEFAULT '[]',   -- 支持者列表（JSON数组）
-    result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)), -- 结果
-    reason TEXT DEFAULT '',         -- 原因
-    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
-    updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ type TEXT NOT NULL CHECK(       -- 流程类型
+     type IN ('appeal', 'vote', 'debate', 'court_mute', 'court_ban')
+ ),
+ targetId TEXT NOT NULL,         -- 目标用户ID
+ executorId TEXT NOT NULL,       -- 执行者ID
+ messageId TEXT UNIQUE,          -- 议事消息ID
+ debateThreadId TEXT,           -- 辩诉帖子ID
+ status TEXT NOT NULL DEFAULT 'pending' -- 状态
+     CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
+ expireAt INTEGER NOT NULL,      -- 到期时间
+ details TEXT DEFAULT '{}',      -- 处理详情（JSON对象）
+ supporters TEXT DEFAULT '[]',   -- 支持者列表（JSON数组）
+ result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)), -- 结果
+ reason TEXT DEFAULT '',         -- 原因
+ createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
+ updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
 )
 ```
 

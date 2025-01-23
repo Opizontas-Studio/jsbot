@@ -82,7 +82,7 @@ class DatabaseManager {
 	        CREATE TABLE IF NOT EXISTS punishments (
 	            id INTEGER PRIMARY KEY AUTOINCREMENT,
 	            userId TEXT NOT NULL,
-	            type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')),
+	            type TEXT NOT NULL CHECK(type IN ('ban', 'mute')),
 	            reason TEXT NOT NULL,
 	            duration INTEGER NOT NULL DEFAULT -1,
 	            warningDuration INTEGER DEFAULT NULL,

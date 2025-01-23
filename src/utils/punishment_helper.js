@@ -1,3 +1,4 @@
+import { PunishmentModel } from '../db/models/punishment.js';
 import { logTime } from './logger.js';
 
 /**
@@ -273,3 +274,120 @@ const getPunishmentTypeText = (type) => ({
     mute: '禁言',
     warn: '警告',
 })[type] || type;
+
+/**
+ * 在所有服务器中解除处罚
+ * @param {Object} client - Discord客户端
+ * @param {Object} punishment - 处罚记录
+ * @param {Object} target - 目标用户对象
+ * @param {string} reason - 解除原因
+ * @param {Object} options - 额外选项
+ * @param {boolean} [options.isAppeal=false] - 是否是上诉通过导致的解除
+ * @returns {Promise<{success: boolean, successfulServers: string[], failedServers: {id: string, name: string}[]}>}
+ */
+export const revokePunishmentInGuilds = async (client, punishment, target, reason, options = {}) => {
+    const { isAppeal = false } = options;
+    const successfulServers = [];
+    const failedServers = [];
+    const allGuilds = Array.from(client.guildManager.guilds.values());
+
+    try {
+        // 更新处罚状态
+        await PunishmentModel.updateStatus(
+            punishment.id,
+            isAppeal ? 'appealed' : 'revoked',
+            reason,
+        );
+        logTime(`处罚 ${punishment.id} 状态已更新为 ${isAppeal ? '上诉通过' : '已撤销'}`);
+
+        for (const guildData of allGuilds) {
+            try {
+                if (!guildData || !guildData.id) {
+                    logTime('跳过无效的服务器配置', true);
+                    continue;
+                }
+
+                const guild = await client.guilds.fetch(guildData.id).catch(error => {
+                    logTime(`获取服务器失败: ${error.message}`, true);
+                    return null;
+                });
+
+                if (!guild) {
+                    logTime(`无法获取服务器 ${guildData.id}`, true);
+                    failedServers.push({
+                        id: guildData.id,
+                        name: guildData.name || guildData.id,
+                    });
+                    continue;
+                }
+
+                const targetMember = await guild.members.fetch(target.id).catch(() => null);
+                if (!targetMember) {
+                    logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
+                    continue;
+                }
+
+                // 根据处罚类型执行不同的解除操作
+                switch (punishment.type) {
+                    case 'mute':
+                        // 解除禁言
+                        await targetMember.timeout(null, reason)
+                            .then(() => {
+                                logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的禁言`);
+                                successfulServers.push(guild.name);
+                            })
+                            .catch(error => {
+                                logTime(`在服务器 ${guild.name} 解除禁言失败: ${error.message}`, true);
+                                failedServers.push({
+                                    id: guild.id,
+                                    name: guild.name,
+                                });
+                            });
+
+                        // 移除警告身份组
+                        if (guildData.WarnedRoleId) {
+                            await targetMember.roles.remove(guildData.WarnedRoleId, reason)
+                                .then(() => logTime(`已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`))
+                                .catch(error => logTime(`在服务器 ${guild.name} 移除警告身份组失败: ${error.message}`, true));
+                        }
+                        break;
+
+                    case 'ban':
+                        // 解除封禁
+                        await guild.members.unban(target.id, reason)
+                            .then(() => {
+                                logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的封禁`);
+                                successfulServers.push(guild.name);
+                            })
+                            .catch(error => {
+                                logTime(`在服务器 ${guild.name} 解除封禁失败: ${error.message}`, true);
+                                failedServers.push({
+                                    id: guild.id,
+                                    name: guild.name,
+                                });
+                            });
+                        break;
+                }
+            } catch (error) {
+                logTime(`在服务器 ${guildData.id} 处理处罚解除失败: ${error.message}`, true);
+                failedServers.push({
+                    id: guildData.id,
+                    name: guildData.name || guildData.id,
+                });
+            }
+        }
+
+        // 记录执行结果
+        if (successfulServers.length > 0) {
+            logTime(`处罚解除成功的服务器: ${successfulServers.join(', ')}`);
+        }
+        if (failedServers.length > 0) {
+            logTime(`处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
+        }
+
+        return { success: true, successfulServers, failedServers };
+    } catch (error) {
+        logTime(`处罚解除失败: ${error.message}`, true);
+        return { success: false, successfulServers, failedServers };
+    }
+};

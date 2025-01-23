@@ -57,13 +57,19 @@ export default {
 	    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
     async execute(interaction, guildConfig) {
-	    // 检查权限
-	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
-
 	    try {
 	        const subcommand = interaction.options.getSubcommand();
 	        const target = interaction.options.getUser('用户');
 	        const reason = interaction.options.getString('原因');
+
+	        // 根据子命令检查不同的权限
+	        if (subcommand === '永封') {
+	            // 永封需要管理员权限
+	            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	        } else if (subcommand === '禁言') {
+	            // 禁言只需要版主权限
+	            if (!await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds)) return;
+	        }
 
 	        // 检查目标用户是否为管理员
 	        const member = await interaction.guild.members.fetch(target.id);

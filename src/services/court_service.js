@@ -2,6 +2,7 @@ import { dbManager } from '../db/manager.js';
 import { ProcessModel } from '../db/models/process.js';
 import { PunishmentModel } from '../db/models/punishment.js';
 import { logTime } from '../utils/logger.js';
+import { revokePunishmentInGuilds } from '../utils/punishment_helper.js';
 
 class CourtService {
     /**
@@ -150,72 +151,13 @@ class CourtService {
 
                             // 如果处罚未过期，在所有服务器中移除处罚
                             if (!isPunishmentExpired) {
-                                const allGuilds = Array.from(message.client.guildManager.guilds.values());
-                                const successfulServers = [];
-                                const failedServers = [];
-
-                                for (const guildData of allGuilds) {
-                                    try {
-                                        if (!guildData || !guildData.id) {
-                                            logTime('跳过无效的服务器配置', true);
-                                            continue;
-                                        }
-
-                                        const guild = await message.client.guilds.fetch(guildData.id).catch(() => null);
-                                        if (!guild) {
-                                            logTime(`无法获取服务器 ${guildData.id}`, true);
-                                            failedServers.push({
-                                                id: guildData.id,
-                                                name: guildData.name || guildData.id,
-                                            });
-                                            continue;
-                                        }
-
-                                        const targetMember = await guild.members.fetch(target.id).catch(() => null);
-                                        if (!targetMember) {
-                                            logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
-                                            continue;
-                                        }
-
-                                        // 根据处罚类型执行不同的解除操作
-                                        if (punishment.type === 'mute') {
-                                            // 解除禁言
-                                            await targetMember.timeout(null, '上诉申请通过')
-                                                .then(() => {
-                                                    logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的禁言`);
-                                                    successfulServers.push(guild.name);
-                                                })
-                                                .catch(error => {
-                                                    logTime(`在服务器 ${guild.name} 解除禁言失败: ${error.message}`, true);
-                                                    failedServers.push({
-                                                        id: guild.id,
-                                                        name: guild.name,
-                                                    });
-                                                });
-
-                                            // 移除警告身份组
-                                            if (guildData.WarnedRoleId) {
-                                                await targetMember.roles.remove(guildData.WarnedRoleId, '上诉申请通过')
-                                                    .then(() => logTime(`已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`))
-                                                    .catch(error => logTime(`在服务器 ${guild.name} 移除警告身份组失败: ${error.message}`, true));
-                                            }
-                                        }
-                                    } catch (error) {
-                                        logTime(`在服务器 ${guildData.id} 处理处罚解除失败: ${error.message}`, true);
-                                        failedServers.push({
-                                            id: guildData.id,
-                                            name: guildData.name || guildData.id,
-                                        });
-                                    }
-                                }
-
-                                // 记录执行结果
-                                if (successfulServers.length > 0) {
-                                    logTime(`处罚解除成功的服务器: ${successfulServers.join(', ')}`);
-                                }
-                                if (failedServers.length > 0) {
-                                    logTime(`处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
-                                }
+                                await revokePunishmentInGuilds(
+                                    message.client,
+                                    punishment,
+                                    target,
+                                    '上诉申请通过',
+                                    { isAppeal: true },
+                                );
                             }
 
                             // 在主服务器添加辩诉通行身份组
@@ -450,30 +392,6 @@ class CourtService {
 	                    reason: '已达到所需支持人数，辩诉帖已创建',
 	                    debateThreadId: debateThread.id,
 	                });
-
-	                // 获取处罚ID并更新处罚状态
-	                const details = typeof process.details === 'object' ?
-	                    process.details :
-	                    JSON.parse(process.details || '{}');
-
-	                // 确保处罚ID存在且为数字类型
-	                const punishmentId = parseInt(details.punishmentId);
-	                if (!isNaN(punishmentId)) {
-	                    // 先获取处罚记录确认存在
-	                    const punishment = await PunishmentModel.getPunishmentById(punishmentId);
-	                    if (punishment && punishment.status === 'active') {
-	                        await PunishmentModel.updateStatus(
-	                            punishmentId,
-	                            'appealed',
-	                            '上诉申请已通过，进入辩诉阶段',
-	                        );
-	                        logTime(`处罚 ${punishmentId} 状态已更新为辩诉阶段`);
-	                    } else {
-	                        logTime(`处罚 ${punishmentId} 不存在或状态不是 active`, true);
-	                    }
-	                } else {
-	                    logTime(`无效的处罚ID: ${details.punishmentId}`, true);
-	                }
 
 	                replyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
 	            }

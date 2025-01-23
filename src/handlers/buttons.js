@@ -88,10 +88,10 @@ export async function handleConfirmationButton({
  * 检查并设置冷却时间
  * @param {string} type - 操作类型
  * @param {string} userId - 用户ID
- * @param {number} [duration=60000] - 冷却时间（毫秒）
+ * @param {number} [duration=30000] - 冷却时间（毫秒）
  * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
  */
-function checkCooldown(type, userId, duration = 10000) {
+function checkCooldown(type, userId, duration = 30000) {
     const now = Date.now();
     const cooldownKey = `${type}:${userId}`;
     const cooldownTime = cooldowns.get(cooldownKey);
@@ -394,9 +394,9 @@ async function handleAppealButton(interaction, punishmentId) {
             .setCustomId('appeal_content')
             .setLabel('请详细说明你的上诉理由')
             .setStyle(TextInputStyle.Paragraph)
-            .setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n最少50字，最多1500字，如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。')
-            .setMinLength(50)
-            .setMaxLength(1500)
+            .setPlaceholder('请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。')
+            .setMinLength(10)
+            .setMaxLength(1000)
             .setRequired(true);
 
         const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);

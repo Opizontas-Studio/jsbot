@@ -266,6 +266,9 @@ export default {
 	                        flags: ['Ephemeral'],
 	                    });
 	                },
+	                onError: async (error) => {
+	                    await handleCommandError(interaction, error, '申请上庭');
+	                },
 	            });
 
 	        } else if (subcommand === '永封') {
@@ -382,6 +385,9 @@ export default {
 	                        embeds: [],
 	                        flags: ['Ephemeral'],
 	                    });
+	                },
+	                onError: async (error) => {
+	                    await handleCommandError(interaction, error, '申请上庭');
 	                },
 	            });
 	        }

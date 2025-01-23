@@ -306,41 +306,6 @@ export const handleCommandError = async (interaction, error, commandName) => {
 };
 
 /**
- * 发送清理报告到管理频道
- * @param {Interaction} interaction - Discord交互对象
- * @param {Object} guildConfig - 服务器配置
- * @param {Object} result - 清理结果
- */
-export const sendCleanupReport = async (interaction, guildConfig, result) => {
-    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
-    await moderationChannel.send({
-	    embeds: [{
-	        color: 0x0099ff,
-	        title: '子区人数重整报告',
-	        fields: [
-	            {
-	                name: result.name,
-	                value: [
-	                    `[跳转到子区](${result.url})`,
-	                    `原始人数: ${result.originalCount}`,
-	                    `移除人数: ${result.removedCount}`,
-	                    `当前人数: ${result.originalCount - result.removedCount}`,
-	                    result.lowActivityCount > 0 ?
-	                        `(包含 ${result.lowActivityCount} 个低活跃度成员)` :
-	                        '',
-	                ].filter(Boolean).join('\n'),
-	                inline: false,
-	            },
-	        ],
-	        timestamp: new Date(),
-	        footer: {
-	            text: '论坛管理系统',
-	        },
-	    }],
-    });
-};
-
-/**
  * 加载命令文件
  * @param {string} commandsDir - 命令文件目录的路径
  * @param {string[]} [excludeFiles=[]] - 要排除的文件名数组

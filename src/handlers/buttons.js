@@ -62,7 +62,10 @@ export async function handleConfirmationButton({
 	        await onConfirm(confirmation);
 	    }
     } catch (error) {
-	    if (error.code === 'InteractionCollectorError') {
+	    if (onError) {
+	        await onError(error);
+	    } else if (error.code === 'InteractionCollectorError') {
+	        // 处理超时等基础交互错误
 	        if (onTimeout) {
 	            await onTimeout(interaction);
 	        } else {
@@ -76,9 +79,8 @@ export async function handleConfirmationButton({
 	                components: [],
 	            });
 	        }
-	    } else if (onError) {
-	        await onError(error);
 	    } else {
+	        // 其他错误向上抛出，让调用者处理
 	        throw error;
 	    }
     }

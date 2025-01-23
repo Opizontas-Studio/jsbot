@@ -267,7 +267,7 @@ export const modalHandlers = {
                     ],
                     timestamp: new Date(),
                     footer: {
-                        text: `原处罚执行者：${executor.displayName || executor.username}`,
+                        text: `原处罚执行者：${executor.id}`,
                     },
                 }],
                 components: [{

@@ -204,7 +204,7 @@ export default {
 	                            ].filter(Boolean),
 	                            timestamp: new Date(),
 	                            footer: {
-	                                text: `申请人：${interaction.member.displayName}`,
+	                                text: `申请人：${interaction.user.id}`,
 	                            },
 	                        }],
 	                        components: [{
@@ -325,7 +325,7 @@ export default {
 	                            ],
 	                            timestamp: new Date(),
 	                            footer: {
-	                                text: `申请人：${interaction.member.displayName}`,
+	                                text: `申请人：${interaction.user.id}`,
 	                            },
 	                        }],
 	                        components: [{

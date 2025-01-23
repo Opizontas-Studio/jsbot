@@ -5,24 +5,6 @@ import { logTime } from '../utils/logger.js';
 
 class CourtService {
     /**
-	 * 检查用户是否已经支持过
-	 * @param {Object} process - 流程记录
-	 * @param {string} userId - 用户ID
-	 * @returns {boolean} 是否已支持
-	 */
-    static hasSupported(process, userId) {
-	    try {
-	        const supporters = Array.isArray(process.supporters) ?
-	            process.supporters :
-	            JSON.parse(process.supporters || '[]');
-	        return supporters.includes(userId);
-	    } catch (error) {
-	        logTime(`检查支持状态失败: ${error.message}`, true);
-	        return false;
-	    }
-    }
-
-    /**
 	 * 创建辩诉帖子
 	 * @param {Object} process - 流程记录
 	 * @param {Object} guildConfig - 服务器配置
@@ -310,19 +292,6 @@ class CourtService {
     }
 
     /**
-	 * 从消息中获取申请人信息
-	 * @private
-	 * @param {Object} message - Discord消息对象
-	 * @returns {Object|null} 申请人成员对象
-	 */
-    static _getExecutorFromMessage(message) {
-	    const footer = message.embeds[0]?.footer;
-	    const executorName = footer?.text?.replace('申请人：', '');
-	    return message.guild.members.cache
-	        .find(member => member.displayName === executorName);
-    }
-
-    /**
 	 * 获取或创建议事流程
 	 * @param {Object} message - Discord消息对象
 	 * @param {string} targetId - 目标用户ID
@@ -346,15 +315,25 @@ class CourtService {
                     return { error: '已存在相关的议事流程' };
                 }
 
-                const executorMember = this._getExecutorFromMessage(message);
-                if (!executorMember) {
+                // 从消息footer中获取执行者ID
+                const footer = message.embeds[0]?.footer;
+                if (!footer?.text) {
+                    return { process: null, error: '无法找到申请人信息' };
+                }
+
+                // 尝试匹配两种格式：上诉申请和普通上庭申请
+                const appealMatch = footer.text.match(/原处罚执行者：(\d+)/);
+                const normalMatch = footer.text.match(/申请人：(\d+)/);
+                const executorId = appealMatch?.[1] || normalMatch?.[1];
+
+                if (!executorId) {
                     return { process: null, error: '无法找到申请人信息' };
                 }
 
                 process = await ProcessModel.createCourtProcess({
                     type: `court_${type}`,
                     targetId,
-                    executorId: executorMember.id,
+                    executorId: executorId,
                     messageId: message.id,
                     expireAt: Date.now() + guildConfig.courtSystem.appealDuration,
                     details: {
@@ -440,7 +419,16 @@ class CourtService {
 	        if (!process) throw new Error('议事流程不存在');
 
 	        // 检查是否已经支持过
-	        const hasSupported = this.hasSupported(process, userId);
+	        let currentSupporters;
+	        try {
+	            currentSupporters = Array.isArray(process.supporters) ?
+	                process.supporters :
+	                JSON.parse(process.supporters || '[]');
+	        } catch (error) {
+	            logTime(`解析supporters失败: ${error.message}`, true);
+	            currentSupporters = [];
+	        }
+	        const hasSupported = currentSupporters.includes(userId);
 
 	        // 更新支持者列表（添加或移除）
 	        const updatedProcess = await dbManager.updateArrayField(
@@ -450,7 +438,7 @@ class CourtService {
 	            { messageId },
 	        );
 
-	        // 根据操作类型（添加/移除）返回不同的消息
+	        // 获取更新后的支持者列表
 	        const supporters = Array.isArray(updatedProcess.supporters) ?
 	            updatedProcess.supporters :
 	            JSON.parse(updatedProcess.supporters || '[]');
@@ -505,8 +493,12 @@ class CourtService {
 	        }
 
 	        // 清除缓存
-	        dbManager.clearCache(`process_${process.id}`);
-	        dbManager.clearCache(`process_msg_${messageId}`);
+	        ProcessModel._clearRelatedCache(
+	            process.targetId,
+	            process.executorId,
+	            process.id,
+	            messageId,
+	        );
 
 	        const finalProcess = await ProcessModel.getProcessByMessageId(messageId);
 

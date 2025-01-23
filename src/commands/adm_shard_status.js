@@ -1,7 +1,23 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, WebSocketShardStatus } from 'discord.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+
+// 添加状态映射函数
+const getReadableStatus = (status) => {
+    switch (status) {
+        case WebSocketShardStatus.Idle:
+            return '🔄 空闲中';
+        case WebSocketShardStatus.Connecting:
+            return '🌐 正在连接';
+        case WebSocketShardStatus.Resuming:
+            return '⏳ 正在恢复会话';
+        case WebSocketShardStatus.Ready:
+            return '✅ 已就绪';
+        default:
+            return '❓ 未知状态';
+    }
+};
 
 export default {
     cooldown: 3,
@@ -16,7 +32,8 @@ export default {
 	        const client = interaction.client;
 	        let ping = Math.round(client.ws.ping);
 	        const guildCount = client.guilds.cache.size;
-	        const status = globalRequestQueue.shardStatus.get(0) || '未知';
+	        const rawStatus = globalRequestQueue.shardStatus.get(0);
+	        const status = getReadableStatus(rawStatus);
 	        const queueStats = globalRequestQueue.getStats();
 
 	        // 如果延迟为-1，等待后再获取

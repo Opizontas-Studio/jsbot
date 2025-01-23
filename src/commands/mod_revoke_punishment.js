@@ -1,6 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishment.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { revokePunishmentInGuilds } from '../utils/punishment_helper.js';
 
 export default {
@@ -80,28 +81,32 @@ export default {
             );
 
             if (success) {
-                // 发送私信通知
-                try {
-                    const dmEmbed = {
-                        color: 0x00FF00,
-                        title: '处罚已被撤销',
-                        description: [
-                            `您的${punishment.type === 'ban' ? '永封' : '禁言'}处罚已被管理员撤销。`,
-                            '',
-                            '**处罚详情**',
-                            `• 处罚ID：${punishment.id}`,
-                            `• 原处罚原因：${punishment.reason}`,
-                            `• 撤销原因：${reason}`,
-                            `• 执行管理员：${interaction.user.tag}`,
-                        ].join('\n'),
-                        timestamp: new Date(),
-                    };
+                // 发送私信通知，但跳过永封类型
+                if (punishment.type !== 'ban') {
+                    try {
+                        const dmEmbed = {
+                            color: 0x00FF00,
+                            title: '处罚已被撤销',
+                            description: [
+                                `您的${punishment.type === 'ban' ? '永封' : '禁言'}处罚已被管理员撤销。`,
+                                '',
+                                '**处罚详情**',
+                                `• 处罚ID：${punishment.id}`,
+                                `• 原处罚原因：${punishment.reason}`,
+                                `• 撤销原因：${reason}`,
+                                `• 执行管理员：${interaction.user.tag}`,
+                            ].join('\n'),
+                            timestamp: new Date(),
+                        };
 
-                    await target.send({ embeds: [dmEmbed] })
-                        .then(() => logTime(`已向用户 ${target.tag} 发送处罚撤销通知`))
-                        .catch(error => logTime(`向用户 ${target.tag} 发送处罚撤销通知失败: ${error.message}`, true));
-                } catch (error) {
-                    logTime(`创建处罚撤销通知失败: ${error.message}`, true);
+                        await target.send({ embeds: [dmEmbed] })
+                            .then(() => logTime(`已向用户 ${target.tag} 发送处罚撤销通知`))
+                            .catch(error => logTime(`向用户 ${target.tag} 发送处罚撤销通知失败: ${error.message}`, true));
+                    } catch (error) {
+                        logTime(`创建处罚撤销通知失败: ${error.message}`, true);
+                    }
+                } else {
+                    logTime(`跳过向永封用户 ${target.tag} 发送处罚撤销通知`);
                 }
             }
 

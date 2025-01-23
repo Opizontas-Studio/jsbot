@@ -321,15 +321,18 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
                     continue;
                 }
 
-                const targetMember = await guild.members.fetch(target.id).catch(() => null);
-                if (!targetMember) {
-                    logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
-                    continue;
-                }
-
                 // 根据处罚类型执行不同的解除操作
+                let targetMember;
+                let bans;
+
                 switch (punishment.type) {
                     case 'mute':
+                        targetMember = await guild.members.fetch(target.id).catch(() => null);
+                        if (!targetMember) {
+                            logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
+                            continue;
+                        }
+
                         // 解除禁言
                         await targetMember.timeout(null, reason)
                             .then(() => {
@@ -353,8 +356,29 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
                         break;
 
                     case 'ban':
+                        // 先检查用户是否被ban
+                        bans = await guild.bans.fetch().catch(error => {
+                            logTime(`在服务器 ${guild.name} 获取封禁列表失败: ${error.message}`, true);
+                            return null;
+                        });
+
+                        if (!bans) {
+                            logTime(`无法获取服务器 ${guild.name} 的封禁列表`, true);
+                            failedServers.push({
+                                id: guild.id,
+                                name: guild.name,
+                            });
+                            continue;
+                        }
+
+                        // 如果用户不在ban列表中，记录并跳过
+                        if (!bans.has(target.id)) {
+                            logTime(`用户 ${target.tag} 在服务器 ${guild.name} 未被封禁，跳过解除`, true);
+                            continue;
+                        }
+
                         // 解除封禁
-                        await guild.members.unban(target.id, reason)
+                        await guild.bans.remove(target.id, reason)
                             .then(() => {
                                 logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的封禁`);
                                 successfulServers.push(guild.name);

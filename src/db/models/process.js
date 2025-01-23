@@ -186,12 +186,10 @@ class ProcessModel {
 	 */
     static async getAllProcesses(includeCompleted = false) {
 	    try {
-	        const now = Date.now();
 	        const query = `
 	            SELECT * FROM processes 
 	            ${!includeCompleted ? `
 	                WHERE status IN ('pending', 'in_progress')
-	                AND expireAt > ?
 	            ` : ''}
 	            ORDER BY createdAt DESC
 	        `;
@@ -199,7 +197,7 @@ class ProcessModel {
 	        const processes = await dbManager.safeExecute(
 	            'all',
 	            query,
-	            !includeCompleted ? [now] : [],
+	            !includeCompleted ? [] : [],
 	        );
 
 	        return processes.map(p => ({

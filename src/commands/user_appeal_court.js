@@ -204,7 +204,7 @@ export default {
 	                            ].filter(Boolean),
 	                            timestamp: new Date(),
 	                            footer: {
-	                                text: `申请人：${interaction.user.id}`,
+	                                text: `申请人：${interaction.user.tag}`,
 	                            },
 	                        }],
 	                        components: [{
@@ -213,7 +213,7 @@ export default {
 	                                type: 2,
 	                                style: 3,
 	                                label: '支持',
-	                                custom_id: `support_mute_${target.id}_${interaction.id}`,
+	                                custom_id: `support_mute_${target.id}_${interaction.user.id}`,
 	                                emoji: '👍',
 	                            }],
 	                        }],
@@ -325,7 +325,7 @@ export default {
 	                            ],
 	                            timestamp: new Date(),
 	                            footer: {
-	                                text: `申请人：${interaction.user.id}`,
+	                                text: `申请人：${interaction.user.tag}`,
 	                            },
 	                        }],
 	                        components: [{
@@ -334,7 +334,7 @@ export default {
 	                                type: 2,
 	                                style: 3,
 	                                label: '支持',
-	                                custom_id: `support_ban_${target.id}_${interaction.id}`,
+	                                custom_id: `support_ban_${target.id}_${interaction.user.id}`,
 	                                emoji: '👍',
 	                            }],
 	                        }],

@@ -236,7 +236,7 @@ class TaskScheduler {
     async scheduleProcess(process, client) {
 	    try {
 	        // 检查是否为议事流程
-	        if (!process.type.startsWith('court_')) return;
+	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal')) return;
 
 	        // 检查流程状态，如果已经完成则不需要处理到期
 	        if (process.status === 'completed') {
@@ -282,30 +282,42 @@ class TaskScheduler {
     async executeProcessExpiry(process, client) {
 	    try {
 	        // 只处理议事相关的流程
-	        if (!process.type.startsWith('court_')) {
+	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal')) {
 	            return;
 	        }
 
 	        // 从process.details中获取原始消息信息
-	        const details = process.details ? JSON.parse(process.details) : {};
+	        let details = {};
+	        try {
+	            details = typeof process.details === 'string' ?
+	                JSON.parse(process.details) :
+	                (process.details || {});
+	        } catch (error) {
+	            logTime(`解析流程详情失败: ${error.message}`, true);
+	            return;
+	        }
+
 	        if (!details.embed) {
 	            logTime(`无法获取流程详情: ${process.id}`, true);
 	            return;
 	        }
 
 	        try {
-	            // 获取服务器配置
-	            const guildId = process.targetId.split('_')[0];
-	            const guildConfig = client.guildManager.getGuildConfig(guildId);
-	            if (!guildConfig?.courtSystem?.enabled) {
-	                logTime(`服务器 ${guildId} 未启用议事系统`, true);
+	            // 获取主服务器配置
+	            const guildIds = client.guildManager.getGuildIds();
+	            const mainGuildConfig = guildIds
+	                .map(id => client.guildManager.getGuildConfig(id))
+	                .find(config => config?.serverType === 'Main server');
+
+	            if (!mainGuildConfig?.courtSystem?.enabled) {
+	                logTime('主服务器未启用议事系统', true);
 	                return;
 	            }
 
 	            // 获取原始消息
-	            const courtChannel = await client.channels.fetch(guildConfig.courtSystem.courtChannelId);
+	            const courtChannel = await client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
 	            if (!courtChannel) {
-	                logTime(`无法获取议事频道: ${guildConfig.courtSystem.courtChannelId}`, true);
+	                logTime(`无法获取议事频道: ${mainGuildConfig.courtSystem.courtChannelId}`, true);
 	                return;
 	            }
 
@@ -320,6 +332,7 @@ class TaskScheduler {
 	                    }],
 	                    components: [], // 移除支持按钮
 	                });
+                    logTime(`更新过期消息成功: ${process.id}`);
 	            }
 	        } catch (error) {
 	            logTime(`更新过期消息失败: ${error.message}`, true);

@@ -267,7 +267,7 @@ export const modalHandlers = {
                     ],
                     timestamp: new Date(),
                     footer: {
-                        text: `原处罚执行者：${executor.id}`,
+                        text: `原处罚执行者：${executor.tag}`,
                     },
                 }],
                 components: [{
@@ -276,7 +276,7 @@ export const modalHandlers = {
                         type: 2,
                         style: 3,
                         label: '支持',
-                        custom_id: `support_appeal_${executor.id}_${interaction.id}`,
+                        custom_id: `support_appeal_${interaction.user.id}_${executor.id}`,
                         emoji: '👍',
                     }],
                 }],

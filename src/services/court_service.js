@@ -178,21 +178,7 @@ class CourtService {
                                         }
 
                                         // 根据处罚类型执行不同的解除操作
-                                        if (punishment.type === 'ban') {
-                                            // 解除封禁
-                                            await guild.bans.remove(target.id, '上诉申请通过')
-                                                .then(() => {
-                                                    logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的封禁`);
-                                                    successfulServers.push(guild.name);
-                                                })
-                                                .catch(error => {
-                                                    logTime(`在服务器 ${guild.name} 解除封禁失败: ${error.message}`, true);
-                                                    failedServers.push({
-                                                        id: guild.id,
-                                                        name: guild.name,
-                                                    });
-                                                });
-                                        } else if (punishment.type === 'mute') {
+                                        if (punishment.type === 'mute') {
                                             // 解除禁言
                                             await targetMember.timeout(null, '上诉申请通过')
                                                 .then(() => {
@@ -295,12 +281,17 @@ class CourtService {
 	 * 获取或创建议事流程
 	 * @param {Object} message - Discord消息对象
 	 * @param {string} targetId - 目标用户ID
-	 * @param {string} type - 处罚类型 ('mute' | 'ban')
+	 * @param {string} type - 处罚类型 ('mute')
 	 * @param {Object} guildConfig - 服务器配置
 	 * @returns {Promise<{process: Object|null, error: string|null}>} 流程对象和可能的错误信息
 	 */
     static async getOrCreateProcess(message, targetId, type, guildConfig) {
         try {
+            // 如果是ban类型，直接返回错误
+            if (type === 'ban') {
+                return { process: null, error: '永封处罚不支持上诉' };
+            }
+
             let process = await ProcessModel.getProcessByMessageId(message.id);
 
             if (!process) {
@@ -308,24 +299,20 @@ class CourtService {
                 const userProcesses = await ProcessModel.getUserProcesses(targetId, false);
                 const activeProcess = userProcesses.find(p =>
                     p.type === `court_${type}` &&
-					['pending', 'in_progress'].includes(p.status),
+                    ['pending', 'in_progress'].includes(p.status),
                 );
 
                 if (activeProcess) {
                     return { error: '已存在相关的议事流程' };
                 }
 
-                // 从消息footer中获取执行者ID
-                const footer = message.embeds[0]?.footer;
-                if (!footer?.text) {
-                    return { process: null, error: '无法找到申请人信息' };
+                // 从按钮的customId中获取执行者ID
+                const supportButton = message.components[0]?.components[0];
+                if (!supportButton) {
+                    return { process: null, error: '无法找到支持按钮信息' };
                 }
 
-                // 尝试匹配两种格式：上诉申请和普通上庭申请
-                const appealMatch = footer.text.match(/原处罚执行者：(\d+)/);
-                const normalMatch = footer.text.match(/申请人：(\d+)/);
-                const executorId = appealMatch?.[1] || normalMatch?.[1];
-
+                const [, , , executorId] = supportButton.customId.split('_');
                 if (!executorId) {
                     return { process: null, error: '无法找到申请人信息' };
                 }

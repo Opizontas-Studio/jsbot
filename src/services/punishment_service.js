@@ -34,19 +34,7 @@ class PunishmentService {
 				`禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
 				`警告时长: ${punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'}`);
 
-            // 3. 如果是永封处罚，先发送通知
-            if (punishment.type === 'ban' && data.channelId) {
-                try {
-                    const channel = await client.channels.fetch(data.channelId);
-                    if (channel) {
-                        await sendAppealNotification(channel, target, punishment);
-                    }
-                } catch (error) {
-                    logTime(`发送上诉通知失败: ${error.message}`, true);
-                }
-            }
-
-            // 4. 遍历所有服务器执行处罚
+            // 3. 遍历所有服务器执行处罚
             const successfulServers = [];
             const failedServers = [];
             const allGuilds = Array.from(client.guildManager.guilds.values());
@@ -109,12 +97,12 @@ class PunishmentService {
                 logTime(`处罚执行情况 - 失败: ${failedServers.map(s => s.name).join(', ')}`, true);
             }
 
-            // 5. 更新同步状态
+            // 4. 更新同步状态
             if (successfulServers.length > 0) {
                 await PunishmentModel.updateSyncStatus(punishment.id, successfulServers.map(s => s.id));
             }
 
-            // 6. 发送通知
+            // 5. 发送通知
             const notificationResults = [];
             // 发送管理日志
             for (const guildData of allGuilds) {
@@ -134,8 +122,8 @@ class PunishmentService {
                 }
             }
 
-            // 发送上诉通知（仅对非永封处罚）
-            if (data.channelId && punishment.type !== 'ban') {
+            // 发送上诉通知
+            if (data.channelId) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
                     if (channel) {

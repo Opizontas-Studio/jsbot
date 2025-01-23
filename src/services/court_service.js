@@ -60,12 +60,20 @@ class CourtService {
 
 	    // 发送通知消息
 	    if (executor && target) {
-	        await debateThread.send({
-	            content: [
-	                '辩诉帖已创建，请双方当事人注意查看。',
+	        const notifyContent = process.type === 'appeal' ?
+	            [
+	                '上诉辩诉帖已创建，请双方当事人注意查看。',
+	                `- 上诉人：<@${target.id}>`,
+	                `- 原处罚执行人：<@${executor.id}>`,
+	            ].join('\n') :
+	            [
+	                '处罚申请辩诉帖已创建，请双方当事人注意查看。',
 	                `- 申请人：<@${executor.id}>`,
-	                `- 处罚对象：<@${target.id}>`,
-	            ].join('\n'),
+	                `- 被告：<@${target.id}>`,
+	            ].join('\n');
+
+	        await debateThread.send({
+	            content: notifyContent,
 	        });
 	    }
 
@@ -415,68 +423,6 @@ class CourtService {
 
 	    } catch (error) {
 	        logTime(`处理议事流程到期失败: ${error.message}`, true);
-	    }
-    }
-
-    /**
-	 * 调度单个流程的到期处理
-	 * @param {Object} process - 流程记录
-	 * @param {Object} client - Discord客户端
-	 * @returns {Promise<void>}
-	 */
-    static async scheduleProcess(process, client) {
-	    try {
-	        // 检查是否为议事流程
-	        if (!process.type.startsWith('court_')) return;
-
-	        // 检查流程状态，如果已经完成则不需要处理到期
-	        if (process.status === 'completed') {
-	            logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-	            return;
-	        }
-
-	        const now = Date.now();
-	        const timeUntilExpiry = process.expireAt - now;
-
-	        if (timeUntilExpiry <= 0) {
-	            // 已过期，直接处理
-	            await this.handleProcessExpiry(process, client);
-	        } else {
-	            // 设置定时器
-	            setTimeout(async () => {
-	                // 在执行到期处理前再次检查流程状态
-	                const currentProcess = await ProcessModel.getProcessById(process.id);
-	                if (currentProcess && currentProcess.status === 'completed') {
-	                    logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-	                    return;
-	                }
-	                await this.handleProcessExpiry(process, client);
-	            }, timeUntilExpiry);
-
-	            logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
-	        }
-	    } catch (error) {
-	        logTime(`调度流程失败: ${error.message}`, true);
-	    }
-    }
-
-    /**
-	 * 加载并调度所有未过期的流程
-	 * @param {Object} client - Discord客户端
-	 * @returns {Promise<void>}
-	 */
-    static async loadAndScheduleProcesses(client) {
-	    try {
-	        // 获取所有未完成的流程
-	        const processes = await ProcessModel.getAllProcesses(false);
-
-	        for (const process of processes) {
-	            await this.scheduleProcess(process, client);
-	        }
-
-	        logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
-	    } catch (error) {
-	        logTime(`加载和调度流程失败: ${error.message}`, true);
 	    }
     }
 

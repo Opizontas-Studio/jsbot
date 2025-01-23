@@ -1,7 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { ProcessModel } from '../db/models/process.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
-import CourtService from '../services/court_service.js';
+import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { handleCommandError } from '../utils/helper.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishment_helper.js';
 
@@ -236,7 +236,7 @@ export default {
 
 	                    // 调度流程到期处理
 	                    if (process) {
-	                        await CourtService.scheduleProcess(process, interaction.client);
+	                        await globalTaskScheduler.scheduleProcess(process, interaction.client);
 	                    }
 
 	                    // 发送通知到当前频道
@@ -355,7 +355,7 @@ export default {
 
 	                    // 调度流程到期处理
 	                    if (process) {
-	                        await CourtService.scheduleProcess(process, interaction.client);
+	                        await globalTaskScheduler.scheduleProcess(process, interaction.client);
 	                    }
 
 	                    // 发送通知到当前频道

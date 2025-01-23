@@ -2,7 +2,6 @@ import { dbManager } from '../db/manager.js';
 import { ProcessModel } from '../db/models/process.js';
 import { PunishmentModel } from '../db/models/punishment.js';
 import { analyzeForumActivity, cleanupInactiveThreads } from '../services/analyzers.js';
-import CourtService from '../services/court_service.js';
 import PunishmentService from '../services/punishment_service.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
@@ -137,6 +136,30 @@ class TaskScheduler {
 	        this.tasks.delete(taskId);
 	    }
     }
+    // 注册数据库相关任务
+    registerDatabaseTasks() {
+        // 计算下一个早上6点
+        const now = new Date();
+        const nextBackup = new Date(now);
+        nextBackup.setHours(6, 0, 0, 0);
+        if (nextBackup <= now) {
+            nextBackup.setDate(nextBackup.getDate() + 1);
+        }
+
+        this.addTask({
+            taskId: 'databaseBackup',
+            interval: TIME_UNITS.DAY,
+            startAt: nextBackup,
+            task: async () => {
+                try {
+                    await dbManager.backup();
+                    logTime('数据库备份完成');
+                } catch (error) {
+                    logTime(`数据库备份失败: ${error.message}`, true);
+                }
+            },
+        });
+    }
 
     // 注册子区分析和清理任务
     registerAnalysisTasks(client) {
@@ -189,7 +212,14 @@ class TaskScheduler {
 	        runImmediately: true,
 	        task: async () => {
 	            try {
-	                await CourtService.loadAndScheduleProcesses(client);
+                    // 获取所有未完成的流程
+                    const processes = await ProcessModel.getAllProcesses(false);
+
+                    for (const process of processes) {
+                        await this.scheduleProcess(process, client);
+                    }
+
+                    logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
 	            } catch (error) {
 	                logTime(`加载和调度流程失败: ${error.message}`, true);
 	            }
@@ -197,51 +227,45 @@ class TaskScheduler {
 	    });
     }
 
-    // 注册数据库相关任务
-    registerDatabaseTasks() {
-	    // 计算下一个早上6点
-	    const now = new Date();
-	    const nextBackup = new Date(now);
-	    nextBackup.setHours(6, 0, 0, 0);
-	    if (nextBackup <= now) {
-	        nextBackup.setDate(nextBackup.getDate() + 1);
-	    }
-
-	    this.addTask({
-	        taskId: 'databaseBackup',
-	        interval: TIME_UNITS.DAY,
-	        startAt: nextBackup,
-	        task: async () => {
-	            try {
-	                await dbManager.backup();
-	                logTime('数据库备份完成');
-	            } catch (error) {
-	                logTime(`数据库备份失败: ${error.message}`, true);
-	            }
-	        },
-	    });
-    }
-
-    // 执行子区分析和清理任务
-    async executeThreadTasks(client, guildConfig, guildId) {
+    /**
+     * 调度单个流程的到期处理
+     * @param {Object} process - 流程记录
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<void>}
+     */
+    async scheduleProcess(process, client) {
 	    try {
-	        await globalRequestQueue.add(async () => {
-	            // 获取活跃子区数据
-	            const guild = await client.guilds.fetch(guildId);
-	            const activeThreads = await guild.channels.fetchActiveThreads();
+	        // 检查是否为议事流程
+	        if (!process.type.startsWith('court_')) return;
 
-	            // 执行分析和清理
-	            if (guildConfig.automation?.analysis) {
-	                await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
-	            }
+	        // 检查流程状态，如果已经完成则不需要处理到期
+	        if (process.status === 'completed') {
+	            logTime(`流程 ${process.id} 已完成，跳过到期处理`);
+	            return;
+	        }
 
-	            if (guildConfig.automation?.cleanup?.enabled) {
-	                const threshold = guildConfig.automation.cleanup.threshold || 960;
-	                await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
-	            }
-	        }, 0);
+	        const now = Date.now();
+	        const timeUntilExpiry = process.expireAt - now;
+
+	        if (timeUntilExpiry <= 0) {
+	            // 已过期，直接处理
+	            await this.executeProcessExpiry(process, client);
+	        } else {
+	            // 设置定时器
+	            setTimeout(async () => {
+	                // 在执行到期处理前再次检查流程状态
+	                const currentProcess = await ProcessModel.getProcessById(process.id);
+	                if (currentProcess && currentProcess.status === 'completed') {
+	                    logTime(`流程 ${process.id} 已完成，跳过到期处理`);
+	                    return;
+	                }
+	                await this.executeProcessExpiry(process, client);
+	            }, timeUntilExpiry);
+
+	            logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
+	        }
 	    } catch (error) {
-	        logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
+	        logTime(`调度流程失败: ${error.message}`, true);
 	    }
     }
 
@@ -255,7 +279,7 @@ class TaskScheduler {
     }
 
     // 执行流程到期操作
-    async executeProcessExpiry(client, process) {
+    async executeProcessExpiry(process, client) {
 	    try {
 	        // 只处理议事相关的流程
 	        if (!process.type.startsWith('court_')) {
@@ -311,6 +335,30 @@ class TaskScheduler {
 	        logTime(`处理议事流程到期失败: ${error.message}`, true);
 	    }
     }
+
+    // 执行子区分析和清理任务
+    async executeThreadTasks(client, guildConfig, guildId) {
+	    try {
+	        await globalRequestQueue.add(async () => {
+	            // 获取活跃子区数据
+	            const guild = await client.guilds.fetch(guildId);
+	            const activeThreads = await guild.channels.fetchActiveThreads();
+
+	            // 执行分析和清理
+	            if (guildConfig.automation?.analysis) {
+	                await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
+	            }
+
+	            if (guildConfig.automation?.cleanup?.enabled) {
+	                const threshold = guildConfig.automation.cleanup.threshold || 960;
+	                await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
+	            }
+	        }, 0);
+	    } catch (error) {
+	        logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
+	    }
+    }
+
 
     // 停止所有任务
     stopAll() {

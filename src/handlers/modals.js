@@ -2,11 +2,11 @@ import { DiscordAPIError } from '@discordjs/rest';
 import { ChannelType } from 'discord.js';
 import { ProcessModel } from '../db/models/process.js';
 import { PunishmentModel } from '../db/models/punishment.js';
-import CourtService from '../services/court_service.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { formatPunishmentDuration } from '../utils/punishment_helper.js';
+import { globalTaskScheduler } from './scheduler.js';
 
 /**
  * 模态框处理器映射
@@ -301,7 +301,7 @@ export const modalHandlers = {
 
             // 调度流程到期处理
             if (process) {
-                await CourtService.scheduleProcess(process, interaction.client);
+                await globalTaskScheduler.scheduleProcess(process, interaction.client);
             }
 
             // 发送确认消息

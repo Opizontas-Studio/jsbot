@@ -81,7 +81,9 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 	    // 使用并发控制的批量处理获取消息历史
 	    async function fetchMessagesBatch(beforeId) {
 	        const fetchOptions = { limit: 100 };
-	        if (beforeId) fetchOptions.before = beforeId;
+	        if (beforeId) {
+                fetchOptions.before = beforeId;
+            }
 
 	        try {
 	            const messages = await thread.messages.fetch(fetchOptions);
@@ -103,12 +105,16 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 	                batchTasks.push(() => fetchMessagesBatch(lastId));
 	            } else {
 	                const prevBatch = await batchTasks[i - 1]();
-	                if (!prevBatch || prevBatch.size === 0) break;
+	                if (!prevBatch || prevBatch.size === 0) {
+                        break;
+                    }
 	                batchTasks.push(() => fetchMessagesBatch(prevBatch.last().id));
 	            }
 	        }
 
-	        if (batchTasks.length === 0) break;
+	        if (batchTasks.length === 0) {
+                break;
+            }
 
 	        // 使用批处理器处理消息批次
 	        const results = await globalBatchProcessor.processBatch(
@@ -139,7 +145,9 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 	            }
 	        }
 
-	        if (batchMessagesCount === 0) break;
+	        if (batchMessagesCount === 0) {
+                break;
+            }
 	        messagesProcessed += batchMessagesCount;
 
 	        await progressCallback({

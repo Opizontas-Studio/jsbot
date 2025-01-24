@@ -68,8 +68,12 @@ export class GuildManager {
 
 	        // 构建状态信息
 	        const features = [];
-	        if (automationConfig.analysis) features.push('已启用分析');
-	        if (automationConfig.cleanup?.enabled) features.push(`已启用清理(阈值:${automationConfig.cleanup.threshold || 960})`);
+	        if (automationConfig.analysis) {
+                features.push('已启用分析');
+            }
+	        if (automationConfig.cleanup?.enabled) {
+                features.push(`已启用清理(阈值:${automationConfig.cleanup.threshold || 960})`);
+            }
 
 	        logTime(`已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
 	    }

@@ -23,7 +23,9 @@ export default {
 
     async execute(interaction, guildConfig) {
 	    // 检查权限
-	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+            return;
+        }
 
 	    const action = interaction.options.getString('操作');
 	    const reason = interaction.options.getString('理由');
@@ -105,32 +107,32 @@ export default {
 	                        });
 	                    }
 	                } else if (features.includes('INVITES_DISABLED')) {
-	                        await guild.edit({
-	                            features: features.filter(f => f !== 'INVITES_DISABLED'),
-	                        });
+                        await guild.edit({
+                            features: features.filter(f => f !== 'INVITES_DISABLED'),
+                        });
 
-	                        // 发送管理日志
-	                        await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
-	                            title: '🔓 服务器邀请功能已恢复',
-	                            executorId: interaction.user.id,
-	                            threadName: '服务器邀请管理',
-	                            threadUrl: interaction.channel.url,
-	                            reason: reason,
-	                        });
+                        // 发送管理日志
+                        await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
+                            title: '🔓 服务器邀请功能已恢复',
+                            executorId: interaction.user.id,
+                            threadName: '服务器邀请管理',
+                            threadUrl: interaction.channel.url,
+                            reason: reason,
+                        });
 
-	                        logTime(`管理员 ${interaction.user.tag} 恢复了服务器 ${guild.name} 的邀请功能`);
-	                        await interaction.editReply({
-	                            content: '✅ 已成功恢复服务器邀请功能',
-	                            components: [],
-	                            embeds: [],
-	                        });
-	                    } else {
-	                        await interaction.editReply({
-	                            content: '❓ 服务器邀请功能已经处于开放状态',
-	                            components: [],
-	                            embeds: [],
-	                        });
-	                    }
+                        logTime(`管理员 ${interaction.user.tag} 恢复了服务器 ${guild.name} 的邀请功能`);
+                        await interaction.editReply({
+                            content: '✅ 已成功恢复服务器邀请功能',
+                            components: [],
+                            embeds: [],
+                        });
+                    } else {
+                        await interaction.editReply({
+                            content: '❓ 服务器邀请功能已经处于开放状态',
+                            components: [],
+                            embeds: [],
+                        });
+                    }
 	            },
 	            onError: async (error) => {
 	                await handleCommandError(interaction, error, '暂停邀请');

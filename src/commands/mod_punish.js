@@ -64,10 +64,14 @@ export default {
 	        // 根据子命令检查不同的权限
 	        if (subcommand === '永封') {
 	            // 永封需要管理员权限
-	            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+                    return;
+                }
 	        } else if (subcommand === '禁言') {
 	            // 禁言只需要版主权限
-	            if (!await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds)) return;
+	            if (!await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds)) {
+                    return;
+                }
 	        }
 
 	        // 检查目标用户是否为管理员

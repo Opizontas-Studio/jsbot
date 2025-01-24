@@ -22,7 +22,9 @@ export default {
 
     async execute(interaction, guildConfig) {
 	    // 检查用户是否有执行权限
-	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+            return;
+        }
 
 	    const threshold = interaction.options.getInteger('阈值');
 	    const executionTimer = measureTime();

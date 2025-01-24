@@ -23,7 +23,9 @@ export default {
     async execute(interaction, guildConfig) {
         try {
             // 检查权限
-            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+                return;
+            }
 
             const punishmentId = interaction.options.getInteger('处罚id');
             const reason = interaction.options.getString('原因');

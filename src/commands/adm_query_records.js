@@ -27,7 +27,9 @@ export default {
     async execute(interaction, guildConfig) {
 	    try {
 	        // 检查管理员权限
-	        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+                return;
+            }
 
 	        const type = interaction.options.getString('类型');
 	        const targetUser = interaction.options.getUser('用户');

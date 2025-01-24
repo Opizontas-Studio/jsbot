@@ -27,7 +27,9 @@ export default {
 
     async execute(interaction, guildConfig) {
 	    try {
-	        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	        if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+                return;
+            }
 
 	        const client = interaction.client;
 	        let ping = Math.round(client.ws.ping);

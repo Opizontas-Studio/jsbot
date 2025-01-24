@@ -120,13 +120,19 @@ export default {
 	            try {
 	                // 检查链接所属服务器是否在配置中
 	                const linkGuildConfig = interaction.client.guildManager.getGuildConfig(link.guildId);
-	                if (!linkGuildConfig?.roleApplication?.enabled) continue;
+	                if (!linkGuildConfig?.roleApplication?.enabled) {
+                        continue;
+                    }
 
 	                const thread = await interaction.client.channels.fetch(link.threadId);
-	                if (!thread || !thread.isThread()) continue;
+	                if (!thread || !thread.isThread()) {
+                        continue;
+                    }
 
 	                const threadFirstMessage = (await thread.messages.fetch({ limit: 1, after: '0' })).first();
-	                if (!threadFirstMessage || threadFirstMessage.author.id !== applicant.id) continue;
+	                if (!threadFirstMessage || threadFirstMessage.author.id !== applicant.id) {
+                        continue;
+                    }
 
 	                // 获取最大反应数
 	                let maxReactions = 0;

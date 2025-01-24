@@ -37,7 +37,9 @@ export class RequestQueue {
 	    }
 
 	    const oldStatus = this.shardStatus.get(0);
-	    if (oldStatus === status) return;
+	    if (oldStatus === status) {
+            return;
+        }
 
 	    this.shardStatus.set(0, status);
 
@@ -87,15 +89,21 @@ export class RequestQueue {
 
     // 处理队列中的任务
     async process() {
-	    if (this.paused) return;
+	    if (this.paused) {
+            return;
+        }
 
 	    // 检查是否可以处理更多任务
 	    const availableSlots = this.maxConcurrent - this.currentProcessing;
-	    if (availableSlots <= 0) return;
+	    if (availableSlots <= 0) {
+            return;
+        }
 
 	    // 获取可以处理的任务数量
 	    const tasksToProcess = Math.min(availableSlots, this.queue.length);
-	    if (tasksToProcess === 0) return;
+	    if (tasksToProcess === 0) {
+            return;
+        }
 
 	    // 对队列按优先级排序
 	    this.queue.sort((a, b) => b.priority - a.priority);
@@ -357,11 +365,21 @@ export const generateProgressReport = (current, total, options = {}) => {
     const progress = (current / total * 100).toFixed(1);
     const parts = [];
 
-    if (prefix) parts.push(prefix);
-    if (progressChar) parts.push(progressChar);
-    if (showNumbers) parts.push(`${current}/${total}`);
-    if (showPercentage) parts.push(`(${progress}%)`);
-    if (suffix) parts.push(suffix);
+    if (prefix) {
+        parts.push(prefix);
+    }
+    if (progressChar) {
+        parts.push(progressChar);
+    }
+    if (showNumbers) {
+        parts.push(`${current}/${total}`);
+    }
+    if (showPercentage) {
+        parts.push(`(${progress}%)`);
+    }
+    if (suffix) {
+        parts.push(suffix);
+    }
 
     return parts.join(' ');
 };

@@ -26,7 +26,9 @@ export default {
 
     async execute(interaction, guildConfig) {
 	    // 检查权限
-	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) return;
+	    if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+            return;
+        }
 
 	    const executionTimer = measureTime();
 
@@ -90,7 +92,9 @@ export default {
 	                        after: startMessageId || '0',
 	                    });
 
-	                    if (additionalMessages.size === 0) break;
+	                    if (additionalMessages.size === 0) {
+                            break;
+                        }
 
 	                    messages = new Collection([...messages, ...additionalMessages]);
 	                    lastMessage = additionalMessages.last();

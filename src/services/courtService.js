@@ -240,7 +240,9 @@ class CourtService {
     static async addSupporter(messageId, userId) {
 	    try {
 	        const process = await ProcessModel.getProcessByMessageId(messageId);
-	        if (!process) throw new Error('议事流程不存在');
+	        if (!process) {
+                throw new Error('议事流程不存在');
+            }
 
 	        // 检查是否已经支持过
 	        const hasSupported = process.supporters.includes(userId);

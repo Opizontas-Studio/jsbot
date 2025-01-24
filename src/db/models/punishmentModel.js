@@ -47,7 +47,9 @@ class PunishmentModel {
     static async getPunishmentById(id) {
 	    const cacheKey = `punishment_${id}`;
 	    const cached = dbManager.getCache(cacheKey);
-	    if (cached) return cached;
+	    if (cached) {
+            return cached;
+        }
 
 	    const punishment = await dbManager.safeExecute(
 	        'get',
@@ -77,7 +79,9 @@ class PunishmentModel {
     static async getUserPunishments(userId, includeExpired = false) {
 	    const cacheKey = `user_punishments_${userId}_${includeExpired}`;
 	    const cached = dbManager.getCache(cacheKey);
-	    if (cached) return cached;
+	    if (cached) {
+            return cached;
+        }
 
 	    const now = Date.now();
 	    const query = `
@@ -118,7 +122,9 @@ class PunishmentModel {
 	 */
     static async updateStatus(id, status, reason = null) {
 	    const punishment = await this.getPunishmentById(id);
-	    if (!punishment) throw new Error('处罚记录不存在');
+	    if (!punishment) {
+            throw new Error('处罚记录不存在');
+        }
 
 	    try {
 	        logTime(`正在更新处罚状态: ID=${id}, 旧状态=${punishment.status}, 新状态=${status}`);
@@ -150,7 +156,9 @@ class PunishmentModel {
 	 */
     static async updateSyncStatus(id, syncedServers) {
 	    const punishment = await this.getPunishmentById(id);
-	    if (!punishment) throw new Error('处罚记录不存在');
+	    if (!punishment) {
+            throw new Error('处罚记录不存在');
+        }
 
 	    try {
 	        await dbManager.safeExecute(

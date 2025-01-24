@@ -32,7 +32,9 @@ export default {
         }
 
 	    // 只处理斜杠命令
-	    if (!interaction.isChatInputCommand()) return;
+	    if (!interaction.isChatInputCommand()) {
+            return;
+        }
 
 	    // 对于命令，使用延迟响应
 	    await interaction.deferReply({ flags: ['Ephemeral'] });

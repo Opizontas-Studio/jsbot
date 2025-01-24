@@ -48,7 +48,9 @@ class DatabaseManager {
 	 * @returns {Promise<void>}
 	 */
     async connect() {
-	    if (this._isConnected) return;
+	    if (this._isConnected) {
+            return;
+        }
 
 	    try {
 	        const dbPath = path.join('data', 'database.sqlite');

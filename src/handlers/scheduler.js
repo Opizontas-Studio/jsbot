@@ -17,9 +17,15 @@ const TIME_UNITS = {
 
 // 格式化时间间隔 @private
 const formatInterval = (ms) => {
-    if (ms >= TIME_UNITS.DAY) return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
-    if (ms >= TIME_UNITS.HOUR) return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
-    if (ms >= TIME_UNITS.MINUTE) return `${Math.floor(ms / TIME_UNITS.MINUTE)}分钟`;
+    if (ms >= TIME_UNITS.DAY) {
+        return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
+    }
+    if (ms >= TIME_UNITS.HOUR) {
+        return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
+    }
+    if (ms >= TIME_UNITS.MINUTE) {
+        return `${Math.floor(ms / TIME_UNITS.MINUTE)}分钟`;
+    }
     return `${Math.floor(ms / TIME_UNITS.SECOND)}秒`;
 };
 
@@ -164,7 +170,9 @@ class TaskScheduler {
     // 注册子区分析和清理任务
     registerAnalysisTasks(client) {
 	    for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
-	        if (!guildConfig.automation?.analysis) continue;
+	        if (!guildConfig.automation?.analysis) {
+                continue;
+            }
 
 	        // 计算下次整点执行时间
 	        const now = new Date();
@@ -236,7 +244,9 @@ class TaskScheduler {
     async scheduleProcess(process, client) {
 	    try {
 	        // 检查是否为议事流程
-	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') return;
+	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') {
+                return;
+            }
 
 	        // 检查流程状态，如果已经完成则不需要处理到期
 	        if (process.status === 'completed') {

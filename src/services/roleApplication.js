@@ -67,7 +67,9 @@ export const createApplicationMessage = async (client) => {
 	    try {
 	        await globalRequestQueue.add(async () => {
 	            const channel = await client.channels.fetch(guildConfig.roleApplication.creatorRoleThreadId);
-	            if (!channel) return;
+	            if (!channel) {
+                    return;
+                }
 
 	            // 检查是否已存在消息
 	            const existingMessageId = messageIds.roleApplicationMessages[guildId];

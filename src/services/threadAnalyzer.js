@@ -113,7 +113,9 @@ export class DiscordLogger {
 	 * @param {Array<Object>} threadInfoArray - 子区信息数组
 	 */
     async sendInactiveThreadsList(threadInfoArray) {
-	    if (!this.logChannel) throw new Error('日志频道未初始化');
+	    if (!this.logChannel) {
+            throw new Error('日志频道未初始化');
+        }
 
 	    // 过滤掉置顶的子区
 	    const nonPinnedThreads = threadInfoArray.filter(thread => !thread.isPinned);
@@ -146,7 +148,9 @@ export class DiscordLogger {
 	 * @param {Array<Object>} failedOperations - 失败记录
 	 */
     async sendStatisticsReport(statistics, failedOperations) {
-	    if (!this.logChannel) throw new Error('日志频道未初始化');
+	    if (!this.logChannel) {
+            throw new Error('日志频道未初始化');
+        }
 
 	    const embed = {
 	        color: 0x00ff99,
@@ -198,7 +202,9 @@ export class DiscordLogger {
 	 * @param {number} threshold - 清理阈值
 	 */
     async sendCleanReport(statistics, failedOperations, threshold) {
-	    if (!this.logChannel) throw new Error('日志频道未初始化');
+	    if (!this.logChannel) {
+            throw new Error('日志频道未初始化');
+        }
 
 	    const embed = {
 	        color: 0xff9900,
@@ -320,9 +326,15 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 
     // 合并统计
     validThreads.forEach(thread => {
-	    if (thread.inactiveHours >= 72) statistics.inactiveThreads.over72h++;
-	    if (thread.inactiveHours >= 48) statistics.inactiveThreads.over48h++;
-	    if (thread.inactiveHours >= 24) statistics.inactiveThreads.over24h++;
+	    if (thread.inactiveHours >= 72) {
+            statistics.inactiveThreads.over72h++;
+        }
+	    if (thread.inactiveHours >= 48) {
+            statistics.inactiveThreads.over48h++;
+        }
+	    if (thread.inactiveHours >= 24) {
+            statistics.inactiveThreads.over24h++;
+        }
 
 	    if (!statistics.forumDistribution[thread.parentId]) {
 	        statistics.forumDistribution[thread.parentId] = {

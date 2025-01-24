@@ -10,7 +10,9 @@ class ProcessModel {
     static async getProcessById(id) {
 	    const cacheKey = `process_${id}`;
 	    const cached = dbManager.getCache(cacheKey);
-	    if (cached) return cached;
+	    if (cached) {
+            return cached;
+        }
 
 	    const process = await dbManager.safeExecute(
 	        'get',
@@ -38,7 +40,9 @@ class ProcessModel {
 	 */
     static async updateStatus(id, status, options = {}) {
 	    const process = await this.getProcessById(id);
-	    if (!process) throw new Error('流程记录不存在');
+	    if (!process) {
+            throw new Error('流程记录不存在');
+        }
 
 	    try {
 	        await dbManager.safeExecute(
@@ -247,7 +251,9 @@ class ProcessModel {
     static async getProcessByMessageId(messageId) {
 	    const cacheKey = `process_msg_${messageId}`;
 	    const cached = dbManager.getCache(cacheKey);
-	    if (cached) return cached;
+	    if (cached) {
+            return cached;
+        }
 
 	    const process = await dbManager.safeExecute(
 	        'get',
@@ -289,7 +295,9 @@ class ProcessModel {
      * @returns {Object} 处理后的流程记录
      */
     static _parseProcessJSON(process) {
-        if (!process) return null;
+        if (!process) {
+            return null;
+        }
 
         return {
             ...process,

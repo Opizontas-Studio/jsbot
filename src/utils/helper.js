@@ -103,7 +103,9 @@ export const checkAndHandlePermission = async (interaction, AdministratorRoleIds
 export const checkChannelPermission = (member, channel, AdministratorRoleIds) => {
     // 检查用户是否有全局身份组权限
     const hasGlobalPermission = member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
-    if (hasGlobalPermission) return true;
+    if (hasGlobalPermission) {
+        return true;
+    }
 
     // 获取用户在该频道的权限
     const channelPermissions = channel.permissionsFor(member);

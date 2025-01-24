@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { cleanupInactiveThreads } from '../services/analyzers.js';
+import { cleanupInactiveThreads } from '../services/threadAnalyzer.js';
+import { generateProgressReport } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';
 
 /**

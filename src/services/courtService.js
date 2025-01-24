@@ -1,8 +1,8 @@
-import { dbManager } from '../db/manager.js';
-import { ProcessModel } from '../db/models/process.js';
-import { PunishmentModel } from '../db/models/punishment.js';
+import { dbManager } from '../db/dbManager.js';
+import { ProcessModel } from '../db/models/processModel.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { logTime } from '../utils/logger.js';
-import { revokePunishmentInGuilds } from '../utils/punishment_helper.js';
+import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 
 class CourtService {
     /**

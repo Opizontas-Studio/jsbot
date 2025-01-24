@@ -1,8 +1,8 @@
 import { DiscordAPIError } from '@discordjs/rest';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Collection, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { ProcessModel } from '../db/models/process.js';
-import { PunishmentModel } from '../db/models/punishment.js';
-import CourtService from '../services/court_service.js';
+import { ProcessModel } from '../db/models/processModel.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
+import CourtService from '../services/courtService.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 

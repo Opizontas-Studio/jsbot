@@ -1,11 +1,11 @@
 import { DiscordAPIError } from '@discordjs/rest';
 import { ChannelType } from 'discord.js';
-import { ProcessModel } from '../db/models/process.js';
-import { PunishmentModel } from '../db/models/punishment.js';
+import { ProcessModel } from '../db/models/processModel.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { formatPunishmentDuration } from '../utils/punishment_helper.js';
+import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 import { globalTaskScheduler } from './scheduler.js';
 
 /**

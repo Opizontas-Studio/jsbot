@@ -8,12 +8,12 @@ import { DiscordAPIError } from '@discordjs/rest';
 import { Client, Collection, Events, GatewayIntentBits, Options, REST, Routes } from 'discord.js';
 
 // 本地工具函数
-import GuildManager from './utils/guild_config.js';
+import GuildManager from './utils/guildManager.js';
 import { getVersionInfo, handleDiscordError, loadCommandFiles, measureTime } from './utils/helper.js';
 import { logTime } from './utils/logger.js';
 
 // 本地功能模块
-import { dbManager } from './db/manager.js';
+import { dbManager } from './db/dbManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
 

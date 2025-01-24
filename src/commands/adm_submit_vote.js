@@ -1,5 +1,5 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { ProcessModel } from '../db/models/process.js';
+import { ProcessModel } from '../db/models/processModel.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';

@@ -1,9 +1,9 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { ProcessModel } from '../db/models/process.js';
+import { ProcessModel } from '../db/models/processModel.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { handleCommandError } from '../utils/helper.js';
-import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishment_helper.js';
+import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 5,

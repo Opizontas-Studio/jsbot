@@ -1,4 +1,4 @@
-import { PunishmentModel } from '../db/models/punishment.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { logTime } from './logger.js';
 
 /**

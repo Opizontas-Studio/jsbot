@@ -1,11 +1,11 @@
-import { PunishmentModel } from '../db/models/punishment.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { logTime } from '../utils/logger.js';
 import {
     executePunishmentAction,
     formatPunishmentDuration,
     sendAppealNotification,
     sendModLogNotification,
-} from '../utils/punishment_helper.js';
+} from '../utils/punishmentHelper.js';
 
 class PunishmentService {
     /**

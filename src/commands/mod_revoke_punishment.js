@@ -1,8 +1,8 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { PunishmentModel } from '../db/models/punishment.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { revokePunishmentInGuilds } from '../utils/punishment_helper.js';
+import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 5,

@@ -242,39 +242,6 @@ export const sendThreadNotification = async (thread, notifyData) => {
 };
 
 /**
- * 生成进度报告
- * @param {number} current - 当前进度
- * @param {number} total - 总数
- * @param {Object} [options] - 可选配置
- * @param {string} [options.prefix=''] - 前缀文本
- * @param {string} [options.suffix=''] - 后缀文本
- * @param {boolean} [options.showPercentage=true] - 是否显示百分比
- * @param {boolean} [options.showNumbers=true] - 是否显示数字
- * @param {string} [options.progressChar='⏳'] - 进度指示符
- * @returns {string} 格式化的进度信息
- */
-export const generateProgressReport = (current, total, options = {}) => {
-    const {
-	    prefix = '',
-	    suffix = '',
-	    showPercentage = true,
-	    showNumbers = true,
-	    progressChar = '⏳',
-    } = options;
-
-    const progress = (current / total * 100).toFixed(1);
-    const parts = [];
-
-    if (prefix) parts.push(prefix);
-    if (progressChar) parts.push(progressChar);
-    if (showNumbers) parts.push(`${current}/${total}`);
-    if (showPercentage) parts.push(`(${progress}%)`);
-    if (suffix) parts.push(suffix);
-
-    return parts.join(' ');
-};
-
-/**
  * 统一处理命令错误响应
  * @param {Interaction} interaction - Discord交互对象
  * @param {Error} error - 错误对象

@@ -1,8 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
-import { ProcessModel } from '../db/models/process.js';
-import { PunishmentModel } from '../db/models/punishment.js';
+import { ProcessModel } from '../db/models/processModel.js';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
-import { formatPunishmentDuration } from '../utils/punishment_helper.js';
+import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 3,

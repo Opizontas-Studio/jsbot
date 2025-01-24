@@ -1,5 +1,5 @@
 import { logTime } from '../../utils/logger.js';
-import { dbManager } from '../manager.js';
+import { dbManager } from '../dbManager.js';
 
 class PunishmentModel {
     /**

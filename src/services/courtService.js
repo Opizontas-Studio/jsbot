@@ -185,50 +185,97 @@ class CourtService {
 	 * @returns {Promise<void>}
 	 */
     static async handleProcessExpiry(process, client) {
-	    try {
-	        // 从guildManager中获取主服务器配置
-	        const guildIds = client.guildManager.getGuildIds();
-	        const mainGuildConfig = guildIds
-	            .map(id => client.guildManager.getGuildConfig(id))
-	            .find(config => config?.serverType === 'Main server');
+        try {
+            // Early return 检查
+            if (!process.type.startsWith('court_') &&
+                !process.type.startsWith('appeal') &&
+                process.type !== 'vote') {
+                return;
+            }
 
-	        if (!mainGuildConfig?.courtSystem?.enabled) {
-	            logTime('主服务器未启用议事系统', true);
-	            return;
-	        }
+            // 获取最新的流程数据
+            const currentProcess = await ProcessModel.getProcessById(process.id);
+            if (!currentProcess) {
+                logTime(`无法获取流程数据: ${process.id}`, true);
+                return;
+            }
 
-	        // 获取议事频道
-	        const courtChannel = await client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
-	        if (!courtChannel) {
-	            logTime(`无法获取议事频道: ${mainGuildConfig.courtSystem.courtChannelId}`, true);
-	            return;
-	        }
+            // 解析流程详情
+            const details = ProcessModel.tryParseJSON(currentProcess.details);
+            if (!details?.embed) {
+                logTime(`无法获取流程详情: ${process.id}`, true);
+                return;
+            }
 
-	        // 获取最新的流程数据
-	        const currentProcess = await ProcessModel.getProcessById(process.id);
-	        if (!currentProcess) {
-	            logTime(`无法获取流程数据: ${process.id}`, true);
-	            return;
-	        }
+            // 获取主服务器配置
+            const mainGuildConfig = client.guildManager.getGuildIds()
+                .map(id => client.guildManager.getGuildConfig(id))
+                .find(config => config?.serverType === 'Main server');
 
-	        // 获取并更新原始消息
-	        const message = await courtChannel.messages.fetch(process.messageId);
-	        if (message) {
-	            await this.updateCourtMessage(message, currentProcess, {
-	                isExpired: true,
-	                removeComponents: true,
-	            });
-	        }
+            if (!mainGuildConfig?.courtSystem?.enabled) {
+                logTime('主服务器未启用议事系统', true);
+                return;
+            }
 
-	        // 只有在成功处理完所有步骤后，才更新流程状态
-	        await ProcessModel.updateStatus(process.id, 'completed', {
-	            result: 'cancelled',
-	            reason: '议事流程已过期，未达到所需支持人数',
-	        });
+            // 获取并更新原始消息
+            const courtChannel = await client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
+            if (!courtChannel) {
+                logTime(`无法获取议事频道: ${mainGuildConfig.courtSystem.courtChannelId}`, true);
+                return;
+            }
 
-	    } catch (error) {
-	        logTime(`处理议事流程到期失败: ${error.message}`, true);
-	    }
+            const message = await courtChannel.messages.fetch(currentProcess.messageId).catch(() => null);
+
+            // 更新原消息
+            if (message) {
+                const originalEmbed = message.embeds[0];
+                await message.edit({
+                    embeds: [{
+                        ...originalEmbed.data,
+                        description: `${originalEmbed.description}\n\n❌ 议事已过期，未达到所需支持人数`,
+                    }],
+                    components: [],
+                });
+                logTime(`更新过期消息成功: ${currentProcess.id}`);
+            }
+
+            // 如果是vote类型，更新原帖子状态
+            if (currentProcess.type === 'vote' && details.threadId) {
+                await client.channels.fetch(details.threadId)
+                    .then(thread => thread?.messages.fetch(currentProcess.statusMessageId))
+                    .then(statusMessage => statusMessage?.edit({
+                        embeds: [{
+                            color: 0xFF0000,
+                            title: '📢 议事投票已过期',
+                            description: [
+                                '此帖的议事投票已过期。',
+                                '',
+                                '**议事详情：**',
+                                `- 提交人：<@${currentProcess.executorId}>`,
+                                `- 议事消息：[点击查看](${message?.url || thread?.url})`,
+                                '',
+                                '当前状态：未达到所需支持人数，议事已结束',
+                            ].join('\n'),
+                            timestamp: new Date(),
+                            footer: {
+                                text: '如需重新议事，请管理员重新提交',
+                            },
+                        }],
+                    }))
+                    .then(() => logTime(`已更新议事状态消息: ${currentProcess.id}`))
+                    .catch(() => logTime(`更新议事状态消息失败: ${currentProcess.id}`, true));
+            }
+
+            // 更新流程状态
+            await ProcessModel.updateStatus(currentProcess.id, 'completed', {
+                result: 'cancelled',
+                reason: '议事流程已过期，未达到所需支持人数',
+            });
+
+        } catch (error) {
+            logTime(`处理议事流程到期失败: ${error.message}`, true);
+            throw error; // 向上抛出错误，让调用者处理
+        }
     }
 
     /**
@@ -451,38 +498,29 @@ class CourtService {
                     try {
                         const { threadId } = process.details;
                         if (threadId && process.statusMessageId) {
-                            const thread = await client.channels.fetch(threadId).catch(() => null);
-                            if (thread) {
-                                try {
-                                    const statusMessage = await thread.messages.fetch(process.statusMessageId);
-                                    if (statusMessage) {
-                                        await statusMessage.edit({
-                                            embeds: [{
-                                                color: 0x00FF00,
-                                                title: '📢 议事投票已获得支持',
-                                                description: [
-                                                    '此帖的议事投票已获得足够议员支持。',
-                                                    '',
-                                                    '**议事详情：**',
-                                                    `- 提交人：<@${process.executorId}>`,
-                                                    `- 议事消息：[点击查看](${message?.url || thread.url})`,
-                                                    '',
-                                                    '当前状态：等待投票执行',
-                                                ].join('\n'),
-                                                timestamp: new Date(),
-                                                footer: {
-                                                    text: '投票将由管理员稍后执行',
-                                                },
-                                            }],
-                                        });
-                                        logTime(`已更新议事状态消息: ${process.id}`);
-                                    } else {
-                                        logTime(`未找到状态消息 ${process.statusMessageId}，可能已被删除`, true);
-                                    }
-                                } catch (error) {
-                                    logTime(`获取状态消息失败: ${error.message}`, true);
-                                }
-                            }
+                            await client.channels.fetch(threadId)
+                                .then(thread => thread?.messages.fetch(process.statusMessageId))
+                                .then(statusMessage => statusMessage?.edit({
+                                    embeds: [{
+                                        color: 0x00FF00,
+                                        title: '📢 议事投票已获得支持',
+                                        description: [
+                                            '此帖的议事投票已获得足够议员支持。',
+                                            '',
+                                            '**议事详情：**',
+                                            `- 提交人：<@${process.executorId}>`,
+                                            `- 议事消息：[点击查看](${message?.url || thread?.url})`,
+                                            '',
+                                            '当前状态：等待投票执行',
+                                        ].join('\n'),
+                                        timestamp: new Date(),
+                                        footer: {
+                                            text: '投票将由管理员稍后执行',
+                                        },
+                                    }],
+                                }))
+                                .then(() => logTime(`已更新议事状态消息: ${process.id}`))
+                                .catch(() => logTime(`更新议事状态消息失败: ${process.id}`, true));
                         }
                     } catch (error) {
                         logTime(`更新原帖子状态消息失败: ${error.message}`, true);

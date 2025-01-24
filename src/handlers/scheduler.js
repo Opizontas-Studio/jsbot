@@ -1,6 +1,7 @@
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import CourtService from '../services/courtService.js';
 import PunishmentService from '../services/punishmentService.js';
 import { analyzeForumActivity, cleanupInactiveThreads } from '../services/threadAnalyzer.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
@@ -196,43 +197,45 @@ class TaskScheduler {
 
     // 注册处罚系统相关任务
     registerPunishmentTasks(client) {
-	    // 处罚到期检查
-	    this.addTask({
-	        taskId: 'punishmentCheck',
-	        interval: 30 * TIME_UNITS.SECOND,
-	        runImmediately: true,
-	        task: async () => {
-	            try {
-	                const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
-	                for (const punishment of expiredPunishments) {
-	                    await this.executePunishmentExpiry(client, punishment);
-	                }
-	            } catch (error) {
-	                logTime(`处理过期处罚失败: ${error.message}`, true);
-	            }
-	        },
-	    });
+        // 处罚到期检查
+        this.addTask({
+            taskId: 'punishmentCheck',
+            interval: 30 * TIME_UNITS.SECOND,
+            runImmediately: true,
+            task: async () => {
+                try {
+                    const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
+                    for (const punishment of expiredPunishments) {
+                        try {
+                            await PunishmentService.handleExpiry(client, punishment);
+                        } catch (error) {
+                            logTime(`处理处罚到期失败: ${error.message}`, true);
+                        }
+                    }
+                } catch (error) {
+                    logTime(`处理过期处罚失败: ${error.message}`, true);
+                }
+            },
+        });
 
-	    // 加载并调度所有未过期的流程
-	    this.addTask({
-	        taskId: 'processScheduler',
-	        interval: 24 * TIME_UNITS.HOUR, // 每24小时重新加载一次，以防遗漏
-	        runImmediately: true,
-	        task: async () => {
-	            try {
+        // 加载并调度所有未过期的流程
+        this.addTask({
+            taskId: 'processScheduler',
+            interval: 24 * TIME_UNITS.HOUR, // 每24小时重新加载一次，以防遗漏
+            runImmediately: true,
+            task: async () => {
+                try {
                     // 获取所有未完成的流程
                     const processes = await ProcessModel.getAllProcesses(false);
-
                     for (const process of processes) {
                         await this.scheduleProcess(process, client);
                     }
-
                     logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
-	            } catch (error) {
-	                logTime(`加载和调度流程失败: ${error.message}`, true);
-	            }
-	        },
-	    });
+                } catch (error) {
+                    logTime(`加载和调度流程失败: ${error.message}`, true);
+                }
+            },
+        });
     }
 
     /**
@@ -242,161 +245,39 @@ class TaskScheduler {
      * @returns {Promise<void>}
      */
     async scheduleProcess(process, client) {
-	    try {
-	        // 检查是否为议事流程
-	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') {
+        try {
+            // 检查是否为议事流程
+            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') return;
+
+            // 检查流程状态，如果已经完成则不需要处理到期
+            if (process.status === 'completed') {
+                logTime(`流程 ${process.id} 已完成，跳过到期处理`);
                 return;
             }
 
-	        // 检查流程状态，如果已经完成则不需要处理到期
-	        if (process.status === 'completed') {
-	            logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-	            return;
-	        }
+            const now = Date.now();
+            const timeUntilExpiry = process.expireAt - now;
 
-	        const now = Date.now();
-	        const timeUntilExpiry = process.expireAt - now;
-
-	        if (timeUntilExpiry <= 0) {
-	            // 已过期，直接处理
-	            await this.executeProcessExpiry(process, client);
-	        } else {
-	            // 设置定时器
-	            setTimeout(async () => {
-	                // 在执行到期处理前再次检查流程状态
-	                const currentProcess = await ProcessModel.getProcessById(process.id);
-	                if (currentProcess && currentProcess.status === 'completed') {
-	                    logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-	                    return;
-	                }
-	                await this.executeProcessExpiry(process, client);
-	            }, timeUntilExpiry);
-
-	            logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
-	        }
-	    } catch (error) {
-	        logTime(`调度流程失败: ${error.message}`, true);
-	    }
-    }
-
-    // 执行处罚到期操作
-    async executePunishmentExpiry(client, punishment) {
-	    try {
-	        await PunishmentService.handleExpiry(client, punishment);
-	    } catch (error) {
-	        logTime(`处理处罚到期失败: ${error.message}`, true);
-	    }
-    }
-
-    // 执行流程到期操作
-    async executeProcessExpiry(process, client) {
-	    try {
-	        // 只处理议事相关的流程
-	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') {
-	            return;
-	        }
-
-	        // 从process.details中获取原始消息信息
-	        let details = {};
-	        try {
-	            details = typeof process.details === 'string' ?
-	                JSON.parse(process.details) :
-	                (process.details || {});
-	        } catch (error) {
-	            logTime(`解析流程详情失败: ${error.message}`, true);
-	            return;
-	        }
-
-	        if (!details.embed) {
-	            logTime(`无法获取流程详情: ${process.id}`, true);
-	            return;
-	        }
-
-	        try {
-	            // 获取主服务器配置
-	            const guildIds = client.guildManager.getGuildIds();
-	            const mainGuildConfig = guildIds
-	                .map(id => client.guildManager.getGuildConfig(id))
-	                .find(config => config?.serverType === 'Main server');
-
-	            if (!mainGuildConfig?.courtSystem?.enabled) {
-	                logTime('主服务器未启用议事系统', true);
-	                return;
-	            }
-
-	            // 获取原始消息
-	            const courtChannel = await client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
-	            if (!courtChannel) {
-	                logTime(`无法获取议事频道: ${mainGuildConfig.courtSystem.courtChannelId}`, true);
-	                return;
-	            }
-
-	            const message = await courtChannel.messages.fetch(process.messageId);
-	            if (message) {
-	                // 更新消息
-	                const embed = message.embeds[0];
-	                await message.edit({
-	                    embeds: [{
-	                        ...embed.data,
-	                        description: `${embed.description}\n\n❌ 议事已过期，未达到所需支持人数`,
-	                    }],
-	                    components: [], // 移除支持按钮
-	                });
-                    logTime(`更新过期消息成功: ${process.id}`);
-	            }
-
-                // 如果是vote类型，还需要在原帖子中更新状态
-                if (process.type === 'vote' && details.threadId) {
-                    try {
-                        const thread = await client.channels.fetch(details.threadId).catch(() => null);
-                        if (thread && process.statusMessageId) {
-                            try {
-                                const statusMessage = await thread.messages.fetch(process.statusMessageId);
-                                if (statusMessage) {
-                                    await statusMessage.edit({
-                                        embeds: [{
-                                            color: 0xFF0000,
-                                            title: '📢 议事投票已过期',
-                                            description: [
-                                                '此帖的议事投票已过期。',
-                                                '',
-                                                '**议事详情：**',
-                                                `- 提交人：<@${process.executorId}>`,
-                                                `- 议事消息：[点击查看](${message?.url || thread.url})`,
-                                                '',
-                                                '当前状态：未达到所需支持人数，议事已结束',
-                                            ].join('\n'),
-                                            timestamp: new Date(),
-                                            footer: {
-                                                text: '如需重新议事，请管理员重新提交',
-                                            },
-                                        }],
-                                    });
-                                    logTime(`已更新议事状态消息: ${process.id}`);
-                                } else {
-                                    logTime(`未找到状态消息 ${process.statusMessageId}，可能已被删除`, true);
-                                }
-                            } catch (error) {
-                                logTime(`获取状态消息失败: ${error.message}`, true);
-                            }
-                        }
-                    } catch (error) {
-                        logTime(`更新原帖子状态消息失败: ${error.message}`, true);
+            if (timeUntilExpiry <= 0) {
+                // 已过期，直接处理
+                await CourtService.handleProcessExpiry(process, client);
+            } else {
+                // 设置定时器
+                setTimeout(async () => {
+                    // 在执行到期处理前再次检查流程状态
+                    const currentProcess = await ProcessModel.getProcessById(process.id);
+                    if (currentProcess && currentProcess.status === 'completed') {
+                        logTime(`流程 ${process.id} 已完成，跳过到期处理`);
+                        return;
                     }
-                }
-	        } catch (error) {
-	            logTime(`更新过期消息失败: ${error.message}`, true);
-	        }
+                    await CourtService.handleProcessExpiry(process, client);
+                }, timeUntilExpiry);
 
-	        // 更新流程状态
-	        await ProcessModel.updateStatus(process.id, 'completed', {
-	            result: 'cancelled',
-	            reason: '议事流程已过期，未达到所需支持人数',
-	        });
-
-	    } catch (error) {
-	        logTime(`处理议事流程到期失败: ${error.message}`, true);
-	    }
+                logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
+            }
+        } catch (error) {
+            logTime(`调度流程失败: ${error.message}`, true);
+        }
     }
 
     // 执行子区分析和清理任务

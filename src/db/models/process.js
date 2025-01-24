@@ -19,22 +19,12 @@ class ProcessModel {
 	    );
 
 	    if (process) {
-	        try {
-	            process.votes = JSON.parse(process.votes || '{}');
-	            process.messageIds = JSON.parse(process.messageIds || '[]');
-	            process.details = JSON.parse(process.details || '{}');
-	            process.supporters = JSON.parse(process.supporters || '[]');
-	            dbManager.setCache(cacheKey, process);
-	        } catch (error) {
-	            logTime(`JSON解析失败 [getProcessById]: ${error.message}`, true);
-	            process.votes = {};
-	            process.messageIds = [];
-	            process.details = {};
-	            process.supporters = [];
-	        }
+	        const parsedProcess = this._parseProcessJSON(process);
+	        dbManager.setCache(cacheKey, parsedProcess);
+	        return parsedProcess;
 	    }
 
-	    return process;
+	    return null;
     }
 
     /**
@@ -166,13 +156,7 @@ class ProcessModel {
 	            !includeCompleted ? [userId, userId, now] : [userId, userId],
 	        );
 
-	        return processes.map(p => ({
-	            ...p,
-	            votes: JSON.parse(p.votes || '{}'),
-	            messageIds: JSON.parse(p.messageIds || '[]'),
-	            details: JSON.parse(p.details || '{}'),
-	            supporters: JSON.parse(p.supporters || '[]'),
-	        }));
+	        return processes.map(p => this._parseProcessJSON(p));
 	    } catch (error) {
 	        logTime(`获取用户流程记录失败: ${error.message}`, true);
 	        throw error;
@@ -200,13 +184,7 @@ class ProcessModel {
 	            !includeCompleted ? [] : [],
 	        );
 
-	        return processes.map(p => ({
-	            ...p,
-	            votes: JSON.parse(p.votes || '{}'),
-	            messageIds: JSON.parse(p.messageIds || '[]'),
-	            details: JSON.parse(p.details || '{}'),
-	            supporters: JSON.parse(p.supporters || '[]'),
-	        }));
+	        return processes.map(p => this._parseProcessJSON(p));
 	    } catch (error) {
 	        logTime(`获取全库流程记录失败: ${error.message}`, true);
 	        throw error;
@@ -216,18 +194,20 @@ class ProcessModel {
     /**
 	 * 创建新的议事流程
 	 * @param {Object} data - 流程数据
-	 * @param {string} data.type - 流程类型 (court_mute/court_ban)
+	 * @param {string} data.type - 流程类型 (court_mute/court_ban/vote)
 	 * @param {string} data.targetId - 目标用户ID
 	 * @param {string} data.executorId - 执行者ID
 	 * @param {string} data.messageId - 议事消息ID
 	 * @param {number} data.expireAt - 流程到期时间戳
 	 * @param {Object} data.details - 处罚详情
+	 * @param {string} [data.statusMessageId] - 状态消息ID（仅vote类型使用）
 	 * @returns {Promise<Object>} 流程记录
 	 */
     static async createCourtProcess(data) {
 	    const {
 	        type, targetId, executorId,
 	        messageId, expireAt, details,
+            statusMessageId = null,
 	    } = data;
 
 	    try {
@@ -240,12 +220,13 @@ class ProcessModel {
 	            INSERT INTO processes (
 	                type, targetId, executorId,
 	                messageId, expireAt, status,
-	                details, supporters
-	            ) VALUES (?, ?, ?, ?, ?, 'pending', ?, '[]')
+	                details, supporters, statusMessageId
+	            ) VALUES (?, ?, ?, ?, ?, 'pending', ?, '[]', ?)
 	        `, [
 	            type, targetId, executorId,
 	            messageId, expireAt,
 	            JSON.stringify(enrichedDetails),
+                statusMessageId,
 	        ]);
 
 	        // 清除相关缓存
@@ -275,23 +256,51 @@ class ProcessModel {
 	    );
 
 	    if (process) {
-	        try {
-	            process.votes = JSON.parse(process.votes || '{}');
-	            process.messageIds = JSON.parse(process.messageIds || '[]');
-	            process.details = JSON.parse(process.details || '{}');
-	            process.supporters = JSON.parse(process.supporters || '[]');
-	            dbManager.setCache(cacheKey, process);
-	        } catch (error) {
-	            logTime(`JSON解析失败 [getProcessByMessageId]: ${error.message}`, true);
-	            process.votes = {};
-	            process.messageIds = [];
-	            process.details = {};
-	            process.supporters = [];
-	        }
+	        const parsedProcess = this._parseProcessJSON(process);
+	        dbManager.setCache(cacheKey, parsedProcess);
+	        return parsedProcess;
 	    }
 
-	    return process;
+	    return null;
+    }
+
+    /**
+     * 尝试解析JSON字符串，确保返回有效对象
+     * @param {string|Object} data - 要解析的数据
+     * @param {string} defaultValue - 解析失败时的默认值
+     * @param {string} [context='unknown'] - 错误日志的上下文
+     * @returns {Object} 解析后的对象
+     */
+    static tryParseJSON(data, defaultValue = '{}', context = 'unknown') {
+        try {
+            return typeof data === 'string' ?
+                JSON.parse(data || defaultValue) :
+                data || JSON.parse(defaultValue);
+        } catch (error) {
+            logTime(`JSON解析失败 [${context}]: ${error.message}`, true);
+            return JSON.parse(defaultValue);
+        }
+    }
+
+    /**
+     * 解析流程记录的JSON字段
+     * @private
+     * @param {Object} process - 流程记录
+     * @returns {Object} 处理后的流程记录
+     */
+    static _parseProcessJSON(process) {
+        if (!process) return null;
+
+        return {
+            ...process,
+            votes: this.tryParseJSON(process.votes, '{}', 'votes'),
+            messageIds: this.tryParseJSON(process.messageIds, '[]', 'messageIds'),
+            details: this.tryParseJSON(process.details, '{}', 'details'),
+            supporters: this.tryParseJSON(process.supporters, '[]', 'supporters'),
+            statusMessageId: process.statusMessageId || null,
+        };
     }
 }
 
 export { ProcessModel };
+

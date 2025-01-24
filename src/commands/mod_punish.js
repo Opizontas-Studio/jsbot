@@ -53,8 +53,7 @@ export default {
 	                    .setDescription('同时添加警告 (例如: 30d)')
 	                    .setRequired(false),
 	            ),
-	    )
-	    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+	    ),
 
     async execute(interaction, guildConfig) {
 	    try {

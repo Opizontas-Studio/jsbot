@@ -236,7 +236,7 @@ class TaskScheduler {
     async scheduleProcess(process, client) {
 	    try {
 	        // 检查是否为议事流程
-	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal')) return;
+	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') return;
 
 	        // 检查流程状态，如果已经完成则不需要处理到期
 	        if (process.status === 'completed') {
@@ -282,7 +282,7 @@ class TaskScheduler {
     async executeProcessExpiry(process, client) {
 	    try {
 	        // 只处理议事相关的流程
-	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal')) {
+	        if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') {
 	            return;
 	        }
 
@@ -334,6 +334,46 @@ class TaskScheduler {
 	                });
                     logTime(`更新过期消息成功: ${process.id}`);
 	            }
+
+                // 如果是vote类型，还需要在原帖子中更新状态
+                if (process.type === 'vote' && details.threadId) {
+                    try {
+                        const thread = await client.channels.fetch(details.threadId).catch(() => null);
+                        if (thread && process.statusMessageId) {
+                            try {
+                                const statusMessage = await thread.messages.fetch(process.statusMessageId);
+                                if (statusMessage) {
+                                    await statusMessage.edit({
+                                        embeds: [{
+                                            color: 0xFF0000,
+                                            title: '📢 议事投票已过期',
+                                            description: [
+                                                '此帖的议事投票已过期。',
+                                                '',
+                                                '**议事详情：**',
+                                                `- 提交人：<@${process.executorId}>`,
+                                                `- 议事消息：[点击查看](${message?.url || thread.url})`,
+                                                '',
+                                                '当前状态：未达到所需支持人数，议事已结束',
+                                            ].join('\n'),
+                                            timestamp: new Date(),
+                                            footer: {
+                                                text: '如需重新议事，请管理员重新提交',
+                                            },
+                                        }],
+                                    });
+                                    logTime(`已更新议事状态消息: ${process.id}`);
+                                } else {
+                                    logTime(`未找到状态消息 ${process.statusMessageId}，可能已被删除`, true);
+                                }
+                            } catch (error) {
+                                logTime(`获取状态消息失败: ${error.message}`, true);
+                            }
+                        }
+                    } catch (error) {
+                        logTime(`更新原帖子状态消息失败: ${error.message}`, true);
+                    }
+                }
 	        } catch (error) {
 	            logTime(`更新过期消息失败: ${error.message}`, true);
 	        }

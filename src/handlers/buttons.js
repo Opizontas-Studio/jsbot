@@ -215,6 +215,10 @@ export const buttonHandlers = {
     'support_appeal': async (interaction) => {
         await handleCourtSupport(interaction, 'appeal');
     },
+
+    'support_vote': async (interaction) => {
+        await handleCourtSupport(interaction, 'vote');
+    },
 };
 
 /**
@@ -256,7 +260,7 @@ async function handleCourtSupport(interaction, type) {
 	    return;
     }
 
-    // 解析按钮ID获取目标用户ID和原始交互ID
+    // 解析按钮ID获取目标用户ID
     const [, , targetId] = interaction.customId.split('_');
 
     try {
@@ -276,16 +280,47 @@ async function handleCourtSupport(interaction, type) {
 	    }
 
 	    // 使用CourtService添加支持者
-	    const { replyContent } = await CourtService.addSupporter(
+	    const { process, supportCount, replyContent } = await CourtService.addSupporter(
 	        interaction.message.id,
 	        interaction.user.id,
-	        guildConfig,
-	        interaction.client,
 	    );
+
+	    let finalReplyContent = replyContent;
+
+	    // 检查是否达到所需支持数量
+	    if (supportCount === guildConfig.courtSystem.requiredSupports) {
+	        const { debateThread, error: completeError } = await CourtService.handleCourtComplete(
+	            process,
+	            guildConfig,
+	            interaction.client,
+	        );
+
+	        if (completeError) {
+	            await interaction.editReply({
+	                content: `❌ ${completeError}`,
+	            });
+	            return;
+	        }
+
+	        // 更新消息
+	        const message = await interaction.message.fetch();
+	        await CourtService.updateCourtMessage(message, process, { debateThread });
+
+	        // 更新回复内容
+	        if (process.type === 'vote') {
+                finalReplyContent += '\n📢 已达到所需支持人数，等待投票执行';
+            } else if (debateThread) {
+                finalReplyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
+            }
+	    } else {
+	        // 更新消息
+	        const message = await interaction.message.fetch();
+	        await CourtService.updateCourtMessage(message, process);
+	    }
 
 	    // 发送确认消息
 	    await interaction.editReply({
-	        content: replyContent,
+	        content: finalReplyContent,
 	    });
     } catch (error) {
 	    logTime(`处理议事支持失败: ${error.message}`, true);

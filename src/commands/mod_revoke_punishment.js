@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishment.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -18,8 +18,7 @@ export default {
             option.setName('原因')
                 .setDescription('撤销原因')
                 .setRequired(true),
-        )
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+        ),
 
     async execute(interaction, guildConfig) {
         try {
@@ -170,7 +169,6 @@ export default {
                 ].filter(Boolean).join('\n') : '❌ 处罚撤销失败',
                 flags: ['Ephemeral'],
             });
-
         } catch (error) {
             await handleCommandError(interaction, error, '撤销处罚');
         }

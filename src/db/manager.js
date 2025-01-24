@@ -108,6 +108,7 @@ class DatabaseManager {
 	            targetId TEXT NOT NULL,
 	            executorId TEXT NOT NULL,
 	            messageId TEXT UNIQUE,
+	            statusMessageId TEXT,
 	            debateThreadId TEXT,
 	            status TEXT NOT NULL DEFAULT 'pending'
 	                CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
@@ -128,6 +129,7 @@ class DatabaseManager {
 	        CREATE INDEX IF NOT EXISTS idx_punishments_sync ON punishments(synced);
 	        CREATE INDEX IF NOT EXISTS idx_processes_target ON processes(targetId);
 	        CREATE INDEX IF NOT EXISTS idx_processes_message ON processes(messageId);
+	        CREATE INDEX IF NOT EXISTS idx_processes_status_message ON processes(statusMessageId);
 	        CREATE INDEX IF NOT EXISTS idx_processes_debate ON processes(debateThreadId);
 	        CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt);
 	        CREATE INDEX IF NOT EXISTS idx_processes_type ON processes(type);

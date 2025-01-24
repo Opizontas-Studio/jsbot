@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { checkAndHandlePermission, handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 
 export default {
@@ -10,9 +10,7 @@ export default {
 	        option.setName('理由')
 	            .setDescription('处理原因')
 	            .setRequired(true),
-	    )
-	    // 设置命令需要的默认权限为管理消息
-	    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+	    ),
 
     async execute(interaction, guildConfig) {
 	    try {

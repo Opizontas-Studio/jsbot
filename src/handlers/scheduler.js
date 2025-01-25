@@ -243,7 +243,7 @@ class TaskScheduler {
     async scheduleProcess(process, client) {
         try {
             // 检查是否为议事流程
-            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote')
+            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'debate')
                 return;
 
             // 检查流程状态，如果已经完成则不需要处理到期

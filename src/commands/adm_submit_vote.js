@@ -88,7 +88,7 @@ export default {
                                 type: 2,
                                 style: 3,
                                 label: '支持',
-                                custom_id: `support_vote_${starterMessage.author.id}_${interaction.user.id}`,
+                                custom_id: `support_debate_${starterMessage.author.id}_${interaction.user.id}`,
                                 emoji: '👍',
                             },
                         ],
@@ -122,7 +122,7 @@ export default {
 
             // 创建议事流程
             const process = await ProcessModel.createCourtProcess({
-                type: 'vote',
+                type: 'debate',
                 targetId: starterMessage.author.id,
                 executorId: interaction.user.id,
                 messageId: message.id,

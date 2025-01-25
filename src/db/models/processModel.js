@@ -187,13 +187,13 @@ class ProcessModel {
     /**
      * 创建新的议事流程
      * @param {Object} data - 流程数据
-     * @param {string} data.type - 流程类型 (court_mute/court_ban/vote)
+     * @param {string} data.type - 流程类型 (court_mute/court_ban/debate)
      * @param {string} data.targetId - 目标用户ID
      * @param {string} data.executorId - 执行者ID
      * @param {string} data.messageId - 议事消息ID
      * @param {number} data.expireAt - 流程到期时间戳
      * @param {Object} data.details - 处罚详情
-     * @param {string} [data.statusMessageId] - 状态消息ID（仅vote类型使用）
+     * @param {string} [data.statusMessageId] - 状态消息ID（仅debate类型使用）
      * @returns {Promise<Object>} 流程记录
      */
     static async createCourtProcess(data) {

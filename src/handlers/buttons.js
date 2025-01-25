@@ -168,9 +168,6 @@ export const buttonHandlers = {
         await interaction.showModal(modal);
     },
 
-    // 处罚系统按钮处理器将在这里添加
-    // 'punish_appeal': async (interaction) => {...},
-    // 'punish_vote': async (interaction) => {...},
 
     // 翻页按钮处理器
     page_prev: async interaction => {
@@ -220,8 +217,8 @@ export const buttonHandlers = {
         await handleCourtSupport(interaction, 'appeal');
     },
 
-    support_vote: async interaction => {
-        await handleCourtSupport(interaction, 'vote');
+    support_debate: async interaction => {
+        await handleCourtSupport(interaction, 'debate');
     },
 };
 
@@ -306,7 +303,7 @@ async function handleCourtSupport(interaction, type) {
             await CourtService.updateCourtMessage(message, process, { debateThread });
 
             // 更新回复内容
-            if (process.type === 'vote') {
+            if (process.type === 'debate') {
                 finalReplyContent += '\n📢 已达到所需支持人数，等待投票执行';
             } else if (debateThread) {
                 finalReplyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;

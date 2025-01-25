@@ -56,7 +56,6 @@ export default {
                             const typeText = {
                                 ban: '永封',
                                 mute: '禁言',
-                                warn: '警告',
                             };
 
                             const statusText = {
@@ -149,11 +148,11 @@ export default {
                     const fields = await Promise.all(
                         pageRecords.map(async (p, index) => {
                             const typeText = {
-                                appeal: '上诉',
+                                appeal: '处罚上诉',
                                 vote: '投票',
-                                debate: '辩诉',
-                                court_mute: '禁言议事',
-                                court_ban: '永封议事',
+                                debate: '议案议事',
+                                court_mute: '禁言申请',
+                                court_ban: '永封申请',
                             };
 
                             const statusText = {

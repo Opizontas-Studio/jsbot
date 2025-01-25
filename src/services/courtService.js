@@ -195,7 +195,7 @@ class CourtService {
     static async handleProcessExpiry(process, client) {
         try {
             // Early return 检查
-            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') {
+            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'debate') {
                 return;
             }
 
@@ -248,8 +248,8 @@ class CourtService {
                 logTime(`更新过期消息成功: ${currentProcess.id}`);
             }
 
-            // 如果是vote类型，更新原帖子状态
-            if (currentProcess.type === 'vote' && details.threadId) {
+            // 如果是debate类型，更新原帖子状态
+            if (currentProcess.type === 'debate' && details.threadId) {
                 await client.channels
                     .fetch(details.threadId)
                     .then(thread => thread?.messages.fetch(currentProcess.statusMessageId))
@@ -319,8 +319,9 @@ class CourtService {
                 {
                     court_mute: '禁言申请',
                     court_ban: '永封申请',
-                    court_vote: '议事',
-                    court_appeal: '上诉',
+                    debate: '议案议事',
+                    appeal: '处罚上诉',
+                    vote: '投票',
                 }[process.type] || '议事';
 
             if (hasSupported) {
@@ -470,7 +471,7 @@ class CourtService {
                     return { debateThread, error: null };
                 }
 
-                case 'vote': {
+                case 'debate': {
                     // 更新流程状态为completed
                     await ProcessModel.updateStatus(process.id, 'completed', {
                         result: 'approved',
@@ -515,8 +516,6 @@ class CourtService {
                                                     '**议事详情：**',
                                                     `- 提交人：<@${process.executorId}>`,
                                                     `- 议事消息：[点击查看](${message?.url || thread?.url})`,
-                                                    '',
-                                                    '当前状态：等待投票执行',
                                                 ].join('\n'),
                                                 timestamp: new Date(),
                                                 footer: {

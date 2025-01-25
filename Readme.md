@@ -148,8 +148,8 @@ CREATE TABLE processes (
  ),
  targetId TEXT NOT NULL,         -- 目标用户ID
  executorId TEXT NOT NULL,       -- 执行者ID
- messageId TEXT UNIQUE,          -- 议事消息ID
- debateThreadId TEXT,           -- 辩诉帖子ID
+ messageId TEXT UNIQUE NOT NULL, -- 议事消息ID
+ debateThreadId TEXT,            -- 辩诉帖子ID
  status TEXT NOT NULL DEFAULT 'pending' -- 状态
      CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
  expireAt INTEGER NOT NULL,      -- 到期时间
@@ -157,7 +157,7 @@ CREATE TABLE processes (
  supporters TEXT DEFAULT '[]',   -- 支持者列表（JSON数组）
  result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)), -- 结果
  reason TEXT DEFAULT '',         -- 原因
- statusMessageId TEXT,          -- 状态消息ID（仅vote类型使用）
+ statusMessageId TEXT,           -- 状态消息ID（仅vote类型使用）
  createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
  updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
 )

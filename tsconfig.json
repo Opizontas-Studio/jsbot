@@ -3,11 +3,6 @@
         "types": [
             "node",
         ],
-        "paths": {
-            "@/*": [
-                "./src/*"
-            ]
-        },
         "target": "ESNext",
         "module": "NodeNext",
         "outDir": "dist",

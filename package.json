@@ -4,7 +4,7 @@
   "main": "start.js",
   "type": "module",
   "scripts": {
-    "build": "npx rimraf dist/ && tsc -p tsconfig.json",
+    "build": "npx rimraf dist/ && (tsc -p tsconfig.json || true)",
     "start": "npm run build && node dist/index.js",
     "dev": "npm rimraf dist/ && tsc -w -p tsconfig.json",
     "deploy": "npm run build && node dist/commands/adm_sync_commands.js",

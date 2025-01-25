@@ -1,12 +1,24 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import path from 'path';
-import { open } from 'sqlite';
+import { Database, open } from 'sqlite';
 import sqlite3 from 'sqlite3';
+import { assertIsError } from '../utils/assertion.js';
 import { logTime } from '../utils/logger.js';
+
+function assertIsDatabase(database: Database | undefined): asserts database is Database {
+    if (!(database instanceof Database)) {
+        throw new Error('未连接数据库!');
+    }
+}
+
+type DatabaseOperation = 'run' | 'get' | 'all';
 
 // 自定义数据库错误类
 class DatabaseError extends Error {
-    constructor(message, operation, details = {}) {
+    private operation: string;
+    private details: Record<string, any>;
+
+    constructor(message: string, operation: string, details: Record<string, any> = {}) {
         super(message);
         this.name = 'DatabaseError';
         this.operation = operation;
@@ -15,19 +27,22 @@ class DatabaseError extends Error {
 }
 
 class DatabaseManager {
+    private db?: Database;
+    private cache: Map<string, any>;
+    private cacheTimeout: number;
+
     constructor() {
-        this._isConnected = false;
-        this.db = null;
+        this.db = undefined;
 
         // 修改 LRU 缓存的实例化方式
-        this._cache = new Map(); // 暂时使用 Map 替代 LRU
-        this._cacheTimeout = 5 * 60 * 1000; // 5分钟过期
+        this.cache = new Map(); // 暂时使用 Map 替代 LRU
+        this.cacheTimeout = 5 * 60 * 1000; // 5分钟过期
 
         // 确保数据目录存在
         this._ensureDataDirectory();
     }
 
-    _ensureDataDirectory() {
+    private _ensureDataDirectory() {
         try {
             if (!existsSync('./data')) {
                 mkdirSync('./data', { recursive: true });
@@ -38,6 +53,7 @@ class DatabaseManager {
                 logTime('已创建备份目录: ./data/backups');
             }
         } catch (error) {
+            assertIsError(error);
             logTime('创建数据目录失败: ' + error.message, true);
             throw new DatabaseError('创建数据目录失败', 'constructor', { error: error.message });
         }
@@ -45,10 +61,9 @@ class DatabaseManager {
 
     /**
      * 初始化数据库连接和表结构
-     * @returns {Promise<void>}
      */
-    async connect() {
-        if (this._isConnected) {
+    public async connect(): Promise<void> {
+        if (this.db) {
             return;
         }
 
@@ -71,14 +86,19 @@ class DatabaseManager {
             // 创建数据库表
             await this._createTables();
 
-            this._isConnected = true;
             logTime('数据库初始化完成');
         } catch (error) {
-            this._handleConnectionError(error);
+            assertIsError(error);
+
+            this.db = undefined;
+            logTime(`数据库连接失败: ${error.message}`, true);
+            console.error('数据库连接错误详情:', error);
+            throw new DatabaseError('数据库连接失败', 'connect', { error: error.message, stack: error.stack });
         }
     }
 
-    async _createTables() {
+    private async _createTables() {
+        assertIsDatabase(this.db);
         // 创建处罚表
         await this.db.exec(`
 	        CREATE TABLE IF NOT EXISTS punishments (
@@ -138,40 +158,33 @@ class DatabaseManager {
 	    `);
     }
 
-    async _handleConnectionError(error) {
-        this._isConnected = false;
-        this.db = null;
-        logTime(`数据库连接失败: ${error.message}`, true);
-        console.error('数据库连接错误详情:', error);
-        throw new DatabaseError('数据库连接失败', 'connect', { error: error.message, stack: error.stack });
-    }
-
     /**
      * 安全执行数据库操作
-     * @param {string} operation - 操作类型 ('run', 'get', 'all' 等)
-     * @param {string} query - SQL查询
-     * @param {Array} params - 查询参数
-     * @returns {Promise<any>}
+     * @param operation - 操作类型 ('run', 'get', 'all' 等)
+     * @param query - SQL查询
+     * @param params - 查询参数
+     * @returns 执行结果
      */
-    async safeExecute(operation, query, params = []) {
-        if (!this._isConnected || !this.db) {
+    public async safeExecute(operation: DatabaseOperation, query: string, params: any[] = []): Promise<any> {
+        if (!this.db) {
             throw new DatabaseError('数据库未连接', operation);
         }
 
         try {
             return await this.db[operation](query, params);
         } catch (error) {
+            assertIsError(error);
             throw new DatabaseError(error.message, operation, { query, params });
         }
     }
 
     /**
      * 事务支持
-     * @param {Function} callback - 事务回调
-     * @returns {Promise<any>}
+     * @param callback - 事务回调
+     * @returns
      */
-    async transaction(callback) {
-        if (!this._isConnected) {
+    public async transaction(callback: Function): Promise<any> {
+        if (!this.db) {
             throw new DatabaseError('数据库未连接', 'transaction');
         }
 
@@ -188,11 +201,11 @@ class DatabaseManager {
 
     /**
      * 缓存管理
-     * @param {string} key - 缓存键
-     * @param {any} data - 要缓存的数据
+     * @param key - 缓存键
+     * @param data - 要缓存的数据
      */
-    setCache(key, data) {
-        this._cache.set(key, {
+    public setCache(key: string, data: any) {
+        this.cache.set(key, {
             data,
             timestamp: Date.now(),
         });
@@ -200,30 +213,30 @@ class DatabaseManager {
 
     /**
      * 获取缓存
-     * @param {string} key - 缓存键
-     * @returns {any|null}
+     * @param key - 缓存键
+     * @returns 查找结果; 如果没找到则返回 null
      */
-    getCache(key) {
-        const cached = this._cache.get(key);
-        if (cached && Date.now() - cached.timestamp < this._cacheTimeout) {
+    public getCache(key: string): any | null {
+        const cached = this.cache.get(key);
+        if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
             return cached.data;
         }
         if (cached) {
-            this._cache.delete(key);
+            this.cache.delete(key);
         }
         return null;
     }
 
     /**
      * 清除缓存
-     * @param {string} key - 缓存键，如果不提供则清除所有缓存
+     * @param key - 缓存键，如果不提供则清除所有缓存
      */
-    clearCache(key = null) {
+    public clearCache(key?: string) {
         if (key) {
-            this._cache.delete(key);
+            this.cache.delete(key);
         } else {
             logTime('清除所有缓存');
-            this._cache.clear();
+            this.cache.clear();
         }
     }
 
@@ -231,7 +244,7 @@ class DatabaseManager {
      * 备份数据库
      * @returns {Promise<void>}
      */
-    async backup() {
+    public async backup() {
         const backupDir = './data/backups';
         const backupFile = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
         const backupPath = path.join(backupDir, backupFile);
@@ -254,6 +267,7 @@ class DatabaseManager {
 
             logTime(`数据库已备份到: ${backupPath}`);
         } catch (error) {
+            assertIsError(error);
             logTime(`数据库备份失败: ${error.message}`, true);
             throw new DatabaseError('备份失败', 'backup', { error: error.message });
         }
@@ -261,21 +275,20 @@ class DatabaseManager {
 
     /**
      * 关闭数据库连接
-     * @returns {Promise<void>}
      */
-    async disconnect() {
-        if (!this._isConnected || !this.db) {
+    public async disconnect(): Promise<void> {
+        if (!this.db) {
             return;
         }
 
         try {
             await this.db.close();
-            this._isConnected = false;
-            this.db = null;
+            this.db = undefined;
             // 修改清除缓存的方法
-            this._cache.clear?.() || this._cache.reset?.();
+            this.cache.clear();
             logTime('数据库连接已关闭');
         } catch (error) {
+            assertIsError(error);
             logTime(`关闭数据库连接时出错: ${error.message}`, true);
             throw error; // 添加错误抛出以便于调试
         }
@@ -283,18 +296,16 @@ class DatabaseManager {
 
     /**
      * 检查数据库连接状态
-     * @returns {boolean}
      */
-    getConnectionStatus() {
-        return this._isConnected && this.db !== null;
+    public getConnectionStatus(): boolean {
+        return this.db !== undefined;
     }
 
     /**
      * 获取数据库实例
-     * @returns {sqlite.Database}
      */
-    getDb() {
-        if (!this._isConnected || !this.db) {
+    public getDb(): Database {
+        if (!this.db) {
             throw new DatabaseError('数据库未连接', 'getDb');
         }
         return this.db;
@@ -302,13 +313,18 @@ class DatabaseManager {
 
     /**
      * 更新数组类型字段
-     * @param {string} table - 表名
-     * @param {string} field - 字段名
-     * @param {string} value - 要添加的值
-     * @param {Object} where - 查询条件
-     * @returns {Promise<Object>} 更新后的记录
+     * @param table - 表名
+     * @param field - 字段名
+     * @param value - 要添加的值
+     * @param where - 查询条件
+     * @returns 更新后的记录
      */
-    async updateArrayField(table, field, value, where) {
+    public async updateArrayField(
+        table: string,
+        field: string,
+        value: string,
+        where: Record<string, any>,
+    ): Promise<Record<string, any>> {
         const whereClause = Object.entries(where)
             .map(([key]) => `${key} = ?`)
             .join(' AND ');
@@ -327,6 +343,7 @@ class DatabaseManager {
             try {
                 currentArray = JSON.parse(record[field] || '[]');
             } catch (error) {
+                assertIsError(error);
                 logTime(`解析${field}失败，使用空数组: ${error.message}`, true);
             }
 
@@ -350,6 +367,7 @@ class DatabaseManager {
             // 返回更新后的记录
             return this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
         } catch (error) {
+            assertIsError(error);
             throw new DatabaseError(error.message, 'updateArrayField', { table, field, value, where });
         }
     }

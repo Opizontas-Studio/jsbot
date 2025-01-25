@@ -9,11 +9,11 @@ import {
 
 class PunishmentService {
     /**
-	 * 执行处罚
-	 * @param {Object} client - Discord客户端
-	 * @param {Object} data - 处罚数据
-	 * @returns {Promise<{success: boolean, message: string}>}
-	 */
+     * 执行处罚
+     * @param {Object} client - Discord客户端
+     * @param {Object} data - 处罚数据
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
     static async executePunishment(client, data) {
         try {
             // 1. 获取关键信息
@@ -26,13 +26,17 @@ class PunishmentService {
             // 2. 创建处罚记录
             const punishment = await PunishmentModel.createPunishment(data);
             // 记录基本信息
-            logTime(`处罚信息 - 处罚ID: ${punishment.id}, ` +
-				`执行者: ${executor.tag}, ` +
-				`目标: ${target.tag}, ` +
-				`类型: ${punishment.type}, ` +
-				`原因: ${punishment.reason}, ` +
-				`禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
-				`警告时长: ${punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'}`);
+            logTime(
+                `处罚信息 - 处罚ID: ${punishment.id}, ` +
+                    `执行者: ${executor.tag}, ` +
+                    `目标: ${target.tag}, ` +
+                    `类型: ${punishment.type}, ` +
+                    `原因: ${punishment.reason}, ` +
+                    `禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
+                    `警告时长: ${
+                        punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'
+                    }`,
+            );
 
             // 3. 遍历所有服务器执行处罚
             const successfulServers = [];
@@ -99,7 +103,10 @@ class PunishmentService {
 
             // 4. 更新同步状态
             if (successfulServers.length > 0) {
-                await PunishmentModel.updateSyncStatus(punishment.id, successfulServers.map(s => s.id));
+                await PunishmentModel.updateSyncStatus(
+                    punishment.id,
+                    successfulServers.map(s => s.id),
+                );
             }
 
             // 5. 发送通知
@@ -108,7 +115,9 @@ class PunishmentService {
             for (const guildData of allGuilds) {
                 if (guildData.moderationLogThreadId) {
                     try {
-                        const logChannel = await client.channels.fetch(guildData.moderationLogThreadId).catch(() => null);
+                        const logChannel = await client.channels
+                            .fetch(guildData.moderationLogThreadId)
+                            .catch(() => null);
                         if (logChannel) {
                             const success = await sendModLogNotification(logChannel, punishment, executor, target);
                             if (success) {
@@ -149,11 +158,14 @@ class PunishmentService {
                 success: true,
                 message: [
                     '✅ 处罚执行结果：',
-                    `成功服务器: ${successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'}`,
+                    `成功服务器: ${
+                        successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'
+                    }`,
                     failedServers.length > 0 ? `失败服务器: ${failedServers.map(s => s.name).join(', ')}` : null,
-                ].filter(Boolean).join('\n'),
+                ]
+                    .filter(Boolean)
+                    .join('\n'),
             };
-
         } catch (error) {
             logTime(`执行处罚失败: ${error.message}`, true);
             if (error.stack) {
@@ -166,17 +178,17 @@ class PunishmentService {
         }
     }
 
-
     /**
-	 * 处理处罚到期
-	 * @param {Object} client - Discord客户端
-	 * @param {Object} punishment - 处罚记录
-	 */
+     * 处理处罚到期
+     * @param {Object} client - Discord客户端
+     * @param {Object} punishment - 处罚记录
+     */
     static async handleExpiry(client, punishment) {
         try {
             const now = Date.now();
-            const muteExpired = punishment.duration > 0 && (punishment.createdAt + punishment.duration <= now);
-            const warningExpired = punishment.warningDuration > 0 && (punishment.createdAt + punishment.warningDuration <= now);
+            const muteExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
+            const warningExpired =
+                punishment.warningDuration > 0 && punishment.createdAt + punishment.warningDuration <= now;
 
             // 处理禁言到期
             if (muteExpired && punishment.type === 'mute') {
@@ -213,12 +225,18 @@ class PunishmentService {
                         }
 
                         if (member.roles.cache.has(guildData.WarnedRoleId)) {
-                            await member.roles.remove(guildData.WarnedRoleId, '警告已到期')
+                            await member.roles
+                                .remove(guildData.WarnedRoleId, '警告已到期')
                                 .then(() => {
-                                    logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`);
+                                    logTime(
+                                        `已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`,
+                                    );
                                 })
                                 .catch(error => {
-                                    logTime(`在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组失败: ${error.message}`, true);
+                                    logTime(
+                                        `在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组失败: ${error.message}`,
+                                        true,
+                                    );
                                 });
                         } else {
                             logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有警告身份组，无需移除`);
@@ -234,7 +252,6 @@ class PunishmentService {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '处罚已到期');
                 logTime(`处罚 ${punishment.id} 状态已更新为已到期`);
             }
-
         } catch (error) {
             logTime(`处理处罚到期失败 [ID: ${punishment.id}]: ${error.message}`, true);
             throw error;
@@ -242,10 +259,10 @@ class PunishmentService {
     }
 
     /**
-	 * 撤销处罚
-	 */
+     * 撤销处罚
+     */
     static async revokePunishment() {
-    // todo
+        // todo
     }
 }
 

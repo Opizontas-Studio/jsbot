@@ -9,21 +9,13 @@ export default {
     data: new SlashCommandBuilder()
         .setName('撤销处罚')
         .setDescription('撤销指定的处罚记录')
-        .addIntegerOption(option =>
-            option.setName('处罚id')
-                .setDescription('要撤销的处罚ID')
-                .setRequired(true),
-        )
-        .addStringOption(option =>
-            option.setName('原因')
-                .setDescription('撤销原因')
-                .setRequired(true),
-        ),
+        .addIntegerOption(option => option.setName('处罚id').setDescription('要撤销的处罚ID').setRequired(true))
+        .addStringOption(option => option.setName('原因').setDescription('撤销原因').setRequired(true)),
 
     async execute(interaction, guildConfig) {
         try {
             // 检查权限
-            if (!await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds)) {
+            if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
                 return;
             }
 
@@ -86,7 +78,7 @@ export default {
                 if (punishment.type !== 'ban') {
                     try {
                         const dmEmbed = {
-                            color: 0x00FF00,
+                            color: 0x00ff00,
                             title: '处罚已被撤销',
                             description: [
                                 `您的${punishment.type === 'ban' ? '永封' : '禁言'}处罚已被管理员撤销。`,
@@ -100,9 +92,12 @@ export default {
                             timestamp: new Date(),
                         };
 
-                        await target.send({ embeds: [dmEmbed] })
+                        await target
+                            .send({ embeds: [dmEmbed] })
                             .then(() => logTime(`已向用户 ${target.tag} 发送处罚撤销通知`))
-                            .catch(error => logTime(`向用户 ${target.tag} 发送处罚撤销通知失败: ${error.message}`, true));
+                            .catch(error =>
+                                logTime(`向用户 ${target.tag} 发送处罚撤销通知失败: ${error.message}`, true),
+                            );
                     } catch (error) {
                         logTime(`创建处罚撤销通知失败: ${error.message}`, true);
                     }
@@ -112,10 +107,12 @@ export default {
             }
 
             // 发送管理日志
-            const logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId).catch(() => null);
+            const logChannel = await interaction.client.channels
+                .fetch(guildConfig.moderationLogThreadId)
+                .catch(() => null);
             if (logChannel) {
                 const embed = {
-                    color: 0x00FF00,
+                    color: 0x00ff00,
                     title: '处罚已撤销',
                     fields: [
                         {
@@ -164,11 +161,15 @@ export default {
 
             // 返回结果
             await interaction.editReply({
-                content: success ? [
-                    '✅ 处罚撤销结果：',
-                    `成功服务器: ${successfulServers.length > 0 ? successfulServers.join(', ') : '无'}`,
-                    failedServers.length > 0 ? `失败服务器: ${failedServers.map(s => s.name).join(', ')}` : null,
-                ].filter(Boolean).join('\n') : '❌ 处罚撤销失败',
+                content: success
+                    ? [
+                          '✅ 处罚撤销结果：',
+                          `成功服务器: ${successfulServers.length > 0 ? successfulServers.join(', ') : '无'}`,
+                          failedServers.length > 0 ? `失败服务器: ${failedServers.map(s => s.name).join(', ')}` : null,
+                      ]
+                          .filter(Boolean)
+                          .join('\n')
+                    : '❌ 处罚撤销失败',
                 flags: ['Ephemeral'],
             });
         } catch (error) {

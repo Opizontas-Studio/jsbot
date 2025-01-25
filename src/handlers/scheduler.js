@@ -15,9 +15,8 @@ const TIME_UNITS = {
     DAY: 24 * 60 * 60 * 1000,
 };
 
-
 // 格式化时间间隔 @private
-const formatInterval = (ms) => {
+const formatInterval = ms => {
     if (ms >= TIME_UNITS.DAY) {
         return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
     }
@@ -41,107 +40,104 @@ const formatInterval = (ms) => {
  */
 class TaskScheduler {
     constructor() {
-	    this.timers = new Map(); // 存储定时器ID
-	    this.tasks = new Map(); // 存储任务配置
-	    this.isInitialized = false;
+        this.timers = new Map(); // 存储定时器ID
+        this.tasks = new Map(); // 存储任务配置
+        this.isInitialized = false;
     }
 
     // 初始化任务调度器
     initialize(client) {
-	    if (this.isInitialized) {
-	        logTime('任务调度器已经初始化');
-	        return;
-	    }
+        if (this.isInitialized) {
+            logTime('任务调度器已经初始化');
+            return;
+        }
 
-	    // 注册各类定时任务
-	    this.registerAnalysisTasks(client);
-	    this.registerPunishmentTasks(client);
-	    this.registerDatabaseTasks();
+        // 注册各类定时任务
+        this.registerAnalysisTasks(client);
+        this.registerPunishmentTasks(client);
+        this.registerDatabaseTasks();
 
-	    this.isInitialized = true;
-	    logTime('任务调度器初始化完成');
+        this.isInitialized = true;
+        logTime('任务调度器初始化完成');
     }
 
     /**
-	 * 添加定时任务
-	 * @param {Object} options - 任务配置
-	 * @param {string} options.taskId - 任务ID
-	 * @param {number} options.interval - 任务间隔（毫秒）
-	 * @param {Function} options.task - 任务函数
-	 * @param {Date} [options.startAt] - 首次执行时间
-	 * @param {boolean} [options.runImmediately=false] - 是否立即执行一次
-	 */
+     * 添加定时任务
+     * @param {Object} options - 任务配置
+     * @param {string} options.taskId - 任务ID
+     * @param {number} options.interval - 任务间隔（毫秒）
+     * @param {Function} options.task - 任务函数
+     * @param {Date} [options.startAt] - 首次执行时间
+     * @param {boolean} [options.runImmediately=false] - 是否立即执行一次
+     */
     addTask({ taskId, interval, task, startAt, runImmediately = false }) {
-	    // 清除已存在的定时器
-	    this.removeTask(taskId);
+        // 清除已存在的定时器
+        this.removeTask(taskId);
 
-	    // 包装任务执行函数，统一错误处理
-	    const wrappedTask = async () => {
-	        try {
-	            await task();
-	        } catch (error) {
-	            logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
-	        }
-	    };
+        // 包装任务执行函数，统一错误处理
+        const wrappedTask = async () => {
+            try {
+                await task();
+            } catch (error) {
+                logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
+            }
+        };
 
-	    // 计算首次执行的延迟
-	    let initialDelay = 0;
-	    if (startAt) {
-	        const now = new Date();
-	        initialDelay = startAt - now;
-	        if (initialDelay <= 0) {
-	            initialDelay = interval - (-initialDelay % interval);
-	        }
-	    }
+        // 计算首次执行的延迟
+        let initialDelay = 0;
+        if (startAt) {
+            const now = new Date();
+            initialDelay = startAt - now;
+            if (initialDelay <= 0) {
+                initialDelay = interval - (-initialDelay % interval);
+            }
+        }
 
-	    // 构建任务信息日志
-	    const taskInfo = [
-	        `定时任务: ${taskId}`,
-	        `执行间隔: ${formatInterval(interval)}`,
-	    ];
+        // 构建任务信息日志
+        const taskInfo = [`定时任务: ${taskId}`, `执行间隔: ${formatInterval(interval)}`];
 
-	    if (startAt) {
-	        const executionTime = new Date(Date.now() + initialDelay);
-	        taskInfo.push(`首次执行: ${executionTime.toLocaleString()}`);
-	    } else if (runImmediately) {
-	        taskInfo.push('立即执行: 是');
-	    }
+        if (startAt) {
+            const executionTime = new Date(Date.now() + initialDelay);
+            taskInfo.push(`首次执行: ${executionTime.toLocaleString()}`);
+        } else if (runImmediately) {
+            taskInfo.push('立即执行: 是');
+        }
 
-	    // 输出统一格式的日志
-	    logTime(taskInfo.join(' | '));
+        // 输出统一格式的日志
+        logTime(taskInfo.join(' | '));
 
-	    // 如果需要立即执行
-	    if (runImmediately) {
-	        wrappedTask();
-	    }
+        // 如果需要立即执行
+        if (runImmediately) {
+            wrappedTask();
+        }
 
-	    // 创建定时器
-	    let timer;
-	    if (initialDelay > 0) {
-	        // 首先设置一个一次性的定时器来处理首次执行
-	        timer = setTimeout(() => {
-	            wrappedTask();
-	            // 然后设置固定间隔的定时器
-	            timer = setInterval(wrappedTask, interval);
-	            this.timers.set(taskId, timer);
-	        }, initialDelay);
-	    } else {
-	        // 直接设置固定间隔的定时器
-	        timer = setInterval(wrappedTask, interval);
-	    }
+        // 创建定时器
+        let timer;
+        if (initialDelay > 0) {
+            // 首先设置一个一次性的定时器来处理首次执行
+            timer = setTimeout(() => {
+                wrappedTask();
+                // 然后设置固定间隔的定时器
+                timer = setInterval(wrappedTask, interval);
+                this.timers.set(taskId, timer);
+            }, initialDelay);
+        } else {
+            // 直接设置固定间隔的定时器
+            timer = setInterval(wrappedTask, interval);
+        }
 
-	    // 存储任务信息
-	    this.timers.set(taskId, timer);
-	    this.tasks.set(taskId, { interval, task });
+        // 存储任务信息
+        this.timers.set(taskId, timer);
+        this.tasks.set(taskId, { interval, task });
     }
 
     // 移除指定任务
     removeTask(taskId) {
-	    if (this.timers.has(taskId)) {
-	        clearInterval(this.timers.get(taskId));
-	        this.timers.delete(taskId);
-	        this.tasks.delete(taskId);
-	    }
+        if (this.timers.has(taskId)) {
+            clearInterval(this.timers.get(taskId));
+            this.timers.delete(taskId);
+            this.tasks.delete(taskId);
+        }
     }
     // 注册数据库相关任务
     registerDatabaseTasks() {
@@ -170,29 +166,29 @@ class TaskScheduler {
 
     // 注册子区分析和清理任务
     registerAnalysisTasks(client) {
-	    for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
-	        if (!guildConfig.automation?.analysis) {
+        for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
+            if (!guildConfig.automation?.analysis) {
                 continue;
             }
 
-	        // 计算下次整点执行时间
-	        const now = new Date();
-	        const nextRun = new Date(now);
-	        nextRun.setHours(nextRun.getHours() + 1, 0, 0, 0);
+            // 计算下次整点执行时间
+            const now = new Date();
+            const nextRun = new Date(now);
+            nextRun.setHours(nextRun.getHours() + 1, 0, 0, 0);
 
-	        this.addTask({
-	            taskId: `analysis_${guildId}`,
-	            interval: TIME_UNITS.HOUR,
-	            startAt: nextRun,
-	            task: async () => {
-	                try {
-	                    await this.executeThreadTasks(client, guildConfig, guildId);
-	                } catch (error) {
-	                    logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
-	                }
-	            },
-	        });
-	    }
+            this.addTask({
+                taskId: `analysis_${guildId}`,
+                interval: TIME_UNITS.HOUR,
+                startAt: nextRun,
+                task: async () => {
+                    try {
+                        await this.executeThreadTasks(client, guildConfig, guildId);
+                    } catch (error) {
+                        logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
+                    }
+                },
+            });
+        }
     }
 
     // 注册处罚系统相关任务
@@ -247,7 +243,8 @@ class TaskScheduler {
     async scheduleProcess(process, client) {
         try {
             // 检查是否为议事流程
-            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote') return;
+            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'vote')
+                return;
 
             // 检查流程状态，如果已经完成则不需要处理到期
             if (process.status === 'completed') {
@@ -282,48 +279,47 @@ class TaskScheduler {
 
     // 执行子区分析和清理任务
     async executeThreadTasks(client, guildConfig, guildId) {
-	    try {
-	        await globalRequestQueue.add(async () => {
-	            // 获取活跃子区数据
-	            const guild = await client.guilds.fetch(guildId);
-	            const activeThreads = await guild.channels.fetchActiveThreads();
+        try {
+            await globalRequestQueue.add(async () => {
+                // 获取活跃子区数据
+                const guild = await client.guilds.fetch(guildId);
+                const activeThreads = await guild.channels.fetchActiveThreads();
 
-	            // 执行分析和清理
-	            if (guildConfig.automation?.analysis) {
-	                await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
-	            }
+                // 执行分析和清理
+                if (guildConfig.automation?.analysis) {
+                    await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
+                }
 
-	            if (guildConfig.automation?.cleanup?.enabled) {
-	                const threshold = guildConfig.automation.cleanup.threshold || 960;
-	                await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
-	            }
-	        }, 0);
-	    } catch (error) {
-	        logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
-	    }
+                if (guildConfig.automation?.cleanup?.enabled) {
+                    const threshold = guildConfig.automation.cleanup.threshold || 960;
+                    await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
+                }
+            }, 0);
+        } catch (error) {
+            logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
+        }
     }
-
 
     // 停止所有任务
     stopAll() {
-	    const taskCount = this.timers.size;
+        const taskCount = this.timers.size;
 
-	    for (const timer of this.timers.values()) {
-	        clearInterval(timer);
-	    }
+        for (const timer of this.timers.values()) {
+            clearInterval(timer);
+        }
 
-	    if (taskCount > 0) {
-	        logTime(`已停止 ${taskCount} 个定时任务`);
-	    }
-	    this.timers.clear();
-	    this.tasks.clear();
-	    this.isInitialized = false;
+        if (taskCount > 0) {
+            logTime(`已停止 ${taskCount} 个定时任务`);
+        }
+        this.timers.clear();
+        this.tasks.clear();
+        this.isInitialized = false;
     }
 
     // 重启所有任务
     restart(client) {
-	    this.stopAll();
-	    this.initialize(client);
+        this.stopAll();
+        this.initialize(client);
     }
 }
 

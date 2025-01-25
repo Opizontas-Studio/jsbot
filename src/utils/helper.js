@@ -13,8 +13,8 @@ import { logTime } from './logger.js';
 export const measureTime = () => {
     const start = process.hrtime();
     return () => {
-	    const [seconds, nanoseconds] = process.hrtime(start);
-	    return (seconds + nanoseconds / 1e9).toFixed(2);
+        const [seconds, nanoseconds] = process.hrtime(start);
+        return (seconds + nanoseconds / 1e9).toFixed(2);
     };
 };
 
@@ -23,29 +23,29 @@ export const measureTime = () => {
  * @param {Error} error - 错误对象
  * @returns {string} 格式化的错误信息
  */
-export const handleDiscordError = (error) => {
+export const handleDiscordError = error => {
     if (error instanceof DiscordAPIError) {
-	    const errorMessages = {
-	        [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
-	        [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
-	        [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
-	        [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
-	        [RESTJSONErrorCodes.CannotSendMessagesToThisUser]: '无法向该用户发送消息',
-	        [RESTJSONErrorCodes.ReactionWasBlocked]: '表情反应被阻止',
-	        [RESTJSONErrorCodes.MaximumActiveThreads]: '已达到最大活跃子区数量',
-	        [RESTJSONErrorCodes.MaximumThreadParticipantsReached]: '子区成员已达上限',
-	        [RESTJSONErrorCodes.ThreadAlreadyCreatedForMessage]: '已存在相同消息的子区',
-	        [RESTJSONErrorCodes.ThreadLocked]: '子区已锁定',
-	        [RESTJSONErrorCodes.InteractionHasAlreadyBeenAcknowledged]: '交互已确认',
-	        [RESTJSONErrorCodes.RequestEntityTooLarge]: '内容超出长度限制',
+        const errorMessages = {
+            [RESTJSONErrorCodes.UnknownChannel]: '频道不存在或无法访问',
+            [RESTJSONErrorCodes.MissingAccess]: '缺少访问权限',
+            [RESTJSONErrorCodes.UnknownMessage]: '消息不存在或已被删除',
+            [RESTJSONErrorCodes.MissingPermissions]: '缺少所需权限',
+            [RESTJSONErrorCodes.CannotSendMessagesToThisUser]: '无法向该用户发送消息',
+            [RESTJSONErrorCodes.ReactionWasBlocked]: '表情反应被阻止',
+            [RESTJSONErrorCodes.MaximumActiveThreads]: '已达到最大活跃子区数量',
+            [RESTJSONErrorCodes.MaximumThreadParticipantsReached]: '子区成员已达上限',
+            [RESTJSONErrorCodes.ThreadAlreadyCreatedForMessage]: '已存在相同消息的子区',
+            [RESTJSONErrorCodes.ThreadLocked]: '子区已锁定',
+            [RESTJSONErrorCodes.InteractionHasAlreadyBeenAcknowledged]: '交互已确认',
+            [RESTJSONErrorCodes.RequestEntityTooLarge]: '内容超出长度限制',
             [RESTJSONErrorCodes.MissingPermissions]: '缺少权限',
-	        [RESTJSONErrorCodes.InvalidFormBodyOrContentType]: '请求内容格式错误',
-	        [RESTJSONErrorCodes.InvalidToken]: 'Bot令牌无效',
-	        [RESTJSONErrorCodes.CannotExecuteActionOnDMChannel]: '无法在私信中执行此操作',
-	        [RESTJSONErrorCodes.InvalidRecipients]: '无效的接收者',
-	        [RESTJSONErrorCodes.MaximumNumberOfEmojisReached]: '已达到表情数量上限',
-	    };
-	    return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
+            [RESTJSONErrorCodes.InvalidFormBodyOrContentType]: '请求内容格式错误',
+            [RESTJSONErrorCodes.InvalidToken]: 'Bot令牌无效',
+            [RESTJSONErrorCodes.CannotExecuteActionOnDMChannel]: '无法在私信中执行此操作',
+            [RESTJSONErrorCodes.InvalidRecipients]: '无效的接收者',
+            [RESTJSONErrorCodes.MaximumNumberOfEmojisReached]: '已达到表情数量上限',
+        };
+        return errorMessages[error.code] || `Discord API错误 (${error.code}): ${error.message}`;
     }
     return error.message || '未知错误';
 };
@@ -60,35 +60,33 @@ export const handleDiscordError = (error) => {
  * @returns {Promise<boolean>} 如果用户有权限返回true，否则返回false
  */
 export const checkAndHandlePermission = async (interaction, AdministratorRoleIds, options = {}) => {
-    const hasGlobalPermission = interaction.member.roles.cache.some(role =>
-	    AdministratorRoleIds.includes(role.id),
-    );
+    const hasGlobalPermission = interaction.member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
 
     // 如果需要检查频道权限
     if (options.checkChannelPermission && !hasGlobalPermission) {
-	    const channel = interaction.channel;
-	    // 如果是子区，检查父频道的权限
-	    if (channel.isThread()) {
-	        const parentPermissions = channel.parent.permissionsFor(interaction.member);
-	        if (parentPermissions.has('ManageMessages')) {
-	            return true;
-	        }
-	    } else {
-	        // 检查频道的权限
-	        const channelPermissions = channel.permissionsFor(interaction.member);
-	        if (channelPermissions.has('ManageMessages')) {
-	            return true;
-	        }
-	    }
+        const channel = interaction.channel;
+        // 如果是子区，检查父频道的权限
+        if (channel.isThread()) {
+            const parentPermissions = channel.parent.permissionsFor(interaction.member);
+            if (parentPermissions.has('ManageMessages')) {
+                return true;
+            }
+        } else {
+            // 检查频道的权限
+            const channelPermissions = channel.permissionsFor(interaction.member);
+            if (channelPermissions.has('ManageMessages')) {
+                return true;
+            }
+        }
     } else if (hasGlobalPermission) {
-	    return true;
+        return true;
     }
 
     // 如果没有权限，发送错误消息
     const errorMessage = options.errorMessage || '你没有权限使用此命令。需要具有指定的身份组权限。';
     await interaction.editReply({
-	    content: errorMessage,
-	    flags: ['Ephemeral'],
+        content: errorMessage,
+        flags: ['Ephemeral'],
     });
     return false;
 };
@@ -112,8 +110,8 @@ export const checkChannelPermission = (member, channel, AdministratorRoleIds) =>
 
     // 如果是论坛帖子，检查父频道的权限
     if (channel.isThread()) {
-	    const parentPermissions = channel.parent.permissionsFor(member);
-	    return parentPermissions.has('ManageMessages');
+        const parentPermissions = channel.parent.permissionsFor(member);
+        return parentPermissions.has('ManageMessages');
     }
 
     // 检查频道的权限
@@ -133,12 +131,12 @@ export const checkChannelPermission = (member, channel, AdministratorRoleIds) =>
 export const lockAndArchiveThread = async (thread, executor, reason, options = {}) => {
     // 如果是管理员操作，必须提供理由和服务器配置
     if (options.isAdmin) {
-	    if (!reason) {
-	        throw new Error('管理员必须提供锁定原因');
-	    }
-	    if (!options.guildConfig) {
-	        throw new Error('管理员操作必须提供服务器配置');
-	    }
+        if (!reason) {
+            throw new Error('管理员必须提供锁定原因');
+        }
+        if (!options.guildConfig) {
+            throw new Error('管理员操作必须提供服务器配置');
+        }
     }
 
     // 确保有理由（非管理员可以使用默认理由）
@@ -146,20 +144,20 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
 
     // 发送通知到帖子中
     await sendThreadNotification(thread, {
-	    title: options.isAdmin ? '管理员锁定并归档了此帖子' : '帖子已被锁定并归档',
-	    executorId: executor.id,
-	    reason: finalReason,
+        title: options.isAdmin ? '管理员锁定并归档了此帖子' : '帖子已被锁定并归档',
+        executorId: executor.id,
+        reason: finalReason,
     });
 
     // 如果是管理员操作，发送到管理日志
     if (options.isAdmin && options.guildConfig) {
-	    await sendModerationLog(thread.client, options.guildConfig.moderationLogThreadId, {
-	        title: '管理员锁定并归档帖子',
-	        executorId: executor.id,
-	        threadName: thread.name,
-	        threadUrl: thread.url,
-	        reason: finalReason,
-	    });
+        await sendModerationLog(thread.client, options.guildConfig.moderationLogThreadId, {
+            title: '管理员锁定并归档帖子',
+            executorId: executor.id,
+            threadName: thread.name,
+            threadUrl: thread.url,
+            reason: finalReason,
+        });
     }
 
     // 执行锁定和归档操作
@@ -185,31 +183,33 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
 export const sendModerationLog = async (client, moderationChannelId, logData) => {
     const moderationChannel = await client.channels.fetch(moderationChannelId);
     await moderationChannel.send({
-	    embeds: [{
-	        color: 0x0099ff,
-	        title: logData.title,
-	        fields: [
-	            {
-	                name: '操作人',
-	                value: `<@${logData.executorId}>`,
-	                inline: true,
-	            },
-	            {
-	                name: '主题',
-	                value: `[${logData.threadName}](${logData.threadUrl})`,
-	                inline: true,
-	            },
-	            {
-	                name: '原因',
-	                value: logData.reason,
-	                inline: false,
-	            },
-	        ],
-	        timestamp: new Date(),
-	        footer: {
-	            text: '论坛管理系统',
-	        },
-	    }],
+        embeds: [
+            {
+                color: 0x0099ff,
+                title: logData.title,
+                fields: [
+                    {
+                        name: '操作人',
+                        value: `<@${logData.executorId}>`,
+                        inline: true,
+                    },
+                    {
+                        name: '主题',
+                        value: `[${logData.threadName}](${logData.threadUrl})`,
+                        inline: true,
+                    },
+                    {
+                        name: '原因',
+                        value: logData.reason,
+                        inline: false,
+                    },
+                ],
+                timestamp: new Date(),
+                footer: {
+                    text: '论坛管理系统',
+                },
+            },
+        ],
     });
 };
 
@@ -223,23 +223,25 @@ export const sendModerationLog = async (client, moderationChannelId, logData) =>
  */
 export const sendThreadNotification = async (thread, notifyData) => {
     await thread.send({
-	    embeds: [{
-	        color: 0xffcc00,
-	        title: notifyData.title,
-	        fields: [
-	            {
-	                name: '操作人',
-	                value: `<@${notifyData.executorId}>`,
-	                inline: true,
-	            },
-	            {
-	                name: '原因',
-	                value: notifyData.reason,
-	                inline: true,
-	            },
-	        ],
-	        timestamp: new Date(),
-	    }],
+        embeds: [
+            {
+                color: 0xffcc00,
+                title: notifyData.title,
+                fields: [
+                    {
+                        name: '操作人',
+                        value: `<@${notifyData.executorId}>`,
+                        inline: true,
+                    },
+                    {
+                        name: '原因',
+                        value: notifyData.reason,
+                        inline: true,
+                    },
+                ],
+                timestamp: new Date(),
+            },
+        ],
     });
 };
 
@@ -251,26 +253,24 @@ export const sendThreadNotification = async (thread, notifyData) => {
  */
 export const handleCommandError = async (interaction, error, commandName) => {
     // 使用handleDiscordError处理Discord API错误
-    const errorMessage = error instanceof DiscordAPIError ?
-	    handleDiscordError(error) :
-	    error.message;
+    const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
 
     logTime(`${commandName}执行出错: ${errorMessage}`, true);
 
     try {
-	    if (interaction.deferred) {
-	        await interaction.editReply({
-	            content: `❌ ${errorMessage}`,
-	            flags: ['Ephemeral'],
-	        });
-	    } else {
-	        await interaction.reply({
-	            content: `❌ ${errorMessage}`,
-	            flags: ['Ephemeral'],
-	        });
-	    }
+        if (interaction.deferred) {
+            await interaction.editReply({
+                content: `❌ ${errorMessage}`,
+                flags: ['Ephemeral'],
+            });
+        } else {
+            await interaction.reply({
+                content: `❌ ${errorMessage}`,
+                flags: ['Ephemeral'],
+            });
+        }
     } catch (replyError) {
-	    logTime(`发送错误响应失败: ${replyError}`, true);
+        logTime(`发送错误响应失败: ${replyError}`, true);
     }
 };
 
@@ -285,40 +285,39 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
     let errorCount = 0;
 
     try {
-	    const files = readdirSync(commandsDir)
-	        .filter(file => file.endsWith('.js') && !excludeFiles.includes(file));
+        const files = readdirSync(commandsDir).filter(file => file.endsWith('.js') && !excludeFiles.includes(file));
 
-	    for (const file of files) {
-	        try {
-	            const commandPath = join(commandsDir, file);
-	            // 转换为 file:// URL
-	            const fileUrl = `file://${commandPath.replace(/\\/g, '/')}`;
-	            const command = await import(fileUrl);
+        for (const file of files) {
+            try {
+                const commandPath = join(commandsDir, file);
+                // 转换为 file:// URL
+                const fileUrl = `file://${commandPath.replace(/\\/g, '/')}`;
+                const command = await import(fileUrl);
 
-	            if (!command.default?.data?.name || !command.default.execute) {
-	                errorCount++;
-	                continue;
-	            }
+                if (!command.default?.data?.name || !command.default.execute) {
+                    errorCount++;
+                    continue;
+                }
 
-	            if (commands.has(command.default.data.name)) {
-	                logTime(`⚠️ 重复命令名称 "${command.default.data.name}"`);
-	                errorCount++;
-	                continue;
-	            }
+                if (commands.has(command.default.data.name)) {
+                    logTime(`⚠️ 重复命令名称 "${command.default.data.name}"`);
+                    errorCount++;
+                    continue;
+                }
 
-	            commands.set(command.default.data.name, command.default);
-	        } catch (error) {
-	            errorCount++;
-	            logTime(`❌ 加载命令文件 ${file} 失败:`, true);
-	            console.error(error.stack);
-	        }
-	    }
-	    logTime(`命令加载完成，成功 ${commands.size} 个，失败 ${errorCount} 个`);
-	    return commands;
+                commands.set(command.default.data.name, command.default);
+            } catch (error) {
+                errorCount++;
+                logTime(`❌ 加载命令文件 ${file} 失败:`, true);
+                console.error(error.stack);
+            }
+        }
+        logTime(`命令加载完成，成功 ${commands.size} 个，失败 ${errorCount} 个`);
+        return commands;
     } catch (error) {
-	    logTime('❌ 读取命令目录失败:', true);
-	    console.error(error.stack);
-	    return new Map();
+        logTime('❌ 读取命令目录失败:', true);
+        console.error(error.stack);
+        return new Map();
     }
 };
 
@@ -328,18 +327,18 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
  */
 export const getVersionInfo = () => {
     try {
-	    const packagePath = join(process.cwd(), 'package.json');
-	    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
-	    const version = 'v' + packageJson.version;
-	    const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-	    const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
-	    return {
-	        version,
-	        commitHash,
-	        commitDate,
-	    };
+        const packagePath = join(process.cwd(), 'package.json');
+        const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+        const version = 'v' + packageJson.version;
+        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+        const commitDate = execSync('git log -1 --format=%cd --date=format:"%Y-%m-%d %H:%M:%S"').toString().trim();
+        return {
+            version,
+            commitHash,
+            commitDate,
+        };
     } catch (error) {
-	    logTime('获取版本信息失败: ' + error.message, true);
-	    return null;
+        logTime('获取版本信息失败: ' + error.message, true);
+        return null;
     }
 };

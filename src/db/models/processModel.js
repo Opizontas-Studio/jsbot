@@ -279,11 +279,8 @@ class ProcessModel {
 
         return {
             ...process,
-            votes: this.tryParseJSON(process.votes, '{}', 'votes'),
-            messageIds: this.tryParseJSON(process.messageIds, '[]', 'messageIds'),
             details: this.tryParseJSON(process.details, '{}', 'details'),
             supporters: this.tryParseJSON(process.supporters, '[]', 'supporters'),
-            statusMessageId: process.statusMessageId || null,
         };
     }
 }

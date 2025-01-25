@@ -8,7 +8,7 @@ try {
     mkdirSync('./logs');
 } catch (error) {
     if (error.code !== 'EEXIST') {
-	    process.stderr.write('创建日志目录失败: ' + error.message + '\n');
+        process.stderr.write('创建日志目录失败: ' + error.message + '\n');
     }
 }
 
@@ -21,11 +21,11 @@ const logFormat = winston.format.printf(({ message, level, timestamp }) => {
 // 创建控制台传输
 const consoleTransport = new winston.transports.Console({
     format: winston.format.combine(
-	    winston.format.colorize(),
-	    winston.format.timestamp({
-	        format: 'YYYY/M/D HH:mm:ss',
-	    }),
-	    logFormat,
+        winston.format.colorize(),
+        winston.format.timestamp({
+            format: 'YYYY/M/D HH:mm:ss',
+        }),
+        logFormat,
     ),
 });
 
@@ -36,10 +36,10 @@ const dailyRotateFile = new winston.transports.DailyRotateFile({
     maxSize: '20m',
     maxFiles: '14d',
     format: winston.format.combine(
-	    winston.format.timestamp({
-	        format: 'YYYY/M/D HH:mm:ss',
-	    }),
-	    logFormat,
+        winston.format.timestamp({
+            format: 'YYYY/M/D HH:mm:ss',
+        }),
+        logFormat,
     ),
     handleExceptions: true,
     handleRejections: true,
@@ -49,15 +49,12 @@ const dailyRotateFile = new winston.transports.DailyRotateFile({
 const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
-	    winston.format.timestamp({
-	        format: 'YYYY/M/D HH:mm:ss',
-	    }),
-	    logFormat,
+        winston.format.timestamp({
+            format: 'YYYY/M/D HH:mm:ss',
+        }),
+        logFormat,
     ),
-    transports: [
-	    consoleTransport,
-	    dailyRotateFile,
-    ],
+    transports: [consoleTransport, dailyRotateFile],
     exitOnError: false,
 });
 
@@ -68,9 +65,9 @@ const logger = winston.createLogger({
  */
 export const logTime = (message, error = false) => {
     if (error) {
-	    logger.error(message);
+        logger.error(message);
     } else {
-	    logger.info(message);
+        logger.info(message);
     }
 };
 

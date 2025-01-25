@@ -32,6 +32,7 @@ class ProcessModel {
      * @param {Object} [options] - 更新选项
      * @param {string} [options.result] - 流程结果
      * @param {string} [options.reason] - 状态更新原因
+     * @param {string} [options.debateThreadId] - 辩诉帖ID
      * @returns {Promise<Object>} 更新后的流程记录
      */
     static async updateStatus(id, status, options = {}) {
@@ -44,12 +45,28 @@ class ProcessModel {
             await dbManager.safeExecute(
                 'run',
                 `UPDATE processes 
-	            SET status = ?, 
-	                result = CASE WHEN ? IS NOT NULL THEN ? ELSE result END,
-	                reason = CASE WHEN ? IS NOT NULL THEN ? ELSE reason END,
-	                updatedAt = ?
-	            WHERE id = ?`,
-                [status, options.result, options.result, options.reason, options.reason, Date.now(), id],
+                SET status = ?, 
+                    result = CASE WHEN ? IS NOT NULL THEN ? ELSE result END,
+                    reason = CASE WHEN ? IS NOT NULL THEN ? ELSE reason END,
+                    details = CASE 
+                        WHEN ? IS NOT NULL THEN 
+                            json_set(
+                                COALESCE(details, '{}'), 
+                                '$.debateThreadId', 
+                                ?
+                            )
+                        ELSE details 
+                    END,
+                    updatedAt = ?
+                WHERE id = ?`,
+                [
+                    status, 
+                    options.result, options.result, 
+                    options.reason, options.reason,
+                    options.debateThreadId, options.debateThreadId,
+                    Date.now(), 
+                    id
+                ],
             );
 
             // 使用修改后的清除缓存函数

@@ -13,8 +13,8 @@
         "source.fixAll.ts": "explicit",
         "source.organizeImports": "explicit",
         "source.organizeLinkDefinitions": "explicit",
-        "source.removeUnused.ts": "explicit",
-        "source.removeUnusedImports": "explicit",
+        "source.removeUnused.ts": "never",
+        "source.removeUnusedImports": "never",
         "source.sortImports": "explicit",
     },
 }

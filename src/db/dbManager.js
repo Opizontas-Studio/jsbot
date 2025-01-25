@@ -109,7 +109,7 @@ class DatabaseManager {
 	            ),
 	            targetId TEXT NOT NULL,
 	            executorId TEXT NOT NULL,
-	            messageId TEXT UNIQUE,
+	            messageId TEXT UNIQUE NOT NULL,
 	            statusMessageId TEXT,
 	            debateThreadId TEXT,
 	            status TEXT NOT NULL DEFAULT 'pending'

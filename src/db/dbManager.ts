@@ -13,19 +13,6 @@ function assertIsDatabase(database: Database | undefined): asserts database is D
 
 type DatabaseOperation = 'run' | 'get' | 'all';
 
-// 自定义数据库错误类
-class DatabaseError extends Error {
-    private operation: string;
-    private details: Record<string, any>;
-
-    constructor(message: string, operation: string, details: Record<string, any> = {}) {
-        super(message);
-        this.name = 'DatabaseError';
-        this.operation = operation;
-        this.details = details;
-    }
-}
-
 class DatabaseManager {
     private db?: Database;
     private cache: Map<string, any>;
@@ -55,7 +42,7 @@ class DatabaseManager {
         } catch (error) {
             assertIsError(error);
             logTime('创建数据目录失败: ' + error.message, true);
-            throw new DatabaseError('创建数据目录失败', 'constructor', { error: error.message });
+            throw error;
         }
     }
 
@@ -93,11 +80,11 @@ class DatabaseManager {
             this.db = undefined;
             logTime(`数据库连接失败: ${error.message}`, true);
             console.error('数据库连接错误详情:', error);
-            throw new DatabaseError('数据库连接失败', 'connect', { error: error.message, stack: error.stack });
+            throw error;
         }
     }
 
-    private async _createTables() {
+    private async _createTables(): Promise<void> {
         assertIsDatabase(this.db);
         // 创建处罚表
         await this.db.exec(`
@@ -167,14 +154,14 @@ class DatabaseManager {
      */
     public async safeExecute(operation: DatabaseOperation, query: string, params: any[] = []): Promise<any> {
         if (!this.db) {
-            throw new DatabaseError('数据库未连接', operation);
+            throw new Error('数据库未连接');
         }
 
         try {
             return await this.db[operation](query, params);
         } catch (error) {
             assertIsError(error);
-            throw new DatabaseError(error.message, operation, { query, params });
+            throw error;
         }
     }
 
@@ -185,7 +172,7 @@ class DatabaseManager {
      */
     public async transaction(callback: Function): Promise<any> {
         if (!this.db) {
-            throw new DatabaseError('数据库未连接', 'transaction');
+            throw new Error('数据库未连接');
         }
 
         await this.safeExecute('run', 'BEGIN TRANSACTION');
@@ -204,7 +191,7 @@ class DatabaseManager {
      * @param key - 缓存键
      * @param data - 要缓存的数据
      */
-    public setCache(key: string, data: any) {
+    public setCache(key: string, data: any): void {
         this.cache.set(key, {
             data,
             timestamp: Date.now(),
@@ -231,7 +218,7 @@ class DatabaseManager {
      * 清除缓存
      * @param key - 缓存键，如果不提供则清除所有缓存
      */
-    public clearCache(key?: string) {
+    public clearCache(key?: string): void {
         if (key) {
             this.cache.delete(key);
         } else {
@@ -242,9 +229,9 @@ class DatabaseManager {
 
     /**
      * 备份数据库
-     * @returns {Promise<void>}
+     * @returns
      */
-    public async backup() {
+    public async backup(): Promise<void> {
         const backupDir = './data/backups';
         const backupFile = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
         const backupPath = path.join(backupDir, backupFile);
@@ -269,7 +256,7 @@ class DatabaseManager {
         } catch (error) {
             assertIsError(error);
             logTime(`数据库备份失败: ${error.message}`, true);
-            throw new DatabaseError('备份失败', 'backup', { error: error.message });
+            throw error;
         }
     }
 
@@ -290,7 +277,7 @@ class DatabaseManager {
         } catch (error) {
             assertIsError(error);
             logTime(`关闭数据库连接时出错: ${error.message}`, true);
-            throw error; // 添加错误抛出以便于调试
+            throw error;
         }
     }
 
@@ -306,7 +293,7 @@ class DatabaseManager {
      */
     public getDb(): Database {
         if (!this.db) {
-            throw new DatabaseError('数据库未连接', 'getDb');
+            throw new Error('数据库未连接');
         }
         return this.db;
     }
@@ -335,7 +322,7 @@ class DatabaseManager {
             const record = await this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
 
             if (!record) {
-                throw new DatabaseError('记录不存在', 'updateArrayField');
+                throw new Error('记录不存在');
             }
 
             // 解析当前数组
@@ -368,7 +355,7 @@ class DatabaseManager {
             return this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
         } catch (error) {
             assertIsError(error);
-            throw new DatabaseError(error.message, 'updateArrayField', { table, field, value, where });
+            throw error;
         }
     }
 }

@@ -21,17 +21,48 @@ class CourtService {
             client.users.fetch(process.targetId).catch(() => null),
         ]);
 
+        let threadTitle, notifyContent;
+
+        switch (process.type) {
+            case 'appeal': {
+                threadTitle = `对 ${target?.username || '未知用户'} 的${
+                    process.details.embed?.title?.replace('申请', '上诉辩诉') || '上诉辩诉帖'
+                }`;
+                
+                notifyContent = [
+                    '上诉辩诉帖已创建，请双方当事人注意查看。',
+                    `- 上诉人：<@${target?.id}>`,
+                    `- 原处罚执行人：<@${executor?.id}>`,
+                ].join('\n');
+                break;
+            }
+            
+            default: {
+                // 处理以 court_ 开头的类型
+                if (process.type.startsWith('court_')) {
+                    threadTitle = `对 ${target?.username || '未知用户'} 的${
+                        process.details.embed?.title?.replace('申请', '处罚辩诉') || '处罚辩诉帖'
+                    }`;
+                    
+                    notifyContent = [
+                        '处罚申请辩诉帖已创建，请双方当事人注意查看。',
+                        `- 申请人：<@${executor?.id}>`,
+                        `- 被告：<@${target?.id}>`,
+                    ].join('\n');
+                } else {
+                    throw new Error('不支持的议事类型');
+                }
+                break;
+            }
+        }
+
         const debateThread = await debateForum.threads.create({
-            name: `对 ${target?.username || '未知用户'} 的${
-                process.details.embed?.title?.replace('申请', '辩诉') || '辩诉帖'
-            }`,
+            name: threadTitle,
             message: {
                 embeds: [
                     {
                         ...(process.details.embed || {}),
-                        title: `对 ${target?.tag || '未知用户'} 的${
-                            process.details.embed?.title?.replace('申请', '辩诉') || '辩诉帖'
-                        }`,
+                        title: threadTitle,
                         fields: [...(process.details.embed?.fields?.filter(f => f) || [])],
                     },
                 ],
@@ -44,25 +75,12 @@ class CourtService {
             `已创建辩诉帖：${
                 process.type === 'appeal'
                     ? `${target?.tag || '未知用户'} 对 ${executor?.tag || '未知管理员'} 的处罚上诉`
-                    : `${executor?.tag || '未知管理员'} 对 ${target?.tag || '未知用户'} 的处罚申请`
+                    : `${executor?.tag || '未知议员'} 对 ${target?.tag || '未知用户'} 的处罚申请`
             }`,
         );
 
         // 发送初始消息
         if (executor && target) {
-            const notifyContent =
-                process.type === 'appeal'
-                    ? [
-                          '上诉辩诉帖已创建，请双方当事人注意查看。',
-                          `- 上诉人：<@${target.id}>`,
-                          `- 原处罚执行人：<@${executor.id}>`,
-                      ].join('\n')
-                    : [
-                          '处罚申请辩诉帖已创建，请双方当事人注意查看。',
-                          `- 申请人：<@${executor.id}>`,
-                          `- 被告：<@${target.id}>`,
-                      ].join('\n');
-
             await debateThread.send({
                 content: notifyContent,
             });
@@ -356,7 +374,8 @@ class CourtService {
     static async handleCourtComplete(process, guildConfig, client) {
         try {
             switch (process.type) {
-                case 'court_mute': {
+                case 'court_mute':
+                case 'court_ban': {
                     // 创建禁言辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);
 

@@ -25,11 +25,7 @@ class CourtService {
 
         switch (process.type) {
             case 'appeal': {
-                threadTitle = `对 ${target?.username || '未知用户'} 的${
-                    process.details.embed?.title?.includes('上诉') 
-                        ? process.details.embed.title.replace('申请', '辩诉')
-                        : '上诉辩诉帖'
-                }`;
+                threadTitle = `${target?.username || '未知用户'}对处罚的上诉`;
                 
                 notifyContent = [
                     '上诉辩诉帖已创建，请双方当事人注意查看。',
@@ -42,9 +38,12 @@ class CourtService {
             default: {
                 // 处理以 court_ 开头的类型
                 if (process.type.startsWith('court_')) {
-                    threadTitle = `对 ${target?.username || '未知用户'} 的${
-                        process.details.embed?.title?.replace('申请', '辩诉') || '处罚辩诉帖'
-                    }`;
+                    const punishmentType = process.type === 'court_ban' ? '永封处罚' : '禁言处罚';
+                    const hasRoleRevoke = process.details?.revokeRoleId;
+                    
+                    threadTitle = `对 ${target?.username || '未知用户'} 的${punishmentType}${
+                        hasRoleRevoke && process.type === 'court_mute' ? '及弹劾' : ''
+                    }申请`;
                     
                     notifyContent = [
                         '处罚申请辩诉帖已创建，请双方当事人注意查看。',

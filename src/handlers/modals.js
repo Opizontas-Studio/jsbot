@@ -212,9 +212,9 @@ export const modalHandlers = {
                 embeds: [
                     {
                         color: 0x5865f2,
-                        title: '📢 处罚上诉申请',
+                        title: '处罚上诉申请',
                         description: [
-                            `<@${interaction.user.id}> 对以下处罚提出上诉：`,
+                            `<@${interaction.user.id}> 对所受处罚提出上诉`,
                             '',
                             '**上诉理由：**',
                             appealContent,

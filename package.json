@@ -9,6 +9,7 @@
     "dev": "npm rimraf dist/ && tsc -w -p tsconfig.json",
     "deploy": "npm run build && node dist/commands/adm_sync_commands.js",
     "start:log": "npm run build && node dist/index.js | tee -a ./logs/bot.log",
+    "test": "jest -c=jest.config.js --no-cache --passWithNoTests",
     "fixlint": "npx eslint . --fix"
   },
   "keywords": [],
@@ -26,13 +27,16 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@jest/globals": "^29.7.0",
     "@types/node": "^22.10.7",
     "@types/node-cron": "^3.0.11",
     "@types/sqlite3": "^3.1.11",
     "@types/winston": "^2.4.4",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
+    "jest": "^29.7.0",
     "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0"
   }

@@ -95,14 +95,29 @@ export const executePunishmentAction = async (guild, punishment) => {
                 break;
 
             case 'mute':
-                // 执行禁言
-                await member.timeout(punishment.duration, reason);
+                // 计算剩余禁言时长
+                const now = Date.now();
+                const expiryTime = punishment.createdAt + punishment.duration;
+                const remainingDuration = Math.max(0, expiryTime - now);
+
+                // 如果已经过期，不执行禁言
+                if (remainingDuration === 0) {
+                    logTime(`禁言处罚 ${punishment.id} 已过期，跳过执行`);
+                    return true;
+                }
+
+                // 执行禁言，使用剩余时长
+                await member.timeout(remainingDuration, reason);
 
                 // 如果有警告，添加警告身份组
                 if (punishment.warningDuration && guildConfig?.WarnedRoleId) {
-                    await member.roles
-                        .add(guildConfig.WarnedRoleId, reason)
-                        .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
+                    // 检查警告是否仍然有效
+                    const warningExpiryTime = punishment.createdAt + punishment.warningDuration;
+                    if (warningExpiryTime > now) {
+                        await member.roles
+                            .add(guildConfig.WarnedRoleId, reason)
+                            .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
+                    }
                 }
                 break;
 
@@ -177,7 +192,7 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
 };
 
 /**
- * 发送上诉通知
+ * 发送禁言上诉通知
  * @param {Object} channel - Discord频道对象
  * @param {Object} target - 目标用户对象
  * @param {Object} punishment - 处罚数据库记录
@@ -197,7 +212,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         // 频道通知的 embed
         const channelEmbed = {
             color: 0xff0000,
-            title: `${getPunishmentTypeText(punishment.type)}通知`,
+            title: '禁言处罚通知',
             description: [
                 `处罚对象：<@${target.id}>`,
                 '',
@@ -208,13 +223,11 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                     : null,
                 `• 处罚理由：${punishment.reason || '未提供原因'}`,
                 '',
-                punishment.type === 'ban'
-                    ? '⚠️ 永封处罚不支持上诉申请。'
-                    : isShortPunishment
+                isShortPunishment
                     ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。'
                     : isPunishmentExpired
                     ? '⚠️ 处罚已到期，无需上诉。'
-                    : '如需上诉，请查看私信消息。',
+                    : '如需上诉，请查看私信消息。'
             ]
                 .filter(Boolean)
                 .join('\n'),
@@ -227,15 +240,10 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         // 发送到频道（不包含上诉按钮）
         await channel.send({ embeds: [channelEmbed] });
 
-        // 如果是永封处罚，直接返回
-        if (punishment.type === 'ban') {
-            return true;
-        }
-
         // 私信通知的 embed
         const dmEmbed = {
             color: 0xff0000,
-            title: `${getPunishmentTypeText(punishment.type)}通知`,
+            title: '禁言处罚通知',
             description: [
                 `处罚对象：<@${target.id}>`,
                 '',

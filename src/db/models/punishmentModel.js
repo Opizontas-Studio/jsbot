@@ -155,7 +155,7 @@ class PunishmentModel {
     }
 
     /**
-     * 更新同步状态
+     * 更新处罚的同步状态
      * @param {number} id - 处罚ID
      * @param {string[]} syncedServers - 已同步的服务器ID列表
      * @returns {Promise<Object>} 更新后的处罚记录
@@ -170,9 +170,9 @@ class PunishmentModel {
             await dbManager.safeExecute(
                 'run',
                 `UPDATE punishments 
-	            SET synced = ?, syncedServers = ?, updatedAt = ?
-	            WHERE id = ?`,
-                [1, JSON.stringify(syncedServers), Date.now(), id],
+                SET syncedServers = ?, updatedAt = ?
+                WHERE id = ?`,
+                [JSON.stringify(syncedServers), Date.now(), id],
             );
 
             // 使用修改后的清除缓存函数
@@ -180,7 +180,7 @@ class PunishmentModel {
 
             return this.getPunishmentById(id);
         } catch (error) {
-            logTime(`更新同步状态失败: ${error.message}`, true);
+            logTime(`更新处罚 ${id} 的同步状态失败: ${error.message}`, true);
             throw error;
         }
     }

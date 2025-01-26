@@ -98,7 +98,6 @@ class DatabaseManager {
 	            executorId TEXT NOT NULL,
 	            status TEXT NOT NULL DEFAULT 'active' 
 	                CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
-	            synced INTEGER DEFAULT 0,
 	            syncedServers TEXT DEFAULT '[]',
 	            keepMessages INTEGER DEFAULT 0,
 	            channelId TEXT,
@@ -135,7 +134,7 @@ class DatabaseManager {
         await this.db.exec(`
 	        CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId);
 	        CREATE INDEX IF NOT EXISTS idx_punishments_status ON punishments(status, createdAt, duration);
-	        CREATE INDEX IF NOT EXISTS idx_punishments_sync ON punishments(synced);
+	        CREATE INDEX IF NOT EXISTS idx_punishments_sync ON punishments(syncedServers);
 	        CREATE INDEX IF NOT EXISTS idx_processes_target ON processes(targetId);
 	        CREATE INDEX IF NOT EXISTS idx_processes_message ON processes(messageId);
 	        CREATE INDEX IF NOT EXISTS idx_processes_status_message ON processes(statusMessageId);

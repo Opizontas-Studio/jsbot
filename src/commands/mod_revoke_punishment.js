@@ -33,7 +33,8 @@ export default {
             }
 
             // 检查处罚状态
-            if (punishment.status !== 'active') {
+            if (punishment.status !== 'active' && 
+                !(punishment.type === 'ban' && punishment.status === 'expired')) {
                 let message = '❌ 无法撤销处罚：';
                 switch (punishment.status) {
                     case 'appealed':

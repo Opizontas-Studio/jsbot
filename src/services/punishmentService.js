@@ -29,17 +29,34 @@ class PunishmentService {
             // 记录基本信息
             logTime(
                 `处罚信息 - 处罚ID: ${punishment.id}, ` +
-                    `执行者: ${executor.tag}, ` +
-                    `目标: ${target.tag}, ` +
-                    `类型: ${punishment.type}, ` +
-                    `原因: ${punishment.reason}, ` +
-                    `禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
-                    `警告时长: ${
-                        punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'
-                    }`,
+                `执行者: ${executor.tag}, ` +
+                `目标: ${target.tag}, ` +
+                `类型: ${punishment.type}, ` +
+                `原因: ${punishment.reason}, ` +
+                `禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
+                `警告时长: ${punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'}`
             );
 
-            // 3. 遍历所有服务器执行处罚
+            // 3. 如果是永封处罚，先发送私信通知
+            if (punishment.type === 'ban') {
+                try {
+                    await target.send({
+                        content: [
+                            '⚠️ **永封通知**',
+                            '您已被永久封禁：',
+                            `• 原因：${punishment.reason}`,
+                            `• 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
+                            `• 执行管理员：${executor.tag}`,
+                            '您将被立即移出所有相关服务器。'
+                        ].join('\n')
+                    });
+                    logTime(`已向用户 ${target.tag} 发送永封通知`);
+                } catch (error) {
+                    logTime(`无法向用户 ${target.tag} 发送永封通知: ${error.message}`, true);
+                }
+            }
+
+            // 4. 遍历所有服务器执行处罚
             const successfulServers = [];
             const failedServers = [];
             const allGuilds = Array.from(client.guildManager.guilds.values());
@@ -102,12 +119,19 @@ class PunishmentService {
                 logTime(`处罚执行情况 - 失败: ${failedServers.map(s => s.name).join(', ')}`, true);
             }
 
-            // 4. 更新同步状态
+            // 5. 更新同步状态
             if (successfulServers.length > 0) {
-                await PunishmentModel.updateSyncStatus(
-                    punishment.id,
-                    successfulServers.map(s => s.id),
-                );
+                const syncedServerIds = successfulServers.map(s => s.id);
+                await PunishmentModel.updateSyncStatus(punishment.id, syncedServerIds);
+
+                // 如果是永封且已同步到所有服务器，则标记为过期
+                if (punishment.type === 'ban') {
+                    const allGuildIds = client.guildManager.getGuildIds();
+                    if (allGuildIds.every(guildId => syncedServerIds.includes(guildId))) {
+                        await PunishmentModel.updateStatus(punishment.id, 'expired', '已在所有服务器执行永封');
+                        logTime(`永封处罚 ${punishment.id} 已在所有服务器执行完毕，标记为过期`);
+                    }
+                }
             }
 
             // 设置处罚到期定时器
@@ -115,7 +139,7 @@ class PunishmentService {
                 await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
             }
 
-            // 5. 发送通知
+            // 6. 发送通知
             const notificationResults = [];
             // 发送管理日志
             for (const guildData of allGuilds) {
@@ -137,8 +161,8 @@ class PunishmentService {
                 }
             }
 
-            // 发送上诉通知
-            if (data.channelId) {
+            // 发送禁言上诉通知
+            if (punishment.type === 'mute' && data.channelId) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
                     if (channel) {
@@ -164,9 +188,7 @@ class PunishmentService {
                 success: true,
                 message: [
                     '✅ 处罚执行结果：',
-                    `成功服务器: ${
-                        successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'
-                    }`,
+                    `成功服务器: ${successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'}`,
                     failedServers.length > 0 ? `失败服务器: ${failedServers.map(s => s.name).join(', ')}` : null,
                 ]
                     .filter(Boolean)

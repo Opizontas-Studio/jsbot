@@ -242,6 +242,9 @@ class TaskScheduler {
             return;
         }
 
+        // 保存client引用以供重载任务使用
+        this.client = client;
+
         // 初始化流程和处罚调度器
         await this.processScheduler.initialize(client);
         await this.punishmentScheduler.initialize(client);
@@ -342,6 +345,7 @@ class TaskScheduler {
             nextBackup.setDate(nextBackup.getDate() + 1);
         }
 
+        // 数据库备份任务
         this.addTask({
             taskId: 'databaseBackup',
             interval: TIME_UNITS.DAY,
@@ -352,6 +356,37 @@ class TaskScheduler {
                     logTime('数据库备份完成');
                 } catch (error) {
                     logTime(`数据库备份失败: ${error.message}`, true);
+                }
+            },
+        });
+
+        // 计算下一个凌晨3点（选择低峰时段）
+        const nextReload = new Date(now);
+        nextReload.setHours(3, 0, 0, 0);
+        if (nextReload <= now) {
+            nextReload.setDate(nextReload.getDate() + 1);
+        }
+
+        // 重新加载所有流程和处罚的定时任务
+        this.addTask({
+            taskId: 'reloadSchedulers',
+            interval: TIME_UNITS.DAY,
+            startAt: nextReload,
+            task: async () => {
+                try {
+                    logTime('开始重新加载所有流程和处罚定时器');
+                    
+                    // 清理现有定时器
+                    this.processScheduler.cleanup();
+                    this.punishmentScheduler.cleanup();
+                    
+                    // 重新初始化
+                    await this.processScheduler.initialize(this.client);
+                    await this.punishmentScheduler.initialize(this.client);
+                    
+                    logTime('所有流程和处罚定时器已重新加载完成');
+                } catch (error) {
+                    logTime(`重新加载定时器失败: ${error.message}`, true);
                 }
             },
         });

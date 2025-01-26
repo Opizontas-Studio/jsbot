@@ -146,15 +146,13 @@ function setupProcessHandlers() {
                 await dbManager.disconnect();
             }
 
-            // 等待一小段时间确保任务正确停止
-            await delay(500);
+            // 等待一小段时间
+            await delay(1000);
 
             // 销毁客户端连接
             if (client.isReady()) {
                 await client.destroy();
             }
-
-            logTime('所有资源已清理完毕，正在退出');
             process.exit(0);
         } catch (error) {
             logTime('退出过程中发生错误:', true);
@@ -166,6 +164,19 @@ function setupProcessHandlers() {
     // 进程信号处理
     process.on('SIGINT', () => gracefulShutdown('退出'));
     process.on('SIGTERM', () => gracefulShutdown('终止'));
+    
+    // 进程异常处理
+    process.on('uncaughtException', error => {
+        logTime('未捕获的异常:', true);
+        console.error(error);
+        gracefulShutdown('异常退出');
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+        logTime('未处理的 Promise 拒绝:', true);
+        console.error('Promise:', promise);
+        console.error('原因:', reason);
+    });
 }
 
 // 主函数

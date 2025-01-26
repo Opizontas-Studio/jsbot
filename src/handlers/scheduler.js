@@ -18,25 +18,25 @@ const TIME_UNITS = {
 // 格式化时间间隔 @private
 const formatInterval = ms => {
     const parts = [];
-    
+
     if (ms >= TIME_UNITS.DAY) {
         const days = Math.floor(ms / TIME_UNITS.DAY);
         parts.push(`${days}天`);
         ms %= TIME_UNITS.DAY;
     }
-    
+
     if (ms >= TIME_UNITS.HOUR) {
         const hours = Math.floor(ms / TIME_UNITS.HOUR);
         parts.push(`${hours}小时`);
         ms %= TIME_UNITS.HOUR;
     }
-    
+
     if (ms >= TIME_UNITS.MINUTE) {
         const minutes = Math.floor(ms / TIME_UNITS.MINUTE);
         parts.push(`${minutes}分钟`);
         ms %= TIME_UNITS.MINUTE;
     }
-    
+
     if (ms >= TIME_UNITS.SECOND || parts.length === 0) {
         const seconds = Math.ceil(ms / TIME_UNITS.SECOND);
         parts.push(`${seconds}秒`);
@@ -152,7 +152,7 @@ class PunishmentScheduler {
                 `SELECT * FROM punishments 
                 WHERE status = 'active' 
                 AND (duration > 0 OR warningDuration > 0)`,
-                []
+                [],
             );
 
             // 处理返回的数据
@@ -416,16 +416,14 @@ class TaskScheduler {
             startAt: nextReload,
             task: async () => {
                 try {
-                    logTime('开始重新加载所有流程和处罚定时器');
-                    
                     // 清理现有定时器
                     this.processScheduler.cleanup();
                     this.punishmentScheduler.cleanup();
-                    
+
                     // 重新初始化
                     await this.processScheduler.initialize(this.client);
                     await this.punishmentScheduler.initialize(this.client);
-                    
+
                     logTime('所有流程和处罚定时器已重新加载完成');
                 } catch (error) {
                     logTime(`重新加载定时器失败: ${error.message}`, true);

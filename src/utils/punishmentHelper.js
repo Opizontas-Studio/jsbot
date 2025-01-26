@@ -75,50 +75,56 @@ export const executePunishmentAction = async (guild, punishment) => {
             return false;
         }
 
-        const member = await guild.members.fetch(punishment.userId).catch(error => {
-            logTime(`获取成员失败: ${error.message}`, true);
-            return null;
-        });
-        if (!member) {
-            logTime(`无法在服务器 ${guild.name} 找到目标用户 ${punishment.userId}`, true);
-            return false;
-        }
-
         const reason = `处罚ID: ${punishment.id} - ${punishment.reason}`;
         const guildConfig = guild.client.guildManager.getGuildConfig(guild.id);
 
         switch (punishment.type) {
             case 'ban':
-                await guild.members.ban(member.id, {
+                // Ban 可以直接执行
+                await guild.members.ban(punishment.userId, {
                     deleteMessageSeconds: punishment.keepMessages ? 0 : 7 * 24 * 60 * 60,
                     reason,
                 });
                 break;
 
             case 'mute':
-                // 计算剩余禁言时长
-                const now = Date.now();
-                const expiryTime = punishment.createdAt + punishment.duration;
-                const remainingDuration = Math.max(0, expiryTime - now);
+                try {
+                    // 计算剩余禁言时长
+                    const now = Date.now();
+                    const expiryTime = punishment.createdAt + punishment.duration;
+                    const remainingDuration = Math.max(0, expiryTime - now);
 
-                // 如果已经过期，不执行禁言
-                if (remainingDuration === 0) {
-                    logTime(`禁言处罚 ${punishment.id} 已过期，跳过执行`);
-                    return true;
-                }
-
-                // 执行禁言，使用剩余时长
-                await member.timeout(remainingDuration, reason);
-
-                // 如果有警告，添加警告身份组
-                if (punishment.warningDuration && guildConfig?.WarnedRoleId) {
-                    // 检查警告是否仍然有效
-                    const warningExpiryTime = punishment.createdAt + punishment.warningDuration;
-                    if (warningExpiryTime > now) {
-                        await member.roles
-                            .add(guildConfig.WarnedRoleId, reason)
-                            .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
+                    // 如果已经过期，不执行禁言
+                    if (remainingDuration === 0) {
+                        logTime(`禁言处罚 ${punishment.id} 已过期，跳过执行`);
+                        return true;
                     }
+
+                    // 尝试获取成员对象
+                    const member = await guild.members.fetch(punishment.userId);
+
+                    // 执行禁言
+                    await member.timeout(remainingDuration, reason);
+
+                    // 如果有警告，添加警告身份组
+                    if (punishment.warningDuration && guildConfig?.WarnedRoleId) {
+                        // 检查警告是否仍然有效
+                        const warningExpiryTime = punishment.createdAt + punishment.warningDuration;
+                        if (warningExpiryTime > now) {
+                            await member.roles
+                                .add(guildConfig.WarnedRoleId, reason)
+                                .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
+                        }
+                    }
+                } catch (error) {
+                    // 特殊处理用户不在服务器的情况
+                    if (error.code === 10007) {
+                        // UNKNOWN_MEMBER
+                        logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，记录处罚但跳过执行`, true);
+                        // 返回 true 因为这是预期的情况
+                        return true;
+                    }
+                    throw error; // 其他错误继续抛出
                 }
                 break;
 
@@ -228,7 +234,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                     ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。'
                     : isPunishmentExpired
                     ? '⚠️ 处罚已到期，无需上诉。'
-                    : '如需上诉，请查看私信消息。'
+                    : '如需上诉，请查看私信消息。',
             ]
                 .filter(Boolean)
                 .join('\n'),
@@ -470,7 +476,7 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
  * @param {number} punishmentId - 处罚ID
  * @returns {Promise<{isEligible: boolean, error: string|null, punishment: Object|null}>}
  */
-export const checkAppealEligibility = async (userId) => {
+export const checkAppealEligibility = async userId => {
     try {
         // 检查是否已有活跃的上诉流程
         const userProcesses = await ProcessModel.getUserProcesses(userId, false);
@@ -494,7 +500,7 @@ export const checkAppealEligibility = async (userId) => {
  * @param {Object} punishment - 处罚记录
  * @returns {{isValid: boolean, error: string|null}}
  */
-export const checkPunishmentStatus = (punishment) => {
+export const checkPunishmentStatus = punishment => {
     if (!punishment) {
         return { isValid: false, error: '找不到相关的处罚记录' };
     }

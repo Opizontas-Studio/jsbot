@@ -1,30 +1,54 @@
+import { Assert } from '../../utils/assertion.js';
 import { logTime } from '../../utils/logger.js';
 import { dbManager } from '../dbManager.js';
+import { Sqlited } from '../sqlited.js';
 
-class PunishmentModel {
+export namespace PunishmentModel {
+    export type PunishmentType = 'ban' | 'mute';
+    export type PunishmentStatus = 'active' | 'expired' | 'appealed' | 'revoked';
+    export interface Punishment {
+        id: number;
+        userId: string;
+        type: PunishmentType;
+        reason: string;
+        duration: number; // 处罚时长(毫秒)，永封为-1
+        warningDuration: number;
+        executorId: string;
+        status: PunishmentStatus;
+        synced: number;
+        syncedServers: string[];
+        keepMessages: boolean;
+        channelId: string;
+        createdAt: number;
+        updatedAt: number;
+    }
+
+    interface CreatePunishmentParam {
+        userId: string;
+        type: PunishmentType;
+        reason: string;
+        duration: number;
+        warningDuration?: number;
+        executorId: string;
+        keepMessages?: boolean;
+        channelId: string;
+    }
+
     /**
      * 创建新的处罚记录
-     * @param {Object} data - 处罚数据
-     * @param {string} data.userId - 被处罚用户ID
-     * @param {string} data.type - 处罚类型 (ban/mute)
-     * @param {string} data.reason - 处罚原因
-     * @param {number} data.duration - 处罚时长(毫秒)，永封为-1
-     * @param {string} data.executorId - 执行者ID
-     * @param {boolean} [data.keepMessages=false] - 是否保留消息
-     * @param {string} [data.channelId] - 处罚执行的频道ID
-     * @param {number} [data.warningDuration=null] - 警告时长
-     * @returns {Promise<Object>} 处罚记录
+     * @param data - 处罚数据
+     * @returns 处罚记录
      */
-    static async createPunishment(data) {
+    export async function createPunishment(data: CreatePunishmentParam): Promise<Punishment> {
         const {
             userId,
             type,
             reason,
             duration,
+            warningDuration = null,
             executorId,
             keepMessages = false,
             channelId,
-            warningDuration = null,
         } = data;
 
         try {
@@ -36,11 +60,15 @@ class PunishmentModel {
 	                executorId, status, keepMessages, channelId
 	            ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
 	        `,
-                [userId, type, reason, duration, warningDuration, executorId, keepMessages ? 1 : 0, channelId],
+                [userId, type, reason, duration, warningDuration, executorId, keepMessages, channelId],
             );
+            if (!result.lastID) {
+                throw new Error(`执行 INSERT 命令失败`);
+            }
 
-            return this.getPunishmentById(result.lastID);
+            return getPunishmentById(result.lastID);
         } catch (error) {
+            Assert.isError(error);
             logTime(`创建处罚记录失败: ${error.message}`, true);
             throw error;
         }
@@ -48,10 +76,10 @@ class PunishmentModel {
 
     /**
      * 获取处罚记录
-     * @param {number} id - 处罚ID
-     * @returns {Promise<Object>} 处罚记录
+     * @param id - 处罚ID
+     * @returns 处罚记录
      */
-    static async getPunishmentById(id) {
+    export async function getPunishmentById(id: number): Promise<Punishment> {
         const cacheKey = `punishment_${id}`;
         const cached = dbManager.getCache(cacheKey);
         if (cached) {
@@ -74,11 +102,11 @@ class PunishmentModel {
 
     /**
      * 获取用户的处罚历史
-     * @param {string} userId - 用户ID
-     * @param {boolean} [includeExpired=false] - 是否包含已过期记录
-     * @returns {Promise<Array>} 处罚记录列表
+     * @param userId - 用户ID
+     * @param includeExpired - 是否包含已过期记录
+     * @returns 处罚记录列表
      */
-    static async getUserPunishments(userId, includeExpired = false) {
+    export async function getUserPunishments(userId: string, includeExpired: boolean = false): Promise<Punishment[]> {
         const cacheKey = `user_punishments_${userId}_${includeExpired}`;
         const cached = dbManager.getCache(cacheKey);
         if (cached) {
@@ -102,18 +130,18 @@ class PunishmentModel {
 	        ORDER BY createdAt DESC
 	    `;
 
-        const params = [userId];
+        const params: any[] = [userId];
         if (!includeExpired) {
             params.push(now);
         }
 
-        const punishments = await dbManager.safeExecute('all', query, params);
+        const punishments: Sqlited<Punishment>[] = await dbManager.safeExecute('all', query, params);
 
         const processedPunishments = punishments.map(p => ({
             ...p,
             syncedServers: JSON.parse(p.syncedServers),
             keepMessages: Boolean(p.keepMessages),
-        }));
+        })) as unknown as Punishment[]; // FIXME: 未经检查的类型转换，需要将数据库中 boolean 用 TEXT 表示，然后写一个类型转换函数
 
         dbManager.setCache(cacheKey, processedPunishments);
         return processedPunishments;
@@ -121,13 +149,13 @@ class PunishmentModel {
 
     /**
      * 更新处罚状态
-     * @param {number} id - 处罚ID
-     * @param {string} status - 新状态
-     * @param {string} [reason] - 状态更新原因
-     * @returns {Promise<Object>} 更新后的处罚记录
+     * @param id - 处罚ID
+     * @param status - 新状态
+     * @param reason - 状态更新原因
+     * @returns 更新后的处罚记录
      */
-    static async updateStatus(id, status, reason = null) {
-        const punishment = await this.getPunishmentById(id);
+    export async function updateStatus(id: number, status: PunishmentStatus, reason?: string): Promise<Punishment> {
+        const punishment = await getPunishmentById(id);
         if (!punishment) {
             throw new Error('处罚记录不存在');
         }
@@ -145,10 +173,11 @@ class PunishmentModel {
             );
 
             // 使用修改后的清除缓存函数
-            this._clearRelatedCache(punishment.userId, id);
+            _clearRelatedCache(punishment.userId, id);
 
-            return this.getPunishmentById(id);
+            return getPunishmentById(id);
         } catch (error) {
+            Assert.isError(error);
             logTime(`更新处罚状态失败: ${error.message}`, true);
             throw error;
         }
@@ -156,12 +185,12 @@ class PunishmentModel {
 
     /**
      * 更新同步状态
-     * @param {number} id - 处罚ID
-     * @param {string[]} syncedServers - 已同步的服务器ID列表
-     * @returns {Promise<Object>} 更新后的处罚记录
+     * @param id - 处罚ID
+     * @param syncedServers - 已同步的服务器ID列表
+     * @returns 更新后的处罚记录
      */
-    static async updateSyncStatus(id, syncedServers) {
-        const punishment = await this.getPunishmentById(id);
+    export async function updateSyncStatus(id: number, syncedServers: string[]): Promise<Punishment> {
+        const punishment = await getPunishmentById(id);
         if (!punishment) {
             throw new Error('处罚记录不存在');
         }
@@ -176,10 +205,11 @@ class PunishmentModel {
             );
 
             // 使用修改后的清除缓存函数
-            this._clearRelatedCache(punishment.userId, id);
+            _clearRelatedCache(punishment.userId, id);
 
-            return this.getPunishmentById(id);
+            return getPunishmentById(id);
         } catch (error) {
+            Assert.isError(error);
             logTime(`更新同步状态失败: ${error.message}`, true);
             throw error;
         }
@@ -187,11 +217,10 @@ class PunishmentModel {
 
     /**
      * 清除相关缓存
-     * @private
-     * @param {string} userId - 用户ID
-     * @param {number} [punishmentId] - 处罚ID（可选）
+     * @param userId - 用户ID
+     * @param punishmentId - 处罚ID（可选）
      */
-    static _clearRelatedCache(userId, punishmentId = null) {
+    function _clearRelatedCache(userId: string, punishmentId?: number): void {
         // 清除用户相关的所有缓存
         dbManager.clearCache(`active_punishment_${userId}`);
         dbManager.clearCache(`user_punishments_${userId}_true`);
@@ -204,43 +233,11 @@ class PunishmentModel {
     }
 
     /**
-     * 处理过期的处罚
-     * @returns {Promise<Array>} 过期的处罚记录数组
-     */
-    static async handleExpiredPunishments() {
-        const now = Date.now();
-        const sql = `
-	        SELECT * FROM punishments 
-	        WHERE status = 'active' 
-	        AND (
-	            (duration > 0 AND createdAt + duration <= ?) OR
-	            (warningDuration > 0 AND createdAt + warningDuration <= ?)
-	        )
-	    `;
-
-        try {
-            const expiredPunishments = await dbManager.safeExecute('all', sql, [now, now]);
-
-            // 处理返回的数据
-            return expiredPunishments.map(punishment => ({
-                ...punishment,
-                keepMessages: Boolean(punishment.keepMessages),
-                duration: Number(punishment.duration),
-                warningDuration: punishment.warningDuration ? Number(punishment.warningDuration) : null,
-                syncedServers: JSON.parse(punishment.syncedServers || '[]'),
-            }));
-        } catch (error) {
-            logTime(`获取过期处罚失败: ${error.message}`, true);
-            return [];
-        }
-    }
-
-    /**
      * 获取所有处罚记录
-     * @param {boolean} [includeExpired=false] - 是否包含已过期记录
-     * @returns {Promise<Array>} 处罚记录列表
+     * @param includeExpired - 是否包含已过期记录
+     * @returns 处罚记录列表
      */
-    static async getAllPunishments(includeExpired = false) {
+    export async function getAllPunishments(includeExpired: boolean = false): Promise<Punishment[]> {
         try {
             const now = Date.now();
             const query = `
@@ -258,14 +255,19 @@ class PunishmentModel {
 	            ORDER BY createdAt DESC
 	        `;
 
-            const punishments = await dbManager.safeExecute('all', query, !includeExpired ? [now] : []);
+            const punishments: Sqlited<Punishment>[] = await dbManager.safeExecute(
+                'all',
+                query,
+                !includeExpired ? [now] : [],
+            );
 
             return punishments.map(p => ({
                 ...p,
                 syncedServers: JSON.parse(p.syncedServers),
                 keepMessages: Boolean(p.keepMessages),
-            }));
+            })) as unknown as Punishment[]; // FIXME: 未经检查的类型转换，需要将数据库中 boolean 用 TEXT 表示，然后写一个类型转换函数
         } catch (error) {
+            Assert.isError(error);
             logTime(`获取全库处罚记录失败: ${error.message}`, true);
             throw error;
         }
@@ -273,12 +275,12 @@ class PunishmentModel {
 
     /**
      * 删除处罚记录
-     * @param {number} id - 处罚ID
-     * @returns {Promise<boolean>} 删除是否成功
+     * @param id - 处罚ID
+     * @returns 删除是否成功
      */
-    static async deletePunishment(id) {
+    export async function deletePunishment(id: number): Promise<boolean> {
         try {
-            const punishment = await this.getPunishmentById(id);
+            const punishment = await getPunishmentById(id);
             if (!punishment) {
                 throw new Error('处罚记录不存在');
             }
@@ -286,14 +288,13 @@ class PunishmentModel {
             await dbManager.safeExecute('run', 'DELETE FROM punishments WHERE id = ?', [id]);
 
             // 清除相关缓存
-            this._clearRelatedCache(punishment.userId, id);
+            _clearRelatedCache(punishment.userId, id);
 
             return true;
         } catch (error) {
+            Assert.isError(error);
             logTime(`删除处罚记录失败: ${error.message}`, true);
             return false;
         }
     }
 }
-
-export { PunishmentModel };

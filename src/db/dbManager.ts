@@ -1,17 +1,16 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import path from 'path';
-import { Database, open } from 'sqlite';
+import { Database, ISqlite, open } from 'sqlite';
 import sqlite3 from 'sqlite3';
-import { assertIsError } from '../utils/assertion.js';
+import { Assert } from '../utils/assertion.js';
 import { logTime } from '../utils/logger.js';
 
-function assertIsDatabase(database: Database | undefined): asserts database is Database {
-    if (!(database instanceof Database)) {
-        throw new Error('未连接数据库!');
-    }
-}
-
-type DatabaseOperation = 'run' | 'get' | 'all';
+export type DatabaseOperation = 'run' | 'get' | 'all';
+type DatabaseOperationReturnType = {
+    ['run']: ISqlite.RunResult<sqlite3.Statement>;
+    ['get']: any | undefined;
+    ['all']: any[];
+};
 
 class DatabaseManager {
     private db?: Database;
@@ -40,7 +39,7 @@ class DatabaseManager {
                 logTime('已创建备份目录: ./data/backups');
             }
         } catch (error) {
-            assertIsError(error);
+            Assert.isError(error);
             logTime('创建数据目录失败: ' + error.message, true);
             throw error;
         }
@@ -75,7 +74,7 @@ class DatabaseManager {
 
             logTime('数据库初始化完成');
         } catch (error) {
-            assertIsError(error);
+            Assert.isError(error);
 
             this.db = undefined;
             logTime(`数据库连接失败: ${error.message}`, true);
@@ -85,7 +84,7 @@ class DatabaseManager {
     }
 
     private async _createTables(): Promise<void> {
-        assertIsDatabase(this.db);
+        Assert.isDatabase(this.db);
         // 创建处罚表
         await this.db.exec(`
 	        CREATE TABLE IF NOT EXISTS punishments (
@@ -100,7 +99,8 @@ class DatabaseManager {
 	                CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
 	            synced INTEGER DEFAULT 0,
 	            syncedServers TEXT DEFAULT '[]',
-	            keepMessages INTEGER DEFAULT 0,
+	            keepMessages TEXT NOT NULL DEFAULT 'false'
+                    CHECK(keepMessages IN ('true', 'false')),
 	            channelId TEXT,
 	            createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
 	            updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
@@ -152,15 +152,19 @@ class DatabaseManager {
      * @param params - 查询参数
      * @returns 执行结果
      */
-    public async safeExecute(operation: DatabaseOperation, query: string, params: any[] = []): Promise<any> {
+    public async safeExecute<T extends DatabaseOperation>(
+        operation: T,
+        query: ISqlite.SqlType,
+        params: any[] = [],
+    ): Promise<DatabaseOperationReturnType[T]> {
         if (!this.db) {
             throw new Error('数据库未连接');
         }
 
         try {
-            return await this.db[operation](query, params);
+            return (await this.db[operation](query, params)) as any; // FIXME: 目前用 as any 隐藏了类型错误
         } catch (error) {
-            assertIsError(error);
+            Assert.isError(error);
             throw error;
         }
     }
@@ -254,7 +258,7 @@ class DatabaseManager {
 
             logTime(`数据库已备份到: ${backupPath}`);
         } catch (error) {
-            assertIsError(error);
+            Assert.isError(error);
             logTime(`数据库备份失败: ${error.message}`, true);
             throw error;
         }
@@ -275,7 +279,7 @@ class DatabaseManager {
             this.cache.clear();
             logTime('数据库连接已关闭');
         } catch (error) {
-            assertIsError(error);
+            Assert.isError(error);
             logTime(`关闭数据库连接时出错: ${error.message}`, true);
             throw error;
         }
@@ -330,7 +334,7 @@ class DatabaseManager {
             try {
                 currentArray = JSON.parse(record[field] || '[]');
             } catch (error) {
-                assertIsError(error);
+                Assert.isError(error);
                 logTime(`解析${field}失败，使用空数组: ${error.message}`, true);
             }
 
@@ -354,7 +358,7 @@ class DatabaseManager {
             // 返回更新后的记录
             return this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
         } catch (error) {
-            assertIsError(error);
+            Assert.isError(error);
             throw error;
         }
     }

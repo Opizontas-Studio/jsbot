@@ -1,0 +1,34 @@
+{
+    "configurations": [
+        {
+            "name": "调试bot",
+            "type": "node",
+            "request": "launch",
+            "preLaunchTask": "编译",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/index.js",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "调试start.js",
+            "type": "node",
+            "request": "launch",
+            "preLaunchTask": "编译",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/start.js",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}

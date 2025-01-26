@@ -1,7 +1,7 @@
 {
     "name": "jsbot",
     "version": "2.18.0",
-    "main": "start.js",
+    "main": "dist/index.js",
     "type": "module",
     "scripts": {
         "build": "npx rimraf dist/ && npx tsc -p tsconfig.json",

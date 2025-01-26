@@ -6,7 +6,6 @@
         "target": "ESNext",
         "module": "NodeNext",
         "outDir": "dist",
-        "sourceRoot": "src",
         "moduleDetection": "auto",
         "moduleResolution": "nodenext",
         "allowJs": true,
@@ -24,13 +23,11 @@
         "strict": true,
     },
     "include": [
-        "src/**/*.js",
-        "src/**/*.ts",
-        "tests/**/*.js",
-        "tests/**/*.ts",
+        "src",
+        "tests",
     ],
     "exclude": [
-        "**/node_modules/**",
-        "**/dist/**"
+        "node_modules",
+        "dist"
     ]
 }

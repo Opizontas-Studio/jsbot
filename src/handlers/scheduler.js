@@ -17,16 +17,32 @@ const TIME_UNITS = {
 
 // 格式化时间间隔 @private
 const formatInterval = ms => {
+    const parts = [];
+    
     if (ms >= TIME_UNITS.DAY) {
-        return `${Math.floor(ms / TIME_UNITS.DAY)}天`;
+        const days = Math.floor(ms / TIME_UNITS.DAY);
+        parts.push(`${days}天`);
+        ms %= TIME_UNITS.DAY;
     }
+    
     if (ms >= TIME_UNITS.HOUR) {
-        return `${Math.floor(ms / TIME_UNITS.HOUR)}小时`;
+        const hours = Math.floor(ms / TIME_UNITS.HOUR);
+        parts.push(`${hours}小时`);
+        ms %= TIME_UNITS.HOUR;
     }
+    
     if (ms >= TIME_UNITS.MINUTE) {
-        return `${Math.floor(ms / TIME_UNITS.MINUTE)}分钟`;
+        const minutes = Math.floor(ms / TIME_UNITS.MINUTE);
+        parts.push(`${minutes}分钟`);
+        ms %= TIME_UNITS.MINUTE;
     }
-    return `${Math.floor(ms / TIME_UNITS.SECOND)}秒`;
+    
+    if (ms >= TIME_UNITS.SECOND || parts.length === 0) {
+        const seconds = Math.ceil(ms / TIME_UNITS.SECOND);
+        parts.push(`${seconds}秒`);
+    }
+
+    return parts.join(' ');
 };
 
 /**
@@ -175,10 +191,13 @@ class PunishmentScheduler {
             const expiryTime = Math.max(muteDuration, warnDuration);
 
             // 如果没有到期时间（永久处罚）或已经过期，直接返回
-            if (expiryTime === 0 || (expiryTime <= now && punishment.status === 'active')) {
-                if (expiryTime <= now) {
-                    await PunishmentService.handleExpiry(client, punishment);
-                }
+            if (expiryTime === 0) {
+                return;
+            }
+
+            // 如果已经过期，直接处理
+            if (expiryTime <= now && punishment.status === 'active') {
+                await PunishmentService.handleExpiry(client, punishment);
                 return;
             }
 
@@ -188,20 +207,43 @@ class PunishmentScheduler {
                 this.timers.delete(punishment.id);
             }
 
-            const timeUntilExpiry = expiryTime - now;
-            const timer = setTimeout(async () => {
-                // 在执行到期处理前再次检查处罚状态
-                const currentPunishment = await PunishmentModel.getPunishmentById(punishment.id);
-                if (currentPunishment?.status === 'active') {
-                    await PunishmentService.handleExpiry(client, currentPunishment);
-                }
-                this.timers.delete(punishment.id);
-            }, timeUntilExpiry);
+            // 计算延迟时间
+            const delay = expiryTime - now;
 
-            this.timers.set(punishment.id, timer);
-            logTime(`已调度处罚 ${punishment.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
+            // 设置最大延迟为 24.85 天 (2147483647 毫秒)
+            const MAX_TIMEOUT = 2147483647;
+
+            if (delay > MAX_TIMEOUT) {
+                // 如果延迟时间超过最大值，设置一个中间定时器
+                const timer = setTimeout(async () => {
+                    // 重新调度剩余时间
+                    await this.schedulePunishment(punishment, client);
+                }, MAX_TIMEOUT);
+
+                this.timers.set(punishment.id, timer);
+                logTime(`已为处罚 ${punishment.id} 设置中间定时器，将在 ${formatInterval(MAX_TIMEOUT)} 后重新调度`);
+            } else {
+                // 设置到期定时器
+                const timer = setTimeout(async () => {
+                    try {
+                        // 在执行到期处理前再次检查处罚状态
+                        const currentPunishment = await PunishmentModel.getPunishmentById(punishment.id);
+                        if (currentPunishment && currentPunishment.status === 'active') {
+                            await PunishmentService.handleExpiry(client, currentPunishment);
+                        }
+                    } catch (error) {
+                        logTime(`处理处罚到期失败 [ID: ${punishment.id}]: ${error.message}`, true);
+                    } finally {
+                        this.timers.delete(punishment.id);
+                    }
+                }, delay);
+
+                this.timers.set(punishment.id, timer);
+                logTime(`已调度处罚 ${punishment.id} 的到期处理，将在 ${formatInterval(delay)} 后执行`);
+            }
         } catch (error) {
-            logTime(`调度处罚失败: ${error.message}`, true);
+            logTime(`调度处罚失败 [ID: ${punishment.id}]: ${error.message}`, true);
+            throw error;
         }
     }
 

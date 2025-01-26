@@ -5,7 +5,7 @@ import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
+import { checkAppealEligibility, checkPunishmentStatus, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 import { globalTaskScheduler } from './scheduler.js';
 
 /**
@@ -155,20 +155,6 @@ export const modalHandlers = {
                 return;
             }
 
-            // 检查现有上诉
-            const userProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
-            const hasActiveAppeal = userProcesses.some(
-                p => p.type === 'appeal' && ['pending', 'in_progress'].includes(p.status),
-            );
-
-            if (hasActiveAppeal) {
-                await interaction.reply({
-                    content: '❌ 你已有正在进行的上诉',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
             // 从customId中获取处罚ID
             const punishmentId = interaction.customId.split('_')[2];
             if (!punishmentId) {
@@ -181,33 +167,22 @@ export const modalHandlers = {
 
             // 获取处罚记录
             const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-            if (!punishment) {
+
+            // 检查处罚状态
+            const { isValid, error: statusError } = checkPunishmentStatus(punishment);
+            if (!isValid) {
                 await interaction.reply({
-                    content: '❌ 找不到相关的处罚记录',
+                    content: `❌ ${statusError}`,
                     flags: ['Ephemeral'],
                 });
                 return;
             }
 
-            // 再次检查处罚状态
-            if (punishment.status !== 'active') {
-                let message = '❌ 无法提交上诉：';
-                switch (punishment.status) {
-                    case 'appealed':
-                        message += '该处罚已进入辩诉阶段';
-                        break;
-                    case 'expired':
-                        message += '该处罚已过期';
-                        break;
-                    case 'revoked':
-                        message += '该处罚已被撤销';
-                        break;
-                    default:
-                        message += '处罚状态异常';
-                }
-
+            // 检查上诉资格
+            const { isEligible, error: eligibilityError } = await checkAppealEligibility(interaction.user.id);
+            if (!isEligible) {
                 await interaction.reply({
-                    content: message,
+                    content: `❌ ${eligibilityError}`,
                     flags: ['Ephemeral'],
                 });
                 return;
@@ -232,28 +207,27 @@ export const modalHandlers = {
             // 计算过期时间
             const expireTime = new Date(Date.now() + mainGuildConfig.courtSystem.appealDuration);
 
-            // 发送议事申请消息
+            // 发送议事消息
             const message = await courtChannel.send({
                 embeds: [
                     {
-                        color: 0xff9900,
-                        title: '处罚上诉申请',
-                        description: `议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
+                        color: 0x5865f2,
+                        title: '📢 处罚上诉申请',
+                        description: [
+                            `<@${interaction.user.id}> 对以下处罚提出上诉：`,
+                            '',
+                            '**上诉理由：**',
+                            appealContent,
+                        ].join('\n'),
                         fields: [
                             {
-                                name: '上诉人',
-                                value: `<@${interaction.user.id}>`,
+                                name: '处罚执行者',
+                                value: `<@${executor.id}>`,
                                 inline: true,
                             },
                             {
-                                name: '处罚类型',
-                                value: punishment.type === 'ban' ? '永封' : '禁言',
-                                inline: true,
-                            },
-                            {
-                                name: '处罚时长',
-                                value:
-                                    punishment.type === 'ban' ? '永久' : formatPunishmentDuration(punishment.duration),
+                                name: '处罚详情',
+                                value: `${punishment.type === 'ban' ? '永久封禁' : `禁言 ${formatPunishmentDuration(punishment.duration)}`}`,
                                 inline: true,
                             },
                             {
@@ -261,15 +235,10 @@ export const modalHandlers = {
                                 value: punishment.reason,
                                 inline: false,
                             },
-                            {
-                                name: '上诉理由',
-                                value: appealContent,
-                                inline: false,
-                            },
                         ],
                         timestamp: new Date(),
                         footer: {
-                            text: `原处罚执行者：${executor.tag}`,
+                            text: `处罚ID: ${punishment.id}`,
                         },
                     },
                 ],
@@ -308,7 +277,34 @@ export const modalHandlers = {
 
             // 调度流程到期处理
             if (process) {
-                await globalTaskScheduler.scheduleProcess(process, interaction.client);
+                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
+            }
+
+            // 获取并更新原始上诉按钮消息
+            try {
+                // 从 customId 中获取消息 ID (格式: appeal_modal_punishmentId_messageId)
+                const messageId = interaction.customId.split('_')[3];
+                if (messageId) {
+                    // 先尝试获取用户的DM channel
+                    const dmChannel = await interaction.user.createDM();
+                    if (dmChannel) {
+                        try {
+                            const originalMessage = await dmChannel.messages.fetch(messageId);
+                            if (originalMessage) {
+                                // 更新消息，移除按钮组件
+                                await originalMessage.edit({
+                                    components: [] // 清空所有按钮
+                                });
+                            }
+                        } catch (error) {
+                            // 如果获取消息失败，记录日志但不影响主流程
+                            logTime(`获取原始上诉消息失败: ${error.message}`, true);
+                        }
+                    }
+                }
+            } catch (error) {
+                logTime(`移除上诉按钮失败: ${error.message}`, true);
+                // 继续执行，不影响主流程
             }
 
             // 发送确认消息

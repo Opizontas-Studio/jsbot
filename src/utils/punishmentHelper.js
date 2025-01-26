@@ -1,3 +1,4 @@
+import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { logTime } from './logger.js';
 
@@ -461,4 +462,60 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
         logTime(`处罚解除失败: ${error.message}`, true);
         return { success: false, successfulServers, failedServers };
     }
+};
+
+/**
+ * 检查上诉资格
+ * @param {string} userId - 用户ID
+ * @param {number} punishmentId - 处罚ID
+ * @returns {Promise<{isEligible: boolean, error: string|null, punishment: Object|null}>}
+ */
+export const checkAppealEligibility = async (userId) => {
+    try {
+        // 检查是否已有活跃的上诉流程
+        const userProcesses = await ProcessModel.getUserProcesses(userId, false);
+        const hasActiveAppeal = userProcesses.some(
+            p => p.type === 'appeal' && ['pending', 'in_progress'].includes(p.status),
+        );
+
+        if (hasActiveAppeal) {
+            return { isEligible: false, error: '你已有正在进行的上诉', punishment: null };
+        }
+
+        return { isEligible: true, error: null, punishment: null };
+    } catch (error) {
+        logTime(`检查上诉资格失败: ${error.message}`, true);
+        throw error;
+    }
+};
+
+/**
+ * 检查处罚状态
+ * @param {Object} punishment - 处罚记录
+ * @returns {{isValid: boolean, error: string|null}}
+ */
+export const checkPunishmentStatus = (punishment) => {
+    if (!punishment) {
+        return { isValid: false, error: '找不到相关的处罚记录' };
+    }
+
+    if (punishment.status !== 'active') {
+        let error = '无法提交上诉：';
+        switch (punishment.status) {
+            case 'appealed':
+                error += '该处罚已进入辩诉阶段';
+                break;
+            case 'expired':
+                error += '该处罚已过期';
+                break;
+            case 'revoked':
+                error += '该处罚已被撤销';
+                break;
+            default:
+                error += '处罚状态异常';
+        }
+        return { isValid: false, error };
+    }
+
+    return { isValid: true, error: null };
 };

@@ -138,7 +138,7 @@ export default {
 
             // 调度流程到期处理
             if (process) {
-                await globalTaskScheduler.scheduleProcess(process, interaction.client);
+                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
             }
 
             // 发送确认消息

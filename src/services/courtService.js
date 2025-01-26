@@ -26,7 +26,9 @@ class CourtService {
         switch (process.type) {
             case 'appeal': {
                 threadTitle = `对 ${target?.username || '未知用户'} 的${
-                    process.details.embed?.title?.replace('申请', '上诉辩诉') || '上诉辩诉帖'
+                    process.details.embed?.title?.includes('上诉') 
+                        ? process.details.embed.title.replace('申请', '辩诉')
+                        : '上诉辩诉帖'
                 }`;
                 
                 notifyContent = [
@@ -41,7 +43,7 @@ class CourtService {
                 // 处理以 court_ 开头的类型
                 if (process.type.startsWith('court_')) {
                     threadTitle = `对 ${target?.username || '未知用户'} 的${
-                        process.details.embed?.title?.replace('申请', '处罚辩诉') || '处罚辩诉帖'
+                        process.details.embed?.title?.replace('申请', '辩诉') || '处罚辩诉帖'
                     }`;
                     
                     notifyContent = [
@@ -153,11 +155,6 @@ class CourtService {
      */
     static async getOrCreateProcess(message, targetId, type, guildConfig) {
         try {
-            // 如果是ban类型，直接返回错误
-            if (type === 'ban') {
-                return { process: null, error: '永封处罚不支持上诉' };
-            }
-
             let process = await ProcessModel.getProcessByMessageId(message.id);
 
             if (!process) {
@@ -365,6 +362,41 @@ class CourtService {
     }
 
     /**
+     * 为双方添加辩诉通行身份组
+     * @private
+     * @param {Object} client - Discord客户端
+     * @param {Object} guildConfig - 服务器配置
+     * @param {string} executorId - 执行者ID
+     * @param {string} targetId - 目标用户ID
+     * @param {string} reason - 添加身份组的原因
+     * @returns {Promise<void>}
+     */
+    static async _addDebateRolesToBothParties(client, guildConfig, executorId, targetId, reason) {
+        const mainGuild = await client.guilds.fetch(guildConfig.id).catch(() => null);
+        if (!mainGuild || !guildConfig.courtSystem.appealDebateRoleId) {
+            return;
+        }
+
+        // 获取双方成员对象
+        const [executorMember, targetMember] = await Promise.all([
+            mainGuild.members.fetch(executorId).catch(() => null),
+            mainGuild.members.fetch(targetId).catch(() => null)
+        ]);
+
+        // 为双方添加辩诉通行身份组
+        const addRolePromises = [executorMember, targetMember]
+            .filter(member => member) // 过滤掉不存在的成员
+            .map(member => 
+                member.roles
+                    .add(guildConfig.courtSystem.appealDebateRoleId, reason)
+                    .then(() => logTime(`已添加用户 ${member.user.tag} 的辩诉通行身份组`))
+                    .catch(error => logTime(`添加辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true))
+            );
+
+        await Promise.all(addRolePromises);
+    }
+
+    /**
      * 处理议事完成
      * @param {Object} process - 流程记录
      * @param {Object} guildConfig - 服务器配置
@@ -376,8 +408,17 @@ class CourtService {
             switch (process.type) {
                 case 'court_mute':
                 case 'court_ban': {
-                    // 创建禁言辩诉帖
+                    // 创建辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);
+
+                    // 添加辩诉通行身份组
+                    await this._addDebateRolesToBothParties(
+                        client,
+                        guildConfig,
+                        process.executorId,
+                        process.targetId,
+                        '处罚申请辩诉通行'
+                    );
 
                     // 更新流程状态为completed
                     await ProcessModel.updateStatus(process.id, 'completed', {
@@ -407,16 +448,7 @@ class CourtService {
 
                 case 'appeal': {
                     // 解析details，确保它是一个对象
-                    let details;
-                    try {
-                        details =
-                            typeof process.details === 'string'
-                                ? JSON.parse(process.details || '{}')
-                                : process.details || {};
-                    } catch (error) {
-                        logTime(`解析process.details失败: ${error.message}`, true);
-                        details = {};
-                    }
+                    const details = ProcessModel.tryParseJSON(process.details, '{}', 'appeal_details');
 
                     const punishmentId = details?.punishmentId;
                     if (!punishmentId) {
@@ -447,17 +479,14 @@ class CourtService {
                         await revokePunishmentInGuilds(client, punishment, target, '上诉申请通过', { isAppeal: true });
                     }
 
-                    // 在主服务器添加辩诉通行身份组
-                    const mainGuild = await client.guilds.fetch(guildConfig.id).catch(() => null);
-                    if (mainGuild && guildConfig.courtSystem.appealDebateRoleId) {
-                        const targetMember = await mainGuild.members.fetch(target.id).catch(() => null);
-                        if (targetMember) {
-                            await targetMember.roles
-                                .add(guildConfig.courtSystem.appealDebateRoleId, '上诉申请通过')
-                                .then(() => logTime(`已添加用户 ${target.tag} 的辩诉通行身份组`))
-                                .catch(error => logTime(`添加辩诉通行身份组失败: ${error.message}`, true));
-                        }
-                    }
+                    // 添加辩诉通行身份组
+                    await this._addDebateRolesToBothParties(
+                        client,
+                        guildConfig,
+                        punishment.executorId,
+                        process.targetId,
+                        '上诉申请通过'
+                    );
 
                     // 创建辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);

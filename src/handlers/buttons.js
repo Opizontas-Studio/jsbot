@@ -8,11 +8,11 @@ import {
     TextInputBuilder,
     TextInputStyle,
 } from 'discord.js';
-import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import CourtService from '../services/courtService.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+import { checkAppealEligibility, checkPunishmentStatus } from '../utils/punishmentHelper.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -225,48 +225,48 @@ export const buttonHandlers = {
 /**
  * 处理议事区支持按钮
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
- * @param {string} type - 处罚类型 ('mute' | 'ban' | 'appeal')
+ * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate')
  */
 async function handleCourtSupport(interaction, type) {
     // 先发送一个延迟响应
     await interaction.deferReply({ flags: ['Ephemeral'] });
 
-    // 检查冷却时间
-    const cooldownLeft = checkCooldown('court_support', interaction.user.id);
-    if (cooldownLeft) {
-        await interaction.editReply({
-            content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
-            flags: ['Ephemeral'],
-        });
-        return;
-    }
-
-    // 检查议事系统是否启用
-    const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-    if (!guildConfig?.courtSystem?.enabled) {
-        await interaction.editReply({
-            content: '❌ 此服务器未启用议事系统',
-            flags: ['Ephemeral'],
-        });
-        return;
-    }
-
-    // 检查是否为议员
-    const member = await interaction.guild.members.fetch(interaction.user.id);
-    if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
-        await interaction.editReply({
-            content: '❌ 只有议员可以参与议事投票',
-            flags: ['Ephemeral'],
-        });
-        return;
-    }
-
-    // 解析按钮ID获取目标用户ID
-    const [, , targetId] = interaction.customId.split('_');
-
     try {
+        // 检查冷却时间
+        const cooldownLeft = checkCooldown('court_support', interaction.user.id);
+        if (cooldownLeft) {
+            await interaction.editReply({
+                content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 检查议事系统是否启用
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig?.courtSystem?.enabled) {
+            await interaction.editReply({
+                content: '❌ 此服务器未启用议事系统',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 检查是否为议员
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+            await interaction.editReply({
+                content: '❌ 只有议员可以参与议事投票',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 解析按钮ID获取目标用户ID
+        const [, , targetId] = interaction.customId.split('_');
+
         // 获取或创建议事流程
-        const { error } = await CourtService.getOrCreateProcess(interaction.message, targetId, type, guildConfig);
+        const { process, error } = await CourtService.getOrCreateProcess(interaction.message, targetId, type, guildConfig);
 
         if (error) {
             await interaction.editReply({
@@ -276,7 +276,7 @@ async function handleCourtSupport(interaction, type) {
         }
 
         // 使用CourtService添加支持者
-        const { process, supportCount, replyContent } = await CourtService.addSupporter(
+        const { process: updatedProcess, supportCount, replyContent } = await CourtService.addSupporter(
             interaction.message.id,
             interaction.user.id,
         );
@@ -285,33 +285,41 @@ async function handleCourtSupport(interaction, type) {
 
         // 检查是否达到所需支持数量
         if (supportCount === guildConfig.courtSystem.requiredSupports) {
-            const { debateThread, error: completeError } = await CourtService.handleCourtComplete(
-                process,
-                guildConfig,
-                interaction.client,
-            );
+            try {
+                const { debateThread, error: completeError } = await CourtService.handleCourtComplete(
+                    updatedProcess,
+                    guildConfig,
+                    interaction.client,
+                );
 
-            if (completeError) {
+                if (completeError) {
+                    await interaction.editReply({
+                        content: `❌ ${completeError}`,
+                    });
+                    return;
+                }
+
+                // 更新消息
+                const message = await interaction.message.fetch();
+                await CourtService.updateCourtMessage(message, updatedProcess, { debateThread });
+
+                // 更新回复内容
+                if (updatedProcess.type === 'debate') {
+                    finalReplyContent += '\n📢 已达到所需支持人数，等待投票执行';
+                } else if (debateThread) {
+                    finalReplyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
+                }
+            } catch (error) {
+                logTime(`处理议事完成失败: ${error.message}`, true);
                 await interaction.editReply({
-                    content: `❌ ${completeError}`,
+                    content: '❌ 处理议事完成时出错，请稍后重试',
                 });
                 return;
-            }
-
-            // 更新消息
-            const message = await interaction.message.fetch();
-            await CourtService.updateCourtMessage(message, process, { debateThread });
-
-            // 更新回复内容
-            if (process.type === 'debate') {
-                finalReplyContent += '\n📢 已达到所需支持人数，等待投票执行';
-            } else if (debateThread) {
-                finalReplyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
             }
         } else {
             // 更新消息
             const message = await interaction.message.fetch();
-            await CourtService.updateCourtMessage(message, process);
+            await CourtService.updateCourtMessage(message, updatedProcess);
         }
 
         // 发送确认消息
@@ -352,73 +360,62 @@ async function handleAppealButton(interaction, punishmentId) {
 
         // 获取处罚记录
         const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-        if (!punishment) {
-            await interaction.reply({
-                content: '❌ 找不到相关的处罚记录',
-                flags: ['Ephemeral'],
-            });
+        
+        // 移除上诉按钮的通用函数
+        const removeAppealButton = async (errorMessage) => {
+            try {
+                // 先尝试获取用户的DM channel
+                const dmChannel = await interaction.user.createDM();
+                if (dmChannel) {
+                    try {
+                        const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
+                        if (originalMessage) {
+                            await originalMessage.edit({
+                                components: [] // 清空所有按钮
+                            });
+                        }
+                    } catch (error) {
+                        // 如果获取消息失败，记录日志但不影响主流程
+                        logTime(`获取原始上诉消息失败: ${error.message}`, true);
+                    }
+                }
+
+                // 无论按钮移除是否成功，都发送错误消息
+                await interaction.reply({
+                    content: `❌ ${errorMessage}`,
+                    flags: ['Ephemeral'],
+                });
+            } catch (error) {
+                logTime(`移除上诉按钮失败: ${error.message}`, true);
+                // 如果整个过程失败，至少确保发送错误消息
+                await interaction.reply({
+                    content: `❌ ${errorMessage}`,
+                    flags: ['Ephemeral'],
+                });
+            }
+        };
+
+        // 检查处罚状态
+        const { isValid, error: statusError } = checkPunishmentStatus(punishment);
+        if (!isValid) {
+            await removeAppealButton(statusError);
+            return;
+        }
+
+        // 检查上诉资格
+        const { isEligible, error: eligibilityError } = await checkAppealEligibility(interaction.user.id);
+        if (!isEligible) {
+            await removeAppealButton(eligibilityError);
             return;
         }
 
         // 调试日志
-        logTime(`处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
-
-        // 检查处罚状态
-        if (punishment.status !== 'active') {
-            let message = '❌ 无法提交上诉：';
-            switch (punishment.status) {
-                case 'appealed':
-                    message += '该处罚已进入辩诉阶段';
-                    break;
-                case 'expired':
-                    message += '该处罚已过期';
-                    break;
-                case 'revoked':
-                    message += '该处罚已被撤销';
-                    break;
-                default:
-                    message += '处罚状态异常';
-            }
-
-            // 尝试更新原始消息以移除上诉按钮
-            try {
-                // 先获取或创建 DM 频道
-                const dmChannel = await interaction.user.createDM();
-                if (dmChannel) {
-                    const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
-                    if (originalMessage?.components?.length > 0) {
-                        await originalMessage.edit({
-                            components: [],
-                        });
-                    }
-                }
-            } catch (error) {
-                logTime(`无法更新私信消息组件: ${error.message}`, true);
-            }
-
-            await interaction.reply({
-                content: message,
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
-
-        // 检查是否已有活跃的上诉流程
-        const userProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
-        const hasActiveAppeal = userProcesses.some(
-            p => p.type === 'appeal' && ['pending', 'in_progress'].includes(p.status),
-        );
-
-        if (hasActiveAppeal) {
-            await interaction.reply({
-                content: '❌ 你已有正在进行的上诉',
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
+        logTime(`用户申请上诉，处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
 
         // 创建上诉表单
-        const modal = new ModalBuilder().setCustomId(`appeal_modal_${punishmentId}`).setTitle('提交上诉申请');
+        const modal = new ModalBuilder()
+            .setCustomId(`appeal_modal_${punishmentId}_${interaction.message.id}`)
+            .setTitle('提交上诉申请');
 
         const appealContentInput = new TextInputBuilder()
             .setCustomId('appeal_content')

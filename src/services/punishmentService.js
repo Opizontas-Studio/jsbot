@@ -136,7 +136,12 @@ class PunishmentService {
 
             // 设置处罚到期定时器
             if (punishment.duration > 0 || punishment.warningDuration) {
-                await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
+                try {
+                    await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
+                } catch (error) {
+                    logTime(`设置处罚到期定时器失败: ${error.message}`, true);
+                    // 不抛出错误，继续执行
+                }
             }
 
             // 6. 发送通知

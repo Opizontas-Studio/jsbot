@@ -1,4 +1,5 @@
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { logTime } from '../utils/logger.js';
 import {
     executePunishmentAction,
@@ -109,6 +110,11 @@ class PunishmentService {
                 );
             }
 
+            // 设置处罚到期定时器
+            if (punishment.duration > 0 || punishment.warningDuration) {
+                await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
+            }
+
             // 5. 发送通知
             const notificationResults = [];
             // 发送管理日志
@@ -187,12 +193,10 @@ class PunishmentService {
         try {
             const now = Date.now();
             const muteExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
-            const warningExpired =
-                punishment.warningDuration > 0 && punishment.createdAt + punishment.warningDuration <= now;
+            const warningExpired = punishment.warningDuration > 0 && punishment.createdAt + punishment.warningDuration <= now;
 
             // 处理禁言到期
             if (muteExpired && punishment.type === 'mute') {
-                // Discord API 会自动处理禁言到期
                 logTime(`禁言处罚 ${punishment.id} 已到期`);
             }
 
@@ -256,13 +260,6 @@ class PunishmentService {
             logTime(`处理处罚到期失败 [ID: ${punishment.id}]: ${error.message}`, true);
             throw error;
         }
-    }
-
-    /**
-     * 撤销处罚
-     */
-    static async revokePunishment() {
-        // todo
     }
 }
 

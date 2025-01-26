@@ -30,6 +30,194 @@ const formatInterval = ms => {
 };
 
 /**
+ * 流程到期调度器
+ */
+class ProcessScheduler {
+    constructor() {
+        this.timers = new Map();
+    }
+
+    /**
+     * 初始化流程调度器
+     * @param {Object} client - Discord客户端
+     */
+    async initialize(client) {
+        try {
+            // 获取所有未完成的流程
+            const processes = await ProcessModel.getAllProcesses(false);
+            for (const process of processes) {
+                await this.scheduleProcess(process, client);
+            }
+            logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
+        } catch (error) {
+            logTime(`加载和调度流程失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 调度单个流程的到期处理
+     * @param {Object} process - 流程记录
+     * @param {Object} client - Discord客户端
+     */
+    async scheduleProcess(process, client) {
+        try {
+            // 检查是否为议事流程
+            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'debate')
+                return;
+
+            // 检查流程状态
+            if (process.status === 'completed') {
+                logTime(`流程 ${process.id} 已完成，跳过到期处理`);
+                return;
+            }
+
+            const now = Date.now();
+            const timeUntilExpiry = process.expireAt - now;
+
+            // 清除已存在的定时器
+            if (this.timers.has(process.id)) {
+                clearTimeout(this.timers.get(process.id));
+                this.timers.delete(process.id);
+            }
+
+            if (timeUntilExpiry <= 0) {
+                // 已过期，直接处理
+                await CourtService.handleProcessExpiry(process, client);
+            } else {
+                // 设置定时器
+                const timer = setTimeout(async () => {
+                    // 在执行到期处理前再次检查流程状态
+                    const currentProcess = await ProcessModel.getProcessById(process.id);
+                    if (currentProcess && currentProcess.status === 'completed') {
+                        logTime(`流程 ${process.id} 已完成，跳过到期处理`);
+                        return;
+                    }
+                    await CourtService.handleProcessExpiry(process, client);
+                    this.timers.delete(process.id);
+                }, timeUntilExpiry);
+
+                this.timers.set(process.id, timer);
+                logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
+            }
+        } catch (error) {
+            logTime(`调度流程失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 清理所有定时器
+     */
+    cleanup() {
+        for (const timer of this.timers.values()) {
+            clearTimeout(timer);
+        }
+        this.timers.clear();
+        logTime('已清理所有流程到期定时器');
+    }
+}
+
+/**
+ * 处罚到期调度器
+ */
+class PunishmentScheduler {
+    constructor() {
+        this.timers = new Map();
+    }
+
+    /**
+     * 初始化处罚调度器
+     * @param {Object} client - Discord客户端
+     */
+    async initialize(client) {
+        try {
+            // 获取所有活跃的处罚
+            const punishments = await dbManager.safeExecute(
+                'all',
+                `SELECT * FROM punishments 
+                WHERE status = 'active' 
+                AND (duration > 0 OR warningDuration > 0)`,
+                []
+            );
+
+            // 处理返回的数据
+            const activePunishments = punishments.map(p => ({
+                ...p,
+                keepMessages: Boolean(p.keepMessages),
+                duration: Number(p.duration),
+                warningDuration: p.warningDuration ? Number(p.warningDuration) : null,
+                syncedServers: JSON.parse(p.syncedServers || '[]'),
+            }));
+
+            for (const punishment of activePunishments) {
+                await this.schedulePunishment(punishment, client);
+            }
+            logTime(`已加载并调度 ${activePunishments.length} 个处罚的到期处理`);
+        } catch (error) {
+            logTime(`加载和调度处罚失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 调度单个处罚的到期处理
+     * @param {Object} punishment - 处罚记录
+     * @param {Object} client - Discord客户端
+     */
+    async schedulePunishment(punishment, client) {
+        try {
+            if (punishment.status !== 'active') {
+                return;
+            }
+
+            const now = Date.now();
+            // 计算到期时间（取禁言和警告中较长的时间）
+            const muteDuration = punishment.duration > 0 ? punishment.createdAt + punishment.duration : 0;
+            const warnDuration = punishment.warningDuration ? punishment.createdAt + punishment.warningDuration : 0;
+            const expiryTime = Math.max(muteDuration, warnDuration);
+
+            // 如果没有到期时间（永久处罚）或已经过期，直接返回
+            if (expiryTime === 0 || (expiryTime <= now && punishment.status === 'active')) {
+                if (expiryTime <= now) {
+                    await PunishmentService.handleExpiry(client, punishment);
+                }
+                return;
+            }
+
+            // 清除已存在的定时器
+            if (this.timers.has(punishment.id)) {
+                clearTimeout(this.timers.get(punishment.id));
+                this.timers.delete(punishment.id);
+            }
+
+            const timeUntilExpiry = expiryTime - now;
+            const timer = setTimeout(async () => {
+                // 在执行到期处理前再次检查处罚状态
+                const currentPunishment = await PunishmentModel.getPunishmentById(punishment.id);
+                if (currentPunishment?.status === 'active') {
+                    await PunishmentService.handleExpiry(client, currentPunishment);
+                }
+                this.timers.delete(punishment.id);
+            }, timeUntilExpiry);
+
+            this.timers.set(punishment.id, timer);
+            logTime(`已调度处罚 ${punishment.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
+        } catch (error) {
+            logTime(`调度处罚失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 清理所有定时器
+     */
+    cleanup() {
+        for (const timer of this.timers.values()) {
+            clearTimeout(timer);
+        }
+        this.timers.clear();
+        logTime('已清理所有处罚到期定时器');
+    }
+}
+
+/**
  * 定时任务管理器
  * 用于集中管理所有的定时任务，包括：
  * - 子区分析和清理
@@ -42,19 +230,24 @@ class TaskScheduler {
     constructor() {
         this.timers = new Map(); // 存储定时器ID
         this.tasks = new Map(); // 存储任务配置
+        this.processScheduler = new ProcessScheduler();
+        this.punishmentScheduler = new PunishmentScheduler();
         this.isInitialized = false;
     }
 
     // 初始化任务调度器
-    initialize(client) {
+    async initialize(client) {
         if (this.isInitialized) {
             logTime('任务调度器已经初始化');
             return;
         }
 
+        // 初始化流程和处罚调度器
+        await this.processScheduler.initialize(client);
+        await this.punishmentScheduler.initialize(client);
+
         // 注册各类定时任务
         this.registerAnalysisTasks(client);
-        this.registerPunishmentTasks(client);
         this.registerDatabaseTasks();
 
         this.isInitialized = true;
@@ -191,92 +384,6 @@ class TaskScheduler {
         }
     }
 
-    // 注册处罚系统相关任务
-    registerPunishmentTasks(client) {
-        // 处罚到期检查
-        this.addTask({
-            taskId: 'punishmentCheck',
-            interval: 30 * TIME_UNITS.SECOND,
-            runImmediately: true,
-            task: async () => {
-                try {
-                    const expiredPunishments = await PunishmentModel.handleExpiredPunishments();
-                    for (const punishment of expiredPunishments) {
-                        try {
-                            await PunishmentService.handleExpiry(client, punishment);
-                        } catch (error) {
-                            logTime(`处理处罚到期失败: ${error.message}`, true);
-                        }
-                    }
-                } catch (error) {
-                    logTime(`处理过期处罚失败: ${error.message}`, true);
-                }
-            },
-        });
-
-        // 加载并调度所有未过期的流程
-        this.addTask({
-            taskId: 'processScheduler',
-            interval: 24 * TIME_UNITS.HOUR, // 每24小时重新加载一次，以防遗漏
-            runImmediately: true,
-            task: async () => {
-                try {
-                    // 获取所有未完成的流程
-                    const processes = await ProcessModel.getAllProcesses(false);
-                    for (const process of processes) {
-                        await this.scheduleProcess(process, client);
-                    }
-                    logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
-                } catch (error) {
-                    logTime(`加载和调度流程失败: ${error.message}`, true);
-                }
-            },
-        });
-    }
-
-    /**
-     * 调度单个流程的到期处理
-     * @param {Object} process - 流程记录
-     * @param {Object} client - Discord客户端
-     * @returns {Promise<void>}
-     */
-    async scheduleProcess(process, client) {
-        try {
-            // 检查是否为议事流程
-            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'debate')
-                return;
-
-            // 检查流程状态，如果已经完成则不需要处理到期
-            if (process.status === 'completed') {
-                logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-                return;
-            }
-
-            const now = Date.now();
-            const timeUntilExpiry = process.expireAt - now;
-
-            if (timeUntilExpiry <= 0) {
-                // 已过期，直接处理
-                await CourtService.handleProcessExpiry(process, client);
-            } else {
-                // 设置定时器
-                setTimeout(async () => {
-                    // 在执行到期处理前再次检查流程状态
-                    const currentProcess = await ProcessModel.getProcessById(process.id);
-                    if (currentProcess && currentProcess.status === 'completed') {
-                        logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-                        return;
-                    }
-                    await CourtService.handleProcessExpiry(process, client);
-                }, timeUntilExpiry);
-
-                logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
-            }
-        } catch (error) {
-            logTime(`调度流程失败: ${error.message}`, true);
-        }
-    }
-
     // 执行子区分析和清理任务
     async executeThreadTasks(client, guildConfig, guildId) {
         try {
@@ -304,9 +411,14 @@ class TaskScheduler {
     stopAll() {
         const taskCount = this.timers.size;
 
+        // 清理所有定时器
         for (const timer of this.timers.values()) {
             clearInterval(timer);
         }
+
+        // 清理流程和处罚调度器
+        this.processScheduler.cleanup();
+        this.punishmentScheduler.cleanup();
 
         if (taskCount > 0) {
             logTime(`已停止 ${taskCount} 个定时任务`);
@@ -320,6 +432,16 @@ class TaskScheduler {
     restart(client) {
         this.stopAll();
         this.initialize(client);
+    }
+
+    // 获取流程调度器
+    getProcessScheduler() {
+        return this.processScheduler;
+    }
+
+    // 获取处罚调度器
+    getPunishmentScheduler() {
+        return this.punishmentScheduler;
     }
 }
 

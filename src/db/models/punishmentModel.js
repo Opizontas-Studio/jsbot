@@ -204,38 +204,6 @@ class PunishmentModel {
     }
 
     /**
-     * 处理过期的处罚
-     * @returns {Promise<Array>} 过期的处罚记录数组
-     */
-    static async handleExpiredPunishments() {
-        const now = Date.now();
-        const sql = `
-	        SELECT * FROM punishments 
-	        WHERE status = 'active' 
-	        AND (
-	            (duration > 0 AND createdAt + duration <= ?) OR
-	            (warningDuration > 0 AND createdAt + warningDuration <= ?)
-	        )
-	    `;
-
-        try {
-            const expiredPunishments = await dbManager.safeExecute('all', sql, [now, now]);
-
-            // 处理返回的数据
-            return expiredPunishments.map(punishment => ({
-                ...punishment,
-                keepMessages: Boolean(punishment.keepMessages),
-                duration: Number(punishment.duration),
-                warningDuration: punishment.warningDuration ? Number(punishment.warningDuration) : null,
-                syncedServers: JSON.parse(punishment.syncedServers || '[]'),
-            }));
-        } catch (error) {
-            logTime(`获取过期处罚失败: ${error.message}`, true);
-            return [];
-        }
-    }
-
-    /**
      * 获取所有处罚记录
      * @param {boolean} [includeExpired=false] - 是否包含已过期记录
      * @returns {Promise<Array>} 处罚记录列表

@@ -87,20 +87,18 @@ class PunishmentModel {
 
         const now = Date.now();
         const query = `
-	        SELECT * FROM punishments 
-	        WHERE userId = ?
-	        ${
+            SELECT * FROM punishments 
+            WHERE userId = ?
+            ${
                 !includeExpired
                     ? `
-	            AND (
-	                (status = 'active' AND (duration = -1 OR createdAt + duration > ?))
-	                OR status IN ('appealed', 'revoked')
-	            )
-	        `
+                AND status = 'active'
+                AND (duration = -1 OR createdAt + duration > ?)
+            `
                     : ''
             }
-	        ORDER BY createdAt DESC
-	    `;
+            ORDER BY createdAt DESC
+        `;
 
         const params = [userId];
         if (!includeExpired) {

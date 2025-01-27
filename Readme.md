@@ -1,5 +1,22 @@
 # Discord.js Bot Project
 
+## 使用
+
+将 `config.json` 放在根目录下, 将 `messageIds.json` 放在 `data` 文件夹下
+
+安装 pnpm:
+
+```bash
+npm -g pnpm
+```
+
+用 pnpm 安装依赖包并运行:
+
+```bash
+pnpm install
+pnpm start
+```
+
 ## 项目结构
 
 ```txt

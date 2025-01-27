@@ -16,14 +16,14 @@
             "internalConsoleOptions": "neverOpen"
         },
         {
-            "name": "调试start.js",
+            "name": "调试当前打开的js文件",
             "type": "node",
             "request": "launch",
             "preLaunchTask": "编译",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/start.js",
+            "program": "${file}",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
             ],

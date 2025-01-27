@@ -12,7 +12,6 @@ config.json
 
 # 依赖
 node_modules/
-package-lock.json
 
 # TypeScript 编译结果
 dist/

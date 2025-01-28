@@ -110,42 +110,43 @@ export class RequestQueue {
 
         // 并发处理多个任务
         const tasks = this.queue.splice(0, tasksToProcess);
+
+        // 任务超时机制
         const processPromises = tasks.map(async item => {
             this.currentProcessing++;
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Task timeout')), 10000); // 10秒超时
+            });
 
             try {
-                const result = await item.task();
+                const result = await Promise.race([item.task(), timeoutPromise]);
                 this.stats.processed++;
                 item.resolve(result);
             } catch (error) {
                 if (item.retries < this.maxRetries) {
                     item.retries++;
                     this.stats.retried++;
-                    // 将重试任务添加到队列中，保持原优先级
-                    const index = this.queue.findIndex(qItem => qItem.priority < item.priority);
-                    if (index === -1) {
-                        this.queue.push(item);
-                    } else {
-                        this.queue.splice(index, 0, item);
-                    }
+                    // 将重试任务添加到队列末尾
+                    this.queue.push(item);
                     logTime(`任务重试 (${item.retries}/${this.maxRetries}): ${error.message}`);
                 } else {
                     this.stats.failed++;
                     item.reject(error);
+                    logTime(`任务失败: ${error.message}`, true);
                 }
             } finally {
                 this.currentProcessing--;
-                await delay(50);
+                // 确保即使出错也能继续处理队列
+                setImmediate(() => this.process());
             }
         });
 
-        // 等待所有任务完成
-        await Promise.all(processPromises);
+        // 使用 Promise.allSettled 而不是 Promise.all
+        await Promise.allSettled(processPromises);
 
         // 如果队列中还有任务，继续处理
         if (this.queue.length > 0 && !this.paused) {
-            await delay(0);
-            this.process();
+            setImmediate(() => this.process());
         }
     }
 
@@ -181,12 +182,20 @@ export class RequestQueue {
     async cleanup() {
         this.pause();
 
+        const cleanupTimeout = setTimeout(() => {
+            logTime('清理超时，强制结束所有任务', true);
+            this.queue = [];
+            this.currentProcessing = 0;
+        }, 5000); // 5秒后强制清理
+
         if (this.currentProcessing > 0) {
             logTime(`等待 ${this.currentProcessing} 个正在处理的任务完成...`);
             while (this.currentProcessing > 0) {
                 await delay(100);
             }
         }
+
+        clearTimeout(cleanupTimeout);
 
         if (this.queue.length > 0) {
             logTime(`清理剩余的 ${this.queue.length} 个队列任务`);

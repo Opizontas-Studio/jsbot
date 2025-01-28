@@ -25,8 +25,26 @@ class CourtService {
 
         switch (process.type) {
             case 'appeal': {
+                // 调试输出
+                console.log('\n[DEBUG] Appeal Process Object:');
+                console.log(
+                    JSON.stringify(
+                        {
+                            ...process,
+                            details:
+                                typeof process.details === 'string' ? JSON.parse(process.details) : process.details,
+                            supporters:
+                                typeof process.supporters === 'string'
+                                    ? JSON.parse(process.supporters)
+                                    : process.supporters,
+                        },
+                        null,
+                        2,
+                    ),
+                );
+
                 threadTitle = `${target?.username || '未知用户'}对处罚的上诉`;
-                
+
                 notifyContent = [
                     '上诉辩诉帖已创建，请双方当事人注意查看。',
                     `- 上诉人：<@${target?.id}>`,
@@ -34,17 +52,35 @@ class CourtService {
                 ].join('\n');
                 break;
             }
-            
+
             default: {
                 // 处理以 court_ 开头的类型
                 if (process.type.startsWith('court_')) {
+                    // 调试输出
+                    console.log('\n[DEBUG] Court Process Object:');
+                    console.log(
+                        JSON.stringify(
+                            {
+                                ...process,
+                                details:
+                                    typeof process.details === 'string' ? JSON.parse(process.details) : process.details,
+                                supporters:
+                                    typeof process.supporters === 'string'
+                                        ? JSON.parse(process.supporters)
+                                        : process.supporters,
+                            },
+                            null,
+                            2,
+                        ),
+                    );
+
                     const punishmentType = process.type === 'court_ban' ? '永封处罚' : '禁言处罚';
                     const hasRoleRevoke = process.details?.revokeRoleId;
-                    
+
                     threadTitle = `对 ${target?.username || '未知用户'} 的${punishmentType}${
                         hasRoleRevoke && process.type === 'court_mute' ? '及弹劾' : ''
                     }申请`;
-                    
+
                     notifyContent = [
                         '处罚申请辩诉帖已创建，请双方当事人注意查看。',
                         `- 申请人：<@${executor?.id}>`,
@@ -379,17 +415,17 @@ class CourtService {
         // 获取双方成员对象
         const [executorMember, targetMember] = await Promise.all([
             mainGuild.members.fetch(executorId).catch(() => null),
-            mainGuild.members.fetch(targetId).catch(() => null)
+            mainGuild.members.fetch(targetId).catch(() => null),
         ]);
 
         // 为双方添加辩诉通行身份组
         const addRolePromises = [executorMember, targetMember]
             .filter(member => member) // 过滤掉不存在的成员
-            .map(member => 
+            .map(member =>
                 member.roles
                     .add(guildConfig.courtSystem.appealDebateRoleId, reason)
                     .then(() => logTime(`已添加用户 ${member.user.tag} 的辩诉通行身份组`))
-                    .catch(error => logTime(`添加辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true))
+                    .catch(error => logTime(`添加辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
             );
 
         await Promise.all(addRolePromises);
@@ -416,7 +452,7 @@ class CourtService {
                         guildConfig,
                         process.executorId,
                         process.targetId,
-                        '处罚申请辩诉通行'
+                        '处罚申请辩诉通行',
                     );
 
                     // 更新流程状态为completed
@@ -484,7 +520,7 @@ class CourtService {
                         guildConfig,
                         punishment.executorId,
                         process.targetId,
-                        '上诉申请通过'
+                        '上诉申请通过',
                     );
 
                     // 创建辩诉帖

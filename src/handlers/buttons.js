@@ -168,7 +168,6 @@ export const buttonHandlers = {
         await interaction.showModal(modal);
     },
 
-
     // 翻页按钮处理器
     page_prev: async interaction => {
         const currentPage = parseInt(interaction.message.embeds[0].footer.text.match(/第 (\d+) 页/)[1]);
@@ -235,51 +234,50 @@ async function handleCourtSupport(interaction, type) {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('court_support', interaction.user.id);
         if (cooldownLeft) {
-            await interaction.editReply({
+            return await interaction.editReply({
                 content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
-                flags: ['Ephemeral'],
             });
-            return;
         }
 
         // 检查议事系统是否启用
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
         if (!guildConfig?.courtSystem?.enabled) {
-            await interaction.editReply({
+            return await interaction.editReply({
                 content: '❌ 此服务器未启用议事系统',
-                flags: ['Ephemeral'],
             });
-            return;
         }
 
         // 检查是否为议员
         const member = await interaction.guild.members.fetch(interaction.user.id);
         if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
-            await interaction.editReply({
+            return await interaction.editReply({
                 content: '❌ 只有议员可以参与议事投票',
-                flags: ['Ephemeral'],
             });
-            return;
         }
 
         // 解析按钮ID获取目标用户ID
         const [, , targetId] = interaction.customId.split('_');
 
         // 获取或创建议事流程
-        const { process, error } = await CourtService.getOrCreateProcess(interaction.message, targetId, type, guildConfig);
+        const { process, error } = await CourtService.getOrCreateProcess(
+            interaction.message,
+            targetId,
+            type,
+            guildConfig,
+        );
 
         if (error) {
-            await interaction.editReply({
+            return await interaction.editReply({
                 content: `❌ ${error}`,
             });
-            return;
         }
 
         // 使用CourtService添加支持者
-        const { process: updatedProcess, supportCount, replyContent } = await CourtService.addSupporter(
-            interaction.message.id,
-            interaction.user.id,
-        );
+        const {
+            process: updatedProcess,
+            supportCount,
+            replyContent,
+        } = await CourtService.addSupporter(interaction.message.id, interaction.user.id);
 
         let finalReplyContent = replyContent;
 
@@ -293,10 +291,9 @@ async function handleCourtSupport(interaction, type) {
                 );
 
                 if (completeError) {
-                    await interaction.editReply({
+                    return await interaction.editReply({
                         content: `❌ ${completeError}`,
                     });
-                    return;
                 }
 
                 // 更新消息
@@ -311,10 +308,9 @@ async function handleCourtSupport(interaction, type) {
                 }
             } catch (error) {
                 logTime(`处理议事完成失败: ${error.message}`, true);
-                await interaction.editReply({
+                return await interaction.editReply({
                     content: '❌ 处理议事完成时出错，请稍后重试',
                 });
-                return;
             }
         } else {
             // 更新消息
@@ -322,8 +318,8 @@ async function handleCourtSupport(interaction, type) {
             await CourtService.updateCourtMessage(message, updatedProcess);
         }
 
-        // 发送确认消息
-        await interaction.editReply({
+        // 发送最终确认消息
+        return await interaction.editReply({
             content: finalReplyContent,
         });
     } catch (error) {
@@ -334,9 +330,7 @@ async function handleCourtSupport(interaction, type) {
                 flags: ['Ephemeral'],
             });
         } else {
-            await interaction.editReply({
-                content: '❌ 处理支持请求时出错，请稍后重试',
-            });
+            logTime(`处理支持请求时出错: ${error.message}`, true);
         }
     }
 }
@@ -360,9 +354,9 @@ async function handleAppealButton(interaction, punishmentId) {
 
         // 获取处罚记录
         const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-        
+
         // 移除上诉按钮的通用函数
-        const removeAppealButton = async (errorMessage) => {
+        const removeAppealButton = async errorMessage => {
             try {
                 // 先尝试获取用户的DM channel
                 const dmChannel = await interaction.user.createDM();
@@ -371,7 +365,7 @@ async function handleAppealButton(interaction, punishmentId) {
                         const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
                         if (originalMessage) {
                             await originalMessage.edit({
-                                components: [] // 清空所有按钮
+                                components: [], // 清空所有按钮
                             });
                         }
                     } catch (error) {

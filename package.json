@@ -4,7 +4,8 @@
     "main": "dist/index.js",
     "type": "module",
     "scripts": {
-        "start": "pnpm exec rimraf dist && pnpm exec tsc -p tsconfig.json && node dist/index.js",
+        "build": "pnpm exec rimraf dist && pnpm exec tsc -p tsconfig.json",
+        "start": "pnpm run build && node dist/index.js",
         "test": "pnpm exec jest -c=jest.config.js --no-cache --passWithNoTests"
     },
     "keywords": [],

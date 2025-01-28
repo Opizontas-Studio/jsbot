@@ -115,7 +115,7 @@ export class RequestQueue {
         const processPromises = tasks.map(async item => {
             this.currentProcessing++;
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Task timeout')), 10000); // 10秒超时
+                setTimeout(() => reject(new Error('Task timeout')), 120000); // 120秒超时
             });
 
             try {

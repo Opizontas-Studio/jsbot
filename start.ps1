@@ -37,7 +37,7 @@ function Stop-Bot {
 
 function Build-TypeScript {
     Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Building TypeScript files..."
-    $buildProcess = Start-Process cmd -ArgumentList "/c npm run build" -PassThru -NoNewWindow -Wait -WorkingDirectory $scriptPath
+    $buildProcess = Start-Process cmd -ArgumentList "/c pnpm run build" -PassThru -NoNewWindow -Wait -WorkingDirectory $scriptPath
     if ($buildProcess.ExitCode -ne 0) {
         throw "TypeScript build failed with exit code $($buildProcess.ExitCode)"
     }

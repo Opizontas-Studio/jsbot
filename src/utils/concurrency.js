@@ -1,4 +1,3 @@
-import { WebSocketShardStatus } from 'discord.js';
 import { logTime } from './logger.js';
 
 // 延迟函数
@@ -18,48 +17,6 @@ export class RequestQueue {
             processed: 0,
             failed: 0,
         };
-        this.paused = false;
-        this.shardStatus = new Map();
-        this.validStates = new Set([
-            WebSocketShardStatus.Idle,
-            WebSocketShardStatus.Connecting,
-            WebSocketShardStatus.Resuming,
-            WebSocketShardStatus.Ready,
-        ]);
-    }
-
-    // 设置分片状态
-    setShardStatus(status) {
-        if (!this.validStates.has(status)) {
-            throw new Error(`无效的分片状态: ${status}`);
-        }
-
-        const oldStatus = this.shardStatus.get(0);
-        if (oldStatus === status) {
-            return;
-        }
-
-        this.shardStatus.set(0, status);
-
-        // 根据状态执行相应操作
-        switch (status) {
-            case WebSocketShardStatus.Idle:
-                this.pause();
-                break;
-            case WebSocketShardStatus.Ready:
-                this.resume();
-                break;
-            case WebSocketShardStatus.Connecting:
-            case WebSocketShardStatus.Resuming:
-                // 短暂暂停后自动恢复
-                this.pause();
-                setTimeout(() => {
-                    if (this.shardStatus.get(0) === status) {
-                        this.resume();
-                    }
-                }, 2000);
-                break;
-        }
     }
 
     // 添加任务到队列
@@ -70,6 +27,7 @@ export class RequestQueue {
                 priority,
                 resolve,
                 reject,
+                timestamp: Date.now(),
             };
 
             // 根据优先级插入队列
@@ -86,10 +44,6 @@ export class RequestQueue {
 
     // 处理队列中的任务
     async process() {
-        if (this.paused) {
-            return;
-        }
-
         // 检查是否可以处理更多任务
         const availableSlots = this.maxConcurrent - this.currentProcessing;
         if (availableSlots <= 0) {
@@ -121,7 +75,7 @@ export class RequestQueue {
             } finally {
                 this.currentProcessing--;
                 // 继续处理队列
-                if (this.queue.length > 0 && !this.paused) {
+                if (this.queue.length > 0) {
                     this.process();
                 }
             }
@@ -130,38 +84,8 @@ export class RequestQueue {
         await Promise.allSettled(processPromises);
     }
 
-    // 暂停请求队列
-    pause() {
-        if (!this.paused) {
-            this.paused = true;
-            logTime('请求队列已暂停');
-        }
-    }
-
-    // 恢复请求队列
-    resume() {
-        if (this.paused) {
-            this.paused = false;
-            logTime('请求队列已恢复');
-            if (this.queue.length > 0) {
-                this.process();
-            }
-        }
-    }
-
-    // 获取统计信息
-    getStats() {
-        return {
-            ...this.stats,
-            queueLength: this.queue.length,
-            currentProcessing: this.currentProcessing,
-        };
-    }
-
     // 清理请求队列
     async cleanup() {
-        this.pause();
-
         if (this.currentProcessing > 0) {
             logTime(`等待 ${this.currentProcessing} 个正在处理的任务完成...`);
             while (this.currentProcessing > 0) {
@@ -179,7 +103,6 @@ export class RequestQueue {
 
         this.processing = false;
         this.currentProcessing = 0;
-        this.shardStatus.clear();
         logTime('请求队列资源已完全清理');
     }
 }

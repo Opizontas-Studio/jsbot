@@ -1,7 +1,6 @@
 import { Events, WebSocketShardStatus } from 'discord.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { createApplicationMessage } from '../services/roleApplication.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
 // 添加重连计数器和时间记录
@@ -20,20 +19,11 @@ export default {
         // 初始化身份组申请消息
         await createApplicationMessage(client);
 
-        // 初始化分片状态
-        globalRequestQueue.setShardStatus(WebSocketShardStatus.Ready);
-
         // 修改分片状态处理函数
         const handleShardStatus = status => {
-            // 清除之前的超时
-            if (reconnectionTimeout) {
-                clearTimeout(reconnectionTimeout);
-                reconnectionTimeout = null;
-            }
-
             let statusMessage = '';
 
-            // 根据WebSocketShardStatus枚举设置消息
+            // 只用于日志记录
             switch (status) {
                 case WebSocketShardStatus.Idle:
                     statusMessage = '分片状态: 空闲';
@@ -54,11 +44,8 @@ export default {
                     break;
             }
 
-            // 状态信息
+            // 记录状态变化
             logTime(statusMessage);
-
-            // 设置请求队列状态
-            globalRequestQueue.setShardStatus(status);
         };
 
         // 事件监听器

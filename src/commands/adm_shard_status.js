@@ -1,19 +1,22 @@
-import { SlashCommandBuilder, WebSocketShardStatus } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 添加状态映射函数
-const getReadableStatus = status => {
+const getReadableStatus = client => {
+    // 直接从 client.ws 获取状态
+    const status = client.ws.status;
+
     switch (status) {
-        case WebSocketShardStatus.Idle:
-            return '🔄 空闲中';
-        case WebSocketShardStatus.Connecting:
+        case 0: // WebSocket.CONNECTING
             return '🌐 正在连接';
-        case WebSocketShardStatus.Resuming:
-            return '⏳ 正在恢复会话';
-        case WebSocketShardStatus.Ready:
+        case 1: // WebSocket.OPEN
             return '✅ 已就绪';
+        case 2: // WebSocket.CLOSING
+            return '🔄 正在关闭';
+        case 3: // WebSocket.CLOSED
+            return '⛔ 已断开';
         default:
             return '❓ 未知状态';
     }
@@ -32,9 +35,7 @@ export default {
             const client = interaction.client;
             let ping = Math.round(client.ws.ping);
             const guildCount = client.guilds.cache.size;
-            const rawStatus = globalRequestQueue.shardStatus.get(0);
-            const status = getReadableStatus(rawStatus);
-            const queueStats = globalRequestQueue.getStats();
+            const status = getReadableStatus(client);
 
             // 如果延迟为-1，等待后再获取
             if (ping === -1) {
@@ -42,7 +43,11 @@ export default {
                 ping = Math.round(client.ws.ping);
             }
 
-            // 只执行一次回复
+            // 获取队列信息
+            const queueLength = globalRequestQueue.queue.length;
+            const currentProcessing = globalRequestQueue.currentProcessing;
+            const { processed, failed } = globalRequestQueue.stats;
+
             await interaction.editReply({
                 embeds: [
                     {
@@ -66,16 +71,11 @@ export default {
                             },
                             {
                                 name: '队列状态',
-                                value: globalRequestQueue.paused ? '🔴 已暂停' : '🟢 运行中',
-                                inline: true,
-                            },
-                            {
-                                name: '队列统计',
                                 value: [
-                                    `📥 等待处理: ${queueStats.queueLength}`,
-                                    `⚡ 正在处理: ${queueStats.currentProcessing - 1}`,
-                                    `✅ 已完成: ${queueStats.processed}`,
-                                    `❌ 失败: ${queueStats.failed}`,
+                                    `📥 等待处理: ${queueLength}`,
+                                    `⚡ 正在处理: ${currentProcessing}`,
+                                    `✅ 已完成: ${processed}`,
+                                    `❌ 失败: ${failed}`,
                                 ].join('\n'),
                                 inline: false,
                             },

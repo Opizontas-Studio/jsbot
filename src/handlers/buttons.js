@@ -1,4 +1,3 @@
-import { DiscordAPIError } from '@discordjs/rest';
 import {
     ActionRowBuilder,
     ButtonBuilder,
@@ -10,7 +9,7 @@ import {
 } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import CourtService from '../services/courtService.js';
-import { handleDiscordError } from '../utils/helper.js';
+import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { checkAppealEligibility, checkPunishmentStatus } from '../utils/punishmentHelper.js';
 
@@ -227,7 +226,6 @@ export const buttonHandlers = {
  * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate')
  */
 async function handleCourtSupport(interaction, type) {
-    // 先发送一个延迟响应
     await interaction.deferReply({ flags: ['Ephemeral'] });
 
     try {
@@ -323,15 +321,7 @@ async function handleCourtSupport(interaction, type) {
             content: finalReplyContent,
         });
     } catch (error) {
-        logTime(`处理议事支持失败: ${error.message}`, true);
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({
-                content: '❌ 处理支持请求时出错，请稍后重试',
-                flags: ['Ephemeral'],
-            });
-        } else {
-            logTime(`处理支持请求时出错: ${error.message}`, true);
-        }
+        await handleInteractionError(interaction, error, 'court_support');
     }
 }
 
@@ -427,11 +417,7 @@ async function handleAppealButton(interaction, punishmentId) {
 
         await interaction.showModal(modal);
     } catch (error) {
-        logTime(`处理上诉按钮点击失败: ${error.message}`, true);
-        await interaction.reply({
-            content: '❌ 处理上诉请求时出错，请稍后重试',
-            flags: ['Ephemeral'],
-        });
+        await handleInteractionError(interaction, error, 'appeal_button');
     }
 }
 
@@ -440,47 +426,37 @@ async function handleAppealButton(interaction, punishmentId) {
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
  */
 export async function handleButton(interaction) {
-    // 如果是确认按钮（以confirm_开头），直接返回
-    if (interaction.customId.startsWith('confirm_')) {
-        return;
-    }
-
-    // 处理支持按钮
-    if (interaction.customId.startsWith('support_')) {
-        const [action, type] = interaction.customId.split('_');
-        const handler = buttonHandlers[`${action}_${type}`];
-        if (handler) {
-            await handler(interaction);
+    try {
+        // 如果是确认按钮（以confirm_开头），直接返回
+        if (interaction.customId.startsWith('confirm_')) {
             return;
         }
-    }
 
-    // 处理上诉按钮
-    if (interaction.customId.startsWith('appeal_')) {
-        const punishmentId = interaction.customId.split('_')[1];
-        await handleAppealButton(interaction, punishmentId);
-        return;
-    }
+        // 处理支持按钮
+        if (interaction.customId.startsWith('support_')) {
+            const [action, type] = interaction.customId.split('_');
+            const handler = buttonHandlers[`${action}_${type}`];
+            if (handler) {
+                await handler(interaction);
+                return;
+            }
+        }
 
-    const handler = buttonHandlers[interaction.customId];
-    if (!handler) {
-        logTime(`未找到按钮处理器: ${interaction.customId}`, true);
-        return;
-    }
+        // 处理上诉按钮
+        if (interaction.customId.startsWith('appeal_')) {
+            const punishmentId = interaction.customId.split('_')[1];
+            await handleAppealButton(interaction, punishmentId);
+            return;
+        }
 
-    try {
+        const handler = buttonHandlers[interaction.customId];
+        if (!handler) {
+            logTime(`未找到按钮处理器: ${interaction.customId}`, true);
+            return;
+        }
+
         await handler(interaction);
     } catch (error) {
-        const errorMessage =
-            error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试。';
-
-        logTime(`按钮处理出错 [${interaction.customId}]: ${errorMessage}`, true);
-
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({
-                content: `❌ ${errorMessage}`,
-                flags: ['Ephemeral'],
-            });
-        }
+        await handleInteractionError(interaction, error, 'button');
     }
 }

@@ -149,7 +149,6 @@ export default {
 
             logTime(`用户 ${interaction.user.tag} ${actionDesc}了帖子 ${thread.name}`);
         } catch (error) {
-            logTime(`管理帖子时出错: ${error}`, true);
             await handleCommandError(interaction, error, '管理帖子');
         }
     },

@@ -2,7 +2,7 @@ import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { handleCommandError } from '../utils/helper.js';
+import { handleCommandError, validateImageUrl } from '../utils/helper.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
@@ -24,6 +24,9 @@ export default {
                 )
                 .addStringOption(option =>
                     option.setName('附加警告期').setDescription('附加警告时长 (例如: 30d)').setRequired(false),
+                )
+                .addStringOption(option =>
+                    option.setName('图片链接').setDescription('相关证据的图片链接 (可选)').setRequired(false),
                 ),
         )
         .addSubcommand(subcommand =>
@@ -59,6 +62,7 @@ export default {
         const subcommand = interaction.options.getSubcommand();
         const target = interaction.options.getUser('目标');
         const reason = interaction.options.getString('理由');
+        const imageUrl = interaction.options.getString('图片链接');
 
         try {
             // 检查目标用户是否为管理员
@@ -69,6 +73,18 @@ export default {
                     flags: ['Ephemeral'],
                 });
                 return;
+            }
+
+            // 在获取图片链接后立即验证
+            if (imageUrl) {
+                const { isValid, error } = validateImageUrl(imageUrl);
+                if (!isValid) {
+                    await interaction.editReply({
+                        content: `❌ ${error}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
             }
 
             if (subcommand === '禁言') {
@@ -132,6 +148,7 @@ export default {
                         ]
                             .filter(Boolean)
                             .join('\n'),
+                        image: imageUrl ? { url: imageUrl } : undefined,
                     },
                     onConfirm: async confirmation => {
                         // 更新交互消息
@@ -187,6 +204,7 @@ export default {
                                     footer: {
                                         text: `申请人：${interaction.user.tag}`,
                                     },
+                                    image: imageUrl ? { url: imageUrl } : undefined,
                                 },
                             ],
                             components: [
@@ -222,7 +240,9 @@ export default {
 
                         // 调度流程到期处理
                         if (process) {
-                            await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
+                            await globalTaskScheduler
+                                .getProcessScheduler()
+                                .scheduleProcess(process, interaction.client);
                         }
 
                         // 发送通知到当前频道
@@ -283,6 +303,7 @@ export default {
                             '',
                             '点击下方按钮确认提交到议事区',
                         ].join('\n'),
+                        image: imageUrl ? { url: imageUrl } : undefined,
                     },
                     onConfirm: async confirmation => {
                         // 更新交互消息
@@ -324,6 +345,7 @@ export default {
                                     footer: {
                                         text: `申请人：${interaction.user.tag}`,
                                     },
+                                    image: imageUrl ? { url: imageUrl } : undefined,
                                 },
                             ],
                             components: [
@@ -357,7 +379,9 @@ export default {
 
                         // 调度流程到期处理
                         if (process) {
-                            await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
+                            await globalTaskScheduler
+                                .getProcessScheduler()
+                                .scheduleProcess(process, interaction.client);
                         }
 
                         // 发送通知到当前频道

@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleCommandError } from '../utils/helper.js';
+import { handleCommandError, validateImageUrl } from '../utils/helper.js';
 
 // 定义颜色映射
 const COLORS = {
@@ -48,6 +48,18 @@ export default {
             const description = interaction.options.getString('内容');
             const imageUrl = interaction.options.getString('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
+
+            // 验证图片链接
+            if (imageUrl) {
+                const { isValid, error } = validateImageUrl(imageUrl);
+                if (!isValid) {
+                    await interaction.editReply({
+                        content: `❌ ${error}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+            }
 
             const embed = {
                 color: COLORS[selectedColor],

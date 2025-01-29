@@ -275,6 +275,43 @@ export const handleCommandError = async (interaction, error, commandName) => {
 };
 
 /**
+ * 统一处理非命令交互错误响应
+ * @param {Interaction} interaction - Discord交互对象
+ * @param {Error} error - 错误对象
+ * @param {string} interactionType - 交互类型（如：'button', 'modal'）
+ */
+export const handleInteractionError = async (interaction, error, interactionType) => {
+    // 获取错误消息
+    const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
+
+    // 记录详细错误日志
+    logTime(`${interactionType}交互出错: ${errorMessage}`, true);
+
+    try {
+        // 用户可见的错误消息
+        const userMessage =
+            error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试';
+
+        // 根据交互状态发送响应
+        if (interaction.deferred) {
+            await interaction.editReply({
+                content: `❌ ${userMessage}`,
+                flags: ['Ephemeral'],
+            });
+        } else if (!interaction.replied) {
+            await interaction.reply({
+                content: `❌ ${userMessage}`,
+                flags: ['Ephemeral'],
+            });
+        }
+        // 如果已经replied但不是deferred，只记录日志
+    } catch (replyError) {
+        // 如果发送错误响应也失败，记录额外日志
+        logTime(`发送错误响应失败: ${replyError.message}`, true);
+    }
+};
+
+/**
  * 加载命令文件
  * @param {string} commandsDir - 命令文件目录的路径
  * @param {string[]} [excludeFiles=[]] - 要排除的文件名数组
@@ -342,3 +379,34 @@ export const getVersionInfo = () => {
         return null;
     }
 };
+
+/**
+ * 验证图片链接
+ * @param {string} url - 图片链接
+ * @returns {{isValid: boolean, error: string|null}} 验证结果
+ */
+export function validateImageUrl(url) {
+    if (!url) return { isValid: true, error: null }; // 允许为空
+
+    try {
+        const urlObj = new URL(url);
+
+        // 检查协议
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+            return { isValid: false, error: '图片链接必须使用 http 或 https 协议' };
+        }
+
+        // 检查文件扩展名
+        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+        if (!allowedExtensions.some(ext => urlObj.pathname.toLowerCase().endsWith(ext))) {
+            return {
+                isValid: false,
+                error: '图片链接必须以 .jpg、.jpeg、.png、.gif 或 .webp 结尾',
+            };
+        }
+
+        return { isValid: true, error: null };
+    } catch (error) {
+        return { isValid: false, error: '无效的图片链接格式' };
+    }
+}

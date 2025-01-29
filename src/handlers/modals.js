@@ -1,9 +1,8 @@
-import { DiscordAPIError } from '@discordjs/rest';
 import { ChannelType } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { handleDiscordError } from '../utils/helper.js';
+import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { checkAppealEligibility, checkPunishmentStatus, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 import { globalTaskScheduler } from './scheduler.js';
@@ -227,7 +226,11 @@ export const modalHandlers = {
                             },
                             {
                                 name: '处罚详情',
-                                value: `${punishment.type === 'ban' ? '永久封禁' : `禁言 ${formatPunishmentDuration(punishment.duration)}`}`,
+                                value: `${
+                                    punishment.type === 'ban'
+                                        ? '永久封禁'
+                                        : `禁言 ${formatPunishmentDuration(punishment.duration)}`
+                                }`,
                                 inline: true,
                             },
                             {
@@ -293,7 +296,7 @@ export const modalHandlers = {
                             if (originalMessage) {
                                 // 更新消息，移除按钮组件
                                 await originalMessage.edit({
-                                    components: [] // 清空所有按钮
+                                    components: [], // 清空所有按钮
                                 });
                             }
                         } catch (error) {
@@ -347,19 +350,6 @@ export async function handleModal(interaction) {
     try {
         await handler(interaction);
     } catch (error) {
-        logTime(
-            `模态框处理出错 [${interaction.customId}]: ${
-                error instanceof DiscordAPIError ? handleDiscordError(error) : error
-            }`,
-            true,
-        );
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.editReply({
-                content: `❌ ${
-                    error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试。'
-                }`,
-                flags: ['Ephemeral'],
-            });
-        }
+        await handleInteractionError(interaction, error, 'modal');
     }
 }

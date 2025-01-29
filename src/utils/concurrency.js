@@ -14,11 +14,9 @@ export class RequestQueue {
         this.processing = false;
         this.maxConcurrent = 5;
         this.currentProcessing = 0;
-        this.maxRetries = 2; // 重试次数
         this.stats = {
             processed: 0,
             failed: 0,
-            retried: 0,
         };
         this.paused = false;
         this.shardStatus = new Map();
@@ -72,7 +70,6 @@ export class RequestQueue {
                 priority,
                 resolve,
                 reject,
-                retries: 0,
             };
 
             // 根据优先级插入队列
@@ -111,43 +108,26 @@ export class RequestQueue {
         // 并发处理多个任务
         const tasks = this.queue.splice(0, tasksToProcess);
 
-        // 任务超时机制
         const processPromises = tasks.map(async item => {
             this.currentProcessing++;
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Task timeout')), 120000); // 120秒超时
-            });
-
             try {
-                const result = await Promise.race([item.task(), timeoutPromise]);
+                const result = await item.task();
                 this.stats.processed++;
                 item.resolve(result);
             } catch (error) {
-                if (item.retries < this.maxRetries) {
-                    item.retries++;
-                    this.stats.retried++;
-                    // 将重试任务添加到队列末尾
-                    this.queue.push(item);
-                    logTime(`任务重试 (${item.retries}/${this.maxRetries}): ${error.message}`);
-                } else {
-                    this.stats.failed++;
-                    item.reject(error);
-                    logTime(`任务失败: ${error.message}`, true);
-                }
+                this.stats.failed++;
+                item.reject(error);
+                logTime(`队列任务失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${error.message}`, true);
             } finally {
                 this.currentProcessing--;
-                // 确保即使出错也能继续处理队列
-                setImmediate(() => this.process());
+                // 继续处理队列
+                if (this.queue.length > 0 && !this.paused) {
+                    this.process();
+                }
             }
         });
 
-        // 使用 Promise.allSettled 而不是 Promise.all
         await Promise.allSettled(processPromises);
-
-        // 如果队列中还有任务，继续处理
-        if (this.queue.length > 0 && !this.paused) {
-            setImmediate(() => this.process());
-        }
     }
 
     // 暂停请求队列
@@ -182,20 +162,12 @@ export class RequestQueue {
     async cleanup() {
         this.pause();
 
-        const cleanupTimeout = setTimeout(() => {
-            logTime('清理超时，强制结束所有任务', true);
-            this.queue = [];
-            this.currentProcessing = 0;
-        }, 5000); // 5秒后强制清理
-
         if (this.currentProcessing > 0) {
             logTime(`等待 ${this.currentProcessing} 个正在处理的任务完成...`);
             while (this.currentProcessing > 0) {
                 await delay(100);
             }
         }
-
-        clearTimeout(cleanupTimeout);
 
         if (this.queue.length > 0) {
             logTime(`清理剩余的 ${this.queue.length} 个队列任务`);
@@ -249,6 +221,10 @@ class RateLimitedBatchProcessor {
             windowMs: 1000,
             requests: [],
         };
+
+        this.isInterrupted = false;
+        this.lastRequestTime = null;
+        this.requestTimeout = 30000; // 30秒超时
     }
 
     /**
@@ -297,6 +273,16 @@ class RateLimitedBatchProcessor {
         }
     }
 
+    // 添加中断方法
+    interrupt() {
+        this.isInterrupted = true;
+    }
+
+    // 重置中断状态
+    reset() {
+        this.isInterrupted = false;
+    }
+
     /**
      * 处理批量任务
      * @param {Array} items - 要处理的项目数组
@@ -306,6 +292,7 @@ class RateLimitedBatchProcessor {
      * @returns {Promise<Array>} 处理结果数组
      */
     async processBatch(items, processor, progressCallback = null, taskType = 'default') {
+        this.reset();
         const limiter = this.getLimiter(taskType);
         const results = new Array(items.length);
         let processedCount = 0;
@@ -319,35 +306,69 @@ class RateLimitedBatchProcessor {
             batches.push(items.slice(i, i + batchSize));
         }
 
-        // 并发处理每个批次
-        await Promise.all(
-            batches.map(async (batch, batchIndex) => {
-                for (const item of batch) {
-                    const index = batchIndex * batchSize + batch.indexOf(item);
+        // 使用较小的并发组处理批次
+        for (let i = 0; i < batches.length; i += limiter.concurrency) {
+            if (this.isInterrupted) {
+                logTime(`批处理在组 ${i}/${batches.length} 处提前结束`);
+                return results;
+            }
 
-                    // 等待速率限制
-                    await this.waitForRateLimit(limiter);
+            const currentBatches = batches.slice(i, i + limiter.concurrency);
+            await Promise.all(
+                currentBatches.map(async (batch, groupIndex) => {
+                    const batchIndex = i + groupIndex;
+                    for (const item of batch) {
+                        if (this.isInterrupted) {
+                            logTime(`批处理在组 ${i} 批次 ${groupIndex} 处跳出`);
+                            return;
+                        }
 
-                    // 执行任务
-                    try {
-                        results[index] = await processor(item);
-                    } catch (error) {
-                        results[index] = null;
-                        throw error;
+                        await this.waitForRateLimit(limiter);
+
+                        try {
+                            this.lastRequestTime = Date.now();
+                            results[batchIndex * batchSize + batch.indexOf(item)] = await processor(item);
+                        } catch (error) {
+                            results[batchIndex * batchSize + batch.indexOf(item)] = null;
+
+                            if (
+                                error.code === 'ECONNRESET' ||
+                                error.code === 'ETIMEDOUT' ||
+                                error.code === 'EPIPE' ||
+                                error.code === 'ENOTFOUND' ||
+                                error.code === 'ECONNREFUSED' ||
+                                error.name === 'DiscordAPIError' ||
+                                error.name === 'HTTPError' ||
+                                Date.now() - this.lastRequestTime > this.requestTimeout
+                            ) {
+                                logTime(
+                                    `批处理因错误中断: ${error.name}${error.code ? ` (${error.code})` : ''} - ${
+                                        error.message
+                                    }`,
+                                );
+                                this.interrupt();
+                                return;
+                            }
+                            logTime(
+                                `批处理遇到未处理的错误: ${error.name}${error.code ? ` (${error.code})` : ''} - ${
+                                    error.message
+                                }`,
+                                true,
+                            );
+                            throw error;
+                        }
+
+                        processedCount++;
+                        if (progressCallback) {
+                            const progress = Math.min(100, (processedCount / totalItems) * 100);
+                            await progressCallback(progress, processedCount, totalItems);
+                        }
+
+                        await delay(10);
                     }
-
-                    // 更新进度
-                    processedCount++;
-                    if (progressCallback) {
-                        const progress = Math.min(100, (processedCount / totalItems) * 100);
-                        await progressCallback(progress, processedCount, totalItems);
-                    }
-
-                    // 添加小延迟避免请求过于密集
-                    await delay(10);
-                }
-            }),
-        );
+                }),
+            );
+        }
 
         return results;
     }

@@ -452,7 +452,12 @@ class TaskScheduler {
                     try {
                         await this.executeThreadTasks(client, guildConfig, guildId);
                     } catch (error) {
-                        logTime(`服务器 ${guildId} 定时任务执行出错: ${error}`, true);
+                        logTime(
+                            `服务器 ${guildId} 的定时任务执行失败: ${error.name}${
+                                error.code ? ` (${error.code})` : ''
+                            } - ${error.message}`,
+                            true,
+                        );
                     }
                 },
             });
@@ -478,7 +483,12 @@ class TaskScheduler {
                 }
             }, 0);
         } catch (error) {
-            logTime(`服务器 ${guildId} 的定时任务执行失败: ${error.message}`, true);
+            logTime(
+                `服务器 ${guildId} 的定时任务执行失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${
+                    error.message
+                }`,
+                true,
+            );
         }
     }
 

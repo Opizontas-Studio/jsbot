@@ -169,30 +169,33 @@ function setupProcessHandlers() {
     process.on('uncaughtException', async error => {
         logTime('未捕获的异常:', true);
         console.error(error);
-        console.error('错误堆栈:', error.stack);
 
-        // 检查是否是网络相关错误
-        if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED') {
-            logTime('检测到网络错误，尝试恢复请求队列...', true);
-
+        // 扩展错误处理条件
+        if (
+            // 网络错误
+            error.code === 'ECONNRESET' ||
+            error.code === 'ETIMEDOUT' ||
+            error.code === 'EPIPE' ||
+            error.code === 'ENOTFOUND' ||
+            error.code === 'ECONNREFUSED' ||
+            // Discord API错误
+            error.name === 'DiscordAPIError' ||
+            error.name === 'HTTPError' ||
+            // WebSocket错误
+            error.name === 'WebSocketError'
+        ) {
+            logTime('检测到API或网络错误，尝试清理...', true);
             try {
-                // 重置请求队列状态
+                // 中断批处理器
+                if (globalBatchProcessor) {
+                    globalBatchProcessor.interrupt();
+                }
+                // 清理请求队列
                 if (globalRequestQueue) {
                     await globalRequestQueue.cleanup();
-                    // 短暂延迟后恢复队列
-                    setTimeout(() => {
-                        globalRequestQueue.resume();
-                        logTime('请求队列已恢复');
-                    }, 5000);
-                }
-
-                // 如果是致命错误才退出
-                if (error.code === 'ECONNREFUSED') {
-                    await gracefulShutdown('网络连接失败');
                 }
             } catch (cleanupError) {
-                logTime(`清理请求队列失败: ${cleanupError.message}`, true);
-                await gracefulShutdown('清理失败');
+                logTime(`清理失败: ${cleanupError.message}`, true);
             }
         }
     });
@@ -203,20 +206,16 @@ function setupProcessHandlers() {
         console.error('Promise:', promise);
         console.error('原因:', reason);
 
-        // 如果是网络错误，尝试恢复请求队列
+        // 如果是网络错误，尝试清理请求队列
         if (reason instanceof Error && (reason.code === 'ECONNRESET' || reason.code === 'ETIMEDOUT')) {
-            logTime('检测到网络错误，尝试恢复请求队列...', true);
+            logTime('检测到网络错误，尝试清理请求队列...', true);
 
             try {
                 if (globalRequestQueue) {
                     await globalRequestQueue.cleanup();
-                    setTimeout(() => {
-                        globalRequestQueue.resume();
-                        logTime('请求队列已恢复');
-                    }, 5000);
                 }
             } catch (error) {
-                logTime(`恢复请求队列失败: ${error.message}`, true);
+                logTime(`清理请求队列失败: ${error.message}`, true);
             }
         }
     });

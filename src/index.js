@@ -22,7 +22,6 @@ const config = JSON.parse(readFileSync(join(process.cwd(), 'config.json'), 'utf8
 
 // 初始化客户端
 const client = new Client({
-    shards: 'auto', // 启用内部分片
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
@@ -30,51 +29,13 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.DirectMessages,
     ],
-    // 重连配置
-    presence: {
-        status: 'online',
-    },
-    // 重连策略
-    sweepers: {
-        // 清理过期的消息和线程
-        messages: {
-            interval: 3600, // 1小时清理一次
-            lifetime: 7200, // 保留2小时
-        },
-        threads: {
-            interval: 3600,
-            lifetime: 7200,
-        },
-    },
     makeCache: Options.cacheWithLimits({
         MessageManager: {
-            maxSize: 200,
+            maxSize: 200, // 消息缓存配置
         },
     }),
     failIfNotExists: false,
 });
-
-// 监控速率限制和API响应
-client.rest
-    .on('rateLimited', rateLimitData => {
-        logTime(
-            `速率超限: • 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${
-                rateLimitData.timeToReset
-            }ms - 全局: ${rateLimitData.global ? '是' : '否'} - 限制: ${rateLimitData.limit || '未知'}`,
-            true,
-        );
-    })
-    .on('response', (request, response) => {
-        if (response.status === 429) {
-            // 429是速率限制状态码
-            logTime(
-                `API受限: • 路由: ${request.route} - 方法: ${request.method} - 状态: ${
-                    response.status
-                } - 重试延迟: ${response.headers.get('retry-after')}ms`,
-                true,
-            );
-        }
-    });
 
 // 初始化命令集合和GuildManager
 client.commands = new Collection();
@@ -117,109 +78,118 @@ async function loadEvents() {
     logTime(`已加载 ${loadedEvents} 个事件处理器`);
 }
 
-// 设置进程事件处理
-function setupProcessHandlers() {
-    // 优雅关闭处理函数
-    const gracefulShutdown = async signal => {
-        logTime(`收到${signal}信号，正在关闭`);
+// 进程错误处理函数
+const handleProcessError = async (error, source = '') => {
+    const errorDetails = error instanceof Error ? error : new Error(String(error));
+    logTime(`${source ? `[${source}] ` : ''}发生错误:`, true);
+    console.error(errorDetails);
 
+    // 统一的网络错误处理
+    if (
+        errorDetails.code === 'ECONNRESET' ||
+        errorDetails.code === 'ETIMEDOUT' ||
+        errorDetails.code === 'EPIPE' ||
+        errorDetails.code === 'ENOTFOUND' ||
+        errorDetails.code === 'ECONNREFUSED' ||
+        errorDetails.name === 'DiscordAPIError' ||
+        errorDetails.name === 'HTTPError' ||
+        errorDetails.name === 'WebSocketError'
+    ) {
+        logTime('检测到API或网络错误，尝试清理...', true);
         try {
-            // 停止所有定时任务
-            if (globalTaskScheduler) {
-                globalTaskScheduler.stopAll();
+            if (globalBatchProcessor) {
+                globalBatchProcessor.interrupt();
             }
-
-            // 清理请求队列
             if (globalRequestQueue) {
                 await globalRequestQueue.cleanup();
             }
-
-            // 关闭数据库连接
-            if (dbManager && dbManager.getConnectionStatus()) {
-                // 在关闭前执行一次备份
-                try {
-                    await dbManager.backup();
-                } catch (error) {
-                    logTime('关闭前备份失败: ' + error.message, true);
-                }
-
-                await dbManager.disconnect();
-            }
-
-            // 等待一小段时间
-            await delay(1000);
-
-            // 销毁客户端连接
-            if (client.isReady()) {
-                await client.destroy();
-            }
-            process.exit(0);
-        } catch (error) {
-            logTime('退出过程中发生错误:', true);
-            console.error(error);
-            process.exit(1);
+        } catch (cleanupError) {
+            logTime(`清理失败: ${cleanupError.message}`, true);
         }
-    };
+    }
+};
 
-    // 进程信号处理
-    process.on('SIGINT', () => gracefulShutdown('退出'));
-    process.on('SIGTERM', () => gracefulShutdown('终止'));
+// 命令部署函数
+const deployCommands = async (client, commands, config) => {
+    const rest = new REST({ version: '10' }).setToken(config.token);
+    const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
+    let configUpdated = false;
 
-    // 进程异常处理
-    process.on('uncaughtException', async error => {
-        logTime('未捕获的异常:', true);
-        console.error(error);
-
-        // 扩展错误处理条件
-        if (
-            // 网络错误
-            error.code === 'ECONNRESET' ||
-            error.code === 'ETIMEDOUT' ||
-            error.code === 'EPIPE' ||
-            error.code === 'ENOTFOUND' ||
-            error.code === 'ECONNREFUSED' ||
-            // Discord API错误
-            error.name === 'DiscordAPIError' ||
-            error.name === 'HTTPError' ||
-            // WebSocket错误
-            error.name === 'WebSocketError'
-        ) {
-            logTime('检测到API或网络错误，尝试清理...', true);
-            try {
-                // 中断批处理器
-                if (globalBatchProcessor) {
-                    globalBatchProcessor.interrupt();
-                }
-                // 清理请求队列
-                if (globalRequestQueue) {
-                    await globalRequestQueue.cleanup();
-                }
-            } catch (cleanupError) {
-                logTime(`清理失败: ${cleanupError.message}`, true);
-            }
-        }
-    });
-
-    // 修改未处理的 Promise 拒绝处理
-    process.on('unhandledRejection', async (reason, promise) => {
-        logTime('未处理的 Promise 拒绝:', true);
-        console.error('Promise:', promise);
-        console.error('原因:', reason);
-
-        // 如果是网络错误，尝试清理请求队列
-        if (reason instanceof Error && (reason.code === 'ECONNRESET' || reason.code === 'ETIMEDOUT')) {
-            logTime('检测到网络错误，尝试清理请求队列...', true);
+    await Promise.all(
+        Object.entries(config.guilds).map(async ([guildId, guildConfig]) => {
+            if (guildConfig.commandsDeployed) return;
 
             try {
-                if (globalRequestQueue) {
-                    await globalRequestQueue.cleanup();
-                }
+                logTime(`正在为服务器 ${guildId} 部署命令`);
+                const result = await rest.put(Routes.applicationGuildCommands(client.application.id, guildId), {
+                    body: commandData,
+                });
+
+                config.guilds[guildId].commandsDeployed = true;
+                configUpdated = true;
+                logTime(`服务器 ${guildId} 命令部署完成，共 ${result.length} 个命令`);
+                await delay(500); // 避免速率限制
             } catch (error) {
-                logTime(`清理请求队列失败: ${error.message}`, true);
+                const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
+                logTime(`服务器 ${guildId} 命令部署失败: ${errorMessage}`, true);
             }
+        }),
+    );
+
+    if (configUpdated) {
+        writeFileSync('./config.json', JSON.stringify(config, null, 4));
+    }
+};
+
+// 优雅关闭函数
+const gracefulShutdown = async (client, signal) => {
+    logTime(`收到${signal}信号，正在关闭`);
+
+    try {
+        // 停止所有定时任务
+        if (globalTaskScheduler) {
+            globalTaskScheduler.stopAll();
         }
-    });
-}
+
+        // 清理请求队列
+        if (globalRequestQueue) {
+            await globalRequestQueue.cleanup();
+        }
+
+        // 关闭数据库连接
+        if (dbManager && dbManager.getConnectionStatus()) {
+            // 在关闭前执行一次备份
+            try {
+                await dbManager.backup();
+            } catch (error) {
+                logTime('关闭前备份失败: ' + error.message, true);
+            }
+
+            await dbManager.disconnect();
+        }
+
+        // 等待一小段时间
+        await delay(1000);
+
+        // 销毁客户端连接
+        if (client.isReady()) {
+            await client.destroy();
+        }
+        process.exit(0);
+    } catch (error) {
+        logTime('退出过程中发生错误:', true);
+        console.error(error);
+        process.exit(1);
+    }
+};
+
+// 进程事件处理
+const setupProcessHandlers = client => {
+    process.on('uncaughtException', error => handleProcessError(error, 'uncaughtException'));
+    process.on('unhandledRejection', (reason, promise) => handleProcessError(reason, 'unhandledRejection'));
+    process.on('SIGINT', () => gracefulShutdown(client, '退出'));
+    process.on('SIGTERM', () => gracefulShutdown(client, '终止'));
+};
 
 // 主函数
 async function main() {
@@ -231,7 +201,7 @@ async function main() {
             logTime(`提交时间: ${versionInfo.commitDate}`);
         }
 
-        setupProcessHandlers();
+        setupProcessHandlers(client);
 
         // 初始化数据库连接
         try {
@@ -276,30 +246,7 @@ async function main() {
         const rest = new REST({ version: '10' }).setToken(config.token);
 
         // 部署命令
-        for (const [guildId, guildConfig] of Object.entries(config.guilds)) {
-            if (!guildConfig.commandsDeployed) {
-                try {
-                    logTime(`正在为服务器 ${guildId} 部署命令`);
-                    const result = await rest.put(Routes.applicationGuildCommands(client.application.id, guildId), {
-                        body: commandData,
-                    });
-
-                    // 更新配置文件
-                    config.guilds[guildId].commandsDeployed = true;
-                    writeFileSync('./config.json', JSON.stringify(config, null, 4));
-                    logTime(`服务器 ${guildId} 命令部署完成，共 ${result.length} 个命令`);
-
-                    // 添加延迟避免速率限制
-                    await delay(500);
-                } catch (error) {
-                    const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
-                    logTime(`服务器 ${guildId} 命令部署失败: ${errorMessage}`, true);
-                    if (error.code === 50001) {
-                        logTime('错误原因: Bot缺少必要权限', true);
-                    }
-                }
-            }
-        }
+        await deployCommands(client, commands, config);
 
         // 加载命令到客户端集合中
         client.commands = new Collection(commands);

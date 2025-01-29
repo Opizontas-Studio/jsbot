@@ -19,6 +19,27 @@ export default {
         // 初始化身份组申请消息
         await createApplicationMessage(client);
 
+        // API监控
+        client.rest
+            .on('rateLimited', rateLimitData => {
+                logTime(
+                    `速率超限: • 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${
+                        rateLimitData.timeToReset
+                    }ms - 全局: ${rateLimitData.global ? '是' : '否'} - 限制: ${rateLimitData.limit || '未知'}`,
+                    true,
+                );
+            })
+            .on('response', (request, response) => {
+                if (response.status === 429) {
+                    logTime(
+                        `API受限: • 路由: ${request.route} - 方法: ${request.method} - 状态: ${
+                            response.status
+                        } - 重试延迟: ${response.headers.get('retry-after')}ms`,
+                        true,
+                    );
+                }
+            });
+
         // 修改分片状态处理函数
         const handleShardStatus = status => {
             let statusMessage = '';

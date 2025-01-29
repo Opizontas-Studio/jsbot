@@ -344,8 +344,6 @@ class VoteScheduler {
             // 设置公开时间定时器
             if (now < parsedVote.publicTime) {
                 const publicDelay = parsedVote.publicTime - now;
-                logTime(`计算公开延迟 [ID: ${vote.id}]: ${publicDelay}ms (${publicDelay / 1000}秒)`);
-
                 const publicTimer = setTimeout(async () => {
                     try {
                         const channel = await client.channels.fetch(parsedVote.threadId);
@@ -374,18 +372,12 @@ class VoteScheduler {
                 }, publicDelay);
 
                 this.timers.set(`public_${vote.id}`, publicTimer);
-                logTime(
-                    `已设置投票公开定时器 [ID: ${vote.id}] - 将在 ${new Date(
-                        parsedVote.publicTime,
-                    ).toLocaleTimeString()} 公开`,
-                );
+                logTime(`已设置投票 ${vote.id} 的公开定时器，将在 ${Math.ceil(publicDelay / 1000)}秒后公开`);
             }
 
             // 设置结束时间定时器
             if (now < parsedVote.endTime) {
                 const endDelay = parsedVote.endTime - now;
-                logTime(`计算结束延迟 [ID: ${vote.id}]: ${endDelay}ms (${endDelay / 1000}秒)`);
-
                 const endTimer = setTimeout(async () => {
                     try {
                         // 获取最新的投票状态，检查是否已经结束
@@ -430,14 +422,8 @@ class VoteScheduler {
                 }, endDelay);
 
                 this.timers.set(`end_${vote.id}`, endTimer);
-                logTime(
-                    `已设置投票结束定时器 [ID: ${vote.id}] - 将在 ${new Date(
-                        parsedVote.endTime,
-                    ).toLocaleTimeString()} 结束`,
-                );
+                logTime(`已设置投票 ${vote.id} 的结束定时器，将在 ${Math.ceil(endDelay / 1000)}秒后结束`);
             }
-
-            logTime(`已完成投票 ${vote.id} 的调度设置`);
         } catch (error) {
             logTime(`调度投票失败 [ID: ${vote.id}]: ${error.message}`, true);
             // 确保清理任何可能已创建的定时器

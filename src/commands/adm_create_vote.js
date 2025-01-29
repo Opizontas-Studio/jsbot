@@ -148,9 +148,9 @@ export default {
             );
             logTime(`投票详情 [ID: ${process.id}] - 红方: ${redSide}, 蓝方: ${blueSide}`);
             logTime(
-                `投票时间 [ID: ${process.id}] - 持续: ${
+                `投票时间 [ID: ${process.id}] - 公开: ${guildConfig.courtSystem.votePublicDelay / 1000}秒后, 结束: ${
                     guildConfig.courtSystem.voteDuration / 1000
-                }秒, 公开: 30秒后, 结束: ${new Date(now + guildConfig.courtSystem.voteDuration).toLocaleString()}`,
+                }秒后`,
             );
 
             // 创建投票

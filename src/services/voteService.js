@@ -30,9 +30,6 @@ class VoteService {
                 ? await this._getSenatorsCount(guildConfig, client)
                 : 0;
 
-            // 添加日志记录议员总数
-            logTime(`创建投票 - 议员总数: ${totalVoters}`);
-
             if (totalVoters === 0) {
                 throw new Error('无法获取议员总数或议员总数为0');
             }
@@ -149,14 +146,6 @@ class VoteService {
             const redCount = redVoters.length;
             const blueCount = blueVoters.length;
             const threshold = Math.ceil(totalVoters * 0.1); // 10%阈值
-
-            // 添加详细的阈值计算日志
-            logTime(
-                `投票阈值计算 [ID: ${latestVote.id}] - ` +
-                    `总议员: ${totalVoters}, ` +
-                    `所需票数: ${threshold}, ` +
-                    `实际票数: ${redCount + blueCount} (红方: ${redCount}, 蓝方: ${blueCount})`,
-            );
 
             // 判断结果
             let result, message;

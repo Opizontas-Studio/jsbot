@@ -13,8 +13,7 @@ class VoteModel {
      * @param {string} data.messageId - 投票消息ID
      * @param {string} data.threadId - 辩诉帖ID
      * @param {Object} data.details - 执行详情
-[2025/1/29 21:32:49] 投票操作 [ID: 1] - 用户: 450089788020621313 支持蓝方
-[2025/1/29 21:33:10] 投票公开 [ID: 1] - 当前票数 红方: 0, 蓝方: 0     * @param {number} data.startTime - 开始时间
+     * @param {number} data.startTime - 开始时间
      * @param {number} data.endTime - 结束时间
      * @param {number} data.publicTime - 公开时间
      * @returns {Promise<Object>} 创建的投票记录
@@ -47,14 +46,6 @@ class VoteModel {
                     now,
                 ],
             );
-
-            // 记录创建的时间信息
-            logTime(
-                `创建投票记录 [ID: ${result.lastID}] - 开始: ${new Date(data.startTime).toLocaleTimeString()}, ` +
-                    `公开: ${new Date(data.publicTime).toLocaleTimeString()}, ` +
-                    `结束: ${new Date(data.endTime).toLocaleTimeString()}`,
-            );
-
             return this.getVoteById(result.lastID);
         } catch (error) {
             logTime(`创建投票失败: ${error.message}`, true);

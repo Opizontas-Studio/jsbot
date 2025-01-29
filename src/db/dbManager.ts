@@ -130,6 +130,34 @@ class DatabaseManager {
 	        )
 	    `);
 
+        // 创建投票表
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS votes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                processId INTEGER NOT NULL,
+                type TEXT NOT NULL CHECK(
+                    type IN ('appeal', 'court_mute', 'court_ban')
+                ),
+                redSide TEXT NOT NULL,
+                blueSide TEXT NOT NULL,
+                redVoters TEXT DEFAULT '[]',
+                blueVoters TEXT DEFAULT '[]',
+                totalVoters INTEGER NOT NULL,
+                startTime INTEGER NOT NULL,
+                endTime INTEGER NOT NULL,
+                publicTime INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'in_progress'
+                    CHECK(status IN ('in_progress', 'completed')),
+                result TEXT CHECK(result IN ('red_win', 'blue_win', 'cancelled', NULL)),
+                messageId TEXT NOT NULL,
+                threadId TEXT NOT NULL,
+                details TEXT DEFAULT '{}',
+                createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+                updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+                FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
+            )
+        `);
+
         // 创建索引
         await this.db.exec(`
 	        CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId);
@@ -141,6 +169,11 @@ class DatabaseManager {
 	        CREATE INDEX IF NOT EXISTS idx_processes_debate ON processes(debateThreadId);
 	        CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt);
 	        CREATE INDEX IF NOT EXISTS idx_processes_type ON processes(type);
+	        CREATE INDEX IF NOT EXISTS idx_votes_process ON votes(processId);
+	        CREATE INDEX IF NOT EXISTS idx_votes_message ON votes(messageId);
+	        CREATE INDEX IF NOT EXISTS idx_votes_thread ON votes(threadId);
+	        CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
+	        CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
 	    `);
     }
 

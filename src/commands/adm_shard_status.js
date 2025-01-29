@@ -75,7 +75,6 @@ export default {
                                     `📥 等待处理: ${queueStats.queueLength}`,
                                     `⚡ 正在处理: ${queueStats.currentProcessing - 1}`,
                                     `✅ 已完成: ${queueStats.processed}`,
-                                    `🔄 重试: ${queueStats.retried}`,
                                     `❌ 失败: ${queueStats.failed}`,
                                 ].join('\n'),
                                 inline: false,

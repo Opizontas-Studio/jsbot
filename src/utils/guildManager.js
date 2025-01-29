@@ -52,15 +52,17 @@ export class GuildManager {
                     senatorRoleForumId: null, // string | null - 参议员论坛ID
                 },
                 courtSystem: guildConfig.courtSystem || {
-                    enabled: false, // boolean - 是否启用法庭系统
-                    courtChannelId: null, // string | null - 法庭频道ID
-                    debateForumId: null, // string | null - 辩论论坛ID
-                    senatorRoleId: null, // string | null - 参议员角色ID
-                    appealDuration: 259200000, // number - 上诉持续时间（毫秒）
-                    summitDuration: 604800000, // number - 议事持续时间（毫秒，7天）
-                    requiredSupports: 10, // number - 所需支持票数
-                    debateTagId: null, // string | null - 辩论标签ID
-                    appealDebateRoleId: null, // string | null - 辩诉通行身份组ID
+                    enabled: false,
+                    courtChannelId: null,
+                    debateForumId: null,
+                    senatorRoleId: null,
+                    appealDuration: 259200000,
+                    summitDuration: 604800000,
+                    requiredSupports: 10,
+                    debateTagId: null,
+                    appealDebateRoleId: null,
+                    votePublicDelay: 30000, // 默认30秒后公开
+                    voteDuration: 60000, // 默认1分钟后结束
                 },
             };
 

@@ -8,7 +8,9 @@ import {
     TextInputStyle,
 } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
+import { VoteService } from '../services/voteService.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { checkAppealEligibility, checkPunishmentStatus } from '../utils/punishmentHelper.js';
@@ -218,6 +220,15 @@ export const buttonHandlers = {
     support_debate: async interaction => {
         await handleCourtSupport(interaction, 'debate');
     },
+
+    // 投票按钮处理器
+    vote_red: async interaction => {
+        await handleVoteButton(interaction, 'red');
+    },
+
+    vote_blue: async interaction => {
+        await handleVoteButton(interaction, 'blue');
+    },
 };
 
 /**
@@ -421,6 +432,101 @@ async function handleAppealButton(interaction, punishmentId) {
     }
 }
 
+// 修改投票按钮处理函数
+async function handleVoteButton(interaction, choice) {
+    await interaction.deferReply({ flags: ['Ephemeral'] });
+
+    try {
+        // 检查冷却时间
+        const cooldownLeft = checkCooldown('vote', interaction.user.id);
+        if (cooldownLeft) {
+            return await interaction.editReply({
+                content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
+            });
+        }
+
+        // 获取服务器配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig?.courtSystem?.enabled) {
+            return await interaction.editReply({
+                content: '❌ 此服务器未启用议事系统',
+            });
+        }
+
+        // 检查是否为议员
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+            return await interaction.editReply({
+                content: '❌ 只有议员可以参与投票',
+            });
+        }
+
+        // 获取投票ID
+        const voteId = parseInt(interaction.customId.split('_')[2]);
+
+        // 获取投票记录
+        const vote = await VoteModel.getVoteById(voteId);
+        if (!vote) {
+            return await interaction.editReply({
+                content: '❌ 找不到相关投票',
+            });
+        }
+
+        // 处理投票
+        const {
+            vote: updatedVote,
+            message: replyContent,
+            shouldUpdateMessage,
+        } = await VoteService.handleVote(vote, interaction.user.id, choice);
+
+        // 只有在应该更新消息时才更新
+        if (shouldUpdateMessage) {
+            await VoteService.updateVoteMessage(interaction.message, updatedVote);
+        }
+
+        // 回复用户
+        await interaction.editReply({
+            content: replyContent,
+        });
+
+        // 检查是否需要执行结果
+        const now = Date.now();
+        if (now >= updatedVote.endTime && updatedVote.status === 'in_progress') {
+            try {
+                // 再次检查投票状态，避免重复结算
+                const currentVote = await VoteModel.getVoteById(updatedVote.id);
+                if (currentVote.status !== 'in_progress') {
+                    logTime(`投票 ${updatedVote.id} 已被其他进程结算，跳过按钮结算`);
+                    return;
+                }
+
+                // 执行投票结果
+                const { result, message: resultMessage } = await VoteService.executeVoteResult(
+                    currentVote,
+                    interaction.client,
+                );
+
+                // 获取最新的投票状态
+                const finalVote = await VoteModel.getVoteById(updatedVote.id);
+
+                // 更新消息显示结果
+                await VoteService.updateVoteMessage(interaction.message, finalVote, {
+                    result,
+                    message: resultMessage,
+                });
+            } catch (error) {
+                logTime(`执行投票结果失败: ${error.message}`, true);
+                await interaction.followUp({
+                    content: '❌ 处理投票结果时出错，请联系管理员',
+                    flags: ['Ephemeral'],
+                });
+            }
+        }
+    } catch (error) {
+        await handleInteractionError(interaction, error, 'vote_button');
+    }
+}
+
 /**
  * 统一的按钮交互处理函数
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
@@ -429,6 +535,13 @@ export async function handleButton(interaction) {
     try {
         // 如果是确认按钮（以confirm_开头），直接返回
         if (interaction.customId.startsWith('confirm_')) {
+            return;
+        }
+
+        // 处理投票按钮
+        if (interaction.customId.startsWith('vote_')) {
+            const [, choice, processId] = interaction.customId.split('_');
+            await handleVoteButton(interaction, choice);
             return;
         }
 

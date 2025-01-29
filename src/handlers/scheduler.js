@@ -1,9 +1,11 @@
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
 import PunishmentService from '../services/punishmentService.js';
 import { analyzeForumActivity, cleanupInactiveThreads } from '../services/threadAnalyzer.js';
+import { VoteService } from '../services/voteService.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
@@ -260,6 +262,223 @@ class PunishmentScheduler {
 }
 
 /**
+ * 投票调度器
+ */
+class VoteScheduler {
+    constructor() {
+        this.timers = new Map(); // 存储所有投票的定时器
+        this.votes = new Map(); // 存储所有活跃投票的状态
+    }
+
+    /**
+     * 初始化投票调度器
+     * @param {Object} client - Discord客户端
+     */
+    async initialize(client) {
+        try {
+            // 获取所有进行中的投票
+            const votes = await dbManager.safeExecute(
+                'all',
+                `SELECT * FROM votes 
+                WHERE status = 'in_progress'
+                AND (publicTime > ? OR endTime > ?)`,
+                [Date.now(), Date.now()],
+            );
+
+            for (const vote of votes) {
+                await this.scheduleVote(vote, client);
+            }
+            logTime(`已加载并调度 ${votes.length} 个投票的状态更新`);
+        } catch (error) {
+            logTime(`加载和调度投票失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 调度单个投票的状态更新
+     * @param {Object} vote - 投票记录
+     * @param {Object} client - Discord客户端
+     */
+    async scheduleVote(vote, client) {
+        try {
+            const now = Date.now();
+
+            // 安全解析 JSON 字段
+            let parsedVote = { ...vote };
+
+            // 处理 redVoters
+            if (Array.isArray(vote.redVoters)) {
+                parsedVote.redVoters = vote.redVoters;
+            } else {
+                parsedVote.redVoters = [];
+                logTime(`redVoters 不是数组 [ID: ${vote.id}], 使用空数组`);
+            }
+
+            // 处理 blueVoters
+            if (Array.isArray(vote.blueVoters)) {
+                parsedVote.blueVoters = vote.blueVoters;
+            } else {
+                parsedVote.blueVoters = [];
+                logTime(`blueVoters 不是数组 [ID: ${vote.id}], 使用空数组`);
+            }
+
+            // 处理 details
+            if (typeof vote.details === 'object' && vote.details !== null) {
+                parsedVote.details = vote.details;
+            } else {
+                parsedVote.details = {};
+                logTime(`details 不是对象 [ID: ${vote.id}], 使用空对象`);
+            }
+
+            // 验证必要字段
+            if (!parsedVote.threadId || !parsedVote.messageId) {
+                throw new Error(`缺少必要字段: threadId=${parsedVote.threadId}, messageId=${parsedVote.messageId}`);
+            }
+
+            // 存储投票状态
+            this.votes.set(vote.id, parsedVote);
+
+            // 清除已存在的定时器
+            this.clearVoteTimers(vote.id);
+
+            // 设置公开时间定时器
+            if (now < parsedVote.publicTime) {
+                const publicDelay = parsedVote.publicTime - now;
+                logTime(`计算公开延迟 [ID: ${vote.id}]: ${publicDelay}ms (${publicDelay / 1000}秒)`);
+
+                const publicTimer = setTimeout(async () => {
+                    try {
+                        const channel = await client.channels.fetch(parsedVote.threadId);
+                        if (!channel) {
+                            logTime(`无法获取频道 [ID: ${parsedVote.threadId}]`, true);
+                            return;
+                        }
+
+                        const message = await channel.messages.fetch(parsedVote.messageId);
+                        if (!message) {
+                            logTime(`无法获取消息 [ID: ${parsedVote.messageId}]`, true);
+                            return;
+                        }
+
+                        // 获取最新的投票状态
+                        const currentVote = await VoteModel.getVoteById(vote.id);
+                        if (!currentVote) {
+                            logTime(`无法获取投票 [ID: ${vote.id}]`, true);
+                            return;
+                        }
+
+                        await VoteService.updateVoteMessage(message, currentVote, { isSchedulerUpdate: true });
+                    } catch (error) {
+                        logTime(`处理投票公开失败 [ID: ${vote.id}]: ${error.message}`, true);
+                    }
+                }, publicDelay);
+
+                this.timers.set(`public_${vote.id}`, publicTimer);
+                logTime(
+                    `已设置投票公开定时器 [ID: ${vote.id}] - 将在 ${new Date(
+                        parsedVote.publicTime,
+                    ).toLocaleTimeString()} 公开`,
+                );
+            }
+
+            // 设置结束时间定时器
+            if (now < parsedVote.endTime) {
+                const endDelay = parsedVote.endTime - now;
+                logTime(`计算结束延迟 [ID: ${vote.id}]: ${endDelay}ms (${endDelay / 1000}秒)`);
+
+                const endTimer = setTimeout(async () => {
+                    try {
+                        // 获取最新的投票状态，检查是否已经结束
+                        const currentVote = await VoteModel.getVoteById(vote.id);
+                        if (!currentVote || currentVote.status === 'completed') {
+                            logTime(`投票 ${vote.id} 已完成，跳过定时器结算`);
+                            return;
+                        }
+
+                        const channel = await client.channels.fetch(parsedVote.threadId);
+                        if (!channel) {
+                            logTime(`无法获取频道 [ID: ${parsedVote.threadId}]`, true);
+                            return;
+                        }
+
+                        const message = await channel.messages.fetch(parsedVote.messageId);
+                        if (!message) {
+                            logTime(`无法获取消息 [ID: ${parsedVote.messageId}]`, true);
+                            return;
+                        }
+
+                        const { result, message: resultMessage } = await VoteService.executeVoteResult(
+                            currentVote,
+                            client,
+                        );
+
+                        // 获取最新的投票状态
+                        const finalVote = await VoteModel.getVoteById(vote.id);
+
+                        // 更新消息显示结果
+                        await VoteService.updateVoteMessage(message, finalVote, {
+                            result,
+                            message: resultMessage,
+                        });
+
+                        // 清理投票状态
+                        this.votes.delete(vote.id);
+                        this.clearVoteTimers(vote.id);
+                    } catch (error) {
+                        logTime(`处理投票结束失败 [ID: ${vote.id}]: ${error.message}`, true);
+                    }
+                }, endDelay);
+
+                this.timers.set(`end_${vote.id}`, endTimer);
+                logTime(
+                    `已设置投票结束定时器 [ID: ${vote.id}] - 将在 ${new Date(
+                        parsedVote.endTime,
+                    ).toLocaleTimeString()} 结束`,
+                );
+            }
+
+            logTime(`已完成投票 ${vote.id} 的调度设置`);
+        } catch (error) {
+            logTime(`调度投票失败 [ID: ${vote.id}]: ${error.message}`, true);
+            // 确保清理任何可能已创建的定时器
+            this.clearVoteTimers(vote.id);
+            this.votes.delete(vote.id);
+            throw error; // 重新抛出错误以便上层处理
+        }
+    }
+
+    /**
+     * 清理指定投票的定时器
+     * @param {number} voteId - 投票ID
+     */
+    clearVoteTimers(voteId) {
+        const publicTimer = this.timers.get(`public_${voteId}`);
+        if (publicTimer) {
+            clearTimeout(publicTimer);
+            this.timers.delete(`public_${voteId}`);
+        }
+
+        const endTimer = this.timers.get(`end_${voteId}`);
+        if (endTimer) {
+            clearTimeout(endTimer);
+            this.timers.delete(`end_${voteId}`);
+        }
+    }
+
+    /**
+     * 清理所有定时器和状态
+     */
+    cleanup() {
+        for (const timer of this.timers.values()) {
+            clearTimeout(timer);
+        }
+        this.timers.clear();
+        this.votes.clear();
+        logTime('已清理所有投票定时器和状态');
+    }
+}
+
+/**
  * 定时任务管理器
  * 用于集中管理所有的定时任务，包括：
  * - 子区分析和清理
@@ -274,6 +493,7 @@ class TaskScheduler {
         this.tasks = new Map(); // 存储任务配置
         this.processScheduler = new ProcessScheduler();
         this.punishmentScheduler = new PunishmentScheduler();
+        this.voteScheduler = new VoteScheduler();
         this.isInitialized = false;
     }
 
@@ -290,6 +510,7 @@ class TaskScheduler {
         // 初始化流程和处罚调度器
         await this.processScheduler.initialize(client);
         await this.punishmentScheduler.initialize(client);
+        await this.voteScheduler.initialize(client);
 
         // 注册各类定时任务
         this.registerAnalysisTasks(client);
@@ -527,6 +748,11 @@ class TaskScheduler {
     // 获取处罚调度器
     getPunishmentScheduler() {
         return this.punishmentScheduler;
+    }
+
+    // 获取投票调度器
+    getVoteScheduler() {
+        return this.voteScheduler;
     }
 }
 

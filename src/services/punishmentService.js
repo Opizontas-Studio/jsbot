@@ -29,12 +29,14 @@ class PunishmentService {
             // 记录基本信息
             logTime(
                 `处罚信息 - 处罚ID: ${punishment.id}, ` +
-                `执行者: ${executor.tag}, ` +
-                `目标: ${target.tag}, ` +
-                `类型: ${punishment.type}, ` +
-                `原因: ${punishment.reason}, ` +
-                `禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
-                `警告时长: ${punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'}`
+                    `执行者: ${executor.tag}, ` +
+                    `目标: ${target.tag}, ` +
+                    `类型: ${punishment.type}, ` +
+                    `原因: ${punishment.reason}, ` +
+                    `禁言时长: ${formatPunishmentDuration(punishment.duration)}, ` +
+                    `警告时长: ${
+                        punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '无'
+                    }`,
             );
 
             // 3. 如果是永封处罚，先发送私信通知
@@ -47,8 +49,8 @@ class PunishmentService {
                             `• 原因：${punishment.reason}`,
                             `• 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
                             `• 执行管理员：${executor.tag}`,
-                            '您将被立即移出所有相关服务器。'
-                        ].join('\n')
+                            '您将被立即移出所有相关服务器。',
+                        ].join('\n'),
                     });
                     logTime(`已向用户 ${target.tag} 发送永封通知`);
                 } catch (error) {
@@ -167,7 +169,7 @@ class PunishmentService {
             }
 
             // 发送禁言上诉通知
-            if (punishment.type === 'mute' && data.channelId) {
+            if (punishment.type === 'mute' && data.channelId && !data.noAppeal) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
                     if (channel) {
@@ -193,7 +195,9 @@ class PunishmentService {
                 success: true,
                 message: [
                     '✅ 处罚执行结果：',
-                    `成功服务器: ${successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'}`,
+                    `成功服务器: ${
+                        successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'
+                    }`,
                     failedServers.length > 0 ? `失败服务器: ${failedServers.map(s => s.name).join(', ')}` : null,
                 ]
                     .filter(Boolean)
@@ -220,7 +224,8 @@ class PunishmentService {
         try {
             const now = Date.now();
             const muteExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
-            const warningExpired = punishment.warningDuration > 0 && punishment.createdAt + punishment.warningDuration <= now;
+            const warningExpired =
+                punishment.warningDuration > 0 && punishment.createdAt + punishment.warningDuration <= now;
 
             // 处理禁言到期
             if (muteExpired && punishment.type === 'mute') {

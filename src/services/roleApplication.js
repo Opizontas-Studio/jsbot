@@ -123,3 +123,58 @@ export const createApplicationMessage = async client => {
         }
     }
 };
+
+/**
+ * 撤销用户的身份组
+ * @param {Object} client - Discord客户端
+ * @param {string} userId - 目标用户ID
+ * @param {string} roleId - 要撤销的身份组ID
+ * @param {string} reason - 撤销原因
+ * @returns {Promise<{success: boolean, successfulServers: string[], failedServers: Array<{id: string, name: string}>}>}
+ */
+export const revokeRole = async (client, userId, roleId, reason) => {
+    const successfulServers = [];
+    const failedServers = [];
+
+    try {
+        // 遍历所有服务器
+        const allGuilds = Array.from(client.guildManager.guilds.values());
+
+        for (const guildData of allGuilds) {
+            try {
+                if (!guildData?.id) continue;
+
+                const guild = await client.guilds.fetch(guildData.id);
+                if (!guild) {
+                    failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
+                    continue;
+                }
+
+                const member = await guild.members.fetch(userId);
+                if (!member) {
+                    logTime(`用户 ${userId} 不在服务器 ${guild.name} 中`, true);
+                    continue;
+                }
+
+                // 检查用户是否有该身份组
+                if (!member.roles.cache.has(roleId)) {
+                    logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有指定身份组，跳过`);
+                    continue;
+                }
+
+                // 移除身份组
+                await member.roles.remove(roleId, reason);
+                successfulServers.push(guild.name);
+                logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的身份组`);
+            } catch (error) {
+                logTime(`在服务器 ${guildData.id} 移除身份组失败: ${error.message}`, true);
+                failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
+            }
+        }
+
+        return { success: successfulServers.length > 0, successfulServers, failedServers };
+    } catch (error) {
+        logTime(`撤销身份组操作失败: ${error.message}`, true);
+        return { success: false, successfulServers, failedServers };
+    }
+};

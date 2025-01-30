@@ -1,7 +1,9 @@
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import { logTime } from '../utils/logger.js';
-import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
+import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
+import { revokeRole } from './roleApplication.js';
 
 class VoteService {
     /**
@@ -34,30 +36,49 @@ class VoteService {
                 throw new Error('无法获取议员总数或议员总数为0');
             }
 
-            let redSide, blueSide;
+            let redSide, blueSide, voteDetails;
             if (type === 'appeal') {
+                // 获取处罚记录以确定处罚类型
+                const punishment = await PunishmentModel.getPunishmentById(parseInt(details.punishmentId));
+                if (!punishment) {
+                    throw new Error('无法获取相关处罚记录');
+                }
+
                 redSide = `解除对 <@${targetId}> 的处罚`;
                 blueSide = '维持原判';
+
+                // 构建投票详情
+                voteDetails = {
+                    targetId,
+                    executorId,
+                    punishmentId: details.punishmentId,
+                    punishmentType: punishment.type,
+                    appealContent: details.appealContent,
+                    // 添加原处罚的关键信息
+                    originalReason: punishment.reason,
+                    originalDuration: punishment.duration,
+                    originalWarningDuration: punishment.warningDuration,
+                };
             } else if (type.startsWith('court_')) {
                 const punishType = type === 'court_ban' ? '永封' : '禁言';
                 redSide = `对 <@${targetId}> 执行${punishType}`;
                 blueSide = '驳回处罚申请';
+
+                // 构建投票详情
+                voteDetails = {
+                    ...details,
+                    targetId,
+                    executorId,
+                    punishmentType: type === 'court_ban' ? 'ban' : 'mute',
+                    reason: details.reason || '无原因',
+                    muteTime: details.muteTime,
+                    warningTime: details.warningTime,
+                    keepMessages: details.keepMessages ?? true,
+                    revokeRoleId: details.revokeRoleId,
+                };
             } else {
                 throw new Error('不支持的议事类型');
             }
-
-            // 确保details中包含所有必要的信息
-            const voteDetails = {
-                ...details,
-                targetId,
-                executorId,
-                punishmentType: type === 'court_ban' ? 'ban' : 'mute',
-                // 确保这些字段存在
-                reason: details.reason || '无原因',
-                duration: details.duration || 0,
-                warningDuration: details.warningDuration || 0,
-                keepMessages: details.keepMessages || false,
-            };
 
             const now = Date.now();
             const publicDelay = guildConfig.courtSystem.votePublicDelay;
@@ -163,53 +184,130 @@ class VoteService {
             // 执行结果
             if (type === 'appeal') {
                 if (result === 'red_win') {
-                    // 获取目标用户
-                    const target = await client.users.fetch(details.targetId);
-                    if (!target) {
-                        throw new Error('无法获取目标用户信息');
+                    // 红方胜利，无需额外处理，因为处罚在辩诉阶段已经被解除
+                    message += '，处罚已解除';
+                } else {
+                    // 蓝方胜利，重新部署处罚
+                    const { punishmentId, punishmentType, originalReason, originalDuration, originalWarningDuration } =
+                        details;
+
+                    // 获取原处罚记录以获取执行者ID
+                    const originalPunishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
+                    if (!originalPunishment) {
+                        throw new Error('无法获取原处罚记录');
                     }
 
-                    // 解除处罚
-                    const { success, successfulServers, failedServers } = await revokePunishmentInGuilds(
-                        client,
-                        { id: details.punishmentId, type: details.punishmentType },
-                        target,
-                        '投票通过，处罚已解除',
-                        { isAppeal: true },
-                    );
+                    // 构建新的处罚数据
+                    const newPunishmentData = {
+                        userId: details.targetId,
+                        type: punishmentType,
+                        reason: `上诉驳回，恢复原处罚 - ${originalReason}`,
+                        duration: originalDuration,
+                        executorId: originalPunishment.executorId,
+                        warningDuration: originalWarningDuration || 0,
+                        processId: latestVote.processId,
+                        noAppeal: true, // 禁止再次上诉
+                    };
 
-                    if (success) {
-                        message += '，处罚已解除';
-                        if (failedServers.length > 0) {
-                            message += `\n⚠️ 部分服务器解除失败: ${failedServers.map(s => s.name).join(', ')}`;
+                    // 执行新处罚
+                    const { success: punishSuccess, message: punishMessage } =
+                        await PunishmentService.executePunishment(client, newPunishmentData);
+
+                    if (punishSuccess) {
+                        message += '，上诉驳回，原处罚已恢复';
+
+                        // 发送通知
+                        try {
+                            const [executor, target] = await Promise.all([
+                                client.users.fetch(details.executorId),
+                                client.users.fetch(details.targetId),
+                            ]);
+
+                            const notifyContent = '❌ 有关您的上诉未通过，原处罚已恢复。';
+                            if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
+                            if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
+                        } catch (error) {
+                            logTime(`发送上诉结果通知失败: ${error.message}`, true);
                         }
                     } else {
-                        message += '，但处罚解除失败';
+                        message += `，但处罚恢复失败: ${punishMessage}`;
                     }
-                } else {
-                    message += '，维持原判';
                 }
             } else if (type.startsWith('court_')) {
                 if (result === 'red_win') {
-                    // 执行处罚
-                    const { success, message: punishMessage } = await PunishmentService.executePunishment(client, {
+                    // 获取处罚详情
+                    const punishmentDetails = {
                         userId: details.targetId,
                         type: type === 'court_ban' ? 'ban' : 'mute',
-                        reason: details.reason,
-                        duration: details.duration,
+                        reason: `议会认定处罚通过`,
+                        duration: calculatePunishmentDuration(details.muteTime),
                         executorId: details.executorId,
                         processId: latestVote.processId,
-                        warningDuration: details.warningDuration,
-                        keepMessages: details.keepMessages,
-                    });
+                        warningDuration: details.warningTime ? calculatePunishmentDuration(details.warningTime) : 0,
+                        keepMessages: details.keepMessages ?? true,
+                        noAppeal: true,
+                    };
+
+                    // 如果是禁言且需要撤销身份组
+                    let roleRevokeResult = null;
+                    if (type === 'court_mute' && details.revokeRoleId) {
+                        roleRevokeResult = await revokeRole(
+                            client,
+                            details.targetId,
+                            details.revokeRoleId,
+                            `议会认定处罚通过，撤销身份组`,
+                        );
+                    }
+
+                    // 执行处罚
+                    const { success, message: punishMessage } = await PunishmentService.executePunishment(
+                        client,
+                        punishmentDetails,
+                    );
 
                     if (success) {
                         message += '，处罚已执行';
+                        // 如果有身份组撤销结果，添加到消息中
+                        if (roleRevokeResult) {
+                            if (roleRevokeResult.failedServers.length > 0) {
+                                message += `\n⚠️ 部分服务器身份组撤销失败: ${roleRevokeResult.failedServers
+                                    .map(s => s.name)
+                                    .join(', ')}`;
+                            }
+                        }
+
+                        // 发送通知
+                        try {
+                            const [executor, target] = await Promise.all([
+                                client.users.fetch(details.executorId),
+                                client.users.fetch(details.targetId),
+                            ]);
+
+                            const notifyContent = '✅ 有关您的议事处罚投票已通过并执行。';
+                            if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
+                            if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
+                        } catch (error) {
+                            logTime(`发送投票结果通知失败: ${error.message}`, true);
+                        }
                     } else {
                         message += `，但处罚执行失败: ${punishMessage}`;
                     }
                 } else {
                     message += '，处罚申请已驳回';
+
+                    // 发送简单通知
+                    try {
+                        const [executor, target] = await Promise.all([
+                            client.users.fetch(details.executorId),
+                            client.users.fetch(details.targetId),
+                        ]);
+
+                        const notifyContent = '❌ 有关您的议事处罚投票未通过，申请已驳回。';
+                        if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
+                        if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
+                    } catch (error) {
+                        logTime(`发送投票结果通知失败: ${error.message}`, true);
+                    }
                 }
             }
 
@@ -250,7 +348,7 @@ class VoteService {
 
             const publicDelaySeconds = Math.ceil((vote.publicTime - vote.startTime) / 1000);
             const description = [
-                status === 'completed' ? '议事已结束' : `议事截止：<t:${Math.floor(endTime / 1000)}:R>`,
+                status === 'completed' ? '投票已结束' : `投票截止：<t:${Math.floor(endTime / 1000)}:R>`,
                 '',
                 '**红方诉求：**',
                 redSide,
@@ -268,7 +366,7 @@ class VoteService {
             // 构建嵌入消息
             const embed = {
                 color: 0x5865f2,
-                title: status === 'completed' ? '📊 投票已结束' : '📊 议事投票',
+                title: status === 'completed' ? '📊 投票已结束' : '📊 辩诉投票',
                 description: description,
                 timestamp: new Date(),
             };

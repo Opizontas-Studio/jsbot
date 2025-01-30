@@ -63,6 +63,10 @@ export class GuildManager {
                     appealDebateRoleId: null,
                     votePublicDelay: 30000, // 默认30秒后公开
                     voteDuration: 60000, // 默认1分钟后结束
+                    quickVote: {
+                        publicDelay: 60000, // 1分钟后公开
+                        duration: 300000, // 5分钟后结束
+                    },
                 },
             };
 

@@ -1,8 +1,10 @@
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { logTime } from '../utils/logger.js';
 import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
+import { VoteService } from './voteService.js';
 
 class CourtService {
     /**
@@ -25,24 +27,6 @@ class CourtService {
 
         switch (process.type) {
             case 'appeal': {
-                // 调试输出
-                console.log('\n[DEBUG] Appeal Process Object:');
-                console.log(
-                    JSON.stringify(
-                        {
-                            ...process,
-                            details:
-                                typeof process.details === 'string' ? JSON.parse(process.details) : process.details,
-                            supporters:
-                                typeof process.supporters === 'string'
-                                    ? JSON.parse(process.supporters)
-                                    : process.supporters,
-                        },
-                        null,
-                        2,
-                    ),
-                );
-
                 threadTitle = `${target?.username || '未知用户'}对处罚的上诉`;
 
                 notifyContent = [
@@ -56,24 +40,6 @@ class CourtService {
             default: {
                 // 处理以 court_ 开头的类型
                 if (process.type.startsWith('court_')) {
-                    // 调试输出
-                    console.log('\n[DEBUG] Court Process Object:');
-                    console.log(
-                        JSON.stringify(
-                            {
-                                ...process,
-                                details:
-                                    typeof process.details === 'string' ? JSON.parse(process.details) : process.details,
-                                supporters:
-                                    typeof process.supporters === 'string'
-                                        ? JSON.parse(process.supporters)
-                                        : process.supporters,
-                            },
-                            null,
-                            2,
-                        ),
-                    );
-
                     const punishmentType = process.type === 'court_ban' ? '永封处罚' : '禁言处罚';
                     const hasRoleRevoke = process.details?.revokeRoleId;
 
@@ -93,6 +59,7 @@ class CourtService {
             }
         }
 
+        // 创建辩诉帖
         const debateThread = await debateForum.threads.create({
             name: threadTitle,
             message: {
@@ -107,6 +74,119 @@ class CourtService {
             appliedTags: guildConfig.courtSystem.debateTagId ? [guildConfig.courtSystem.debateTagId] : [],
         });
 
+        // 创建投票消息
+        const voteMessage = await debateThread.send({
+            embeds: [
+                {
+                    color: 0x5865f2,
+                    title: '📊 辩诉投票',
+                    description: [
+                        `投票截止：<t:${Math.floor((Date.now() + guildConfig.courtSystem.voteDuration) / 1000)}:R>`,
+                        '',
+                        '**红方诉求：**',
+                        process.type === 'appeal'
+                            ? `解除对 <@${target?.id}> 的处罚`
+                            : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`,
+                        '',
+                        '**蓝方诉求：**',
+                        process.type === 'appeal' ? '维持原判' : '驳回处罚申请',
+                        '',
+                        '🔴▬▬▬▬▬|▬▬▬▬▬🔵',
+                        '',
+                        `票数将在${Math.floor(guildConfig.courtSystem.votePublicDelay / 1000)}秒后公开`,
+                    ]
+                        .filter(Boolean)
+                        .join('\n'),
+                    footer: {
+                        text: `发起人：${executor?.tag || '未知用户'}`,
+                    },
+                    timestamp: new Date(),
+                },
+            ],
+            components: [
+                {
+                    type: 1,
+                    components: [
+                        {
+                            type: 2,
+                            style: 4,
+                            label: '支持红方',
+                            custom_id: `vote_red_pending`,
+                        },
+                        {
+                            type: 2,
+                            style: 1,
+                            label: '支持蓝方',
+                            custom_id: `vote_blue_pending`,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        // 创建投票
+        const vote = await VoteService.createVoteForProcess(
+            process,
+            guildConfig,
+            {
+                messageId: voteMessage.id,
+                threadId: debateThread.id,
+            },
+            client,
+        );
+
+        // 投票创建日志
+        logTime(
+            `创建投票 [ID: ${vote.id}] - 类型: ${process.type}, 目标: ${target?.tag || '未知用户'}, 发起人: ${
+                executor?.tag || '未知用户'
+            }`,
+        );
+        logTime(
+            `投票详情 [ID: ${vote.id}] - 红方: ${
+                process.type === 'appeal'
+                    ? `解除对 <@${target?.id}> 的处罚`
+                    : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`
+            }, 蓝方: ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,
+        );
+        logTime(
+            `投票时间 [ID: ${vote.id}] - 公开: ${guildConfig.courtSystem.votePublicDelay / 1000}秒后, 结束: ${
+                guildConfig.courtSystem.voteDuration / 1000
+            }秒后`,
+        );
+
+        // 更新投票按钮的custom_id
+        await voteMessage.edit({
+            components: [
+                {
+                    type: 1,
+                    components: [
+                        {
+                            type: 2,
+                            style: 4,
+                            label: '支持红方',
+                            custom_id: `vote_red_${vote.id}`,
+                        },
+                        {
+                            type: 2,
+                            style: 1,
+                            label: '支持蓝方',
+                            custom_id: `vote_blue_${vote.id}`,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        // 调度投票状态更新
+        await globalTaskScheduler.getVoteScheduler().scheduleVote(vote, client);
+
+        // 发送@通知消息
+        if (executor && target) {
+            await debateThread.send({
+                content: notifyContent,
+            });
+        }
+
         // 记录辩诉帖创建日志
         logTime(
             `已创建辩诉帖：${
@@ -115,13 +195,6 @@ class CourtService {
                     : `${executor?.tag || '未知议员'} 对 ${target?.tag || '未知用户'} 的处罚申请`
             }`,
         );
-
-        // 发送初始消息
-        if (executor && target) {
-            await debateThread.send({
-                content: notifyContent,
-            });
-        }
 
         return debateThread;
     }

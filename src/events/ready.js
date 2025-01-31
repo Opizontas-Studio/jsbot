@@ -1,4 +1,4 @@
-import { Events, WebSocketShardStatus } from 'discord.js';
+import { Events } from 'discord.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { createApplicationMessage } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
@@ -18,6 +18,54 @@ export default {
 
         // 初始化身份组申请消息
         await createApplicationMessage(client);
+
+        // 初始化WebSocket状态监控
+        const wsStateMonitor = {
+            lastPing: client.ws.ping,
+            disconnectedAt: null,
+            reconnectAttempts: 0,
+        };
+
+        // WebSocket事件监听
+        client.on('shardDisconnect', (closeEvent, shardId) => {
+            wsStateMonitor.disconnectedAt = Date.now();
+            logTime(`WebSocket断开连接 [分片${shardId}] 代码: ${closeEvent.code} 原因: ${closeEvent.reason}`, true);
+        });
+
+        client.on('shardReconnecting', shardId => {
+            wsStateMonitor.reconnectAttempts++;
+            const downtime = wsStateMonitor.disconnectedAt
+                ? Math.floor((Date.now() - wsStateMonitor.disconnectedAt) / 1000)
+                : 0;
+
+            logTime(
+                `WebSocket正在重连 [分片${shardId}] 尝试次数: ${wsStateMonitor.reconnectAttempts} 已断开: ${downtime}秒`,
+                true,
+            );
+        });
+
+        client.on('shardResume', (shardId, replayedEvents) => {
+            logTime(`WebSocket恢复连接 [分片${shardId}] 重放事件: ${replayedEvents}个`, true);
+            wsStateMonitor.disconnectedAt = null;
+            wsStateMonitor.reconnectAttempts = 0;
+        });
+
+        client.on('shardReady', shardId => {
+            wsStateMonitor.lastPing = client.ws.ping;
+            logTime(`WebSocket就绪 [分片${shardId}] 延迟: ${client.ws.ping}ms`);
+        });
+
+        // 心跳检测
+        setInterval(() => {
+            const currentPing = client.ws.ping;
+            if (Math.abs(currentPing - wsStateMonitor.lastPing) > 100) {
+                logTime(`WebSocket延迟变化显著: ${wsStateMonitor.lastPing}ms -> ${currentPing}ms`, true);
+            }
+            wsStateMonitor.lastPing = currentPing;
+        }, 60000);
+
+        // 保存监控状态到client
+        client.wsStateMonitor = wsStateMonitor;
 
         // API监控
         client.rest
@@ -39,52 +87,6 @@ export default {
                     );
                 }
             });
-
-        // 修改分片状态处理函数
-        const handleShardStatus = status => {
-            let statusMessage = '';
-
-            // 只用于日志记录
-            switch (status) {
-                case WebSocketShardStatus.Idle:
-                    statusMessage = '分片状态: 空闲';
-                    break;
-                case WebSocketShardStatus.Connecting:
-                    reconnectionCount++;
-                    statusMessage = `分片状态: 正在连接 (重连次数: ${reconnectionCount})`;
-                    break;
-                case WebSocketShardStatus.Resuming:
-                    statusMessage = '分片状态: 正在恢复会话';
-                    break;
-                case WebSocketShardStatus.Ready:
-                    reconnectionCount = 0;
-                    statusMessage = `分片状态: 已就绪 (延迟: ${client.ws.ping}ms)`;
-                    break;
-                default:
-                    statusMessage = '分片状态: 未知状态';
-                    break;
-            }
-
-            // 记录状态变化
-            logTime(statusMessage);
-        };
-
-        // 事件监听器
-        client.ws.on('close', () => {
-            handleShardStatus(WebSocketShardStatus.Idle);
-        });
-
-        client.ws.on('reconnecting', () => {
-            handleShardStatus(WebSocketShardStatus.Connecting);
-        });
-
-        client.ws.on('ready', () => {
-            handleShardStatus(WebSocketShardStatus.Ready);
-        });
-
-        client.ws.on('resumed', () => {
-            handleShardStatus(WebSocketShardStatus.Ready);
-        });
 
         // 添加WebSocket状态检查
         client.on('debug', info => {

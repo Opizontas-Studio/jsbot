@@ -1,22 +1,23 @@
-import { SlashCommandBuilder, WebSocketShardStatus } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
-// 添加状态映射函数
-const getReadableStatus = status => {
-    switch (status) {
-        case WebSocketShardStatus.Idle:
-            return '🔄 空闲中';
-        case WebSocketShardStatus.Connecting:
-            return '🌐 正在连接';
-        case WebSocketShardStatus.Resuming:
-            return '⏳ 正在恢复会话';
-        case WebSocketShardStatus.Ready:
-            return '✅ 已就绪';
-        default:
-            return '❓ 未知状态';
+// 获取WebSocket状态描述
+const getConnectionStatus = client => {
+    const monitor = client.wsStateMonitor;
+    if (!monitor) return '🔄 状态未知';
+
+    if (monitor.disconnectedAt) {
+        const downtime = Math.floor((Date.now() - monitor.disconnectedAt) / 1000);
+        return `❌ 已断开 ${downtime}秒`;
     }
+
+    if (monitor.reconnectAttempts > 0) {
+        return `🔄 重连中 (${monitor.reconnectAttempts}次)`;
+    }
+
+    return '✅ 已连接';
 };
 
 export default {
@@ -30,16 +31,9 @@ export default {
             }
 
             const client = interaction.client;
-            let ping = Math.round(client.ws.ping);
+            const ping = Math.round(client.ws.ping);
             const guildCount = client.guilds.cache.size;
-            // 直接从 WebSocket 状态获取
-            const status = getReadableStatus(client.ws.status);
-
-            // 如果延迟为-1，等待后再获取
-            if (ping === -1) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                ping = Math.round(client.ws.ping);
-            }
+            const status = getConnectionStatus(client);
 
             // 获取队列统计信息
             const queueLength = globalRequestQueue.queue.length;
@@ -63,7 +57,7 @@ export default {
                                 inline: true,
                             },
                             {
-                                name: '系统状态',
+                                name: 'WebSocket状态',
                                 value: status,
                                 inline: true,
                             },

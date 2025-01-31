@@ -144,7 +144,7 @@ export default {
                             revokeRole ? `- 撤销身份组：${revokeRole.name}` : null,
                             `- 理由：${reason}`,
                             '',
-                            '点击下方按钮确认提交到议事区',
+                            '警告：此操作不可撤销！请慎重考虑占用公共资源。',
                         ]
                             .filter(Boolean)
                             .join('\n'),
@@ -301,7 +301,7 @@ export default {
                             `- ${keepMessages ? '保留' : '删除'}用户消息`,
                             `- 理由：${reason}`,
                             '',
-                            '点击下方按钮确认提交到议事区',
+                            '警告：此操作不可撤销！请慎重考虑占用公共资源。',
                         ].join('\n'),
                         image: imageUrl ? { url: imageUrl } : undefined,
                     },

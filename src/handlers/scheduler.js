@@ -123,6 +123,18 @@ class ProcessScheduler {
     }
 
     /**
+     * 取消流程的定时器
+     * @param {number} processId - 流程ID
+     */
+    async cancelProcess(processId) {
+        if (this.timers.has(processId)) {
+            clearTimeout(this.timers.get(processId));
+            this.timers.delete(processId);
+            logTime(`已取消流程 ${processId} 的定时器`);
+        }
+    }
+
+    /**
      * 清理所有定时器
      */
     cleanup() {

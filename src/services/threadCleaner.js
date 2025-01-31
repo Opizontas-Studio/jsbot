@@ -1,4 +1,4 @@
-import { globalBatchProcessor } from '../utils/concurrency.js';
+import { delay, globalBatchProcessor } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
 const noop = () => undefined;
@@ -43,6 +43,25 @@ export const sendThreadReport = async (thread, result) => {
 };
 
 /**
+ * 获取单个批次的消息
+ * @private
+ */
+async function fetchMessagesBatch(thread, lastId = null) {
+    const fetchOptions = { limit: 100 }; // 100条消息一批
+    if (lastId) {
+        fetchOptions.before = lastId;
+    }
+
+    try {
+        const messages = await thread.messages.fetch(fetchOptions);
+        return messages;
+    } catch (error) {
+        logTime(`获取消息批次失败: ${error.message}`, true);
+        throw error;
+    }
+}
+
+/**
  * 清理子区成员
  * @param {ThreadChannel} thread - Discord子区对象
  * @param {number} threshold - 目标人数阈值
@@ -76,88 +95,44 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         }
 
         // 获取所有消息以统计发言用户
+        logTime(`[${thread.name}] 开始子区重整`, true);
         const activeUsers = new Map();
-        let lastId;
+        let lastId = null;
         let messagesProcessed = 0;
+        let hasMoreMessages = true;
 
-        // 使用并发控制的批量处理获取消息历史
-        async function fetchMessagesBatch(beforeId) {
-            const fetchOptions = { limit: 100 };
-            if (beforeId) {
-                fetchOptions.before = beforeId;
-            }
-
+        while (hasMoreMessages) {
             try {
-                const messages = await thread.messages.fetch(fetchOptions);
-                return messages;
+                // 获取消息批次
+                const messages = await fetchMessagesBatch(thread, lastId);
+
+                if (messages.size === 0) {
+                    hasMoreMessages = false;
+                    continue;
+                }
+
+                // 处理消息
+                messages.forEach(msg => {
+                    const userId = msg.author.id;
+                    activeUsers.set(userId, (activeUsers.get(userId) || 0) + 1);
+                });
+
+                // 更新进度
+                messagesProcessed += messages.size;
+                lastId = messages.last().id;
+
+                await progressCallback({
+                    type: 'message_scan',
+                    thread,
+                    messagesProcessed,
+                });
+
+                // 添加小延迟避免API限制
+                await delay(50);
             } catch (error) {
                 logTime(`获取消息批次失败: ${error.message}`, true);
-                return null;
+                throw error;
             }
-        }
-
-        let totalBatches = 0;
-        while (true) {
-            totalBatches++;
-
-            // 创建批次任务
-            const batchTasks = [];
-            for (let i = 0; i < 10; i++) {
-                if (i === 0) {
-                    batchTasks.push(() => fetchMessagesBatch(lastId));
-                } else {
-                    const prevBatch = await batchTasks[i - 1]();
-                    if (!prevBatch || prevBatch.size === 0) {
-                        break;
-                    }
-                    batchTasks.push(() => fetchMessagesBatch(prevBatch.last().id));
-                }
-            }
-
-            if (batchTasks.length === 0) {
-                break;
-            }
-
-            // 使用批处理器处理消息批次
-            const results = await globalBatchProcessor.processBatch(
-                batchTasks,
-                task => task(),
-                progress => {
-                    progressCallback({
-                        type: 'message_scan',
-                        thread,
-                        messagesProcessed,
-                        totalBatches,
-                        batchProgress: progress,
-                    });
-                },
-                'messageHistory',
-            );
-
-            let batchMessagesCount = 0;
-
-            for (const messages of results) {
-                if (messages && messages.size > 0) {
-                    batchMessagesCount += messages.size;
-                    messages.forEach(msg => {
-                        const userId = msg.author.id;
-                        activeUsers.set(userId, (activeUsers.get(userId) || 0) + 1);
-                    });
-                    lastId = messages.last().id;
-                }
-            }
-
-            if (batchMessagesCount === 0) {
-                break;
-            }
-            messagesProcessed += batchMessagesCount;
-
-            await progressCallback({
-                type: 'message_scan',
-                thread,
-                messagesProcessed,
-                totalBatches,
-            });
         }
 
         // 找出未发言的成员
@@ -197,7 +172,6 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             inactiveCount: inactiveMembers.size,
             lowActivityCount: needToRemove - inactiveMembers.size > 0 ? needToRemove - inactiveMembers.size : 0,
             messagesProcessed,
-            messagesBatches: totalBatches,
         };
 
         // 使用 BatchProcessor 处理成员移除
@@ -300,14 +274,18 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
         }
     });
 
-    await handleCleanupResult(interaction, result, threshold);
+    await handleCleanupResult(interaction, result, threshold, guildConfig);
 }
 
 /**
  * 处理清理结果
  * @private
+ * @param {Interaction} interaction - Discord交互对象
+ * @param {Object} result - 清理结果
+ * @param {number} threshold - 清理阈值
+ * @param {Object} guildConfig - 服务器配置
  */
-async function handleCleanupResult(interaction, result, threshold) {
+async function handleCleanupResult(interaction, result, threshold, guildConfig) {
     if (result.status === 'skipped') {
         const message =
             result.reason === 'whitelisted'
@@ -325,9 +303,9 @@ async function handleCleanupResult(interaction, result, threshold) {
         throw new Error(result.error);
     }
 
-    // 发送操作日志
-    const moderationChannel = await interaction.client.channels.fetch(interaction.guildConfig.moderationLogThreadId);
-    await moderationChannel.send({
+    // 发送自动化日志
+    const logChannel = await interaction.client.channels.fetch(guildConfig.automation.logThreadId);
+    await logChannel.send({
         embeds: [
             {
                 color: 0x0099ff,
@@ -348,7 +326,7 @@ async function handleCleanupResult(interaction, result, threshold) {
                     },
                 ],
                 timestamp: new Date(),
-                footer: { text: '论坛管理系统' },
+                footer: { text: '论坛自动化系统' },
             },
         ],
     });

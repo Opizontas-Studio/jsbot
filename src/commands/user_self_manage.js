@@ -1,7 +1,6 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { handleSingleThreadCleanup } from '../services/threadCleaner.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -293,10 +292,9 @@ export default {
                             embeds: [],
                         });
 
-                        await globalRequestQueue.add(async () => {
-                            await handleSingleThreadCleanup(interaction, guildConfig);
-                            logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
-                        }, 0); // 该耗时任务独立进入队列
+                        // 执行清理
+                        await handleSingleThreadCleanup(interaction, guildConfig);
+                        logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                     },
                     onError: async error => {
                         await handleCommandError(interaction, error, '清理不活跃用户');

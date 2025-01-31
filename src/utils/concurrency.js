@@ -229,7 +229,7 @@ class RateLimitedBatchProcessor {
             batches.push(items.slice(i, i + batchSize));
         }
 
-        // 使用较小的并发组处理批次
+        // 并发组处理批次
         for (let i = 0; i < batches.length; i += limiter.concurrency) {
             if (this.isInterrupted) {
                 logTime(`批处理在组 ${i}/${batches.length} 处提前结束`);
@@ -287,7 +287,7 @@ class RateLimitedBatchProcessor {
                             await progressCallback(progress, processedCount, totalItems);
                         }
 
-                        await delay(10);
+                        await delay(5);
                     }
                 }),
             );

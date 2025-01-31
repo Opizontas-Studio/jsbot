@@ -84,8 +84,8 @@ async function handleAllThreads(interaction, guildConfig) {
     let lastProgressUpdate = Date.now();
 
     try {
-        // 使用批处理器处理子区检查，每批次处理10个子区
-        const batchSize = 10;
+        // 使用批处理器处理子区检查，每批次处理3个子区
+        const batchSize = 3;
         const threadArray = Array.from(threads.values());
         const batches = [];
 
@@ -222,9 +222,9 @@ async function handleAllThreads(interaction, guildConfig) {
  * 发送全服清理总结报告
  */
 async function sendSummaryReport(interaction, results, threshold, guildConfig) {
-    // 发送管理日志
-    const moderationChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
-    await moderationChannel.send({
+    // 发送自动化日志
+    const logChannel = await interaction.client.channels.fetch(guildConfig.automation.logThreadId);
+    await logChannel.send({
         embeds: [
             {
                 color: 0x0099ff,
@@ -244,7 +244,7 @@ async function sendSummaryReport(interaction, results, threshold, guildConfig) {
                     inline: false,
                 })),
                 timestamp: new Date(),
-                footer: { text: '论坛管理系统' },
+                footer: { text: '论坛自动化系统' },
             },
         ],
     });
@@ -262,7 +262,7 @@ async function sendSummaryReport(interaction, results, threshold, guildConfig) {
     await interaction.editReply({
         content: [
             '✅ 全服子区清理完成！',
-            `�� 目标阈值: ${threshold}`,
+            `📊 目标阈值: ${threshold}`,
             `📊 处理子区数: ${results.length}`,
             `👥 原始总人数: ${summary.totalOriginal}`,
             `🚫 总移除人数: ${summary.totalRemoved}`,

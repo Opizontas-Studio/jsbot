@@ -17,185 +17,55 @@ pnpm install
 pnpm start
 ```
 
-## 项目结构
+由于代码问题, 本 bot 可能在运行一段时间后卡死, 为此你可以运行能自动重启的 `start.ps1` 脚本, 而非直接运行 `pnpm start`.
+
+## 参与贡献
+
+本项目采用 JavaScript 混合了少量 TypeScript 编写, 项目整体为自建架构, 因而有如下文件结构:
 
 ```txt
-├── src/
-│   ├── commands/                  # 命令处理模块
-│   │   ├── adm_*.js               # 管理员命令
-│   │   ├── mod_*.js               # 版主命令
-│   │   ├── user_*.js              # 用户命令
-│   │   └── long_*.js              # 长时间运行的后台命令
-│   │
-│   ├── events/                    # 事件处理模块
-│   │   ├── interactionCreate.js   # 交互事件处理
-│   │   └── ready.js               # 就绪事件处理
-│   │
-│   ├── handlers/                  # 交互处理模块
-│   │   ├── buttons.js             # 按钮交互处理
-│   │   ├── modals.js              # 模态框交互处理
-│   │   └── scheduler.js           # 定时任务管理器
-│   │
-│   ├── db/                        # 数据库模块
-│   │   ├── dbManager.js           # 数据库管理器
-│   │   └── models/                # 数据模型目录
-│   │       ├── punishmentModel.js # 处罚数据模型
-│   │       └── processModel.js    # 流程数据模型
-│   │
-│   ├── utils/                     # 工具类模块
-│   │   ├── concurrency.js         # 队列和并发控制
-│   │   ├── guildManager.js        # 服务器配置管理
-│   │   ├── helper.js              # 通用辅助函数
-│   │   ├── logger.js              # 日志管理
-│   │   └── punishmentHelper.js    # 处罚相关辅助函数
-│   │
-│   └── services/                  # 服务类模块
-│       ├── courtService.js        # 议事系统服务
-│       ├── threadAnalyzer.js      # 活跃子区分析工具
-│       ├── threadCleaner.js       # 子区成员清理工具
-│       ├── punishmentService.js   # 处罚系统服务
-│       └── roleApplication.js     # 身份组申请处理
+..
+├── index.js  # 总入口, 读取配置文件, 完成命令、事件的加载, 启动 bot 客户端
 │
-├── test/
+├── events  # 监听 discord 事件, 执行对应操作
+│   ├── guildMemberAdd.js     # 有新成员加入服务器时, 检测他是否是以前加入封禁列表但还没实际封禁的成员, 执行封禁操作
+│   ├── interactionCreate.js  # 有人通过按钮、模态框等与 bot 发生交互, 将会分发给 handlers 进行处理
+│   └── ready.js              # bot 客户端准备就绪
 │
-├── data/                # 数据存储目录
-│   ├── database.sqlite  # SQLite数据库文件
-│   └── messageIds.json  # 消息ID配置
+├── commands  # 各身份组可使用的 discord 命令
+│               - 如果命令较为简单则直接编写, 否则在 services 中处理逻辑, 在此处调用对应函数
+│               - 使用 try-catch 进行错误处理, 所有异步操作都应用 try-catch 包装
+│               - 考虑用 globalBatchProcessor 处理批量操作, 用 globalRequestQueue 控制 API 请求频率
+│   ├── adm_*.js   # 管理员 (优先级 5)
+│   ├── mod_*.js   # 版主 (优先级 4)
+│   ├── user_*.js  # 普通用户 (优先级 3)
+│   └── long_*.js  # 长期执行的后台命令 (优先级 2)
 │
-├── logs/  # 日志文件目录
+├── handlers  # 处理交互
+│   ├── buttons.js    # 处理按钮交互
+│   ├── modals.js     # 处理模态框交互
+│   └── scheduler.js  # 处理定时任务
 │
-├── config.json       # 配置文件
-├── index.js          # 主入口文件
-├── package.json      # 项目配置
-└── eslint.config.js  # ESLint配置
+├── services  # 对于较为复杂的命令, 在此编写处理逻辑
+│   ├── courtService.js
+│   ├── punishmentService.js
+│   ├── roleApplication.js
+│   ├── threadAnalyzer.js
+│   ├── threadCleaner.js
+│   └── voteService.js
+│
+├── db  # 存取数据库, 数据文件将存储于 data/database.sqlite 中
+│   ├── dbManager.ts  # 对数据库建表、查询等操作的封装, 目前的建表是直接以 SQL 形式硬编码在代码中
+│   └── models        # 对各表存取的封装
+│       ├── processModel.js     # 对一些命令的处理流程进行记录
+│       ├── punishmentModel.js  # 对成员的处罚记录
+│       └── voteModel.js        # 红蓝投票
+│
+└── utils
+    ├── assertion.ts
+    ├── concurrency.js
+    ├── guildManager.js  # 对服务器配置进行管理
+    ├── helper.js
+    ├── logger.js
+    └── punishmentHelper.js
 ```
-
-## commands/ - Discord命令
-
-### 命令设计规范
-
-所有命令都遵循以下通用处理流程：
-
-0. 正确调用工具函数
-1. 权限检查 - 验证用户是否有权限执行命令
-2. 参数验证 - 检查命令参数的有效性
-3. 执行操作 - 执行具体的命令逻辑
-4. 错误处理 - 捕获和处理可能的错误
-5. 发送响应 - 向用户返回执行结果
-6. 记录日志 - 记录命令执行的关键信息
-
-命令文件命名规则：
-
-- `adm_*.js` - 管理员命令，最高优先级(5)
-- `mod_*.js` - 版主命令，次高优先级(4)
-- `user_*.js` - 用户命令，中等优先级(3)
-- `long_*.js` - 后台任务，较低优先级(2)
-
-### 服务设计规范
-
-1. 单一职责原则
-
-- 每个服务类专注于处理特定的业务领域
-- 避免跨域调用，通过事件或回调进行通信
-- 保持功能的内聚性和独立性
-
-2. 错误处理规范
-
-- 所有异步操作都使用 try-catch 包装
-- 统一使用 logTime() 记录错误信息
-- 对外抛出的错误应该包含足够的上下文信息
-
-3. 并发控制
-
-- 使用 globalBatchProcessor 处理批量操作
-- 使用 globalRequestQueue 控制 API 请求频率
-- 合理设置任务优先级(1-5)，避免阻塞关键操作
-
-4. 数据持久化
-
-- 配置数据统一存储在 data/ 目录
-- 使用 JSON 格式存储配置和状态
-- 定期保存重要数据，避免数据丢失
-
-5. 通用规范：
-
-- 所有服务类方法都应该是静态的
-- 避免在服务类中保存状态
-- 使用 JSDoc 注释文档化所有公共方法
-- 合理使用工具函数，避免代码重复
-
-## db/ - 数据库模块
-
-### dbManager.js - 数据库管理器
-
-- 使用SQLite3作为轻量级数据库
-- 数据文件位于`data/database.sqlite`
-- 自动创建表结构和索引
-- 支持外键约束和级联删除
-
-### models/punishmentModel.js - 处罚记录表
-
-```sql
-CREATE TABLE punishments (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- userId TEXT NOT NULL,           -- 被处罚用户ID
- type TEXT NOT NULL CHECK(type IN ('ban', 'mute', 'warn')), -- 处罚类型
- reason TEXT NOT NULL,           -- 处罚原因
- duration INTEGER NOT NULL DEFAULT -1, -- 持续时间（毫秒），永封为-1
- warningDuration INTEGER DEFAULT NULL, -- 警告时长
- executorId TEXT NOT NULL,       -- 执行者ID
- status TEXT NOT NULL DEFAULT 'active' -- 状态
-     CHECK(status IN ('active', 'expired', 'appealed', 'revoked')),
- synced INTEGER DEFAULT 0,       -- 是否已同步
- syncedServers TEXT DEFAULT '[]', -- 已同步的服务器列表（JSON数组）
- keepMessages INTEGER DEFAULT 0,  -- 是否保留消息
- channelId TEXT,                -- 处罚执行的频道ID
- createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
- updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
-)
-```
-
-### models/processModel.js - 流程记录表
-
-```sql
-CREATE TABLE processes (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- type TEXT NOT NULL CHECK(       -- 流程类型
-     type IN ('appeal', 'vote', 'debate', 'court_mute', 'court_ban')
- ),
- targetId TEXT NOT NULL,         -- 目标用户ID
- executorId TEXT NOT NULL,       -- 执行者ID
- messageId TEXT UNIQUE NOT NULL, -- 议事消息ID
- debateThreadId TEXT,            -- 辩诉帖子ID
- status TEXT NOT NULL DEFAULT 'pending' -- 状态
-     CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
- expireAt INTEGER NOT NULL,      -- 到期时间
- details TEXT DEFAULT '{}',      -- 处理详情（JSON对象）
- supporters TEXT DEFAULT '[]',   -- 支持者列表（JSON数组）
- result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)), -- 结果
- reason TEXT DEFAULT '',         -- 原因
- statusMessageId TEXT,           -- 状态消息ID（仅vote类型使用）
- createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000), -- 创建时间
- updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)  -- 更新时间
-)
-```
-
-## 主要文件说明
-
-### index.js - 主入口文件
-
-- 初始化Discord客户端(使用最新的Discord.js v14)
-- 设置客户端选项
-- 加载事件处理器
-- 设置进程事件处理
-- 加载命令文件
-- 部署Discord命令
-- 启动机器人服务
-
-### config.json - 配置文件
-
-- Discord Bot Token
-- 服务器配置
-- 命令部署状态
-- 自动化任务配置
-- 日志频道配置

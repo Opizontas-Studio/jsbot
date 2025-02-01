@@ -17,7 +17,7 @@ pnpm install
 pnpm start
 ```
 
-由于代码问题, 本 bot 可能在运行一段时间后卡死, 为此你可以运行能自动重启的 `start.ps1` 脚本, 而非直接运行 `pnpm start`.
+bot 也许大概可能会莫名其妙卡死, 为此你可以运行能自动重启的 `start.ps1` 脚本, 而非直接运行 `pnpm start`.
 
 ## 参与贡献
 

@@ -1,3 +1,4 @@
+import { processRoleAssignment } from '../commands/add_role_to_members.js';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
@@ -513,6 +514,22 @@ class TaskScheduler {
         // 注册各类定时任务
         this.registerAnalysisTasks(client);
         this.registerDatabaseTasks();
+
+        // 查找主服务器并注册身份组分配任务
+        for (const [guildId, guildConfig] of client.guildManager.guilds) {
+            if (guildConfig.serverType === 'Main server') {
+                this.addTask({
+                    taskId: `role_assignment_${guildId}`,
+                    interval: 6 * 60 * 60 * 1000, // 6小时
+                    task: async () => {
+                        await processRoleAssignment(client, guildId);
+                    },
+                    runImmediately: true, // 启动时立即执行
+                });
+                logTime(`已为主服务器 ${guildId} 注册身份组分配任务，并开始首次执行`);
+                break; // 找到主服务器后就退出循环
+            }
+        }
 
         this.isInitialized = true;
         logTime('任务调度器初始化完成');

@@ -57,8 +57,15 @@ export default {
                 return;
             }
 
+            // 预估完成时间（每秒处理1个成员）
+            const estimatedMinutes = Math.ceil(membersToProcess.size / 60);
+
             await interaction.editReply({
-                content: `⏳ 开始处理 ${membersToProcess.size} 个成员...`,
+                content: [
+                    `⏳ 开始处理 ${membersToProcess.size} 个成员...`,
+                    `⏱️ 预计需要 ${estimatedMinutes} 分钟完成`,
+                    '💡 由于Discord API限制，每秒只能处理1个成员',
+                ].join('\n'),
                 flags: ['Ephemeral'],
             });
 
@@ -82,12 +89,18 @@ export default {
                 },
                 async (progress, processed, total) => {
                     const now = Date.now();
-                    if (now - lastProgressUpdate > 1000) {
+                    if (now - lastProgressUpdate > 5000) {
+                        // 降低进度更新频率到5秒一次
                         lastProgressUpdate = now;
+                        const remainingMinutes = Math.ceil((total - processed) / 60);
                         await interaction.editReply({
                             content: generateProgressReport(processed, total, {
                                 prefix: '正在添加身份组',
-                                suffix: `\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`,
+                                suffix: [
+                                    `\n✅ 成功: ${successCount}`,
+                                    `❌ 失败: ${failCount}`,
+                                    `⏱️ 预计剩余时间: ${remainingMinutes} 分钟`,
+                                ].join('\n'),
                             }),
                             flags: ['Ephemeral'],
                         });

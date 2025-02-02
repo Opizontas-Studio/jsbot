@@ -122,9 +122,9 @@ class RateLimitedBatchProcessor {
                 requests: [],
                 concurrency: 3, // 允许的并发数
             },
-            // 成员相关操作 - 1次/秒
+            // 成员相关操作 - 5次/秒
             members: {
-                maxRequests: 1,
+                maxRequests: 5,
                 windowMs: 1000,
                 requests: [],
                 concurrency: 3, // 允许的并发数

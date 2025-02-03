@@ -16,17 +16,28 @@ export default {
                 .setDescription('申请禁言处罚')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
-                    option.setName('禁言时间').setDescription('禁言时长 (例如: 14d)').setRequired(true),
+                    option.setName('禁言时间').setDescription('禁言时长 (例如: 3d5h，即3天5小时)').setRequired(true),
                 )
-                .addStringOption(option => option.setName('理由').setDescription('处罚理由').setRequired(true))
+                .addStringOption(option =>
+                    option
+                        .setName('理由')
+                        .setDescription('处罚理由（至多1000字，可以带有消息链接等）')
+                        .setRequired(true),
+                )
                 .addRoleOption(option =>
-                    option.setName('撤销身份组').setDescription('要撤销的身份组').setRequired(false),
+                    option
+                        .setName('撤销身份组')
+                        .setDescription('要撤销的身份组（该用户必须有此身份组）')
+                        .setRequired(false),
                 )
                 .addStringOption(option =>
-                    option.setName('附加警告期').setDescription('附加警告时长 (例如: 30d)').setRequired(false),
+                    option.setName('附加警告期').setDescription('附加警告时长 (例如: 30d，即30天)').setRequired(false),
                 )
                 .addStringOption(option =>
-                    option.setName('图片链接').setDescription('相关证据的图片链接 (可选)').setRequired(false),
+                    option
+                        .setName('图片链接')
+                        .setDescription('相关证据的图片链接 (可来自图床/DiscordCDN)')
+                        .setRequired(false),
                 ),
         )
         .addSubcommand(subcommand =>
@@ -37,6 +48,12 @@ export default {
                 .addStringOption(option => option.setName('理由').setDescription('处罚理由').setRequired(true))
                 .addBooleanOption(option =>
                     option.setName('保留消息').setDescription('是否保留用户的消息').setRequired(false),
+                )
+                .addStringOption(option =>
+                    option
+                        .setName('图片链接')
+                        .setDescription('相关证据的图片链接 (可来自图床/DiscordCDN)')
+                        .setRequired(false),
                 ),
         )
         .addSubcommand(subcommand =>
@@ -44,7 +61,7 @@ export default {
                 .setName('撤销')
                 .setDescription('撤销处罚申请')
                 .addStringOption(option =>
-                    option.setName('消息链接').setDescription('要撤销的议事消息链接').setRequired(true),
+                    option.setName('消息链接').setDescription('要撤销的议事区议事消息的链接').setRequired(true),
                 ),
         ),
 
@@ -294,6 +311,29 @@ export default {
                     });
                 } else if (subcommand === '永封') {
                     const keepMessages = interaction.options.getBoolean('保留消息') ?? true;
+                    const imageUrl = interaction.options.getString('图片链接');
+
+                    // 检查目标用户是否为管理员
+                    const member = await interaction.guild.members.fetch(target.id);
+                    if (member.permissions.has(PermissionFlagsBits.Administrator)) {
+                        await interaction.editReply({
+                            content: '❌ 无法对管理员执行处罚',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    // 在获取图片链接后立即验证
+                    if (imageUrl) {
+                        const { isValid, error } = validateImageUrl(imageUrl);
+                        if (!isValid) {
+                            await interaction.editReply({
+                                content: `❌ ${error}`,
+                                flags: ['Ephemeral'],
+                            });
+                            return;
+                        }
+                    }
 
                     await handleConfirmationButton({
                         interaction,

@@ -83,20 +83,18 @@ class CourtService {
                     description: [
                         `投票截止：<t:${Math.floor((Date.now() + guildConfig.courtSystem.voteDuration) / 1000)}:R>`,
                         '',
-                        '**红方诉求：**',
+                        '🔴**红方诉求：**',
                         process.type === 'appeal'
                             ? `解除对 <@${target?.id}> 的处罚`
                             : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`,
                         '',
-                        '**蓝方诉求：**',
+                        '🔵**蓝方诉求：**',
                         process.type === 'appeal' ? '维持原判' : '驳回处罚申请',
                         '',
                         '🔴▬▬▬▬▬|▬▬▬▬▬🔵',
                         '',
                         `票数将在${Math.floor(guildConfig.courtSystem.votePublicDelay / 1000)}秒后公开`,
-                    ]
-                        .filter(Boolean)
-                        .join('\n'),
+                    ].join('\n'),
                     footer: {
                         text: `发起人：${executor?.tag || '未知用户'}`,
                     },

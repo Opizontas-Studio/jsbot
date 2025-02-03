@@ -350,10 +350,10 @@ class VoteService {
             const description = [
                 status === 'completed' ? '投票已结束' : `投票截止：<t:${Math.floor(endTime / 1000)}:R>`,
                 '',
-                '🔴**红方诉求：**',
+                '🔴 **红方诉求：**',
                 redSide,
                 '',
-                '🔵**蓝方诉求：**',
+                '🔵 **蓝方诉求：**',
                 blueSide,
                 '',
                 this._generateProgressBar(redVoters.length, blueVoters.length, canShowCount),

@@ -19,6 +19,21 @@ export default {
     async execute(interaction) {
         // 处理按钮交互
         if (interaction.isButton()) {
+            // 解析按钮类型
+            const buttonType = interaction.customId.split('_')[0];
+
+            // 需要队列控制的按钮类型
+            const queuedButtonTypes = ['court', 'vote', 'appeal'];
+
+            if (queuedButtonTypes.includes(buttonType)) {
+                // 获取优先级
+                const priority = buttonType === 'appeal' ? 4 : 3;
+
+                // 使用队列处理
+                return globalRequestQueue.add(() => handleButton(interaction), priority);
+            }
+
+            // 其他按钮直接处理
             return handleButton(interaction);
         }
 
@@ -58,10 +73,7 @@ export default {
         const priority = getPriorityByCommandName(command.data.name);
 
         // 执行命令
-        await globalRequestQueue.add(
-            () => command.execute(interaction, guildConfig),
-            priority
-        );
+        await globalRequestQueue.add(() => command.execute(interaction, guildConfig), priority);
     },
 };
 
@@ -79,7 +91,7 @@ async function handleCooldown(interaction, command) {
     const now = Date.now();
     const timestamps = cooldowns.get(command.data.name);
     const cooldownAmount = (command.cooldown ?? DEFAULT_COOLDOWN) * 1000;
-    
+
     if (timestamps.has(interaction.user.id)) {
         const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
 
@@ -104,10 +116,10 @@ async function handleCooldown(interaction, command) {
  */
 function getPriorityByCommandName(commandName) {
     const priorityMap = {
-        'adm_': 5,  // 管理级任务最高优先级
-        'mod_': 4,  // 管理员任务次高优先级
-        'user_': 3, // 用户任务中等优先级
-        'long_': 2, // 耗时后台任务较低优先级
+        adm_: 5, // 管理级任务最高优先级
+        mod_: 4, // 管理员任务次高优先级
+        user_: 3, // 用户任务中等优先级
+        long_: 2, // 耗时后台任务较低优先级
     };
 
     const prefix = Object.keys(priorityMap).find(prefix => commandName.startsWith(prefix));

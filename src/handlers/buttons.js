@@ -7,6 +7,7 @@ import {
     TextInputBuilder,
     TextInputStyle,
 } from 'discord.js';
+import { dbManager } from '../db/dbManager.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
@@ -267,27 +268,37 @@ async function handleCourtSupport(interaction, type) {
         // 解析按钮ID获取目标用户ID
         const [, , targetId] = interaction.customId.split('_');
 
-        // 获取或创建议事流程
-        const { process, error } = await CourtService.getOrCreateProcess(
-            interaction.message,
-            targetId,
-            type,
-            guildConfig,
-        );
+        // 使用事务包装数据库操作
+        const result = await dbManager.transaction(async () => {
+            // 获取或创建议事流程
+            const { process, error } = await CourtService.getOrCreateProcess(
+                interaction.message,
+                targetId,
+                type,
+                guildConfig,
+            );
 
-        if (error) {
+            if (error) {
+                return { error };
+            }
+
+            // 使用CourtService添加支持者
+            const {
+                process: updatedProcess,
+                supportCount,
+                replyContent,
+            } = await CourtService.addSupporter(interaction.message.id, interaction.user.id);
+
+            return { updatedProcess, supportCount, replyContent };
+        });
+
+        if (result.error) {
             return await interaction.editReply({
-                content: `❌ ${error}`,
+                content: `❌ ${result.error}`,
             });
         }
 
-        // 使用CourtService添加支持者
-        const {
-            process: updatedProcess,
-            supportCount,
-            replyContent,
-        } = await CourtService.addSupporter(interaction.message.id, interaction.user.id);
-
+        const { updatedProcess, supportCount, replyContent } = result;
         let finalReplyContent = replyContent;
 
         // 检查是否达到所需支持数量

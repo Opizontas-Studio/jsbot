@@ -474,26 +474,18 @@ class VoteService {
                 return 0;
             }
 
-            // 使用 GuildMemberManager 的 list 方法获取成员
-            const members = await guild.members.list({ limit: 1000 }); // 设置合适的限制
-            const senatorCount = members.filter(member =>
-                member.roles.cache.has(guildConfig.courtSystem.senatorRoleId),
-            ).size;
+            // 使用硬编码的议员总数
+            const HARDCODED_SENATOR_COUNT = 100; // 根据实际议员数量设置
 
             // 记录议员数量日志
             logTime(
-                `获取议员总数: ${senatorCount} ` +
+                `获取议员总数(硬编码): ${HARDCODED_SENATOR_COUNT} ` +
                     `(服务器: ${guild.name}, ` +
                     `身份组: ${role.name}, ` +
-                    `身份组ID: ${role.id}, ` +
-                    `总成员: ${members.size})`,
+                    `身份组ID: ${role.id})`,
             );
 
-            if (senatorCount === 0) {
-                logTime(`警告：未找到任何议员成员，这可能是权限问题`, true);
-            }
-
-            return senatorCount;
+            return HARDCODED_SENATOR_COUNT;
         } catch (error) {
             logTime(`获取议员总数失败: ${error.message}`, true);
             return 0;

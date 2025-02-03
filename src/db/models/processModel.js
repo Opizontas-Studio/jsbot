@@ -60,12 +60,15 @@ class ProcessModel {
                     updatedAt = ?
                 WHERE id = ?`,
                 [
-                    status, 
-                    options.result, options.result, 
-                    options.reason, options.reason,
-                    options.debateThreadId, options.debateThreadId,
-                    Date.now(), 
-                    id
+                    status,
+                    options.result,
+                    options.result,
+                    options.reason,
+                    options.reason,
+                    options.debateThreadId,
+                    options.debateThreadId,
+                    Date.now(),
+                    id,
                 ],
             );
 

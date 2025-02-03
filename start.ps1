@@ -4,35 +4,34 @@ $ErrorActionPreference = "Stop"
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Stop-Bot {
-	param (
-	    [Parameter(Mandatory=$true)]
-	    [int]$ProcessId
-	)
-	
-	# Send one SIGINT signal and wait for graceful shutdown
-	Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Sending SIGINT signal..."
-	taskkill /PID $ProcessId /F
-	
-	# Wait up to 30 seconds for the process to finish its tasks
-	Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Waiting 30 seconds for process to complete pending tasks..."
-	$waitTime = 30
-	while ($waitTime -gt 0) {
-	    if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
-	        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot stopped successfully"
-	        return $true
-	    }
-	    Start-Sleep -Seconds 1
-	    $waitTime--
-	}
-	
-	# If process is still running after 30 seconds, force kill it
-	if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
-	    Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Process still running, forcing termination..."
-	    Stop-Process -Id $ProcessId -Force
-	    Start-Sleep -Seconds 2
-	}
-	
-	return (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
+    param (
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessId
+    )
+    
+    # 首先尝试正常终止
+    Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Attempting graceful shutdown..."
+    Stop-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    
+    # 等待10秒看是否正常关闭
+    $waitTime = 10
+    while ($waitTime -gt 0) {
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+            Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot stopped gracefully"
+            return $true
+        }
+        Start-Sleep -Seconds 1
+        $waitTime--
+    }
+    
+    # 如果还在运行，使用taskkill强制终止
+    if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Forcing termination..."
+        taskkill /PID $ProcessId /F
+        Start-Sleep -Seconds 5
+    }
+    
+    return (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
 }
 
 function Build-TypeScript {
@@ -44,38 +43,42 @@ function Build-TypeScript {
     Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] TypeScript build completed successfully"
 }
 
+# 定义重启间隔时间（小时）
+$restartInterval = 1
+
 while ($true) {
-  try {
-      # Change to script directory
-      Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Changing to script directory..."
-      Set-Location -Path $scriptPath
+    try {
+        # Change to script directory
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Changing to script directory..."
+        Set-Location -Path $scriptPath
       
-      # Build TypeScript files
-      Build-TypeScript
+        # Build TypeScript files
+        Build-TypeScript
       
-      # Start Bot using the compiled JavaScript
-      Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Starting Discord Bot..."
-      $nodePath = (Get-Command node).Source
-      $process = Start-Process $nodePath -ArgumentList "dist/index.js" -PassThru -WindowStyle Normal -WorkingDirectory $scriptPath
+        # Start Bot using the compiled JavaScript
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Starting Discord Bot..."
+        $nodePath = (Get-Command node).Source
+        $process = Start-Process $nodePath -ArgumentList "dist/index.js" -PassThru -WindowStyle Normal -WorkingDirectory $scriptPath
       
-      # Wait for 4 hours
-      Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot started with PID: $($process.Id)"
-      Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Waiting 6 hours before restart..."
-      Start-Sleep -Seconds (6 * 60 * 60)
+        # Wait for 6 hours
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot started with PID: $($process.Id)"
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Waiting $restartInterval hours before restart..."
+        Start-Sleep -Seconds ($restartInterval * 60 * 60)
       
-      # Stop Bot
-      if (Stop-Bot -ProcessId $process.Id) {
-          Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Waiting 5 seconds before restart..."
-          Start-Sleep -Seconds 5
-      } else {
-          Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Warning: Process may not be fully stopped"
-          Start-Sleep -Seconds 10
-      }
-  }
-  catch {
-      Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Error occurred: $_"
-      Write-Host $_.Exception.Message
-      Write-Host $_.ScriptStackTrace
-      Start-Sleep -Seconds 30
-  }
+        # Stop Bot
+        if (Stop-Bot -ProcessId $process.Id) {
+            Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Waiting 5 seconds before restart..."
+            Start-Sleep -Seconds 5
+        }
+        else {
+            Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Warning: Process may not be fully stopped"
+            Start-Sleep -Seconds 5
+        }
+    }
+    catch {
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Error occurred: $_"
+        Write-Host $_.Exception.Message
+        Write-Host $_.ScriptStackTrace
+        Start-Sleep -Seconds 15
+    }
 } 

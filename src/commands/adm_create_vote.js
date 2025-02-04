@@ -3,7 +3,7 @@ import { ProcessModel } from '../db/models/processModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { VoteService } from '../services/voteService.js';
-import { handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {

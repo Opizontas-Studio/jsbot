@@ -95,17 +95,9 @@ const handleProcessError = async (error, source = '') => {
         errorDetails.name === 'HTTPError' ||
         errorDetails.name === 'WebSocketError'
     ) {
-        logTime('检测到API或网络错误，尝试清理...', true);
-        try {
-            if (globalBatchProcessor) {
-                globalBatchProcessor.interrupt();
-            }
-            if (globalRequestQueue) {
-                await globalRequestQueue.cleanup();
-            }
-        } catch (cleanupError) {
-            logTime(`清理失败: ${cleanupError.message}`, true);
-        }
+        logTime('检测到网络错误，强制清理队列...', true);
+        // 直接清理，不等待结果
+        globalRequestQueue.cleanup().catch(() => null);
     }
 };
 

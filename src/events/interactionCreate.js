@@ -17,9 +17,17 @@ const DEFAULT_COOLDOWN = 5;
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        // 检查交互是否仍然有效
-        if (!interaction.isRepliable()) {
-            logTime(`检测到无效交互: ${interaction.id}`, true);
+        // 检查WebSocket状态
+        if (interaction.client.ws.status !== 0) {
+            logTime(`WebSocket未就绪，状态: ${interaction.client.ws.status}，跳过交互处理`, true);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction
+                    .reply({
+                        content: '❌ 网络连接不稳定，请稍后重试',
+                        flags: ['Ephemeral'],
+                    })
+                    .catch(() => null);
+            }
             return;
         }
 
@@ -35,11 +43,29 @@ export default {
                 // 获取优先级
                 const priority = buttonType === 'appeal' ? 4 : 3;
 
-                // 使用队列处理
-                return globalRequestQueue.add(() => handleButton(interaction), priority);
-            }
+                try {
+                    // 设置超时时间
+                    await Promise.race([
+                        globalRequestQueue.add(() => handleButton(interaction), priority),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('交互超时')), 3000)),
+                    ]);
+                } catch (error) {
+                    // 如果是网络错误，直接清理队列
+                    if (error.code?.startsWith('ECONN') || error.name === 'DiscordAPIError') {
+                        globalRequestQueue.cleanup().catch(() => null);
+                    }
 
-            // 其他按钮直接处理
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction
+                            .reply({
+                                content: '❌ 操作失败，请稍后重试',
+                                flags: ['Ephemeral'],
+                            })
+                            .catch(() => null);
+                    }
+                }
+                return;
+            }
             return handleButton(interaction);
         }
 

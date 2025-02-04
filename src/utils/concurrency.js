@@ -28,6 +28,10 @@ export class RequestQueue {
                 resolve,
                 reject,
                 timestamp: Date.now(),
+                timeout: setTimeout(() => {
+                    this.queue = this.queue.filter(item => item !== queueItem);
+                    reject(new Error('队列任务超时'));
+                }, 3000),
             };
 
             // 根据优先级插入队列
@@ -65,16 +69,21 @@ export class RequestQueue {
         const processPromises = tasks.map(async item => {
             this.currentProcessing++;
             try {
+                clearTimeout(item.timeout);
                 const result = await item.task();
                 this.stats.processed++;
                 item.resolve(result);
             } catch (error) {
+                clearTimeout(item.timeout);
                 this.stats.failed++;
                 item.reject(error);
                 logTime(`队列任务失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${error.message}`, true);
+                // 如果是网络相关错误，清理整个队列
+                if (error.code?.startsWith('ECONN') || error.name === 'DiscordAPIError') {
+                    await this.cleanup();
+                }
             } finally {
                 this.currentProcessing--;
-                // 继续处理队列
                 if (this.queue.length > 0) {
                     this.process();
                 }
@@ -86,24 +95,21 @@ export class RequestQueue {
 
     // 清理请求队列
     async cleanup() {
-        if (this.currentProcessing > 0) {
-            logTime(`等待 ${this.currentProcessing} 个正在处理的任务完成...`);
-            while (this.currentProcessing > 0) {
-                await delay(100);
-            }
-        }
-
+        // 直接清理所有任务，不等待
         if (this.queue.length > 0) {
-            logTime(`清理剩余的 ${this.queue.length} 个队列任务`);
+            logTime(`强制清理 ${this.queue.length} 个队列任务`);
             for (const item of this.queue) {
-                item.reject(new Error('队列正在关闭'));
+                clearTimeout(item.timeout);
+                item.reject(new Error('队列被强制清理'));
             }
             this.queue = [];
         }
 
+        // 重置状态
         this.processing = false;
         this.currentProcessing = 0;
-        logTime('请求队列资源已完全清理');
+        this.stats.failed += this.currentProcessing; // 记录被强制终止的任务
+        logTime('请求队列已强制清理');
     }
 }
 

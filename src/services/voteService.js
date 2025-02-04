@@ -163,16 +163,22 @@ class VoteService {
                 throw new Error('无法获取投票数据');
             }
 
-            const { redVoters, blueVoters, totalVoters, details, type } = latestVote;
+            // 获取当前实时的议员总数
+            const currentTotalVoters = await this._getSenatorsCount(guildConfig, client);
+            if (currentTotalVoters === 0) {
+                throw new Error('无法获取当前议员总数');
+            }
+
+            const { redVoters, blueVoters, details, type } = latestVote;
             const redCount = redVoters.length;
             const blueCount = blueVoters.length;
-            const threshold = Math.ceil(totalVoters * 0.1); // 10%阈值
+            const threshold = Math.ceil(currentTotalVoters * 0.1); // 使用当前议员总数计算10%阈值
 
             // 判断结果
             let result, message;
             if (redCount + blueCount < threshold) {
                 result = 'blue_win';
-                message = `投票人数未达到议员总数10%（${threshold}票），执行蓝方诉求`;
+                message = `投票人数未达到当前议员总数10%（${threshold}票），执行蓝方诉求`;
             } else if (redCount === blueCount) {
                 result = 'blue_win';
                 message = '投票持平，执行蓝方诉求';
@@ -311,11 +317,11 @@ class VoteService {
                 }
             }
 
-            // 修改最终日志格式
+            // 修改最终日志格式，使用当前议员总数
             logTime(
                 `投票结束 [ID: ${latestVote.id}] - ` +
                     `结果: ${result}, ` +
-                    `总议员: ${totalVoters}, ` +
+                    `当前总议员: ${currentTotalVoters}, ` +
                     `红方: ${redCount}票, ` +
                     `蓝方: ${blueCount}票`,
             );

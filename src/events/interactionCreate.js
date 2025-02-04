@@ -18,20 +18,6 @@ const DEFAULT_COOLDOWN = 5;
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
-        // 检查WebSocket状态
-        if (interaction.client.ws.status !== 0) {
-            logTime(`WebSocket未就绪，状态: ${interaction.client.ws.status}，跳过交互处理`, true);
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction
-                    .reply({
-                        content: '❌ 网络连接不稳定，请稍后重试',
-                        flags: ['Ephemeral'],
-                    })
-                    .catch(() => null);
-            }
-            return;
-        }
-
         // 处理按钮交互
         if (interaction.isButton()) {
             const buttonType = interaction.customId.split('_')[0];

@@ -11,12 +11,13 @@ export class RequestQueue {
     constructor() {
         this.queue = [];
         this.processing = false;
-        this.maxConcurrent = 5;
+        this.maxConcurrent = 3;
         this.currentProcessing = 0;
         this.stats = {
             processed: 0,
             failed: 0,
         };
+        this.isProcessing = false;
     }
 
     // 添加任务到队列
@@ -44,49 +45,54 @@ export class RequestQueue {
 
     // 处理队列中的任务
     async process() {
-        // 检查是否可以处理更多任务
-        const availableSlots = this.maxConcurrent - this.currentProcessing;
-        if (availableSlots <= 0) {
-            return;
-        }
+        if (this.isProcessing) return;
+        this.isProcessing = true;
 
-        // 获取可以处理的任务数量
-        const tasksToProcess = Math.min(availableSlots, this.queue.length);
-        if (tasksToProcess === 0) {
-            return;
-        }
-
-        // 对队列按优先级排序
-        this.queue.sort((a, b) => b.priority - a.priority);
-
-        // 并发处理多个任务
-        const tasks = this.queue.splice(0, tasksToProcess);
-
-        const processPromises = tasks.map(async item => {
-            this.currentProcessing++;
-            try {
-                const result = await item.task();
-                this.stats.processed++;
-                item.resolve(result);
-            } catch (error) {
-                this.stats.failed++;
-                item.reject(error);
-                logTime(`队列任务失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${error.message}`, true);
-                await this.cleanup();
-            } finally {
-                this.currentProcessing--;
-                if (this.queue.length > 0) {
-                    this.process();
-                }
+        try {
+            // 检查是否可以处理更多任务
+            const availableSlots = this.maxConcurrent - this.currentProcessing;
+            if (availableSlots <= 0) {
+                return;
             }
-        });
 
-        await Promise.allSettled(processPromises);
+            // 获取可以处理的任务数量
+            const tasksToProcess = Math.min(availableSlots, this.queue.length);
+            if (tasksToProcess === 0) {
+                return;
+            }
+
+            // 对队列按优先级排序
+            this.queue.sort((a, b) => b.priority - a.priority);
+            const tasks = this.queue.splice(0, tasksToProcess);
+
+            const processPromises = tasks.map(async item => {
+                this.currentProcessing++;
+                try {
+                    const result = await item.task();
+                    this.stats.processed++;
+                    item.resolve(result);
+                } catch (error) {
+                    this.stats.failed++;
+                    item.reject(error);
+                } finally {
+                    this.currentProcessing--;
+                    if (this.queue.length > 0 && !this.isProcessing) {
+                        this.process();
+                    }
+                }
+            });
+
+            await Promise.allSettled(processPromises);
+        } finally {
+            this.isProcessing = false;
+            if (this.queue.length > 0) {
+                this.process();
+            }
+        }
     }
 
     // 清理请求队列
     async cleanup() {
-        // 直接清理所有任务，不等待
         if (this.queue.length > 0) {
             logTime(`强制清理 ${this.queue.length} 个队列任务`);
             for (const item of this.queue) {
@@ -95,10 +101,10 @@ export class RequestQueue {
             this.queue = [];
         }
 
-        // 重置状态
         this.processing = false;
         this.currentProcessing = 0;
-        this.stats.failed += this.currentProcessing; // 记录被强制终止的任务
+        this.stats.failed += this.currentProcessing;
+        this.isProcessing = false;
         logTime('请求队列已强制清理');
     }
 }

@@ -58,9 +58,10 @@ export default {
             return;
         }
 
-        // 处理模态框提交（不使用defer）
+        // 处理模态框提交
         if (interaction.isModalSubmit()) {
             try {
+                await interaction.deferReply({ flags: ['Ephemeral'] });
                 await handleModal(interaction);
             } catch (error) {
                 await handleInteractionError(interaction, error, 'modal');

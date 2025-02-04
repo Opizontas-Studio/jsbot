@@ -276,6 +276,27 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         threadArray,
         async thread => {
             try {
+                // 如果是置顶子区，添加并移除反应以保持活跃状态
+                if (thread.flags.has(ChannelFlags.Pinned)) {
+                    try {
+                        const messages = await thread.messages.fetch({ limit: 1 });
+                        const lastMessage = messages.first();
+                        if (lastMessage) {
+                            // 添加反应
+                            await lastMessage.react('🔄');
+                            // 等待1秒
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            // 移除反应
+                            const reaction = lastMessage.reactions.cache.find(r => r.emoji.name === '🔄');
+                            if (reaction) {
+                                await reaction.users.remove(client.user.id);
+                            }
+                        }
+                    } catch (error) {
+                        logTime(`为置顶子区 ${thread.name} 添加反应失败: ${handleDiscordError(error)}`, true);
+                    }
+                }
+
                 const messages = await thread.messages.fetch({ limit: 1 });
                 let lastMessage = messages.first();
 

@@ -557,9 +557,16 @@ export async function handleButton(interaction) {
         }
 
         // 处理显示模态框的按钮（不需要defer）
-        if (interaction.customId.startsWith('appeal_') || interaction.customId.startsWith('creator_role_modal')) {
-            const punishmentId = interaction.customId.split('_')[1];
-            return handleAppealButton(interaction, punishmentId);
+        if (interaction.customId.startsWith('appeal_') || interaction.customId.startsWith('apply_creator_role')) {
+            if (interaction.customId.startsWith('appeal_')) {
+                const punishmentId = interaction.customId.split('_')[1];
+                return handleAppealButton(interaction, punishmentId);
+            } else {
+                const handler = buttonHandlers['apply_creator_role'];
+                if (handler) {
+                    return handler(interaction);
+                }
+            }
         }
 
         // 处理其他按钮
@@ -571,6 +578,11 @@ export async function handleButton(interaction) {
 
         await handler(interaction);
     } catch (error) {
+        // 如果是已知的交互错误，不再重复处理
+        if (error.name === 'InteractionAlreadyReplied') {
+            logTime(`按钮交互已回复: ${interaction.customId}`, true);
+            return;
+        }
         await handleInteractionError(interaction, error, 'button');
     }
 }

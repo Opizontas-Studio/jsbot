@@ -5,6 +5,22 @@ import { globalBatchProcessor } from '../utils/concurrency.js';
 import { handleDiscordError, measureTime } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
+// 超时控制的工具函数
+const withTimeout = async (promise, ms = 10000, context = '') => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`操作超时: ${context}`)), ms);
+    });
+    try {
+        const result = await Promise.race([promise, timeoutPromise]);
+        clearTimeout(timeoutId);
+        return result;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
+
 const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
 
 /**
@@ -276,50 +292,69 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         threadArray,
         async thread => {
             try {
-                // 如果是置顶子区，添加并移除反应以保持活跃状态
+                // 处理置顶子区的反应
                 if (thread.flags.has(ChannelFlags.Pinned)) {
                     try {
-                        const messages = await thread.messages.fetch({ limit: 1 });
+                        const messages = await withTimeout(
+                            thread.messages.fetch({ limit: 1 }),
+                            5000,
+                            `获取置顶子区消息 ${thread.name}`,
+                        );
                         const lastMessage = messages.first();
                         if (lastMessage) {
-                            // 添加反应
-                            await lastMessage.react('🔄');
-                            // 等待1秒
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            // 移除反应
-                            const reaction = lastMessage.reactions.cache.find(r => r.emoji.name === '🔄');
-                            if (reaction) {
-                                await reaction.users.remove(client.user.id);
-                            }
+                            await withTimeout(
+                                Promise.all([
+                                    lastMessage.react('🔄'),
+                                    new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
+                                        const reaction = lastMessage.reactions.cache.find(r => r.emoji.name === '🔄');
+                                        return reaction?.users.remove(client.user.id);
+                                    }),
+                                ]),
+                                5000,
+                                `处理置顶子区反应 ${thread.name}`,
+                            );
                         }
                     } catch (error) {
                         logTime(`为置顶子区 ${thread.name} 添加反应失败: ${handleDiscordError(error)}`, true);
+                        // 继续执行，不中断流程
                     }
                 }
 
-                const messages = await thread.messages.fetch({ limit: 1 });
-                let lastMessage = messages.first();
-
-                if (!lastMessage) {
-                    const moreMessages = await thread.messages.fetch({ limit: 3 });
-                    lastMessage = moreMessages.find(msg => msg !== null);
+                // 获取子区消息
+                let lastMessage = null;
+                try {
+                    const messages = await withTimeout(
+                        thread.messages.fetch({ limit: 1 }),
+                        5000,
+                        `获取子区消息 ${thread.name}`,
+                    );
+                    lastMessage = messages.first();
 
                     if (!lastMessage) {
-                        logTime(`[警告] 子区消息获取异常: ${thread.name} 消息计数: ${thread.messageCount}`);
+                        const moreMessages = await withTimeout(
+                            thread.messages.fetch({ limit: 3 }),
+                            5000,
+                            `获取更多子区消息 ${thread.name}`,
+                        );
+                        lastMessage = moreMessages.find(msg => msg !== null);
                     }
+                } catch (error) {
+                    logTime(`获取子区 ${thread.name} 消息失败: ${handleDiscordError(error)}`, true);
+                    // 使用子区创建时间作为备选
+                    lastMessage = null;
                 }
 
                 const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
                 const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
 
                 return {
-                    thread: thread,
+                    thread,
                     threadId: thread.id,
                     name: thread.name,
                     parentId: thread.parentId,
                     parentName: thread.parent?.name || '未知论坛',
                     lastMessageTime: lastActiveTime,
-                    inactiveHours: inactiveHours,
+                    inactiveHours,
                     messageCount: thread.messageCount || 0,
                     isPinned: thread.flags.has(ChannelFlags.Pinned),
                 };

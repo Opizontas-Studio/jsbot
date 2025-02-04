@@ -557,7 +557,7 @@ export async function handleButton(interaction) {
         }
 
         // 处理显示模态框的按钮（不需要defer）
-        if (interaction.customId.startsWith('appeal_')) {
+        if (interaction.customId.startsWith('appeal_') || interaction.customId.startsWith('creator_role_modal')) {
             const punishmentId = interaction.customId.split('_')[1];
             return handleAppealButton(interaction, punishmentId);
         }

@@ -17,6 +17,12 @@ const DEFAULT_COOLDOWN = 5;
 export default {
     name: Events.InteractionCreate,
     async execute(interaction) {
+        // 检查交互是否仍然有效
+        if (!interaction.isRepliable()) {
+            logTime(`检测到无效交互: ${interaction.id}`, true);
+            return;
+        }
+
         // 处理按钮交互
         if (interaction.isButton()) {
             // 解析按钮类型

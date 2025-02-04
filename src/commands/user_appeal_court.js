@@ -75,15 +75,6 @@ export default {
             return;
         }
 
-        // 检查议员权限
-        if (!interaction.member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
-            await interaction.editReply({
-                content: '❌ 只有议员可以使用此命令',
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
-
         const subcommand = interaction.options.getSubcommand();
 
         try {

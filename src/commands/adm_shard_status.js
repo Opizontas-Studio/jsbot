@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { handleCommandError } from '../utils/helper.js';
+import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 获取WebSocket状态描述

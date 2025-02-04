@@ -305,7 +305,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                             await withTimeout(
                                 Promise.all([
                                     lastMessage.react('🔄'),
-                                    new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
+                                    new Promise(resolve => setTimeout(resolve, 1100)).then(() => {
                                         const reaction = lastMessage.reactions.cache.find(r => r.emoji.name === '🔄');
                                         return reaction?.users.remove(client.user.id);
                                     }),

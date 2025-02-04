@@ -178,10 +178,10 @@ class PunishmentScheduler {
                 syncedServers: JSON.parse(p.syncedServers || '[]'),
             }));
 
+            // 调度处罚到期处理
             for (const punishment of activePunishments) {
                 await this.schedulePunishment(punishment, client);
             }
-            logTime(`已加载并调度 ${activePunishments.length} 个处罚的到期处理`);
         } catch (error) {
             logTime(`加载和调度处罚失败: ${error.message}`, true);
         }
@@ -300,7 +300,6 @@ class VoteScheduler {
             for (const vote of votes) {
                 await this.scheduleVote(vote, client);
             }
-            logTime(`已加载并调度 ${votes.length} 个投票的状态更新`);
         } catch (error) {
             logTime(`加载和调度投票失败: ${error.message}`, true);
         }
@@ -315,31 +314,10 @@ class VoteScheduler {
         try {
             const now = Date.now();
 
-            // 安全解析 JSON 字段
-            let parsedVote = { ...vote };
-
-            // 处理 redVoters
-            if (Array.isArray(vote.redVoters)) {
-                parsedVote.redVoters = vote.redVoters;
-            } else {
-                parsedVote.redVoters = [];
-                logTime(`redVoters 不是数组 [ID: ${vote.id}], 使用空数组`);
-            }
-
-            // 处理 blueVoters
-            if (Array.isArray(vote.blueVoters)) {
-                parsedVote.blueVoters = vote.blueVoters;
-            } else {
-                parsedVote.blueVoters = [];
-                logTime(`blueVoters 不是数组 [ID: ${vote.id}], 使用空数组`);
-            }
-
-            // 处理 details
-            if (typeof vote.details === 'object' && vote.details !== null) {
-                parsedVote.details = vote.details;
-            } else {
-                parsedVote.details = {};
-                logTime(`details 不是对象 [ID: ${vote.id}], 使用空对象`);
+            // 直接使用VoteModel获取已解析的数据
+            const parsedVote = await VoteModel.getVoteById(vote.id);
+            if (!parsedVote) {
+                throw new Error(`无法获取投票数据`);
             }
 
             // 验证必要字段
@@ -441,7 +419,7 @@ class VoteScheduler {
             // 确保清理任何可能已创建的定时器
             this.clearVoteTimers(vote.id);
             this.votes.delete(vote.id);
-            throw error; // 重新抛出错误以便上层处理
+            throw error;
         }
     }
 
@@ -515,7 +493,6 @@ class TaskScheduler {
         this.registerDatabaseTasks();
 
         this.isInitialized = true;
-        logTime('任务调度器初始化完成');
     }
 
     /**

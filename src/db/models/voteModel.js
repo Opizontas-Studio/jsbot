@@ -177,7 +177,7 @@ class VoteModel {
             }
             return updatedVote;
         } catch (error) {
-            logTime(`添加投票人失败: ${error.message}`, true);
+            logTime(`投票操作失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -191,12 +191,45 @@ class VoteModel {
     static _parseVoteJSON(vote) {
         if (!vote) return null;
 
-        return {
-            ...vote,
-            redVoters: JSON.parse(vote.redVoters || '[]'),
-            blueVoters: JSON.parse(vote.blueVoters || '[]'),
-            details: JSON.parse(vote.details || '{}'),
-        };
+        try {
+            // 添加类型检查
+            const redVoters =
+                typeof vote.redVoters === 'string'
+                    ? JSON.parse(vote.redVoters)
+                    : Array.isArray(vote.redVoters)
+                    ? vote.redVoters
+                    : [];
+
+            const blueVoters =
+                typeof vote.blueVoters === 'string'
+                    ? JSON.parse(vote.blueVoters)
+                    : Array.isArray(vote.blueVoters)
+                    ? vote.blueVoters
+                    : [];
+
+            const details =
+                typeof vote.details === 'string'
+                    ? JSON.parse(vote.details)
+                    : typeof vote.details === 'object'
+                    ? vote.details
+                    : {};
+
+            return {
+                ...vote,
+                redVoters,
+                blueVoters,
+                details,
+            };
+        } catch (error) {
+            logTime(`解析投票数据失败 [ID: ${vote.id}]: ${error.message}`, true);
+            // 返回安全的默认值
+            return {
+                ...vote,
+                redVoters: [],
+                blueVoters: [],
+                details: {},
+            };
+        }
     }
 
     /**

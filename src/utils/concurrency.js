@@ -71,9 +71,11 @@ export class RequestQueue {
                     const result = await item.task();
                     this.stats.processed++;
                     item.resolve(result);
+                    return result;
                 } catch (error) {
                     this.stats.failed++;
                     item.reject(error);
+                    throw error;
                 } finally {
                     this.currentProcessing--;
                     if (this.queue.length > 0 && !this.isProcessing) {
@@ -82,7 +84,8 @@ export class RequestQueue {
                 }
             });
 
-            await Promise.allSettled(processPromises);
+            // 等待所有Promise完成
+            await Promise.all(processPromises.map(p => p.catch(e => e)));
         } finally {
             this.isProcessing = false;
             if (this.queue.length > 0) {

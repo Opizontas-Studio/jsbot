@@ -47,25 +47,25 @@ pnpm start
 │   └── scheduler.js  # 处理定时任务
 │
 ├── services  # 对于较为复杂的命令, 在此编写处理逻辑
-│   ├── courtService.js
-│   ├── punishmentService.js
-│   ├── roleApplication.js
-│   ├── threadAnalyzer.js
-│   ├── threadCleaner.js
-│   └── voteService.js
+│   ├── courtService.js  # 辩诉系统服务
+│   ├── punishmentService.js  # 处罚系统服务
+│   ├── roleApplication.js  # 身份组管理服务
+│   ├── threadAnalyzer.js  # 子区活跃度分析服务
+│   ├── threadCleaner.js  # 子区人数清理服务
+│   └── voteService.js  # 投票系统服务
 │
 ├── db  # 存取数据库, 数据文件将存储于 data/database.sqlite 中
 │   ├── dbManager.ts  # 对数据库建表、查询等操作的封装, 目前的建表是直接以 SQL 形式硬编码在代码中
 │   └── models        # 对各表存取的封装
-│       ├── processModel.js     # 对一些命令的处理流程进行记录
-│       ├── punishmentModel.js  # 对成员的处罚记录
-│       └── voteModel.js        # 红蓝投票
+│       ├── processModel.js     # 议事流程记录
+│       ├── punishmentModel.js  # 成员处罚记录
+│       └── voteModel.js        # 红蓝投票记录
 │
 └── utils
-    ├── assertion.ts
-    ├── concurrency.js
-    ├── guildManager.js  # 对服务器配置进行管理
-    ├── helper.js
-    ├── logger.js
-    └── punishmentHelper.js
+    ├── assertion.ts  # 断言工具
+    ├── concurrency.js  # 并发控制工具（队列器+批处理限速器）
+    ├── guildManager.js  # 服务器配置管理
+    ├── helper.js         # 通用函数封装
+    ├── logger.js         # 日志工具封装
+    └── punishmentHelper.js  # 处罚系统工具函数
 ```

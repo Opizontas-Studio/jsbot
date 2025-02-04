@@ -87,12 +87,5 @@ export default {
                     );
                 }
             });
-
-        // 添加WebSocket状态检查
-        client.on('debug', info => {
-            if (info.includes('Session Limit Information')) {
-                logTime('收到会话限制信息: ' + info);
-            }
-        });
     },
 };

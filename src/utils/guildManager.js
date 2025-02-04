@@ -13,8 +13,6 @@ export class GuildManager {
         if (!config.guilds || typeof config.guilds !== 'object') {
             throw new Error('配置文件缺少guilds对象');
         }
-
-        logTime(`开始加载服务器配置，共 ${Object.keys(config.guilds).length} 个服务器`);
         for (const [guildId, guildConfig] of Object.entries(config.guilds)) {
             const automationConfig = guildConfig.automation || {};
 
@@ -83,8 +81,6 @@ export class GuildManager {
 
             logTime(`已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
         }
-
-        logTime(`服务器配置加载完成，当前已配置 ${this.guilds.size} 个服务器`);
     }
 
     /**

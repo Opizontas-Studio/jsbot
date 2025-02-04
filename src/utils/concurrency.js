@@ -72,11 +72,7 @@ export class RequestQueue {
                 this.stats.failed++;
                 item.reject(error);
                 logTime(`队列任务失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${error.message}`, true);
-
-                // 如果是网络错误，清理队列
-                if (error.code?.startsWith('ECONN') || error.name === 'DiscordAPIError') {
-                    await this.cleanup();
-                }
+                await this.cleanup();
             } finally {
                 this.currentProcessing--;
                 if (this.queue.length > 0) {

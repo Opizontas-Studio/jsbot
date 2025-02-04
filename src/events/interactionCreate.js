@@ -2,6 +2,7 @@ import { Collection, Events } from 'discord.js';
 import { handleButton } from '../handlers/buttons.js';
 import { handleModal } from '../handlers/modals.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 创建一个用于存储冷却时间的集合

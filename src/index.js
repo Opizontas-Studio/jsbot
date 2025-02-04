@@ -9,7 +9,7 @@ import { Client, Collection, Events, GatewayIntentBits, Options, REST, Routes } 
 
 // 本地工具函数
 import GuildManager from './utils/guildManager.js';
-import { getVersionInfo, handleDiscordError, loadCommandFiles, measureTime } from './utils/helper.js';
+import { getVersionInfo, handleDiscordError, loadCommandFiles } from './utils/helper.js';
 import { logTime } from './utils/logger.js';
 
 // 本地功能模块
@@ -198,7 +198,6 @@ async function main() {
         // 初始化数据库连接
         try {
             await dbManager.connect();
-            logTime('数据库连接已建立');
         } catch (error) {
             logTime('数据库初始化失败，无法继续运行:', true);
             console.error('错误详情:', error);
@@ -212,10 +211,8 @@ async function main() {
         client.guildManager.initialize(config);
 
         // 先登录
-        const loginTimer = measureTime();
         try {
             await client.login(config.token);
-            logTime(`登录完成，用时: ${loginTimer()}秒`);
         } catch (error) {
             logTime(`登录失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error.message}`, true);
             process.exit(1);

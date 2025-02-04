@@ -475,11 +475,11 @@ class VoteService {
             }
 
             // 使用硬编码的议员总数
-            const HARDCODED_SENATOR_COUNT = 100; // 根据实际议员数量设置
+            const HARDCODED_SENATOR_COUNT = 230; // 根据实际议员数量设置
 
             // 记录议员数量日志
             logTime(
-                `获取议员总数(硬编码): ${HARDCODED_SENATOR_COUNT} ` +
+                `议员总数(硬编码): ${HARDCODED_SENATOR_COUNT} ` +
                     `(服务器: ${guild.name}, ` +
                     `身份组: ${role.name}, ` +
                     `身份组ID: ${role.id})`,

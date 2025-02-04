@@ -10,7 +10,7 @@ export default {
     cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('快速禁言')
-        .setDescription('创建一个持续5分钟的快速禁言1小时投票')
+        .setDescription('创建一个持续5分钟的快速禁言1小时投票（测试命令）')
         .addUserOption(option => option.setName('目标').setDescription('处罚的目标用户').setRequired(true)),
 
     async execute(interaction, guildConfig) {

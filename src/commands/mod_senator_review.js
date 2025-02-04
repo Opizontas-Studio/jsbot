@@ -1,5 +1,5 @@
 import { ChannelType, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
-import { handleCommandError } from '../utils/helper.js';
+import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
@@ -9,19 +9,7 @@ export default {
     async execute(interaction, guildConfig) {
         try {
             // 检查用户权限
-            const hasAdminRole = interaction.member.roles.cache.some(role =>
-                guildConfig.AdministratorRoleIds.includes(role.id),
-            );
-            const hasModRole = interaction.member.roles.cache.some(role =>
-                guildConfig.ModeratorRoleIds.includes(role.id),
-            );
-
-            // 如果既不是管理员也不是版主，则拒绝访问
-            if (!hasAdminRole && !hasModRole) {
-                await interaction.editReply({
-                    content: '❌ 你没有权限审核议员申请。需要具有管理员或版主身份组。',
-                    flags: ['Ephemeral'],
-                });
+            if (!(await checkModeratorPermission(interaction, guildConfig))) {
                 return;
             }
 

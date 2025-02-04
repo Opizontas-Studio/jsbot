@@ -1,5 +1,10 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { handleCommandError, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
+import {
+    checkModeratorPermission,
+    handleCommandError,
+    sendModerationLog,
+    sendThreadNotification,
+} from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 /**
@@ -66,20 +71,7 @@ export default {
             }
 
             // 检查用户权限
-            const hasAdminRole = interaction.member.roles.cache.some(role =>
-                guildConfig.AdministratorRoleIds.includes(role.id),
-            );
-            const hasModRole = interaction.member.roles.cache.some(role =>
-                guildConfig.ModeratorRoleIds.includes(role.id),
-            );
-            const hasForumPermission = parentChannel.permissionsFor(interaction.member).has('ManageMessages');
-
-            // 如果既不是管理员也不是（版主+有论坛权限），则拒绝访问
-            if (!hasAdminRole && !(hasModRole && hasForumPermission)) {
-                await interaction.editReply({
-                    content: '❌ 你没有权限管理此帖子。需要具有管理员身份组或（版主身份组+该论坛的消息管理权限）。',
-                    flags: ['Ephemeral'],
-                });
+            if (!(await checkModeratorPermission(interaction, guildConfig, { requireForumPermission: true }))) {
                 return;
             }
 

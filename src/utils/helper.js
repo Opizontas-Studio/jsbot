@@ -51,44 +51,66 @@ export const handleDiscordError = error => {
 };
 
 /**
- * 检查用户权限并处理结果
+ * 检查用户是否有指定角色权限并处理结果
  * @param {Interaction} interaction - Discord交互对象
- * @param {string[]} AdministratorRoleIds - 允许执行命令的管理员角色ID数组
+ * @param {string[]} roleIds - 允许执行命令的角色ID数组
  * @param {Object} [options] - 可选配置
  * @param {string} [options.errorMessage] - 自定义错误消息
- * @param {boolean} [options.checkChannelPermission] - 是否检查频道权限
  * @returns {Promise<boolean>} 如果用户有权限返回true，否则返回false
  */
-export const checkAndHandlePermission = async (interaction, AdministratorRoleIds, options = {}) => {
-    const hasGlobalPermission = interaction.member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
+export const checkAndHandlePermission = async (interaction, roleIds, options = {}) => {
+    const hasPermission = interaction.member.roles.cache.some(role => roleIds.includes(role.id));
 
-    // 如果需要检查频道权限
-    if (options.checkChannelPermission && !hasGlobalPermission) {
-        const channel = interaction.channel;
-        // 如果是子区，检查父频道的权限
-        if (channel.isThread()) {
-            const parentPermissions = channel.parent.permissionsFor(interaction.member);
-            if (parentPermissions.has('ManageMessages')) {
-                return true;
-            }
-        } else {
-            // 检查频道的权限
-            const channelPermissions = channel.permissionsFor(interaction.member);
-            if (channelPermissions.has('ManageMessages')) {
-                return true;
-            }
-        }
-    } else if (hasGlobalPermission) {
-        return true;
+    if (!hasPermission) {
+        await interaction.editReply({
+            content: options.errorMessage || '你没有权限使用此命令。需要具有指定的身份组。',
+            flags: ['Ephemeral'],
+        });
     }
 
-    // 如果没有权限，发送错误消息
-    const errorMessage = options.errorMessage || '你没有权限使用此命令。需要具有指定的身份组权限。';
-    await interaction.editReply({
-        content: errorMessage,
-        flags: ['Ephemeral'],
-    });
-    return false;
+    return hasPermission;
+};
+
+/**
+ * 检查用户是否有管理员或版主权限并处理结果
+ * @param {Interaction} interaction - Discord交互对象
+ * @param {Object} guildConfig - 服务器配置
+ * @param {Object} [options] - 可选配置
+ * @param {boolean} [options.requireForumPermission=false] - 是否要求版主同时具有论坛权限
+ * @param {string} [options.customErrorMessage] - 自定义错误消息
+ * @returns {Promise<boolean>} 如果用户有权限返回true，否则返回false
+ */
+export const checkModeratorPermission = async (interaction, guildConfig, options = {}) => {
+    const hasAdminRole = interaction.member.roles.cache.some(role =>
+        guildConfig.AdministratorRoleIds.includes(role.id),
+    );
+    const hasModRole = interaction.member.roles.cache.some(role => guildConfig.ModeratorRoleIds.includes(role.id));
+
+    let hasPermission = hasAdminRole;
+
+    if (!hasPermission && hasModRole) {
+        if (options.requireForumPermission) {
+            // 如果需要论坛权限，检查用户是否有管理消息的权限
+            const parentChannel = interaction.channel.parent;
+            const hasForumPermission = parentChannel.permissionsFor(interaction.member).has('ManageMessages');
+            hasPermission = hasForumPermission;
+        } else {
+            hasPermission = true;
+        }
+    }
+
+    if (!hasPermission) {
+        const defaultError = options.requireForumPermission
+            ? '你没有权限执行此操作。需要具有管理员身份组或（版主身份组+该论坛的消息管理权限）。'
+            : '你没有权限执行此操作。需要具有管理员或版主身份组。';
+
+        await interaction.editReply({
+            content: options.customErrorMessage || defaultError,
+            flags: ['Ephemeral'],
+        });
+    }
+
+    return hasPermission;
 };
 
 /**

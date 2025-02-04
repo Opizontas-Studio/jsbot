@@ -1,7 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import PunishmentService from '../services/punishmentService.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
@@ -46,8 +46,8 @@ export default {
                     return;
                 }
             } else if (subcommand === '禁言') {
-                // 禁言只需要版主权限
-                if (!(await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds))) {
+                // 禁言需要版主或管理员权限
+                if (!(await checkModeratorPermission(interaction, guildConfig))) {
                     return;
                 }
             }

@@ -18,14 +18,26 @@ export class RequestQueue {
         };
         this.taskTimeout = 180000; // 任务超时时间：3分钟
         this.lastProcessTime = Date.now();
-        this.healthCheckInterval = setInterval(() => this.healthCheck(), 60000);
+        this.healthCheckInterval = setInterval(() => this.healthCheck(), 300000); // 5分钟 = 300000ms
     }
 
     // 健康检查
     async healthCheck() {
         const now = Date.now();
+        // 格式化最后处理时间
+        const lastProcessTimeStr = new Date(this.lastProcessTime).toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        });
+
+        logTime(`队列长度: ${this.queue.length}, 最后处理时间: ${lastProcessTimeStr}`);
+
         // 如果队列有任务但超过3分钟没有处理，可能出现了死锁
-        // logTime(`队列长度: ${this.queue.length}, 最后处理时间: ${this.lastProcessTime}`);
         if (this.queue.length > 0 && now - this.lastProcessTime > 180000) {
             logTime('检测到队列可能死锁，正在重置状态...', true);
             this.currentProcessing = 0;

@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 获取WebSocket状态描述
@@ -26,7 +26,8 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
+            // 需要版主或管理员权限
+            if (!(await checkModeratorPermission(interaction, guildConfig))) {
                 return;
             }
 

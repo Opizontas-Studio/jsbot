@@ -71,7 +71,12 @@ export default {
             }
 
             // 检查用户权限
-            if (!(await checkModeratorPermission(interaction, guildConfig, { requireForumPermission: true }))) {
+            if (
+                !(await checkModeratorPermission(interaction, guildConfig, {
+                    requireForumPermission: true,
+                    customErrorMessage: '❌ 需要管理员权限或（版主权限+该论坛的管理权限）',
+                }))
+            ) {
                 return;
             }
 

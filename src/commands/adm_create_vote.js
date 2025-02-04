@@ -16,11 +16,8 @@ export default {
     async execute(interaction, guildConfig) {
         try {
             // 检查管理员权限
-            if (!interaction.member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id))) {
-                return await interaction.editReply({
-                    content: '❌ 只有管理员可以使用此命令',
-                    flags: ['Ephemeral'],
-                });
+            if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
+                return;
             }
 
             const target = interaction.options.getUser('目标');

@@ -10,6 +10,11 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
+            // 检查管理员权限
+            if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
+                return;
+            }
+
             // 检查是否在论坛帖子中使用
             if (!interaction.channel?.isThread() || interaction.channel.parent?.type !== ChannelType.GuildForum) {
                 await interaction.editReply({

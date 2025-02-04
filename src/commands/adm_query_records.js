@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { handleCommandError } from '../utils/helper.js';
 import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
@@ -20,8 +20,8 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            // 检查管理员权限
-            if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
+            // 需要版主或管理员权限
+            if (!(await checkModeratorPermission(interaction, guildConfig))) {
                 return;
             }
 

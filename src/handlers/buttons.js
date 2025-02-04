@@ -121,7 +121,7 @@ function checkCooldown(type, userId, duration = 30000) {
  * 每个处理器函数接收一个 ButtonInteraction 参数
  */
 export const buttonHandlers = {
-    // 身份组申请按钮处理器
+    // 身份组申请按钮处理器 - 不需要defer（显示模态框）
     apply_creator_role: async interaction => {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('roleapply', interaction.user.id);
@@ -205,7 +205,7 @@ export const buttonHandlers = {
         await interaction.update(pages[newPage - 1]);
     },
 
-    // 议事区支持按钮处理器
+    // 议事区支持按钮处理器 - 需要defer
     support_mute: async interaction => {
         await handleCourtSupport(interaction, 'mute');
     },
@@ -222,7 +222,7 @@ export const buttonHandlers = {
         await handleCourtSupport(interaction, 'debate');
     },
 
-    // 投票按钮处理器
+    // 投票按钮处理器 - 需要defer
     vote_red: async interaction => {
         await handleVoteButton(interaction, 'red');
     },
@@ -238,8 +238,6 @@ export const buttonHandlers = {
  * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate')
  */
 async function handleCourtSupport(interaction, type) {
-    await interaction.deferReply({ flags: ['Ephemeral'] });
-
     try {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('court_support', interaction.user.id);
@@ -445,8 +443,6 @@ async function handleAppealButton(interaction, punishmentId) {
 
 // 修改投票按钮处理函数
 async function handleVoteButton(interaction, choice) {
-    await interaction.deferReply({ flags: ['Ephemeral'] });
-
     try {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('vote', interaction.user.id);
@@ -544,35 +540,29 @@ async function handleVoteButton(interaction, choice) {
  */
 export async function handleButton(interaction) {
     try {
-        // 如果是确认按钮（以confirm_开头），直接返回
+        // 如果是确认按钮，直接返回
         if (interaction.customId.startsWith('confirm_')) {
             return;
         }
 
-        // 处理投票按钮
-        if (interaction.customId.startsWith('vote_')) {
-            const [, choice, processId] = interaction.customId.split('_');
-            await handleVoteButton(interaction, choice);
-            return;
-        }
-
-        // 处理支持按钮
-        if (interaction.customId.startsWith('support_')) {
+        // 处理需要defer的按钮
+        if (interaction.customId.startsWith('vote_') || interaction.customId.startsWith('support_')) {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
             const [action, type] = interaction.customId.split('_');
             const handler = buttonHandlers[`${action}_${type}`];
             if (handler) {
                 await handler(interaction);
-                return;
             }
-        }
-
-        // 处理上诉按钮
-        if (interaction.customId.startsWith('appeal_')) {
-            const punishmentId = interaction.customId.split('_')[1];
-            await handleAppealButton(interaction, punishmentId);
             return;
         }
 
+        // 处理显示模态框的按钮（不需要defer）
+        if (interaction.customId.startsWith('appeal_')) {
+            const punishmentId = interaction.customId.split('_')[1];
+            return handleAppealButton(interaction, punishmentId);
+        }
+
+        // 处理其他按钮
         const handler = buttonHandlers[interaction.customId];
         if (!handler) {
             logTime(`未找到按钮处理器: ${interaction.customId}`, true);

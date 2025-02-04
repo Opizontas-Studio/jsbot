@@ -276,33 +276,31 @@ export const handleCommandError = async (interaction, error, commandName) => {
  * @param {string} interactionType - 交互类型（如：'button', 'modal'）
  */
 export const handleInteractionError = async (interaction, error, interactionType) => {
-    // 获取错误消息
-    const errorMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : error.message;
+    // 获取用户友好的错误消息
+    const userMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : '操作失败，请稍后重试';
 
-    // 记录详细错误日志
-    logTime(`${interactionType}交互出错: ${errorMessage}`, true);
+    // 记录错误日志
+    logTime(`${interactionType}交互出错: ${error.message}`, true);
 
     try {
-        // 用户可见的错误消息
-        const userMessage =
-            error instanceof DiscordAPIError ? handleDiscordError(error) : '处理请求时出现错误，请稍后重试';
+        // 如果是网络相关错误，清理队列
+        if (error.code?.startsWith('ECONN') || error.name === 'DiscordAPIError') {
+            globalRequestQueue?.cleanup().catch(() => null);
+        }
 
-        // 根据交互状态发送响应
-        if (interaction.deferred) {
-            await interaction.editReply({
-                content: `❌ ${userMessage}`,
-                flags: ['Ephemeral'],
-            });
-        } else if (!interaction.replied) {
+        // 根据交互状态选择响应方式
+        if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
                 content: `❌ ${userMessage}`,
                 flags: ['Ephemeral'],
             });
+        } else if (interaction.deferred) {
+            await interaction.editReply({
+                content: `❌ ${userMessage}`,
+            });
         }
-        // 如果已经replied但不是deferred，只记录日志
-    } catch (replyError) {
-        // 如果发送错误响应也失败，记录额外日志
-        logTime(`发送错误响应失败: ${replyError.message}`, true);
+    } catch (followupError) {
+        logTime(`发送错误响应失败: ${followupError.message}`, true);
     }
 };
 

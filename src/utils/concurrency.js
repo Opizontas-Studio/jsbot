@@ -28,10 +28,6 @@ export class RequestQueue {
                 resolve,
                 reject,
                 timestamp: Date.now(),
-                timeout: setTimeout(() => {
-                    this.queue = this.queue.filter(item => item !== queueItem);
-                    reject(new Error('队列任务超时'));
-                }, 3000),
             };
 
             // 根据优先级插入队列
@@ -69,16 +65,15 @@ export class RequestQueue {
         const processPromises = tasks.map(async item => {
             this.currentProcessing++;
             try {
-                clearTimeout(item.timeout);
                 const result = await item.task();
                 this.stats.processed++;
                 item.resolve(result);
             } catch (error) {
-                clearTimeout(item.timeout);
                 this.stats.failed++;
                 item.reject(error);
                 logTime(`队列任务失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${error.message}`, true);
-                // 如果是网络相关错误，清理整个队列
+
+                // 如果是网络错误，清理队列
                 if (error.code?.startsWith('ECONN') || error.name === 'DiscordAPIError') {
                     await this.cleanup();
                 }
@@ -99,7 +94,6 @@ export class RequestQueue {
         if (this.queue.length > 0) {
             logTime(`强制清理 ${this.queue.length} 个队列任务`);
             for (const item of this.queue) {
-                clearTimeout(item.timeout);
                 item.reject(new Error('队列被强制清理'));
             }
             this.queue = [];

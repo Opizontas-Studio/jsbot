@@ -33,79 +33,71 @@ export default {
 
         // 处理按钮交互
         if (interaction.isButton()) {
-            // 解析按钮类型
             const buttonType = interaction.customId.split('_')[0];
 
             // 需要队列控制的按钮类型
-            const queuedButtonTypes = ['court', 'vote', 'appeal'];
+            const queuedButtonTypes = ['court', 'vote', 'support'];
 
             if (queuedButtonTypes.includes(buttonType)) {
-                // 获取优先级
                 const priority = buttonType === 'appeal' ? 4 : 3;
 
                 try {
-                    // 设置超时时间
-                    await Promise.race([
-                        globalRequestQueue.add(() => handleButton(interaction), priority),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('交互超时')), 3000)),
-                    ]);
+                    await globalRequestQueue.add(() => handleButton(interaction), priority);
                 } catch (error) {
-                    // 如果是网络错误，直接清理队列
-                    if (error.code?.startsWith('ECONN') || error.name === 'DiscordAPIError') {
-                        globalRequestQueue.cleanup().catch(() => null);
-                    }
-
-                    if (!interaction.replied && !interaction.deferred) {
-                        await interaction
-                            .reply({
-                                content: '❌ 操作失败，请稍后重试',
-                                flags: ['Ephemeral'],
-                            })
-                            .catch(() => null);
-                    }
+                    await handleInteractionError(interaction, error, 'button');
                 }
                 return;
             }
-            return handleButton(interaction);
+
+            // 其他按钮直接处理
+            try {
+                await handleButton(interaction);
+            } catch (error) {
+                await handleInteractionError(interaction, error, 'button');
+            }
+            return;
         }
 
-        // 处理模态框提交
+        // 处理模态框提交（不使用defer）
         if (interaction.isModalSubmit()) {
+            try {
+                await handleModal(interaction);
+            } catch (error) {
+                await handleInteractionError(interaction, error, 'modal');
+            }
+            return;
+        }
+
+        // 处理斜杠命令
+        if (interaction.isChatInputCommand()) {
             await interaction.deferReply({ flags: ['Ephemeral'] });
-            return handleModal(interaction);
+
+            try {
+                const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+                if (!guildConfig) {
+                    return interaction.editReply({
+                        content: '此服务器尚未配置，无法使用命令。',
+                        flags: ['Ephemeral'],
+                    });
+                }
+
+                const command = interaction.client.commands.get(interaction.commandName);
+                if (!command) {
+                    logTime(`未找到命令 ${interaction.commandName}`, true);
+                    return;
+                }
+
+                // 处理命令冷却时间
+                const cooldownResult = await handleCooldown(interaction, command);
+                if (cooldownResult) return cooldownResult;
+
+                // 获取命令优先级并执行
+                const priority = getPriorityByCommandName(command.data.name);
+                await globalRequestQueue.add(() => command.execute(interaction, guildConfig), priority);
+            } catch (error) {
+                await handleCommandError(interaction, error, interaction.commandName);
+            }
         }
-
-        // 只处理斜杠命令
-        if (!interaction.isChatInputCommand()) {
-            return;
-        }
-
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
-        // 获取服务器特定配置
-        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-        if (!guildConfig) {
-            return interaction.editReply({
-                content: '此服务器尚未配置，无法使用命令。',
-                flags: ['Ephemeral'],
-            });
-        }
-
-        const command = interaction.client.commands.get(interaction.commandName);
-        if (!command) {
-            logTime(`未找到命令 ${interaction.commandName}`, true);
-            return;
-        }
-
-        // 处理命令冷却时间
-        const cooldownResult = await handleCooldown(interaction, command);
-        if (cooldownResult) return cooldownResult;
-
-        // 获取命令优先级
-        const priority = getPriorityByCommandName(command.data.name);
-
-        // 执行命令
-        await globalRequestQueue.add(() => command.execute(interaction, guildConfig), priority);
     },
 };
 

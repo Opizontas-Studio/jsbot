@@ -8,7 +8,7 @@ export default {
     cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('撤销处罚')
-        .setDescription('撤销指定的处罚记录')
+        .setDescription('根据数据库情况，撤销指定的处罚')
         .addIntegerOption(option => option.setName('处罚id').setDescription('要撤销的处罚ID').setRequired(true))
         .addStringOption(option => option.setName('原因').setDescription('撤销原因').setRequired(true)),
 
@@ -33,8 +33,7 @@ export default {
             }
 
             // 检查处罚状态
-            if (punishment.status !== 'active' && 
-                !(punishment.type === 'ban' && punishment.status === 'expired')) {
+            if (punishment.status !== 'active' && !(punishment.type === 'ban' && punishment.status === 'expired')) {
                 let message = '❌ 无法撤销处罚：';
                 switch (punishment.status) {
                     case 'appealed':

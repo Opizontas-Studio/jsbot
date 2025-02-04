@@ -44,7 +44,7 @@ function Build-TypeScript {
 }
 
 # 定义重启间隔时间（小时）
-$restartInterval = 1
+$restartInterval = 3
 
 while ($true) {
     try {
@@ -60,7 +60,7 @@ while ($true) {
         $nodePath = (Get-Command node).Source
         $process = Start-Process $nodePath -ArgumentList "dist/index.js" -PassThru -WindowStyle Normal -WorkingDirectory $scriptPath
       
-        # Wait for 6 hours
+        # Wait for interval
         Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Bot started with PID: $($process.Id)"
         Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Waiting $restartInterval hours before restart..."
         Start-Sleep -Seconds ($restartInterval * 60 * 60)

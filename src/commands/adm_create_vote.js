@@ -7,7 +7,7 @@ import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js
 import { logTime } from '../utils/logger.js';
 
 export default {
-    cooldown: 5,
+    cooldown: 30,
     data: new SlashCommandBuilder()
         .setName('快速禁言')
         .setDescription('创建一个持续5分钟的快速禁言1小时投票（测试命令）')

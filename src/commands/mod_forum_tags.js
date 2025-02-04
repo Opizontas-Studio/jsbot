@@ -12,7 +12,7 @@ export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('添加标签')
-        .setDescription('添加新的论坛标签')
+        .setDescription('添加新的论坛标签(由于技术限制，标签emoji需手动调整，且最大标签数为20)')
         .addChannelOption(option =>
             option
                 .setName('论坛')

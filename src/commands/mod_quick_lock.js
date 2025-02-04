@@ -1,5 +1,5 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { checkAndHandlePermission, handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
+import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 
 export default {
     cooldown: 10,
@@ -10,16 +10,6 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            // 检查用户是否有管理消息的权限（只检查频道权限）
-            if (
-                !(await checkAndHandlePermission(interaction, [], {
-                    checkChannelPermission: true,
-                    errorMessage: '你没有权限锁定此帖子。需要具有管理消息的权限。',
-                }))
-            ) {
-                return;
-            }
-
             // 验证当前频道是否为论坛帖子
             if (!interaction.channel.isThread()) {
                 await interaction.editReply({
@@ -34,6 +24,24 @@ export default {
             if (!parentChannel || parentChannel.type !== ChannelType.GuildForum) {
                 await interaction.editReply({
                     content: '❌ 此子区不属于论坛频道',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+
+            // 检查用户权限
+            const hasAdminRole = interaction.member.roles.cache.some(role =>
+                guildConfig.AdministratorRoleIds.includes(role.id),
+            );
+            const hasModRole = interaction.member.roles.cache.some(role =>
+                guildConfig.ModeratorRoleIds.includes(role.id),
+            );
+            const hasForumPermission = parentChannel.permissionsFor(interaction.member).has('ManageMessages');
+
+            // 如果既不是管理员也不是（版主+有论坛权限），则拒绝访问
+            if (!hasAdminRole && !(hasModRole && hasForumPermission)) {
+                await interaction.editReply({
+                    content: '❌ 你没有权限锁定此帖子。需要具有管理员身份组或（版主身份组+该论坛的消息管理权限）。',
                     flags: ['Ephemeral'],
                 });
                 return;

@@ -92,33 +92,6 @@ export const checkAndHandlePermission = async (interaction, AdministratorRoleIds
 };
 
 /**
- * 检查用户是否具有特定频道的权限
- * @param {GuildMember} member - Discord服务器成员对象
- * @param {Channel} channel - Discord频道对象
- * @param {string[]} AdministratorRoleIds - 允许执行命令的管理员角色ID数组
- * @returns {boolean} 如果用户拥有权限则返回true
- */
-export const checkChannelPermission = (member, channel, AdministratorRoleIds) => {
-    // 检查用户是否有全局身份组权限
-    const hasGlobalPermission = member.roles.cache.some(role => AdministratorRoleIds.includes(role.id));
-    if (hasGlobalPermission) {
-        return true;
-    }
-
-    // 获取用户在该频道的权限
-    const channelPermissions = channel.permissionsFor(member);
-
-    // 如果是论坛帖子，检查父频道的权限
-    if (channel.isThread()) {
-        const parentPermissions = channel.parent.permissionsFor(member);
-        return parentPermissions.has('ManageMessages');
-    }
-
-    // 检查频道的权限
-    return channelPermissions.has('ManageMessages');
-};
-
-/**
  * 锁定并归档帖子
  * @param {ThreadChannel} thread - Discord帖子对象
  * @param {User} executor - 执行操作的用户

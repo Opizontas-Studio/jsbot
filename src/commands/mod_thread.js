@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { handleCommandError, sendModerationLog, sendThreadNotification } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -27,8 +27,7 @@ export default {
                     { name: '取消论坛标注', value: 'unpin' },
                 ),
         )
-        .addStringOption(option => option.setName('理由').setDescription('处理原因').setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+        .addStringOption(option => option.setName('理由').setDescription('处理原因').setRequired(true)),
 
     async execute(interaction, guildConfig) {
         const threadUrl = interaction.options.getString('帖子链接');
@@ -123,8 +122,8 @@ export default {
                 unpin: '取消论坛标注',
             }[action];
 
-            // 只有锁定和解锁操作才发送日志和通知
-            if (action === 'lock' || action === 'unlock') {
+            // 只有锁定操作才发送日志和通知
+            if (action === 'lock') {
                 // 发送操作日志
                 await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
                     title: `管理员${actionDesc}帖子`,

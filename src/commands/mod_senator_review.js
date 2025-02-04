@@ -1,31 +1,34 @@
-import { ChannelType, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 10,
-    data: new SlashCommandBuilder()
-        .setName('议员快速审核')
-        .setDescription('快速审核议员申请帖')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    data: new SlashCommandBuilder().setName('议员快速审核').setDescription('快速审核议员申请帖'),
 
     async execute(interaction, guildConfig) {
         try {
-            // 检查服务器是否启用身份组申请功能
-            if (!guildConfig?.roleApplication?.enabled) {
+            // 检查用户权限
+            const hasAdminRole = interaction.member.roles.cache.some(role =>
+                guildConfig.AdministratorRoleIds.includes(role.id),
+            );
+            const hasModRole = interaction.member.roles.cache.some(role =>
+                guildConfig.ModeratorRoleIds.includes(role.id),
+            );
+
+            // 如果既不是管理员也不是版主，则拒绝访问
+            if (!hasAdminRole && !hasModRole) {
                 await interaction.editReply({
-                    content: '❌ 此服务器未启用身份组申请功能',
+                    content: '❌ 你没有权限审核议员申请。需要具有管理员或版主身份组。',
+                    flags: ['Ephemeral'],
                 });
                 return;
             }
 
-            // 检查用户是否有管理身份组的权限
-            const channel = interaction.channel;
-            const memberPermissions = channel.permissionsFor(interaction.member);
-
-            if (!memberPermissions.has(PermissionFlagsBits.ManageRoles)) {
+            // 检查服务器是否启用身份组申请功能
+            if (!guildConfig?.roleApplication?.enabled) {
                 await interaction.editReply({
-                    content: '你没有权限执行此命令。需要具有管理身份组的权限。',
+                    content: '❌ 此服务器未启用身份组申请功能',
                 });
                 return;
             }

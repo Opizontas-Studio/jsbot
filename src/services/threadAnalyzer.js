@@ -292,30 +292,22 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         threadArray,
         async thread => {
             try {
-                // 处理置顶子区的反应
+                // 处理置顶子区
                 if (thread.flags.has(ChannelFlags.Pinned)) {
                     try {
-                        const messages = await withTimeout(
-                            thread.messages.fetch({ limit: 1 }),
+                        // 无条件确保子区开启和标注
+                        await withTimeout(
+                            thread.setArchived(false, '保持置顶子区开放'),
                             5000,
-                            `获取置顶子区消息 ${thread.name}`,
+                            `开启置顶子区 ${thread.name}`
                         );
-                        const lastMessage = messages.first();
-                        if (lastMessage) {
-                            await withTimeout(
-                                Promise.all([
-                                    lastMessage.react('🔄'),
-                                    new Promise(resolve => setTimeout(resolve, 1100)).then(() => {
-                                        const reaction = lastMessage.reactions.cache.find(r => r.emoji.name === '🔄');
-                                        return reaction?.users.remove(client.user.id);
-                                    }),
-                                ]),
-                                5000,
-                                `处理置顶子区反应 ${thread.name}`,
-                            );
-                        }
+                        await withTimeout(
+                            thread.pin('保持置顶子区标注'),
+                            5000,
+                            `标注置顶子区 ${thread.name}`
+                        );
                     } catch (error) {
-                        logTime(`为置顶子区 ${thread.name} 添加反应失败: ${handleDiscordError(error)}`, true);
+                        logTime(`设置置顶子区 ${thread.name} 状态失败: ${handleDiscordError(error)}`, true);
                         // 继续执行，不中断流程
                     }
                 }

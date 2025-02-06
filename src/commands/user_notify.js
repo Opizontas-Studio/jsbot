@@ -11,8 +11,8 @@ const COLORS = {
 };
 
 export default {
-    // 设置命令冷却时间为60秒
-    cooldown: 60,
+    // 设置命令冷却时间为30秒
+    cooldown: 30,
 
     // 定义命令
     data: new SlashCommandBuilder()

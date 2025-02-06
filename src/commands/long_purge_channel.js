@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { Collection, SlashCommandBuilder } from 'discord.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { generateProgressReport, globalBatchProcessor } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';

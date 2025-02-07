@@ -1,6 +1,6 @@
 import { Events } from 'discord.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { createApplicationMessage } from '../services/roleApplication.js';
+import { createApplicationMessage, createRoleSyncMessage } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
 
 // 添加重连计数器和时间记录

@@ -11,6 +11,7 @@ import { dbManager } from '../db/dbManager.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
+import { syncMemberRoles } from '../services/roleApplication.js';
 import { VoteService } from '../services/voteService.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';

@@ -46,6 +46,17 @@ export default {
                         .setMaxValue(1000)
                         .setRequired(false),
                 ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('删除消息')
+                .setDescription('删除帖子内指定的一条消息')
+                .addStringOption(option =>
+                    option
+                        .setName('消息链接')
+                        .setDescription('要删除的消息链接')
+                        .setRequired(true),
+                ),
         ),
 
     async execute(interaction, guildConfig) {
@@ -302,6 +313,64 @@ export default {
                 });
             } catch (error) {
                 await handleCommandError(interaction, error, '清理不活跃用户');
+            }
+        } else if (subcommand === '删除消息') {
+            try {
+                const messageUrl = interaction.options.getString('消息链接');
+                const matches = messageUrl.match(/channels\/(\d+)\/(\d+)\/(\d+)/);
+                
+                if (!matches) {
+                    await interaction.editReply({
+                        content: '❌ 无效的消息链接格式',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                const [, guildId, channelId, messageId] = matches;
+
+                // 验证消息是否在当前服务器和当前帖子
+                if (guildId !== interaction.guildId || channelId !== interaction.channelId) {
+                    await interaction.editReply({
+                        content: '❌ 只能删除当前帖子内的消息',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                try {
+                    const message = await interaction.channel.messages.fetch(messageId);
+                    if (!message) {
+                        await interaction.editReply({
+                            content: '❌ 找不到指定的消息',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    // 保存消息内容和发送者信息用于日志
+                    const messageContent = message.content;
+                    const messageAuthor = message.author;
+                    
+                    // 删除消息
+                    await message.delete();
+                    
+                    await interaction.editReply({
+                        content: `✅ 已删除 ${messageAuthor.tag} 发送的消息`,
+                        flags: ['Ephemeral'],
+                    });
+
+                    // 记录日志
+                    logTime(`楼主 ${interaction.user.tag} 在帖子 ${thread.name} 中删除了 ${messageAuthor.tag} 发送的消息，内容：${messageContent}`);
+                } catch (error) {
+                    await interaction.editReply({
+                        content: `❌ 删除消息失败: ${error.message}`,
+                        flags: ['Ephemeral'],
+                    });
+                    throw error;
+                }
+            } catch (error) {
+                await handleCommandError(interaction, error, '删除消息');
             }
         }
     },

@@ -18,6 +18,9 @@ export default {
 
         // 初始化身份组申请消息
         await createApplicationMessage(client);
+        
+        // 初始化身份组同步消息
+        await createRoleSyncMessage(client);
 
         // 初始化WebSocket状态监控
         const wsStateMonitor = {

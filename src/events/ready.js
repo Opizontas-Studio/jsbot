@@ -1,6 +1,6 @@
 import { Events } from 'discord.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { createApplicationMessage, createRoleSyncMessage } from '../services/roleApplication.js';
+import { createApplicationMessage, createSyncMessage } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
 
 // 添加重连计数器和时间记录
@@ -20,7 +20,7 @@ export default {
         await createApplicationMessage(client);
         
         // 初始化身份组同步消息
-        await createRoleSyncMessage(client);
+        await createSyncMessage(client);
 
         // 初始化WebSocket状态监控
         const wsStateMonitor = {

@@ -113,7 +113,7 @@ export const modalHandlers = {
                     try {
                         // 读取身份组同步配置
                         const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-                        const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者身份组');
+                        const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
 
                         if (creatorSyncGroup) {
                             const syncResults = [];

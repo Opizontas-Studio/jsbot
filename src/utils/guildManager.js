@@ -50,6 +50,7 @@ export class GuildManager {
                     creatorRoleId: null, // string | null - 创作者角色ID
                     senatorRoleId: null, // string | null - 参议员角色ID
                     senatorRoleForumId: null, // string | null - 参议员论坛ID
+                    roleSyncThreadId: null, // string | null - 身份组同步主题ID
                 },
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,

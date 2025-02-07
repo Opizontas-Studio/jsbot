@@ -230,6 +230,32 @@ export const buttonHandlers = {
     vote_blue: async interaction => {
         await handleVoteButton(interaction, 'blue');
     },
+
+    // 身份组同步按钮处理器 - 需要defer
+    sync_roles: async interaction => {
+        // 检查冷却时间
+        const cooldownLeft = checkCooldown('role_sync', interaction.user.id, 60000); // 1分钟冷却
+        if (cooldownLeft) {
+            return await interaction.editReply({
+                content: `❌ 请等待 ${cooldownLeft} 秒后再次同步`,
+            });
+        }
+
+        try {
+            // 同步身份组
+            await syncMemberRoles(interaction.member);
+            
+            // 回复用户
+            await interaction.editReply({
+                content: '✅ 身份组同步已完成',
+            });
+        } catch (error) {
+            await interaction.editReply({
+                content: '❌ 同步身份组时出错，请稍后重试',
+            });
+            logTime(`同步身份组失败: ${error.message}`, true);
+        }
+    },
 };
 
 /**
@@ -546,8 +572,16 @@ export async function handleButton(interaction) {
         }
 
         // 处理需要defer的按钮
-        if (interaction.customId.startsWith('vote_') || interaction.customId.startsWith('support_')) {
+        if (
+            interaction.customId.startsWith('vote_') || 
+            interaction.customId.startsWith('support_') ||
+            interaction.customId === 'sync_roles'
+        ) {
             await interaction.deferReply({ flags: ['Ephemeral'] });
+            if (interaction.customId === 'sync_roles') {
+                await buttonHandlers.sync_roles(interaction);
+                return;
+            }
             const [action, type] = interaction.customId.split('_');
             const handler = buttonHandlers[`${action}_${type}`];
             if (handler) {

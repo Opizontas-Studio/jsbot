@@ -304,7 +304,7 @@ async function handleCleanupResult(interaction, result, threshold, guildConfig) 
     }
 
     // 发送自动化日志
-    const logChannel = await interaction.client.channels.fetch(guildConfig.automation.logThreadId);
+    const logChannel = await interaction.client.channels.fetch(guildConfig.roleApplication.logThreadId);
     await logChannel.send({
         embeds: [
             {

@@ -199,6 +199,63 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
 };
 
 /**
+ * 发送频道通知
+ * @param {Object} channel - Discord频道对象
+ * @param {Object} target - 目标用户对象
+ * @param {Object} punishment - 处罚数据库记录
+ * @returns {Promise<boolean>} 发送是否成功
+ */
+export const sendChannelNotification = async (channel, target, punishment) => {
+    try {
+        const executor = await channel.client.users.fetch(punishment.executorId);
+
+        // 检查处罚时长是否小于24小时
+        const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
+
+        // 检查处罚是否已过期
+        const now = Date.now();
+        const isPunishmentExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
+
+        // 频道通知的 embed
+        const channelEmbed = {
+            color: 0xff0000,
+            title: `${getPunishmentTypeText(punishment.type)}处罚通知`,
+            description: [
+                `处罚对象：<@${target.id}>`,
+                '',
+                '**处罚详情**',
+                punishment.duration > 0 ? `• 处罚期限：${formatPunishmentDuration(punishment.duration)}` : '• 处罚期限：永久',
+                punishment.warningDuration
+                    ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
+                    : null,
+                `• 处罚理由：${punishment.reason || '未提供原因'}`,
+                '',
+                punishment.type === 'mute' ? (
+                    isShortPunishment
+                        ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。'
+                        : isPunishmentExpired
+                        ? '⚠️ 处罚已到期，无需上诉。'
+                        : '如需上诉，请查看私信消息。'
+                ) : null,
+            ]
+                .filter(Boolean)
+                .join('\n'),
+            footer: {
+                text: `由管理员 ${executor.tag} 执行`,
+            },
+            timestamp: new Date(),
+        };
+
+        // 发送到频道
+        await channel.send({ embeds: [channelEmbed] });
+        return true;
+    } catch (error) {
+        logTime(`发送频道通知失败: ${error.message}`, true);
+        return false;
+    }
+};
+
+/**
  * 发送禁言上诉通知
  * @param {Object} channel - Discord频道对象
  * @param {Object} target - 目标用户对象
@@ -215,37 +272,6 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         // 检查处罚是否已过期
         const now = Date.now();
         const isPunishmentExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
-
-        // 频道通知的 embed
-        const channelEmbed = {
-            color: 0xff0000,
-            title: '禁言处罚通知',
-            description: [
-                `处罚对象：<@${target.id}>`,
-                '',
-                '**处罚详情**',
-                `• 处罚期限：${formatPunishmentDuration(punishment.duration)}`,
-                punishment.warningDuration
-                    ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
-                    : null,
-                `• 处罚理由：${punishment.reason || '未提供原因'}`,
-                '',
-                isShortPunishment
-                    ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。'
-                    : isPunishmentExpired
-                    ? '⚠️ 处罚已到期，无需上诉。'
-                    : '如需上诉，请查看私信消息。',
-            ]
-                .filter(Boolean)
-                .join('\n'),
-            footer: {
-                text: `由管理员 ${executor.tag} 执行`,
-            },
-            timestamp: new Date(),
-        };
-
-        // 发送到频道（不包含上诉按钮）
-        await channel.send({ embeds: [channelEmbed] });
 
         // 私信通知的 embed
         const dmEmbed = {
@@ -301,15 +327,11 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                   ]
                 : [];
 
-        // 尝试发送私信（包含上诉按钮和详细说明）
-        try {
-            await target.send({
-                embeds: [dmEmbed],
-                components: appealComponents,
-            });
-        } catch (error) {
-            logTime(`无法发送私信到用户 ${target.tag}: ${error.message}`);
-        }
+        // 发送私信（包含上诉按钮和详细说明）
+        await target.send({
+            embeds: [dmEmbed],
+            components: appealComponents,
+        });
 
         return true;
     } catch (error) {

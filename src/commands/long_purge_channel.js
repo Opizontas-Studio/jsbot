@@ -74,32 +74,43 @@ export default {
             // 获取指定范围内的消息
             let messages;
             try {
-                // 直接获取指定范围内的消息（最多100条）
-                messages = await channel.messages.fetch({
-                    limit: 100,
-                    before: endMessage.id,
-                    after: startMessageId || '0',
-                });
-
-                // 如果消息数量为100条，说明可能还有更多消息
-                if (messages.size === 100) {
-                    let lastMessage = messages.last();
-                    let additionalMessages;
-
-                    // 继续获取剩余消息，直到获取完所有指定范围内的消息
-                    while (lastMessage && (!startMessageId || lastMessage.id !== startMessageId)) {
-                        additionalMessages = await channel.messages.fetch({
+                // 计算两个消息ID之间的时间差
+                const endTimestamp = BigInt(endMessage.id) >> 22n;
+                const startTimestamp = startMessageId ? BigInt(startMessageId) >> 22n : 0n;
+                const timeDiff = Number(endTimestamp - startTimestamp);
+                
+                // 如果时间差小于1小时，或者起始消息ID存在，说明范围较小，直接一次性获取
+                if (timeDiff < 3600 || startMessageId) {
+                    messages = await channel.messages.fetch({
+                        limit: 100,
+                        before: endMessage.id,
+                        after: startMessageId || '0',
+                    });
+                } else {
+                    // 分批获取消息，每次最多100条
+                    messages = new Collection();
+                    let lastMessageId = endMessage.id;
+                    let attemptCount = 0;
+                    const MAX_ATTEMPTS = 5; // 最多尝试5次，避免无限循环
+                    
+                    while (attemptCount < MAX_ATTEMPTS) {
+                        const batch = await channel.messages.fetch({
                             limit: 100,
-                            before: lastMessage.id,
+                            before: lastMessageId,
                             after: startMessageId || '0',
                         });
-
-                        if (additionalMessages.size === 0) {
-                            break;
-                        }
-
-                        messages = new Collection([...messages, ...additionalMessages]);
-                        lastMessage = additionalMessages.last();
+                        
+                        if (batch.size === 0) break;
+                        
+                        messages = new Collection([...messages, ...batch]);
+                        
+                        if (batch.size < 100) break;
+                        
+                        lastMessageId = batch.last().id;
+                        attemptCount++;
+                        
+                        // 添加延迟以遵守速率限制
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 }
             } catch (error) {
@@ -269,8 +280,10 @@ export default {
                         components: [],
                     });
 
-                    // 记录到日志频道
-                    if (guildConfig.moderationLogThreadId) {
+                    // 记录到日志频道(暂时关闭此功能)
+                    const enableLog = false;
+                    // if (guildConfig.moderationLogThreadId) {
+                    if(enableLog){
                         const logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
                         await logChannel.send({
                             embeds: [

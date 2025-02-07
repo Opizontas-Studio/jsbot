@@ -5,6 +5,7 @@ import {
     executePunishmentAction,
     formatPunishmentDuration,
     sendAppealNotification,
+    sendChannelNotification,
     sendModLogNotification,
 } from '../utils/punishmentHelper.js';
 
@@ -148,10 +149,27 @@ class PunishmentService {
 
             // 6. 发送通知
             const notificationResults = [];
+            
+            // 如果有指定频道，先发送频道通知
+            if (data.channelId) {
+                try {
+                    const channel = await client.channels.fetch(data.channelId);
+                    if (channel) {
+                        const success = await sendChannelNotification(channel, target, punishment);
+                        if (success) {
+                            const guildName = channel.guild?.name || '未知服务器';
+                            notificationResults.push(`服务器 ${guildName} 的频道通知`);
+                        }
+                    }
+                } catch (error) {
+                    logTime(`发送频道通知失败: ${error.message}`, true);
+                }
+            }
+
             // 发送管理日志
             for (const guildData of allGuilds) {
-                if (guildData.moderationLogThreadId) {
-                    try {
+                try {
+                    if (guildData.moderationLogThreadId) {
                         const logChannel = await client.channels
                             .fetch(guildData.moderationLogThreadId)
                             .catch(() => null);
@@ -162,13 +180,13 @@ class PunishmentService {
                                 notificationResults.push(`服务器 ${guildName} 的管理日志`);
                             }
                         }
-                    } catch (error) {
-                        logTime(`发送管理日志通知失败 (服务器ID: ${guildData.id}): ${error.message}`, true);
                     }
+                } catch (error) {
+                    logTime(`发送管理日志通知失败 (服务器ID: ${guildData.id}): ${error.message}`, true);
                 }
             }
 
-            // 发送禁言上诉通知
+            // 发送禁言上诉通知（仅私信）
             if (punishment.type === 'mute' && data.channelId && !data.noAppeal) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);

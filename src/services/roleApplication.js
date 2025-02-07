@@ -7,6 +7,7 @@ import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
+const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 /**
  * 处理创建申请消息
@@ -176,5 +177,94 @@ export const revokeRole = async (client, userId, roleId, reason) => {
     } catch (error) {
         logTime(`撤销身份组操作失败: ${error.message}`, true);
         return { success: false, successfulServers, failedServers };
+    }
+};
+
+/**
+ * 同步用户的身份组
+ * @param {GuildMember} member - Discord服务器成员对象
+ * @returns {Promise<void>}
+ */
+export const syncMemberRoles = async member => {
+    try {
+        // 读取身份组同步配置
+        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+
+        // 将身份组同步任务加入队列
+        await globalRequestQueue.add(async () => {
+            // 获取所有配置的服务器
+            const allGuilds = member.client.guilds.cache;
+            const syncResults = [];
+
+            // 遍历每个同步组
+            for (const syncGroup of roleSyncConfig.syncGroups) {
+                const currentGuildRoleId = syncGroup.roles[member.guild.id];
+                if (!currentGuildRoleId) continue;
+
+                // 检查其他服务器中是否有该身份组
+                let shouldSync = false;
+                let sourceGuildName = '';
+
+                for (const [guildId, roleId] of Object.entries(syncGroup.roles)) {
+                    if (guildId === member.guild.id) continue;
+
+                    const guild = allGuilds.get(guildId);
+                    if (!guild) continue;
+
+                    try {
+                        const guildMember = await guild.members.fetch(member.user.id);
+                        if (guildMember && guildMember.roles.cache.has(roleId)) {
+                            shouldSync = true;
+                            sourceGuildName = guild.name;
+                            break;
+                        }
+                    } catch (error) {
+                        // 用户可能不在该服务器中，继续检查下一个
+                        continue;
+                    }
+                }
+
+                if (shouldSync) {
+                    try {
+                        // 添加身份组
+                        await member.roles.add(currentGuildRoleId);
+                        syncResults.push({
+                            name: syncGroup.name,
+                            success: true,
+                            sourceGuild: sourceGuildName,
+                        });
+                    } catch (error) {
+                        syncResults.push({
+                            name: syncGroup.name,
+                            success: false,
+                            error: error.message,
+                        });
+                    }
+                }
+            }
+
+            // 生成单条综合日志
+            if (syncResults.length > 0) {
+                const successResults = syncResults.filter(r => r.success);
+                const failedResults = syncResults.filter(r => !r.success);
+
+                const logParts = [];
+                
+                if (successResults.length > 0) {
+                    const successGroups = successResults.map(r => `${r.name}（来自 ${r.sourceGuild}）`).join('、');
+                    logParts.push(`成功同步：${successGroups}`);
+                }
+                
+                if (failedResults.length > 0) {
+                    const failedGroups = failedResults.map(r => `${r.name}（${r.error}）`).join('、');
+                    logParts.push(`同步失败：${failedGroups}`);
+                }
+
+                logTime(`用户 ${member.user.tag} 的身份组同步结果：${logParts.join('；')}${failedResults.length > 0 ? '！' : ''}`);
+            }
+        }, 2); // 优先级2，比普通请求高
+    } catch (error) {
+        logTime(`处理身份组同步时发生错误: ${error.message}`, true);
+        throw error; // 向上抛出错误，让调用者处理
     }
 };

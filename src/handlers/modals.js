@@ -1,4 +1,6 @@
 import { ChannelType } from 'discord.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'path';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
@@ -6,6 +8,8 @@ import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { checkAppealEligibility, checkPunishmentStatus, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 import { globalTaskScheduler } from './scheduler.js';
+
+const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 /**
  * 模态框处理器映射
@@ -106,17 +110,63 @@ export const modalHandlers = {
                 };
 
                 if (maxReactions >= 5) {
-                    // 添加身份组
-                    const member = await interaction.guild.members.fetch(interaction.user.id);
-                    await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
-                    await interaction.editReply('✅ 审核通过，已为您添加创作者身份组。');
+                    try {
+                        // 读取身份组同步配置
+                        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+                        const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者身份组');
 
-                    // 只有通过审核才发送日志
-                    if (moderationChannel) {
-                        await moderationChannel.send({ embeds: [auditEmbed] });
+                        if (creatorSyncGroup) {
+                            const syncResults = [];
+                            // 遍历所有需要同步的服务器
+                            for (const [guildId, roleId] of Object.entries(creatorSyncGroup.roles)) {
+                                try {
+                                    const guild = await interaction.client.guilds.fetch(guildId);
+                                    const guildMember = await guild.members.fetch(interaction.user.id);
+                                    await guildMember.roles.add(roleId);
+                                    syncResults.push({
+                                        name: guild.name,
+                                        success: true
+                                    });
+                                } catch (error) {
+                                    syncResults.push({
+                                        name: guildId,
+                                        success: false,
+                                        error: error.message
+                                    });
+                                }
+                            }
+
+                            // 生成同步结果日志
+                            const successResults = syncResults.filter(r => r.success);
+                            const failedResults = syncResults.filter(r => !r.success);
+
+                            const logParts = [];
+                            if (successResults.length > 0) {
+                                logParts.push(`已添加到：${successResults.map(r => r.name).join('、')}`);
+                            }
+                            if (failedResults.length > 0) {
+                                logParts.push(`添加失败：${failedResults.map(r => `${r.name}（${r.error}）`).join('、')}`);
+                            }
+
+                            await interaction.editReply(`✅ 审核通过！${logParts.join('；')}${failedResults.length > 0 ? '！' : ''}`);
+                        } else {
+                            // 如果没有找到同步配置，只在当前服务器添加
+                            const member = await interaction.guild.members.fetch(interaction.user.id);
+                            await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
+                            await interaction.editReply('✅ 审核通过，已为您添加创作者身份组。');
+                        }
+
+                        // 发送审核日志
+                        if (moderationChannel) {
+                            await moderationChannel.send({ embeds: [auditEmbed] });
+                        }
+
+                        logTime(`用户 ${interaction.user.tag} 获得了创作者身份组`);
+                    } catch (error) {
+                        logTime(`同步添加创作者身份组时出错: ${error.message}`, true);
+                        await interaction.editReply('❌ 添加身份组时出现错误，请联系管理员。');
+                        return;
                     }
-
-                    logTime(`用户 ${interaction.user.tag} 获得了创作者身份组`);
                 } else {
                     await interaction.editReply('❌ 审核未通过，请获取足够正面反应后再申请。');
                 }

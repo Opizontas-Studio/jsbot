@@ -225,6 +225,7 @@ export default {
                                     await message.delete();
                                     deletedCount++;
                                     processedCount++;
+                                    await new Promise(resolve => setTimeout(resolve, 500)); // 添加500ms的延迟
                                 } catch (error) {
                                     logTime(`删除旧消息失败: ${error.message}`, true);
                                 }
@@ -280,11 +281,8 @@ export default {
                         components: [],
                     });
 
-                    // 记录到日志频道(暂时关闭此功能)
-                    const enableLog = false;
-                    // if (guildConfig.moderationLogThreadId) {
-                    if(enableLog){
-                        const logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
+                    if(guildConfig.threadLogThreadId){
+                        const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
                         await logChannel.send({
                             embeds: [
                                 {

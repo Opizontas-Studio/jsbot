@@ -146,7 +146,7 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
 
     // 如果是管理员操作，发送到管理日志
     if (options.isAdmin && options.guildConfig) {
-        await sendModerationLog(thread.client, options.guildConfig.moderationLogThreadId, {
+        await sendModerationLog(thread.client, options.guildConfig.threadLogThreadId, {
             title: '管理员锁定并归档帖子',
             executorId: executor.id,
             threadName: thread.name,

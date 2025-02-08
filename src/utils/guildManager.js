@@ -20,6 +20,9 @@ export class GuildManager {
             if (!guildConfig.moderationLogThreadId) {
                 logTime(`警告: 服务器 ${guildId} 缺少 moderationLogThreadId 配置`, true);
             }
+            if (!guildConfig.threadLogThreadId) {
+                logTime(`警告: 服务器 ${guildId} 缺少 threadLogThreadId 配置`, true);
+            }
             if (!guildConfig.ModeratorRoleIds || guildConfig.ModeratorRoleIds.length === 0) {
                 logTime(`警告: 服务器 ${guildId} 缺少 ModeratorRoleIds 配置`, true);
             }
@@ -29,6 +32,7 @@ export class GuildManager {
                 id: guildId, // string - Discord服务器ID
                 serverType: guildConfig.serverType || '', // string - 服务器类型，'Main server' 或 'Sub server'
                 moderationLogThreadId: guildConfig.moderationLogThreadId, // string - 管理日志频道ID
+                threadLogThreadId: guildConfig.threadLogThreadId, // string - 帖子操作日志频道ID
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 WarnedRoleId: guildConfig.WarnedRoleId, // string - 警告角色ID

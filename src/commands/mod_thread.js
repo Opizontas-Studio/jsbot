@@ -122,7 +122,7 @@ export default {
             // 只有锁定操作才发送日志和通知
             if (action === 'lock') {
                 // 发送操作日志
-                await sendModerationLog(interaction.client, guildConfig.moderationLogThreadId, {
+                await sendModerationLog(interaction.client, guildConfig.threadLogThreadId, {
                     title: `管理员${actionDesc}帖子`,
                     executorId: interaction.user.id,
                     threadName: thread.name,

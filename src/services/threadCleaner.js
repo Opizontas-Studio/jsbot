@@ -304,7 +304,7 @@ async function handleCleanupResult(interaction, result, threshold, guildConfig) 
     }
 
     // 发送自动化日志
-    const logChannel = await interaction.client.channels.fetch(guildConfig.roleApplication.logThreadId);
+    const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
     await logChannel.send({
         embeds: [
             {
@@ -326,7 +326,7 @@ async function handleCleanupResult(interaction, result, threshold, guildConfig) 
                     },
                 ],
                 timestamp: new Date(),
-                footer: { text: '论坛自动化系统' },
+                footer: { text: '论坛管理系统' },
             },
         ],
     });

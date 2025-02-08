@@ -221,6 +221,18 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
         await globalRequestQueue.add(async () => {
             // 获取所有配置的服务器
             const allGuilds = member.client.guilds.cache;
+            const memberCache = new Map(); // 用于缓存成员信息
+
+            // 预先获取所有服务器的成员信息
+            for (const guild of allGuilds.values()) {
+                try {
+                    const guildMember = await guild.members.fetch(member.user.id);
+                    memberCache.set(guild.id, guildMember);
+                } catch (error) {
+                    // 用户可能不在该服务器中，继续检查下一个
+                    continue;
+                }
+            }
 
             // 遍历每个同步组
             for (const syncGroup of roleSyncConfig.syncGroups) {
@@ -234,19 +246,11 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                 for (const [guildId, roleId] of Object.entries(syncGroup.roles)) {
                     if (guildId === member.guild.id) continue;
 
-                    const guild = allGuilds.get(guildId);
-                    if (!guild) continue;
-
-                    try {
-                        const guildMember = await guild.members.fetch(member.user.id);
-                        if (guildMember && guildMember.roles.cache.has(roleId)) {
-                            shouldSync = true;
-                            sourceGuildName = guild.name;
-                            break;
-                        }
-                    } catch (error) {
-                        // 用户可能不在该服务器中，继续检查下一个
-                        continue;
+                    const guildMember = memberCache.get(guildId);
+                    if (guildMember && guildMember.roles.cache.has(roleId)) {
+                        shouldSync = true;
+                        sourceGuildName = guildMember.guild.name;
+                        break;
                     }
                 }
 

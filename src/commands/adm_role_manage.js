@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { revokeRole } from '../services/roleApplication.js';
@@ -59,7 +59,29 @@ export default {
                 }
             }
 
+            // 创建回复用的Embed
+            const replyEmbed = new EmbedBuilder()
+                .setTitle(`身份组${operation === 'add' ? '添加' : '移除'}操作`)
+                .setColor(operation === 'add' ? 0x00ff00 : 0xff0000)
+                .setTimestamp()
+                .addFields(
+                    { name: '目标用户', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                    { name: '身份组', value: `${role.name} (${role.id})`, inline: true },
+                    { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true }
+                );
+
             if (operation === 'remove') {
+                // 检查用户是否有该身份组
+                const member = await interaction.guild.members.fetch(targetUser.id);
+                if (!member.roles.cache.has(role.id)) {
+                    replyEmbed
+                        .setColor(0xff9900)
+                        .setDescription('❌ 用户没有该身份组，无需移除');
+                    
+                    await interaction.editReply({ embeds: [replyEmbed] });
+                    return;
+                }
+
                 // 移除身份组
                 const result = await revokeRole(
                     interaction.client,
@@ -68,26 +90,38 @@ export default {
                     `由管理员 ${interaction.user.tag} 移除`,
                 );
 
-                // 发送操作日志
-                const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-                if (logChannel) {
-                    await logChannel.send({
-                        content: [
-                            `📝 **身份组移除操作报告**`,
-                            `- 执行者：${interaction.user.tag} (${interaction.user.id})`,
-                            `- 目标用户：${targetUser.tag} (${targetUser.id})`,
-                            `- 身份组：${role.name} (${role.id})`,
-                            `- 成功服务器：${result.successfulServers.join(', ')}`,
-                            result.failedServers.length > 0 ? `- 失败服务器：${result.failedServers.map(s => s.name).join(', ')}` : '',
-                        ].join('\n'),
-                    });
-                }
+                if (result.success) {
+                    // 更新回复Embed
+                    replyEmbed
+                        .setDescription('✅ 身份组移除成功')
+                        .addFields(
+                            { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
+                            { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
+                        );
 
-                await interaction.editReply({
-                    content: result.success
-                        ? `✅ 已成功移除身份组\n成功服务器：${result.successfulServers.join(', ')}`
-                        : '❌ 移除身份组失败',
-                });
+                    // 发送操作日志
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle('身份组移除操作')
+                        .setColor(0xff0000)
+                        .setTimestamp()
+                        .addFields(
+                            { name: '执行者', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
+                            { name: '目标用户', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                            { name: '身份组', value: `${role.name} (${role.id})`, inline: true },
+                            { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true },
+                            { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
+                            { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
+                        );
+
+                    const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
+                    if (logChannel) {
+                        await logChannel.send({ embeds: [logEmbed] });
+                    }
+                } else {
+                    replyEmbed
+                        .setDescription('❌ 身份组移除失败')
+                        .setColor(0xff0000);
+                }
             } else {
                 // 添加身份组
                 const successfulServers = [];
@@ -106,6 +140,12 @@ export default {
                                 continue;
                             }
 
+                            // 检查用户是否已有该身份组
+                            if (member.roles.cache.has(roleToAdd.id)) {
+                                logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 已有身份组 ${roleToAdd.name}，跳过`);
+                                continue;
+                            }
+
                             await member.roles.add(roleToAdd, `由管理员 ${interaction.user.tag} 添加`);
                             successfulServers.push(guild.name);
                             logTime(`已在服务器 ${guild.name} 为用户 ${member.user.tag} 添加身份组 ${roleToAdd.name}`);
@@ -116,27 +156,41 @@ export default {
                     }
                 }, 3);
 
-                // 发送操作日志
-                const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-                if (logChannel) {
-                    await logChannel.send({
-                        content: [
-                            `📝 **身份组添加操作报告**`,
-                            `- 执行者：${interaction.user.tag} (${interaction.user.id})`,
-                            `- 目标用户：${targetUser.tag} (${targetUser.id})`,
-                            `- 身份组：${role.name} (${role.id})`,
-                            `- 成功服务器：${successfulServers.join(', ')}`,
-                            failedServers.length > 0 ? `- 失败服务器：${failedServers.map(s => s.name).join(', ')}` : '',
-                        ].join('\n'),
-                    });
-                }
+                if (successfulServers.length > 0) {
+                    // 更新回复Embed
+                    replyEmbed
+                        .setDescription('✅ 身份组添加成功')
+                        .addFields(
+                            { name: '成功服务器', value: successfulServers.join(', ') || '无' },
+                            { name: '失败服务器', value: failedServers.map(s => s.name).join(', ') || '无' }
+                        );
 
-                await interaction.editReply({
-                    content: successfulServers.length > 0
-                        ? `✅ 已成功添加身份组\n成功服务器：${successfulServers.join(', ')}`
-                        : '❌ 添加身份组失败',
-                });
+                    // 发送操作日志
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle('身份组添加操作')
+                        .setColor(0x00ff00)
+                        .setTimestamp()
+                        .addFields(
+                            { name: '执行者', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
+                            { name: '目标用户', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
+                            { name: '身份组', value: `${role.name} (${role.id})`, inline: true },
+                            { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true },
+                            { name: '成功服务器', value: successfulServers.join(', ') || '无' },
+                            { name: '失败服务器', value: failedServers.map(s => s.name).join(', ') || '无' }
+                        );
+
+                    const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
+                    if (logChannel) {
+                        await logChannel.send({ embeds: [logEmbed] });
+                    }
+                } else {
+                    replyEmbed
+                        .setDescription('❌ 身份组添加失败')
+                        .setColor(0xff0000);
+                }
             }
+
+            await interaction.editReply({ embeds: [replyEmbed] });
         } catch (error) {
             await handleCommandError(interaction, error, '管理身份组');
         }

@@ -244,11 +244,28 @@ export const buttonHandlers = {
 
         try {
             // 同步身份组
-            await syncMemberRoles(interaction.member);
+            const { syncedRoles } = await syncMemberRoles(interaction.member);
+            
+            // 构建回复消息
+            let replyContent;
+            if (syncedRoles.length > 0) {
+                replyContent = [
+                    '✅ 身份组同步完成',
+                    '',
+                    '**同步成功的身份组：**',
+                    ...syncedRoles.map(role => 
+                        `• ${role.name} (从 ${role.sourceServer} 同步到 ${role.targetServer})`
+                    ),
+                ].join('\n');
+            } else {
+                replyContent = [
+                    '✅ 没有需要同步的身份组',
+                ].join('\n');
+            }
             
             // 回复用户
             await interaction.editReply({
-                content: '✅ 身份组同步已完成',
+                content: replyContent,
             });
         } catch (error) {
             await interaction.editReply({

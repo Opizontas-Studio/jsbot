@@ -65,8 +65,8 @@ export default {
                 .setColor(operation === 'add' ? 0x00ff00 : 0xff0000)
                 .setTimestamp()
                 .addFields(
-                    { name: '目标用户', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-                    { name: '身份组', value: `${role.name} (${role.id})`, inline: true },
+                    { name: '目标用户', value: `${targetUser.tag}`, inline: true },
+                    { name: '身份组', value: `${role.name}`, inline: true },
                     { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true }
                 );
 
@@ -105,10 +105,9 @@ export default {
                         .setColor(0xff0000)
                         .setTimestamp()
                         .addFields(
-                            { name: '执行者', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
-                            { name: '目标用户', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-                            { name: '身份组', value: `${role.name} (${role.id})`, inline: true },
-                            { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true },
+                            { name: '执行者', value: `${interaction.user.tag}`, inline: true },
+                            { name: '目标用户', value: `${targetUser.tag}`, inline: true },
+                            { name: '身份组', value: `${role.name}`, inline: true },
                             { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
                             { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                         );
@@ -171,10 +170,9 @@ export default {
                         .setColor(0x00ff00)
                         .setTimestamp()
                         .addFields(
-                            { name: '执行者', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
-                            { name: '目标用户', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-                            { name: '身份组', value: `${role.name} (${role.id})`, inline: true },
-                            { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true },
+                            { name: '执行者', value: `${interaction.user.tag}`, inline: true },
+                            { name: '目标用户', value: `${targetUser.tag}`, inline: true },
+                            { name: '身份组', value: `${role.name}`, inline: true },
                             { name: '成功服务器', value: successfulServers.join(', ') || '无' },
                             { name: '失败服务器', value: failedServers.map(s => s.name).join(', ') || '无' }
                         );

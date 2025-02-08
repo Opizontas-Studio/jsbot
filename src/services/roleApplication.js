@@ -208,18 +208,19 @@ export const revokeRole = async (client, userId, roleId, reason) => {
 /**
  * 同步用户的身份组
  * @param {GuildMember} member - Discord服务器成员对象
- * @returns {Promise<void>}
+ * @param {boolean} [isAutoSync=false] - 是否为自动同步（加入服务器时）
+ * @returns {Promise<{syncedRoles: Array<{name: string, servers: string[]}>}>}
  */
-export const syncMemberRoles = async member => {
+export const syncMemberRoles = async (member, isAutoSync = false) => {
     try {
         // 读取身份组同步配置
         const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+        const syncedRoles = [];
 
         // 将身份组同步任务加入队列
         await globalRequestQueue.add(async () => {
             // 获取所有配置的服务器
             const allGuilds = member.client.guilds.cache;
-            const syncResults = [];
 
             // 遍历每个同步组
             for (const syncGroup of roleSyncConfig.syncGroups) {
@@ -251,46 +252,37 @@ export const syncMemberRoles = async member => {
 
                 if (shouldSync) {
                     try {
-                        // 添加身份组
-                        await member.roles.add(currentGuildRoleId);
-                        syncResults.push({
-                            name: syncGroup.name,
-                            success: true,
-                            sourceGuild: sourceGuildName,
-                        });
+                        // 检查是否已有该身份组
+                        if (!member.roles.cache.has(currentGuildRoleId)) {
+                            // 添加身份组
+                            await member.roles.add(currentGuildRoleId);
+                            syncedRoles.push({
+                                name: syncGroup.name,
+                                sourceServer: sourceGuildName,
+                                targetServer: member.guild.name
+                            });
+                        }
                     } catch (error) {
-                        syncResults.push({
-                            name: syncGroup.name,
-                            success: false,
-                            error: error.message,
-                        });
+                        logTime(`同步身份组 ${syncGroup.name} 失败: ${error.message}`, true);
                     }
                 }
             }
-
-            // 生成单条综合日志
-            if (syncResults.length > 0) {
-                const successResults = syncResults.filter(r => r.success);
-                const failedResults = syncResults.filter(r => !r.success);
-
-                const logParts = [];
-                
-                if (successResults.length > 0) {
-                    const successGroups = successResults.map(r => `${r.name}（来自 ${r.sourceGuild}）`).join('、');
-                    logParts.push(`成功同步：${successGroups}`);
-                }
-                
-                if (failedResults.length > 0) {
-                    const failedGroups = failedResults.map(r => `${r.name}（${r.error}）`).join('、');
-                    logParts.push(`同步失败：${failedGroups}`);
-                }
-
-                logTime(`用户 ${member.user.tag} 的身份组同步结果：${logParts.join('；')}${failedResults.length > 0 ? '！' : ''}`);
-            }
         }, 2); // 优先级2，比普通请求高
+
+        // 记录综合日志
+        if (syncedRoles.length > 0) {
+            const syncSummary = syncedRoles.map(role => 
+                `${role.name}(${role.sourceServer}=>${role.targetServer})`
+            ).join('、');
+            logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 同步结果：${syncSummary}`);
+        } else {
+            logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 无需同步任何身份组`);
+        }
+
+        return { syncedRoles };
     } catch (error) {
         logTime(`处理身份组同步时发生错误: ${error.message}`, true);
-        throw error; // 向上抛出错误，让调用者处理
+        throw error;
     }
 };
 
@@ -349,7 +341,15 @@ export const createSyncMessage = async client => {
                 // 创建嵌入消息
                 const embed = new EmbedBuilder()
                     .setTitle('身份组同步')
-                    .setDescription('如果您在其他服务器拥有特定身份组，点击下方按钮可以同步到当前服务器。而不需要经过准入答题。')
+                    .setDescription([
+                        '如您在另一个类脑服务器拥有身份组，点击下方按钮可同步到当前服务器。而不需要经过准入答题。',
+                        '',
+                        '**可同步的身份组：**',
+                        '• 已验证 - 答题通过身份组',
+                        '• 创作者 - 创作者身份组',
+                        '• 赛博议员 - 议员身份组',
+                        '• 管理组 - 所有管理组身份组',
+                    ].join('\n'))
                     .setColor(0x0099ff);
 
                 // 发送新消息并保存消息ID

@@ -223,7 +223,7 @@ export default {
                         });
                     }
 
-                    logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请，已在 ${syncResults.length} 个服务器同步身份组`);
+                    logTime(`管理员 ${interaction.user.tag} 通过了 ${applicant.tag} 的议员申请，对 ${syncResults.length} 个身份组授权。`);
                 } catch (error) {
                     logTime(`添加身份组失败: ${error.message}`, true);
                     throw error;

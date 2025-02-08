@@ -1,4 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { guildManager } from '../index.js';
 import { handleCommandError, validateImageUrl } from '../utils/helper.js';
 
 // 定义颜色映射
@@ -42,6 +43,15 @@ export default {
     async execute(interaction) {
         try {
             const channel = interaction.channel;
+            const guildConfig = guildManager.getGuildConfig(interaction.guildId);
+            
+            if (!guildConfig) {
+                await interaction.editReply({
+                    content: '❌ 无法获取服务器配置',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
 
             // 获取参数
             const title = interaction.options.getString('标题');
@@ -61,13 +71,18 @@ export default {
                 }
             }
 
+            // 检查用户是否是管理组成员
+            const isModerator = interaction.member.roles.cache.some(role => 
+                guildConfig.ModeratorRoleIds.includes(role.id)
+            );
+
             const embed = {
                 color: COLORS[selectedColor],
                 title: title,
                 description: description,
                 timestamp: new Date(),
                 footer: {
-                    text: `由 ${interaction.member.displayName} 发送`,
+                    text: isModerator ? '由管理组发送' : `由 ${interaction.member.displayName} 发送`,
                 },
             };
 

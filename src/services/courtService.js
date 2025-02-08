@@ -93,7 +93,7 @@ class CourtService {
                         '',
                         '🔴▬▬▬▬▬|▬▬▬▬▬🔵',
                         '',
-                        `票数将在${Math.floor(guildConfig.courtSystem.votePublicDelay / 1000)}秒后公开`,
+                        `票数将在 <t:${Math.floor((Date.now() + guildConfig.courtSystem.votePublicDelay) / 1000)}:R> 公开`,
                     ].join('\n'),
                     footer: {
                         text: `发起人：${executor?.tag || '未知用户'}`,

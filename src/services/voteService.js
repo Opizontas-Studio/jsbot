@@ -352,7 +352,6 @@ class VoteService {
             const now = Date.now();
             const canShowCount = now >= publicTime;
 
-            const publicDelaySeconds = Math.ceil((vote.publicTime - vote.startTime) / 1000);
             const description = [
                 status === 'completed' ? '投票已结束' : `投票截止：<t:${Math.floor(endTime / 1000)}:R>`,
                 '',
@@ -366,7 +365,7 @@ class VoteService {
                 '',
                 canShowCount
                     ? `总投票人数：${redVoters.length + blueVoters.length}`
-                    : `票数将在${publicDelaySeconds}秒后公开`,
+                    : `票数将在 <t:${Math.floor(publicTime / 1000)}:R> 公开`,
             ].join('\n');
 
             // 构建嵌入消息

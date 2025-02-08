@@ -1,5 +1,4 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { guildManager } from '../index.js';
 import { handleCommandError, validateImageUrl } from '../utils/helper.js';
 
 // 定义颜色映射
@@ -43,7 +42,7 @@ export default {
     async execute(interaction) {
         try {
             const channel = interaction.channel;
-            const guildConfig = guildManager.getGuildConfig(interaction.guildId);
+            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
             
             if (!guildConfig) {
                 await interaction.editReply({

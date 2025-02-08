@@ -32,7 +32,12 @@ export default {
         // WebSocket事件监听
         client.on('shardDisconnect', (closeEvent, shardId) => {
             wsStateMonitor.disconnectedAt = Date.now();
-            logTime(`WebSocket断开连接 [分片${shardId}] 代码: ${closeEvent.code} 原因: ${closeEvent.reason}`, true);
+            // 区分正常关闭和异常断开
+            const isNormalClosure = closeEvent.code === 1000 || closeEvent.code === 1001;
+            logTime(
+                `WebSocket${isNormalClosure ? '正常关闭' : '断开连接'} [分片${shardId}] 代码: ${closeEvent.code}`,
+                !isNormalClosure
+            );
         });
 
         client.on('shardReconnecting', shardId => {

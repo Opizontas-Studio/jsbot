@@ -138,6 +138,23 @@ export const revokeRole = async (client, userId, roleId, reason) => {
     const failedServers = [];
 
     try {
+        // 读取身份组同步配置
+        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+        
+        // 查找包含要撤销身份组的同步组
+        let targetSyncGroup = null;
+        let sourceGuildId = null;
+        for (const syncGroup of roleSyncConfig.syncGroups) {
+            for (const [guildId, syncRoleId] of Object.entries(syncGroup.roles)) {
+                if (syncRoleId === roleId) {
+                    targetSyncGroup = syncGroup;
+                    sourceGuildId = guildId;
+                    break;
+                }
+            }
+            if (targetSyncGroup) break;
+        }
+
         // 遍历所有服务器
         const allGuilds = Array.from(client.guildManager.guilds.values());
 
@@ -157,16 +174,24 @@ export const revokeRole = async (client, userId, roleId, reason) => {
                     continue;
                 }
 
+                // 确定需要撤销的身份组ID
+                let roleToRevoke = roleId;
+                
+                // 如果找到了同步组配置，使用对应服务器的同步身份组ID
+                if (targetSyncGroup && sourceGuildId) {
+                    roleToRevoke = targetSyncGroup.roles[guild.id] || roleId;
+                }
+
                 // 检查用户是否有该身份组
-                if (!member.roles.cache.has(roleId)) {
+                if (!member.roles.cache.has(roleToRevoke)) {
                     logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有指定身份组，跳过`);
                     continue;
                 }
 
                 // 移除身份组
-                await member.roles.remove(roleId, reason);
+                await member.roles.remove(roleToRevoke, reason);
                 successfulServers.push(guild.name);
-                logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的身份组`);
+                logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的身份组 ${roleToRevoke}`);
             } catch (error) {
                 logTime(`在服务器 ${guildData.id} 移除身份组失败: ${error.message}`, true);
                 failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });

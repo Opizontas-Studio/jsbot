@@ -1,6 +1,10 @@
 import { ChannelType, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'path';
 import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+
+const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 export default {
     cooldown: 10,
@@ -168,20 +172,58 @@ export default {
 
             if (passed) {
                 try {
-                    // 添加议员身份组
-                    await member.roles.add(guildConfig.roleApplication.senatorRoleId);
+                    // 读取身份组同步配置
+                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+                    const syncResults = [];
 
-                    // 如果没有创作者身份组，也一并添加
-                    if (!member.roles.cache.has(guildConfig.roleApplication.creatorRoleId)) {
-                        await member.roles.add(guildConfig.roleApplication.creatorRoleId);
+                    // 查找议员和创作者的同步组
+                    const senatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '赛博议员');
+                    const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
+
+                    // 遍历所有配置的服务器
+                    const allGuilds = Array.from(interaction.client.guilds.cache.values());
+                    for (const guild of allGuilds) {
+                        try {
+                            // 检查服务器是否在配置中
+                            const guildConfig = interaction.client.guildManager.getGuildConfig(guild.id);
+                            if (!guildConfig?.roleApplication?.enabled) continue;
+
+                            // 获取目标服务器的成员
+                            const targetMember = await guild.members.fetch(applicant.id).catch(() => null);
+                            if (!targetMember) continue;
+
+                            // 添加议员身份组
+                            if (senatorSyncGroup?.roles[guild.id]) {
+                                const senatorRoleId = senatorSyncGroup.roles[guild.id];
+                                if (!targetMember.roles.cache.has(senatorRoleId)) {
+                                    await targetMember.roles.add(senatorRoleId);
+                                    syncResults.push(`在 ${guild.name} 添加议员身份组`);
+                                }
+                            }
+
+                            // 添加创作者身份组（如果没有）
+                            if (creatorSyncGroup?.roles[guild.id]) {
+                                const creatorRoleId = creatorSyncGroup.roles[guild.id];
+                                if (!targetMember.roles.cache.has(creatorRoleId)) {
+                                    await targetMember.roles.add(creatorRoleId);
+                                    syncResults.push(`在 ${guild.name} 添加创作者身份组`);
+                                }
+                            }
+                        } catch (error) {
+                            logTime(`在服务器 ${guild.name} 同步身份组失败: ${error.message}`, true);
+                        }
+                    }
+
+                    // 添加同步结果到embed
+                    if (syncResults.length > 0) {
                         embed.addFields({
-                            name: '附加操作',
-                            value: '已同时授予创作者身份组',
+                            name: '身份组同步结果',
+                            value: syncResults.join('\n'),
                             inline: false,
                         });
                     }
 
-                    logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请`);
+                    logTime(`管理员 ${interaction.user.tag} 通过了用户 ${applicant.tag} 的议员申请，已在 ${syncResults.length} 个服务器同步身份组`);
                 } catch (error) {
                     logTime(`添加身份组失败: ${error.message}`, true);
                     throw error;

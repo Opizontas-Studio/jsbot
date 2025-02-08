@@ -73,6 +73,18 @@ export default {
             if (operation === 'remove') {
                 // 检查用户是否有该身份组
                 const member = await interaction.guild.members.fetch(targetUser.id);
+                
+                // 检查目标用户是否有管理员身份组
+                const hasAdminRole = member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+                if (hasAdminRole) {
+                    replyEmbed
+                        .setColor(0xff0000)
+                        .setDescription('❌ 无法移除高级管理员的身份组');
+                    
+                    await interaction.editReply({ embeds: [replyEmbed] });
+                    return;
+                }
+
                 if (!member.roles.cache.has(role.id)) {
                     replyEmbed
                         .setColor(0xff9900)

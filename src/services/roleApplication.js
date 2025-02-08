@@ -267,7 +267,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                     }
                 }
             }
-        }, 2); // 优先级2，比普通请求高
+        }, 2); // 优先级2，低优先
 
         // 记录综合日志
         if (syncedRoles.length > 0) {
@@ -340,12 +340,13 @@ export const createSyncMessage = async client => {
 
                 // 创建嵌入消息
                 const embed = new EmbedBuilder()
-                    .setTitle('身份组同步')
+                    .setTitle('身份组手动同步')
                     .setDescription([
-                        '如您在另一个类脑服务器拥有身份组，点击下方按钮可同步到当前服务器。而不需要经过准入答题。',
-                        '',
+                        '在您加入时，系统已进行了类脑服务器间身份组的自动同步。',
+                        '若您发现有未同步情况，点击下方按钮可手动同步，而不需要经过准入答题。',
                         '**可同步的身份组：**',
                         '• 已验证 - 答题通过身份组',
+                        '• 深渊 - 深渊区浏览身份组',
                         '• 创作者 - 创作者身份组',
                         '• 赛博议员 - 议员身份组',
                         '• 管理组 - 所有管理组身份组',

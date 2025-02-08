@@ -18,7 +18,7 @@ export class RequestQueue {
         };
         this.taskTimeout = 180000; // 任务超时时间：3分钟
         this.lastProcessTime = Date.now();
-        this.healthCheckInterval = setInterval(() => this.healthCheck(), 300000); // 5分钟 = 300000ms
+        this.healthCheckInterval = setInterval(() => this.healthCheck(), 600000); // 10分钟
     }
 
     // 健康检查

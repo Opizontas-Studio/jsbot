@@ -99,7 +99,7 @@ export const createApplicationMessage = async client => {
                 const embed = new EmbedBuilder()
                     .setTitle('创作者身份组自助申请')
                     .setDescription(
-                        '请您点击下方按钮输入您的达到5个正面反应的作品帖子链接（形如 https://discord.com/channels/.../... ），bot会自动审核，通过则为您添加创作者身份组。',
+                        '请您点击下方按钮输入您的达到5个正面反应的作品帖子链接（形如 https://discord.com/channels/.../... ），bot会自动审核，通过则为您在所有服务器添加创作者身份组。',
                     )
                     .setColor(0x0099ff);
 
@@ -225,6 +225,8 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 
             // 预先获取所有服务器的成员信息
             for (const guild of allGuilds.values()) {
+                // 自动同步时跳过当前服务器（因为刚加入必定没有身份组）
+                if (isAutoSync && guild.id === member.guild.id) continue;
                 try {
                     const guildMember = await guild.members.fetch(member.user.id);
                     memberCache.set(guild.id, guildMember);
@@ -256,8 +258,8 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 
                 if (shouldSync) {
                     try {
-                        // 检查是否已有该身份组
-                        if (!member.roles.cache.has(currentGuildRoleId)) {
+                        // 如果是手动同步，则需要检查是否已有该身份组
+                        if (isAutoSync || !member.roles.cache.has(currentGuildRoleId)) {
                             // 添加身份组
                             await member.roles.add(currentGuildRoleId);
                             syncedRoles.push({
@@ -346,14 +348,13 @@ export const createSyncMessage = async client => {
                 const embed = new EmbedBuilder()
                     .setTitle('身份组手动同步')
                     .setDescription([
-                        '在您加入时，系统已进行了类脑服务器间身份组的自动同步。',
-                        '若您发现有未同步情况，点击下方按钮可手动同步，而不需要经过准入答题。',
+                        '在您加入时，系统已进行了类脑服务器间身份组的自动同步，但由于API速率限制，可能存在部分未同步。',
+                        '若您发现自身身份组未同步，点击下方按钮可手动同步，而不需要经过准入答题。',
                         '**可同步的身份组：**',
-                        '• 已验证 - 答题通过身份组',
-                        '• 深渊 - 深渊区浏览身份组',
-                        '• 创作者 - 创作者身份组',
-                        '• 赛博议员 - 议员身份组',
-                        '• 管理组 - 所有管理组身份组',
+                        '• 已验证 - 答题通过',
+                        '• 创作者 - 创作者',
+                        '• 赛博议员 - 议员',
+                        '• 管理组 - 所有管理组',
                     ].join('\n'))
                     .setColor(0x0099ff);
 

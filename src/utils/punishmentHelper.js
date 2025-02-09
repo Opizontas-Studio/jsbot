@@ -117,14 +117,12 @@ export const executePunishmentAction = async (guild, punishment) => {
                         }
                     }
                 } catch (error) {
-                    // 特殊处理用户不在服务器的情况
-                    if (error.code === 10007) {
-                        // UNKNOWN_MEMBER
-                        logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，记录处罚但跳过执行`, true);
+                    if (error.code === 10007) { // UNKNOWN_MEMBER
+                        logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`, true);
                         // 返回 true 因为这是预期的情况
                         return true;
                     }
-                    throw error; // 其他错误继续抛出
+                    throw error;
                 }
                 break;
 
@@ -136,9 +134,6 @@ export const executePunishmentAction = async (guild, punishment) => {
         return true;
     } catch (error) {
         logTime(`在服务器 ${guild.name} 执行处罚失败: ${error.message}`, true);
-        if (error.stack) {
-            logTime(`错误堆栈: ${error.stack}`, true);
-        }
         return false;
     }
 };
@@ -153,9 +148,18 @@ export const executePunishmentAction = async (guild, punishment) => {
  */
 export const sendModLogNotification = async (channel, punishment, executor, target) => {
     try {
+        // 获取目标用户的头像URL
+        const targetAvatarURL = target.displayAvatarURL({ 
+            dynamic: true,
+            size: 64,
+        }) || target.defaultAvatarURL;
+
         const embed = {
             color: 0xff0000,
-            title: `用户已被${getPunishmentTypeText(punishment.type)}`,
+            title: `${target.username} 已被${getPunishmentTypeText(punishment.type)}`,
+            thumbnail: {
+                url: targetAvatarURL
+            },
             fields: [
                 {
                     name: '处罚对象',
@@ -209,6 +213,12 @@ export const sendChannelNotification = async (channel, target, punishment) => {
     try {
         const executor = await channel.client.users.fetch(punishment.executorId);
 
+        // 获取目标用户的头像URL
+        const targetAvatarURL = target.displayAvatarURL({ 
+            dynamic: true,
+            size: 64,
+        }) || target.defaultAvatarURL;
+
         // 检查处罚时长是否小于24小时
         const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
 
@@ -219,32 +229,59 @@ export const sendChannelNotification = async (channel, target, punishment) => {
         // 频道通知的 embed
         const channelEmbed = {
             color: 0xff0000,
-            title: `${getPunishmentTypeText(punishment.type)}处罚通知`,
-            description: [
-                `处罚对象：<@${target.id}>`,
-                '',
-                '**处罚详情**',
-                punishment.duration > 0 ? `• 处罚期限：${formatPunishmentDuration(punishment.duration)}` : '• 处罚期限：永久',
-                punishment.warningDuration
-                    ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
-                    : null,
-                `• 处罚理由：${punishment.reason || '未提供原因'}`,
-                '',
-                punishment.type === 'mute' ? (
-                    isShortPunishment
-                        ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。'
-                        : isPunishmentExpired
-                        ? '⚠️ 处罚已到期，无需上诉。'
-                        : '如需上诉，请查看私信消息。'
-                ) : null,
-            ]
-                .filter(Boolean)
-                .join('\n'),
+            title: `${getPunishmentTypeText(punishment.type)}处罚已执行`,
+            thumbnail: {
+                url: targetAvatarURL
+            },
+            fields: [
+                {
+                    name: '处罚对象',
+                    value: `<@${target.id}>`,
+                    inline: true,
+                },
+                {
+                    name: '处罚期限',
+                    value: punishment.duration > 0 
+                        ? formatPunishmentDuration(punishment.duration)
+                        : '永久',
+                    inline: true,
+                },
+                {
+                    name: '处罚理由',
+                    value: punishment.reason || '未提供原因',
+                },
+            ],
             footer: {
                 text: `由管理员 ${executor.tag} 执行`,
             },
             timestamp: new Date(),
         };
+
+        // 如果有警告，添加警告信息
+        if (punishment.warningDuration) {
+            channelEmbed.fields.push({
+                name: '附加警告',
+                value: formatPunishmentDuration(punishment.warningDuration),
+                inline: true,
+            });
+        }
+
+        // 如果是禁言处罚，添加上诉相关信息
+        if (punishment.type === 'mute') {
+            let appealInfo = '';
+            if (isShortPunishment) {
+                appealInfo = '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。';
+            } else if (isPunishmentExpired) {
+                appealInfo = '⚠️ 处罚已到期，无需上诉。';
+            } else {
+                appealInfo = '如需上诉，请查看私信消息。';
+            }
+
+            channelEmbed.fields.push({
+                name: '上诉说明',
+                value: appealInfo,
+            });
+        }
 
         // 发送到频道
         await channel.send({ embeds: [channelEmbed] });

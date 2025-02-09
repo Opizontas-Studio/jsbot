@@ -94,7 +94,7 @@ class PunishmentService {
                             id: guild.id,
                             name: guild.name,
                         });
-                        logTime(`在服务器 ${guild.name} 执行处罚失败`, true);
+                        // 失败的话，这部分日志由executePunishmentAction函数输出
                     }
                 } catch (error) {
                     failedServers.push({
@@ -114,12 +114,6 @@ class PunishmentService {
                     success: false,
                     message: '❌ 处罚执行失败：无法在任何服务器执行处罚',
                 };
-            }
-
-            // 记录执行结果
-            logTime(`处罚执行情况 - 成功: ${successfulServers.map(s => s.name).join(', ')}`);
-            if (failedServers.length > 0) {
-                logTime(`处罚执行情况 - 失败: ${failedServers.map(s => s.name).join(', ')}`, true);
             }
 
             // 5. 更新同步状态

@@ -6,7 +6,7 @@ import { logTime } from '../utils/logger.js';
 // 硬编码身份组ID - 主服务器
 const MAIN_SERVER_ROLES = {
     TARGET_ROLE_ID: '1335363403870502912', // 已验证
-    SOURCE_ROLE_ID: '', // 泄洪区
+    SOURCE_ROLE_ID: '1338193342889984123', // 缓冲区
 };
 
 // 硬编码身份组ID - 子服务器
@@ -93,7 +93,7 @@ export default {
                 try {
                     // 先移除源身份组，再添加目标身份组
                     await member.roles.remove(sourceRole, '缓冲区转移到已验证');
-                    await delay(600);
+                    await delay(800);
                     await member.roles.add(targetRole, '缓冲区转移到已验证');
                     successCount++;
                 } catch (error) {
@@ -114,7 +114,7 @@ export default {
                 }
 
                 // 等待1秒再处理下一个成员
-                await delay(600);
+                await delay(800);
             }
 
             // 发送最终报告

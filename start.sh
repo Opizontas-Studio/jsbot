@@ -34,8 +34,8 @@ module.exports = {
     error_file: 'logs/err.log',
     out_file: 'logs/out.log',
     time: true,
-    // 每12小时重启一次
-    cron_restart: '0 */12 * * *',
+    // 每24小时重启一次
+    cron_restart: '0 */24 * * *',
     // 优雅关闭
     kill_timeout: 10000,
     wait_ready: true,

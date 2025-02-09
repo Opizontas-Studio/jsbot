@@ -29,7 +29,7 @@ class VoteService {
 
             const { type, targetId, executorId, details } = process;
             const totalVoters = guildConfig.courtSystem.senatorRoleId
-                ? await this._getSenatorsCount(guildConfig, client)
+                ? await this._getSenatorsCount(client)
                 : 0;
 
             if (totalVoters === 0) {
@@ -164,7 +164,7 @@ class VoteService {
             }
 
             // 获取当前实时的议员总数
-            const currentTotalVoters = await this._getSenatorsCount(guildConfig, client);
+            const currentTotalVoters = await this._getSenatorsCount(client);
             if (currentTotalVoters === 0) {
                 throw new Error('无法获取当前议员总数');
             }
@@ -453,29 +453,33 @@ class VoteService {
     /**
      * 获取议员总数
      * @private
-     * @param {Object} guildConfig - 服务器配置
      * @param {Object} client - Discord客户端
      * @returns {Promise<number>} 议员总数
      */
-    static async _getSenatorsCount(guildConfig, client) {
-        if (!guildConfig?.courtSystem?.enabled || !guildConfig.courtSystem.senatorRoleId) {
-            return 0;
-        }
-
+    static async _getSenatorsCount(client) {
         try {
+            // 获取主服务器配置
+            const mainGuildConfig = Array.from(client.guildManager.guilds.values())
+                .find(config => config.serverType === 'Main server');
+
+            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.courtSystem.senatorRoleId) {
+                logTime('无法获取主服务器配置或议事系统未启用', true);
+                return 0;
+            }
+
             // 获取主服务器的Guild对象
-            const guild = await client.guilds.fetch(guildConfig.id);
+            const guild = await client.guilds.fetch(mainGuildConfig.id);
             if (!guild) {
-                logTime(`无法获取服务器: ${guildConfig.id}`, true);
+                logTime(`无法获取服务器: ${mainGuildConfig.id}`, true);
                 return 0;
             }
 
             // 获取最新的身份组信息
             const roles = await guild.roles.fetch();
-            const role = roles.get(guildConfig.courtSystem.senatorRoleId);
+            const role = roles.get(mainGuildConfig.courtSystem.senatorRoleId);
 
             if (!role) {
-                logTime(`无法获取议员身份组: ${guildConfig.courtSystem.senatorRoleId}`, true);
+                logTime(`无法获取议员身份组: ${mainGuildConfig.courtSystem.senatorRoleId}`, true);
                 return 0;
             }
 
@@ -485,9 +489,9 @@ class VoteService {
             // 记录议员数量日志
             logTime(
                 `议员总数(硬编码): ${HARDCODED_SENATOR_COUNT} ` +
-                    `(服务器: ${guild.name}, ` +
-                    `身份组: ${role.name}, ` +
-                    `身份组ID: ${role.id})`,
+                `(服务器: ${guild.name}, ` +
+                `身份组: ${role.name}, ` +
+                `身份组ID: ${role.id})`,
             );
 
             return HARDCODED_SENATOR_COUNT;

@@ -140,28 +140,30 @@ export const modalHandlers = {
                             const successResults = syncResults.filter(r => r.success);
                             const failedResults = syncResults.filter(r => !r.success);
 
-                            const logParts = [];
-                            if (successResults.length > 0) {
-                                logParts.push(`已添加到：${successResults.map(r => r.name).join('、')}`);
-                            }
+                            // 记录完整日志到后台
                             if (failedResults.length > 0) {
-                                logParts.push(`添加失败：${failedResults.map(r => `${r.name}（${r.error}）`).join('、')}`);
+                                logTime(`同步创作者身份组失败的服务器：${failedResults.map(r => `${r.name}（${r.error}）`).join('、')}`, true);
                             }
 
-                            await interaction.editReply(`✅ 审核通过！${logParts.join('；')}${failedResults.length > 0 ? '！' : ''}`);
+                            // 只向用户显示成功的结果
+                            if (successResults.length > 0) {
+                                await interaction.editReply(`✅ 审核通过！已为您添加创作者身份组${successResults.length > 1 ? `（已同步至：${successResults.map(r => r.name).join('、')}）` : ''}`);
+                            } else {
+                                await interaction.editReply('❌ 添加身份组时出现错误，请联系管理员。');
+                            }
+
+                            // 发送审核日志
+                            if (moderationChannel) {
+                                await moderationChannel.send({ embeds: [auditEmbed] });
+                            }
+
+                            logTime(`用户 ${interaction.user.tag} 获得了创作者身份组`);
                         } else {
                             // 如果没有找到同步配置，只在当前服务器添加
                             const member = await interaction.guild.members.fetch(interaction.user.id);
                             await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
                             await interaction.editReply('✅ 审核通过，已为您添加创作者身份组。');
                         }
-
-                        // 发送审核日志
-                        if (moderationChannel) {
-                            await moderationChannel.send({ embeds: [auditEmbed] });
-                        }
-
-                        logTime(`用户 ${interaction.user.tag} 获得了创作者身份组`);
                     } catch (error) {
                         logTime(`同步添加创作者身份组时出错: ${error.message}`, true);
                         await interaction.editReply('❌ 添加身份组时出现错误，请联系管理员。');

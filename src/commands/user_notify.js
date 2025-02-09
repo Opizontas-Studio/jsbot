@@ -81,7 +81,7 @@ export default {
                 description: description,
                 timestamp: new Date(),
                 footer: {
-                    text: isModerator ? '由管理组发送' : `由 ${interaction.member.displayName} 发送`,
+                    text: isModerator ? `由管理员 ${interaction.member.displayName} 发送` : `由 ${interaction.member.displayName} 发送`,
                 },
             };
 

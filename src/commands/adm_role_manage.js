@@ -1,7 +1,7 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { revokeRole } from '../services/roleApplication.js';
+import { revokeRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -47,18 +47,6 @@ export default {
             const targetUser = interaction.options.getUser('用户');
             const role = interaction.options.getRole('身份组');
 
-            // 读取身份组同步配置
-            const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-
-            // 查找同步组
-            let targetSyncGroup = null;
-            for (const syncGroup of roleSyncConfig.syncGroups) {
-                if (syncGroup.roles[interaction.guild.id] === role.id) {
-                    targetSyncGroup = syncGroup;
-                    break;
-                }
-            }
-
             // 创建回复用的Embed
             const replyEmbed = new EmbedBuilder()
                 .setTitle(`身份组${operation === 'add' ? '添加' : '移除'}操作`)
@@ -67,7 +55,6 @@ export default {
                 .addFields(
                     { name: '目标用户', value: `${targetUser.tag}`, inline: true },
                     { name: '身份组', value: `${role.name}`, inline: true },
-                    { name: '同步组', value: targetSyncGroup ? targetSyncGroup.name : '无', inline: true }
                 );
 
             if (operation === 'remove') {
@@ -94,12 +81,29 @@ export default {
                     return;
                 }
 
+                // 构造临时同步组
+                const tempSyncGroup = {
+                    name: role.name,
+                    roles: {
+                        [interaction.guild.id]: role.id
+                    }
+                };
+
+                // 读取身份组同步配置，查找是否有对应的同步组
+                const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+                for (const syncGroup of roleSyncConfig.syncGroups) {
+                    if (Object.values(syncGroup.roles).includes(role.id)) {
+                        tempSyncGroup.roles = syncGroup.roles;
+                        break;
+                    }
+                }
+
                 // 移除身份组
-                const result = await revokeRole(
+                const result = await revokeRolesByGroups(
                     interaction.client,
                     targetUser.id,
-                    role.id,
-                    `由管理员 ${interaction.user.tag} 移除`,
+                    [tempSyncGroup],
+                    `由管理员 ${interaction.user.tag} 移除`
                 );
 
                 if (result.success) {
@@ -139,30 +143,49 @@ export default {
                 const failedServers = [];
 
                 await globalRequestQueue.add(async () => {
-                    // 遍历所有需要同步的服务器
-                    for (const [guildId, syncRoleId] of Object.entries(targetSyncGroup?.roles || { [interaction.guild.id]: role.id })) {
-                        try {
-                            const guild = await interaction.client.guilds.fetch(guildId);
-                            const member = await guild.members.fetch(targetUser.id);
-                            const roleToAdd = await guild.roles.fetch(syncRoleId);
+                    // 读取身份组同步配置，查找是否有对应的同步组
+                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+                    let foundSyncGroup = roleSyncConfig.syncGroups.find(group => 
+                        Object.values(group.roles).includes(role.id)
+                    );
 
-                            if (!roleToAdd) {
-                                failedServers.push({ id: guildId, name: guild.name });
+                    // 获取所有配置的服务器
+                    const allGuilds = Array.from(interaction.client.guildManager.guilds.values());
+
+                    for (const guildData of allGuilds) {
+                        try {
+                            if (!guildData?.id) continue;
+
+                            const guild = await interaction.client.guilds.fetch(guildData.id);
+                            if (!guild) {
+                                failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
                                 continue;
                             }
 
+                            const member = await guild.members.fetch(targetUser.id);
+                            if (!member) {
+                                logTime(`用户 ${targetUser.tag} 不在服务器 ${guild.name} 中`, true);
+                                continue;
+                            }
+
+                            // 确定需要添加的身份组ID
+                            let roleToAdd = role.id;
+                            if (foundSyncGroup) {
+                                roleToAdd = foundSyncGroup.roles[guild.id] || role.id;
+                            }
+
                             // 检查用户是否已有该身份组
-                            if (member.roles.cache.has(roleToAdd.id)) {
-                                logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 已有身份组 ${roleToAdd.name}，跳过`);
+                            if (member.roles.cache.has(roleToAdd)) {
+                                logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 已有身份组 ${roleToAdd}，跳过`);
                                 continue;
                             }
 
                             await member.roles.add(roleToAdd, `由管理员 ${interaction.user.tag} 添加`);
                             successfulServers.push(guild.name);
-                            logTime(`已在服务器 ${guild.name} 为用户 ${member.user.tag} 添加身份组 ${roleToAdd.name}`);
+                            logTime(`已在服务器 ${guild.name} 为用户 ${member.user.tag} 添加身份组 ${roleToAdd}`);
                         } catch (error) {
-                            logTime(`在服务器 ${guildId} 添加身份组失败: ${error.message}`, true);
-                            failedServers.push({ id: guildId, name: guildId });
+                            logTime(`在服务器 ${guildData.id} 添加身份组失败: ${error.message}`, true);
+                            failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
                         }
                     }
                 }, 3);

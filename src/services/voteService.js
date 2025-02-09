@@ -1,9 +1,10 @@
+import { readFileSync } from 'fs';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
-import { revokeRole } from './roleApplication.js';
+import { revokeRolesByGroups } from './roleApplication.js';
 
 class VoteService {
     /**
@@ -250,11 +251,28 @@ class VoteService {
                     // 如果是禁言且需要撤销身份组
                     let roleRevokeResult = null;
                     if (type === 'court_mute' && details.revokeRoleId) {
-                        roleRevokeResult = await revokeRole(
+                        // 构造临时同步组
+                        const tempSyncGroup = {
+                            name: '处罚撤销',
+                            roles: {}
+                        };
+
+                        // 读取身份组同步配置，查找对应的同步组
+                        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+                        let foundSyncGroup = roleSyncConfig.syncGroups.find(group => 
+                            Object.values(group.roles).includes(details.revokeRoleId)
+                        );
+
+                        // 如果找到同步组，使用其配置；否则只在当前服务器移除
+                        tempSyncGroup.roles = foundSyncGroup ? foundSyncGroup.roles : {
+                            [client.guildManager.getMainGuildId()]: details.revokeRoleId
+                        };
+
+                        roleRevokeResult = await revokeRolesByGroups(
                             client,
                             details.targetId,
-                            details.revokeRoleId,
-                            `议会认定处罚通过，撤销身份组`,
+                            [tempSyncGroup],
+                            `议会认定处罚通过，撤销身份组`
                         );
                     }
 

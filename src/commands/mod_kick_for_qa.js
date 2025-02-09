@@ -1,8 +1,9 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { revokeRole } from '../services/roleApplication.js';
+import { revokeRolesByGroups } from '../services/roleApplication.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
@@ -38,9 +39,14 @@ export default {
                 return;
             }
 
-            // 获取当前服务器的身份组ID
-            const roleIds = targetGroups.map(group => group.roles[interaction.guild.id]);
-            
+            // 使用新的批量处理函数
+            const result = await revokeRolesByGroups(
+                interaction.client,
+                targetUser.id,
+                targetGroups,
+                `由管理员 ${interaction.user.tag} 执行答题处罚`
+            );
+
             // 创建回复用的Embed
             const replyEmbed = new EmbedBuilder()
                 .setTitle('答题处罚操作')
@@ -51,33 +57,12 @@ export default {
                     { name: '执行者', value: interaction.user.tag, inline: true }
                 );
 
-            // 记录所有成功和失败的服务器
-            const allSuccessfulServers = new Set();
-            const allFailedServers = new Set();
-
-            // 为每个身份组执行移除操作
-            for (const roleId of roleIds) {
-                if (!roleId) continue;
-
-                const result = await revokeRole(
-                    interaction.client,
-                    targetUser.id,
-                    roleId,
-                    `由管理员 ${interaction.user.tag} 执行答题处罚`
-                );
-
-                // 合并结果
-                result.successfulServers.forEach(server => allSuccessfulServers.add(server));
-                result.failedServers.forEach(server => allFailedServers.add(server.name));
-            }
-
-            // 更新回复Embed
-            if (allSuccessfulServers.size > 0) {
+            if (result.success) {
                 replyEmbed
                     .setDescription('✅ 处罚执行成功')
                     .addFields(
-                        { name: '成功服务器', value: Array.from(allSuccessfulServers).join(', ') || '无' },
-                        { name: '失败服务器', value: Array.from(allFailedServers).join(', ') || '无' }
+                        { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
+                        { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                     );
 
                 // 发送操作日志
@@ -88,8 +73,8 @@ export default {
                     .addFields(
                         { name: '执行者', value: interaction.user.tag, inline: true },
                         { name: '目标用户', value: targetUser.tag, inline: true },
-                        { name: '成功服务器', value: Array.from(allSuccessfulServers).join(', ') || '无' },
-                        { name: '失败服务器', value: Array.from(allFailedServers).join(', ') || '无' }
+                        { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
+                        { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                     );
 
                 const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);

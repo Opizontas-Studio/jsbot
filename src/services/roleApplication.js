@@ -2,7 +2,7 @@ import { DiscordAPIError } from '@discordjs/rest';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
-import { globalRequestQueue } from '../utils/concurrency.js';
+import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleDiscordError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -126,156 +126,91 @@ export const createApplicationMessage = async client => {
 };
 
 /**
- * 撤销用户的身份组
- * @param {Object} client - Discord客户端
- * @param {string} userId - 目标用户ID
- * @param {string} roleId - 要撤销的身份组ID
- * @param {string} reason - 撤销原因
- * @returns {Promise<{success: boolean, successfulServers: string[], failedServers: Array<{id: string, name: string}>}>}
- */
-export const revokeRole = async (client, userId, roleId, reason) => {
-    const successfulServers = [];
-    const failedServers = [];
-
-    try {
-        // 读取身份组同步配置
-        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-        
-        // 查找包含要撤销身份组的同步组
-        let targetSyncGroup = null;
-        let sourceGuildId = null;
-        for (const syncGroup of roleSyncConfig.syncGroups) {
-            for (const [guildId, syncRoleId] of Object.entries(syncGroup.roles)) {
-                if (syncRoleId === roleId) {
-                    targetSyncGroup = syncGroup;
-                    sourceGuildId = guildId;
-                    break;
-                }
-            }
-            if (targetSyncGroup) break;
-        }
-
-        // 遍历所有服务器
-        const allGuilds = Array.from(client.guildManager.guilds.values());
-
-        for (const guildData of allGuilds) {
-            try {
-                if (!guildData?.id) continue;
-
-                const guild = await client.guilds.fetch(guildData.id);
-                if (!guild) {
-                    failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
-                    continue;
-                }
-
-                const member = await guild.members.fetch(userId);
-                if (!member) {
-                    logTime(`用户 ${userId} 不在服务器 ${guild.name} 中`, true);
-                    continue;
-                }
-
-                // 确定需要撤销的身份组ID
-                let roleToRevoke = roleId;
-                
-                // 如果找到了同步组配置，使用对应服务器的同步身份组ID
-                if (targetSyncGroup && sourceGuildId) {
-                    roleToRevoke = targetSyncGroup.roles[guild.id] || roleId;
-                }
-
-                // 检查用户是否有该身份组
-                if (!member.roles.cache.has(roleToRevoke)) {
-                    logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有指定身份组，跳过`);
-                    continue;
-                }
-
-                // 移除身份组
-                await member.roles.remove(roleToRevoke, reason);
-                successfulServers.push(guild.name);
-                logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的身份组 ${roleToRevoke}`);
-            } catch (error) {
-                logTime(`在服务器 ${guildData.id} 移除身份组失败: ${error.message}`, true);
-                failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
-            }
-        }
-
-        return { success: successfulServers.length > 0, successfulServers, failedServers };
-    } catch (error) {
-        logTime(`撤销身份组操作失败: ${error.message}`, true);
-        return { success: false, successfulServers, failedServers };
-    }
-};
-
-/**
  * 同步用户的身份组
  * @param {GuildMember} member - Discord服务器成员对象
  * @param {boolean} [isAutoSync=false] - 是否为自动同步（加入服务器时）
- * @returns {Promise<{syncedRoles: Array<{name: string, servers: string[]}>}>}
+ * @returns {Promise<{syncedRoles: Array<{name: string, sourceServer: string, targetServer: string}>}>}
  */
 export const syncMemberRoles = async (member, isAutoSync = false) => {
     try {
         // 读取身份组同步配置
         const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
         const syncedRoles = [];
+        const guildRolesMap = new Map(); // Map<guildId, Set<roleId>>
+        const guildSyncGroups = new Map(); // Map<guildId, Map<roleId, {name, sourceServer}>>
 
-        // 将身份组同步任务加入队列
         await globalRequestQueue.add(async () => {
-            // 获取所有配置的服务器
-            const allGuilds = member.client.guilds.cache;
-            const memberCache = new Map(); // 用于缓存成员信息
-
-            // 预先获取所有服务器的成员信息
-            for (const guild of allGuilds.values()) {
-                // 自动同步时跳过当前服务器（因为刚加入必定没有身份组）
-                if (isAutoSync && guild.id === member.guild.id) continue;
+            // 获取所有服务器的成员信息
+            const memberCache = new Map();
+            for (const guild of member.client.guilds.cache.values()) {
                 try {
                     const guildMember = await guild.members.fetch(member.user.id);
                     memberCache.set(guild.id, guildMember);
+                    guildRolesMap.set(guild.id, new Set());
+                    guildSyncGroups.set(guild.id, new Map());
                 } catch (error) {
-                    // 用户可能不在该服务器中，继续检查下一个
                     continue;
                 }
             }
 
             // 遍历每个同步组
             for (const syncGroup of roleSyncConfig.syncGroups) {
+                // 检查当前服务器是否有此同步组的配置
                 const currentGuildRoleId = syncGroup.roles[member.guild.id];
                 if (!currentGuildRoleId) continue;
 
                 // 检查其他服务器中是否有该身份组
-                let shouldSync = false;
-                let sourceGuildName = '';
-
                 for (const [guildId, roleId] of Object.entries(syncGroup.roles)) {
                     if (guildId === member.guild.id) continue;
 
-                    const guildMember = memberCache.get(guildId);
-                    if (guildMember && guildMember.roles.cache.has(roleId)) {
-                        shouldSync = true;
-                        sourceGuildName = guildMember.guild.name;
+                    const sourceMember = memberCache.get(guildId);
+                    if (sourceMember?.roles.cache.has(roleId)) {
+                        // 如果其他服务器有这个身份组，且当前服务器没有，则添加到同步列表
+                        if (!member.roles.cache.has(currentGuildRoleId)) {
+                            guildRolesMap.get(member.guild.id)?.add(currentGuildRoleId);
+                            guildSyncGroups.get(member.guild.id)?.set(currentGuildRoleId, {
+                                name: syncGroup.name,
+                                sourceServer: sourceMember.guild.name
+                            });
+                        }
                         break;
                     }
                 }
+            }
 
-                if (shouldSync) {
-                    try {
-                        // 如果是手动同步，则需要检查是否已有该身份组
-                        if (isAutoSync || !member.roles.cache.has(currentGuildRoleId)) {
-                            // 添加身份组
-                            await member.roles.add(currentGuildRoleId);
+            // 批量处理每个服务器的身份组同步
+            for (const [guildId, rolesToAdd] of guildRolesMap) {
+                if (rolesToAdd.size === 0) continue;
+
+                const guildMember = memberCache.get(guildId);
+                if (!guildMember) continue;
+
+                try {
+                    const roleArray = Array.from(rolesToAdd);
+                    // 一次性添加所有身份组
+                    await guildMember.roles.add(roleArray, '身份组同步');
+                    
+                    // 记录同步结果
+                    for (const roleId of roleArray) {
+                        const syncInfo = guildSyncGroups.get(guildId)?.get(roleId);
+                        if (syncInfo) {
                             syncedRoles.push({
-                                name: syncGroup.name,
-                                sourceServer: sourceGuildName,
-                                targetServer: member.guild.name
+                                name: syncInfo.name,
+                                sourceServer: syncInfo.sourceServer,
+                                targetServer: guildMember.guild.name
                             });
                         }
-                    } catch (error) {
-                        logTime(`同步身份组 ${syncGroup.name} 失败: ${error.message}`, true);
                     }
+
+                    // 添加API请求延迟
+                    await delay(500);
+                } catch (error) {
+                    logTime(`同步用户 ${member.user.tag} 在服务器 ${guildId} 的身份组失败: ${error.message}`, true);
                 }
             }
-        }, 2); // 优先级2，低优先
+        }, 2);
 
-        // 记录综合日志
+        // 记录日志
         if (syncedRoles.length > 0) {
             const syncSummary = syncedRoles.map(role => 
                 `${role.name}(${role.sourceServer}=>${role.targetServer})`
@@ -287,7 +222,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 
         return { syncedRoles };
     } catch (error) {
-        logTime(`处理身份组同步时发生错误: ${error.message}`, true);
+        logTime(`处理用户 ${member.user.tag} 的身份组同步时发生错误: ${error.message}`, true);
         throw error;
     }
 };
@@ -377,5 +312,89 @@ export const createSyncMessage = async client => {
                 true,
             );
         }
+    }
+};
+
+/**
+ * 批量撤销用户的多个同步组身份组
+ * @param {Object} client - Discord客户端
+ * @param {string} userId - 目标用户ID
+ * @param {Array<Object>} syncGroups - 要撤销的同步组配置数组
+ * @param {string} reason - 撤销原因
+ * @returns {Promise<{success: boolean, successfulServers: string[], failedServers: Array<{id: string, name: string}>}>}
+ */
+export const revokeRolesByGroups = async (client, userId, syncGroups, reason) => {
+    const successfulServers = [];
+    const failedServers = [];
+    const processedGuilds = new Map(); // 用于缓存已处理的服务器信息
+
+    try {
+        // 收集所有需要处理的服务器和对应的身份组
+        const guildRolesMap = new Map(); // Map<guildId, Set<roleId>>
+        
+        for (const syncGroup of syncGroups) {
+            for (const [guildId, roleId] of Object.entries(syncGroup.roles)) {
+                if (!guildRolesMap.has(guildId)) {
+                    guildRolesMap.set(guildId, new Set());
+                }
+                guildRolesMap.get(guildId).add(roleId);
+            }
+        }
+
+        // 批量处理每个服务器
+        await globalRequestQueue.add(async () => {
+            for (const [guildId, roleIds] of guildRolesMap) {
+                try {
+                    // 获取服务器信息
+                    const guild = await client.guilds.fetch(guildId);
+                    if (!guild) {
+                        failedServers.push({ id: guildId, name: guildId });
+                        continue;
+                    }
+
+                    // 获取成员信息
+                    const member = await guild.members.fetch(userId);
+                    if (!member) {
+                        logTime(`用户 ${userId} 不在服务器 ${guild.name} 中`, true);
+                        continue;
+                    }
+
+                    // 检查用户实际拥有的需要移除的身份组
+                    const rolesToRemove = Array.from(roleIds).filter(roleId => 
+                        member.roles.cache.has(roleId)
+                    );
+
+                    if (rolesToRemove.length === 0) {
+                        logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有需要移除的身份组`);
+                        continue;
+                    }
+
+                    // 一次性移除多个身份组
+                    await member.roles.remove(rolesToRemove, reason);
+                    successfulServers.push(guild.name);
+                    logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的 ${rolesToRemove.length} 个身份组`);
+
+                    // 添加API请求延迟
+                    await delay(500);
+
+                } catch (error) {
+                    logTime(`在服务器 ${guildId} 移除身份组失败: ${error.message}`, true);
+                    failedServers.push({ id: guildId, name: guildId });
+                }
+            }
+        }, 2); // 优先级2，较低优先级
+
+        return { 
+            success: successfulServers.length > 0, 
+            successfulServers, 
+            failedServers 
+        };
+    } catch (error) {
+        logTime(`批量撤销身份组操作失败: ${error.message}`, true);
+        return { 
+            success: false, 
+            successfulServers, 
+            failedServers 
+        };
     }
 };

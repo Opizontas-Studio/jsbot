@@ -118,13 +118,6 @@ class VoteService {
             throw new Error('此投票已结束');
         }
 
-        // 检查30秒刷新周期
-        const lastVoteTime = vote[choice === 'red' ? 'redVoters' : 'blueVoters'].includes(userId) ? vote.updatedAt : 0;
-
-        if (lastVoteTime && Date.now() - lastVoteTime < 30 * 1000) {
-            throw new Error('请等待30秒后再次投票');
-        }
-
         // 执行投票
         const updatedVote = await VoteModel.addVoter(vote.id, userId, choice);
 

@@ -1,6 +1,6 @@
 import { exec } from 'child_process';
 import { EmbedBuilder } from 'discord.js';
-import { writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
 import { globalRequestQueue } from '../utils/concurrency.js';
@@ -114,23 +114,29 @@ class MonitorService {
      * 更新配置中的messageId
      * @param {string} guildId 服务器ID
      * @param {string} messageId 消息ID
+     * @returns {Promise<boolean>} 更新是否成功
      */
     async updateConfigMessageId(guildId, messageId) {
         try {
             // 读取配置文件
             const configPath = join(process.cwd(), 'config.json');
-            const config = JSON.parse(await readFile(configPath, 'utf8'));
+            const configData = await readFile(configPath, 'utf8');
+            const config = JSON.parse(configData);
 
             // 更新messageId
-            if (config.guilds[guildId]?.monitor) {
-                config.guilds[guildId].monitor.messageId = messageId;
-                
-                // 写入配置文件
-                await writeFile(configPath, JSON.stringify(config, null, 4), 'utf8');
-                logTime(`已更新服务器 ${guildId} 的监控消息ID: ${messageId}`);
+            if (!config.guilds?.[guildId]?.monitor) {
+                throw new Error('无效的服务器配置');
             }
+
+            config.guilds[guildId].monitor.messageId = messageId;
+            
+            // 写入配置文件
+            await writeFile(configPath, JSON.stringify(config, null, 4), 'utf8');
+            logTime(`已更新服务器 ${guildId} 的监控消息ID: ${messageId}`);
+            return true;
         } catch (error) {
             logTime(`更新配置文件失败: ${error.message}`, true);
+            return false;
         }
     }
 
@@ -150,25 +156,27 @@ class MonitorService {
 
             const embed = await this.createStatusEmbed(client);
 
-            if (!messageId) {
-                const message = await channel.send({ embeds: [embed] });
-                if (guildId) {
-                    await this.updateConfigMessageId(guildId, message.id);
+            // 如果有messageId，尝试更新现有消息
+            if (messageId) {
+                try {
+                    const message = await channel.messages.fetch(messageId);
+                    await message.edit({ embeds: [embed] });
+                    return; // 成功更新后直接返回
+                } catch (error) {
+                    // 只有在消息确实不存在时才继续创建新消息
+                    if (error.code === 10008) { // Discord API: Unknown Message
+                        logTime(`消息 ${messageId} 不存在，将创建新消息`);
+                    } else {
+                        // 其他错误直接抛出
+                        throw error;
+                    }
                 }
-                return message.id;
             }
 
-            try {
-                const message = await channel.messages.fetch(messageId);
-                await message.edit({ embeds: [embed] });
-            } catch (error) {
-                // 如果消息不存在，创建新消息
-                const message = await channel.send({ embeds: [embed] });
-                if (guildId) {
-                    await this.updateConfigMessageId(guildId, message.id);
-                }
-                return message.id;
-            }
+            // 只有在没有messageId或消息不存在时才创建新消息
+            const newMessage = await channel.send({ embeds: [embed] });
+            await this.updateConfigMessageId(guildId, newMessage.id);
+
         } catch (error) {
             logTime(`更新状态消息失败: ${error.message}`, true);
         }

@@ -167,7 +167,7 @@ class RateLimitedBatchProcessor {
                 maxRequests: 5,
                 windowMs: 1020, // 预留20ms延迟
                 requests: [],
-                concurrency: 3,
+                concurrency: 2,
             },
             // 成员相关操作 - 5次/秒
             members: {

@@ -7,73 +7,79 @@ import { logTime } from '../utils/logger.js';
 let reconnectionCount = 0;
 let reconnectionTimeout = null;
 
+// 将初始化逻辑抽取为单独的函数
+async function initializeClient(client) {
+    // 初始化所有定时任务
+    globalTaskScheduler.initialize(client);
+
+    // 初始化身份组申请消息
+    await createApplicationMessage(client);
+    
+    // 初始化身份组同步消息
+    await createSyncMessage(client);
+
+    // 初始化WebSocket状态监控
+    const wsStateMonitor = {
+        lastPing: client.ws.ping,
+        disconnectedAt: null,
+        reconnectAttempts: 0,
+    };
+
+    // WebSocket事件监听
+    client.on('shardDisconnect', (closeEvent, shardId) => {
+        wsStateMonitor.disconnectedAt = Date.now();
+        const isNormalClosure = closeEvent.code === 1000 || closeEvent.code === 1001;
+        logTime(
+            `WebSocket${isNormalClosure ? '正常关闭' : '断开连接'} [分片${shardId}] 代码: ${closeEvent.code}`,
+            !isNormalClosure
+        );
+    });
+
+    client.on('shardReconnecting', shardId => {
+        wsStateMonitor.reconnectAttempts++;
+        const downtime = wsStateMonitor.disconnectedAt
+            ? Math.floor((Date.now() - wsStateMonitor.disconnectedAt) / 1000)
+            : 0;
+
+        logTime(
+            `WebSocket正在重连 [分片${shardId}] 尝试次数: ${wsStateMonitor.reconnectAttempts} 已断开: ${downtime}秒`,
+            true,
+        );
+    });
+
+    client.on('shardResume', (shardId, replayedEvents) => {
+        logTime(`WebSocket恢复连接 [分片${shardId}] 重放事件: ${replayedEvents}个`, true);
+        wsStateMonitor.disconnectedAt = null;
+        wsStateMonitor.reconnectAttempts = 0;
+    });
+
+    client.on('shardReady', shardId => {
+        wsStateMonitor.lastPing = client.ws.ping;
+        logTime(`WebSocket就绪 [分片${shardId}] 延迟: ${client.ws.ping}ms`);
+    });
+
+    // 心跳检测
+    wsStateMonitor.heartbeatInterval = setInterval(() => {
+        const currentPing = client.ws.ping;
+        if (Math.abs(currentPing - wsStateMonitor.lastPing) > 100) {
+            logTime(`WebSocket延迟变化显著: ${wsStateMonitor.lastPing}ms -> ${currentPing}ms`, true);
+        }
+        wsStateMonitor.lastPing = currentPing;
+    }, 60000);
+
+    // 保存监控状态到client
+    client.wsStateMonitor = wsStateMonitor;
+
+    return wsStateMonitor;
+}
+
 export default {
     name: Events.ClientReady,
     once: true,
     async execute(client) {
         logTime(`已登录: ${client.user.tag}`);
 
-        // 初始化所有定时任务
-        globalTaskScheduler.initialize(client);
-
-        // 初始化身份组申请消息
-        await createApplicationMessage(client);
-        
-        // 初始化身份组同步消息
-        await createSyncMessage(client);
-
-        // 初始化WebSocket状态监控
-        const wsStateMonitor = {
-            lastPing: client.ws.ping,
-            disconnectedAt: null,
-            reconnectAttempts: 0,
-        };
-
-        // WebSocket事件监听
-        client.on('shardDisconnect', (closeEvent, shardId) => {
-            wsStateMonitor.disconnectedAt = Date.now();
-            // 区分正常关闭和异常断开
-            const isNormalClosure = closeEvent.code === 1000 || closeEvent.code === 1001;
-            logTime(
-                `WebSocket${isNormalClosure ? '正常关闭' : '断开连接'} [分片${shardId}] 代码: ${closeEvent.code}`,
-                !isNormalClosure
-            );
-        });
-
-        client.on('shardReconnecting', shardId => {
-            wsStateMonitor.reconnectAttempts++;
-            const downtime = wsStateMonitor.disconnectedAt
-                ? Math.floor((Date.now() - wsStateMonitor.disconnectedAt) / 1000)
-                : 0;
-
-            logTime(
-                `WebSocket正在重连 [分片${shardId}] 尝试次数: ${wsStateMonitor.reconnectAttempts} 已断开: ${downtime}秒`,
-                true,
-            );
-        });
-
-        client.on('shardResume', (shardId, replayedEvents) => {
-            logTime(`WebSocket恢复连接 [分片${shardId}] 重放事件: ${replayedEvents}个`, true);
-            wsStateMonitor.disconnectedAt = null;
-            wsStateMonitor.reconnectAttempts = 0;
-        });
-
-        client.on('shardReady', shardId => {
-            wsStateMonitor.lastPing = client.ws.ping;
-            logTime(`WebSocket就绪 [分片${shardId}] 延迟: ${client.ws.ping}ms`);
-        });
-
-        // 心跳检测
-        setInterval(() => {
-            const currentPing = client.ws.ping;
-            if (Math.abs(currentPing - wsStateMonitor.lastPing) > 100) {
-                logTime(`WebSocket延迟变化显著: ${wsStateMonitor.lastPing}ms -> ${currentPing}ms`, true);
-            }
-            wsStateMonitor.lastPing = currentPing;
-        }, 60000);
-
-        // 保存监控状态到client
-        client.wsStateMonitor = wsStateMonitor;
+        const wsStateMonitor = await initializeClient(client);
 
         // API监控
         client.rest
@@ -93,6 +99,30 @@ export default {
                         } - 重试延迟: ${response.headers.get('retry-after')}ms`,
                         true,
                     );
+                }
+
+                // token失效检测
+                if (response.status === 401) {
+                    logTime('Token已失效，尝试重新连接...', true);
+                    
+                    // 清理现有的监听器和定时器
+                    client.removeAllListeners();
+                    clearInterval(wsStateMonitor.heartbeatInterval);
+                    
+                    // 销毁客户端
+                    client.destroy();
+
+                    // 延迟5秒后重新登录和初始化
+                    setTimeout(async () => {
+                        try {
+                            await client.login(config.token);
+                            // 重新初始化所有功能
+                            await initializeClient(client);
+                            logTime('Token重新连接并初始化成功');
+                        } catch (error) {
+                            logTime(`Token重新连接失败: ${error.message}`, true);
+                        }
+                    }, 5000);
                 }
             });
     },

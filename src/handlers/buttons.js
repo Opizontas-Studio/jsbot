@@ -41,7 +41,7 @@ export async function handleConfirmationButton({
     onConfirm,
     onTimeout,
     onError,
-    timeout = 300000,
+    timeout = 200000,
 }) {
     // 创建确认按钮
     const confirmButton = new ButtonBuilder().setCustomId(customId).setLabel(buttonLabel).setStyle(ButtonStyle.Danger);

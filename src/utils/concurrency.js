@@ -18,7 +18,7 @@ export class RequestQueue {
         };
         this.taskTimeout = 180000; // 任务超时时间：3分钟
         this.lastProcessTime = Date.now();
-        this.healthCheckInterval = setInterval(() => this.healthCheck(), 600000); // 10分钟
+        this.healthCheckInterval = setInterval(() => this.healthCheck(), 60000); // 1分钟
     }
 
     // 健康检查
@@ -35,7 +35,7 @@ export class RequestQueue {
             hour12: false,
         });
 
-        logTime(`队列长度: ${this.queue.length}, 最后处理时间: ${lastProcessTimeStr}`);
+        // logTime(`队列长度: ${this.queue.length}, 最后处理时间: ${lastProcessTimeStr}`);
 
         // 如果队列有任务但超过3分钟没有处理，可能出现了死锁
         if (this.queue.length > 0 && now - this.lastProcessTime > 180000) {
@@ -300,6 +300,14 @@ class RateLimitedBatchProcessor {
                             results[batchIndex * batchSize + batch.indexOf(item)] = await processor(item);
                         } catch (error) {
                             results[batchIndex * batchSize + batch.indexOf(item)] = null;
+
+                            // 检查是否是token失效
+                            if (error.code === 40001 || error.code === 50014 || error.message.includes('Invalid Webhook Token')) {
+                                logTime('检测到Token失效，暂停处理');
+                                // 等待30秒后再继续，给token重连留出时间
+                                await delay(30000);
+                                continue;
+                            }
 
                             if (
                                 error.code === 'ECONNRESET' ||

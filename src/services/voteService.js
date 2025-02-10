@@ -144,6 +144,53 @@ class VoteService {
     }
 
     /**
+     * 移除双方的辩诉通行身份组
+     * @private
+     * @param {Object} client - Discord客户端
+     * @param {Object} vote - 投票记录
+     * @returns {Promise<void>}
+     */
+    static async _removeDebateRolesFromBothParties(client, vote) {
+        try {
+            // 获取主服务器配置
+            const mainGuildConfig = Array.from(client.guildManager.guilds.values())
+                .find(config => config.serverType === 'Main server');
+
+            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.courtSystem.appealDebateRoleId) {
+                return;
+            }
+
+            const mainGuild = await client.guilds.fetch(mainGuildConfig.id).catch(() => null);
+            if (!mainGuild) {
+                return;
+            }
+
+            // 从投票详情中获取双方ID
+            const { targetId, executorId } = vote.details;
+
+            // 获取双方成员对象
+            const [executorMember, targetMember] = await Promise.all([
+                mainGuild.members.fetch(executorId).catch(() => null),
+                mainGuild.members.fetch(targetId).catch(() => null),
+            ]);
+
+            // 为双方移除辩诉通行身份组
+            const removeRolePromises = [executorMember, targetMember]
+                .filter(member => member) // 过滤掉不存在的成员
+                .map(member =>
+                    member.roles
+                        .remove(mainGuildConfig.courtSystem.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
+                        .then(() => logTime(`已移除用户 ${member.user.tag} 的辩诉通行身份组`))
+                        .catch(error => logTime(`移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
+                );
+
+            await Promise.all(removeRolePromises);
+        } catch (error) {
+            logTime(`移除辩诉通行身份组失败: ${error.message}`, true);
+        }
+    }
+
+    /**
      * 检查并执行投票结果
      * @param {Object} vote - 投票记录
      * @param {Object} client - Discord客户端
@@ -167,6 +214,9 @@ class VoteService {
             const redCount = redVoters.length;
             const blueCount = blueVoters.length;
             const threshold = Math.ceil(currentTotalVoters * 0.1); // 使用当前议员总数计算10%阈值
+
+            // 在执行结果之前，先移除双方的辩诉通行身份组
+            await this._removeDebateRolesFromBothParties(client, latestVote);
 
             // 判断结果
             let result, message;

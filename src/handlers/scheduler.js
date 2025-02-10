@@ -3,6 +3,7 @@ import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
+import { monitorService } from '../services/monitorService.js';
 import PunishmentService from '../services/punishmentService.js';
 import { analyzeForumActivity, cleanupInactiveThreads } from '../services/threadAnalyzer.js';
 import { VoteService } from '../services/voteService.js';
@@ -479,20 +480,26 @@ class TaskScheduler {
             logTime('任务调度器已经初始化');
             return;
         }
-
+        
         // 保存client引用以供重载任务使用
         this.client = client;
 
-        // 初始化流程和处罚调度器
-        await this.processScheduler.initialize(client);
-        await this.punishmentScheduler.initialize(client);
-        await this.voteScheduler.initialize(client);
+        try {
+            // 初始化流程和处罚调度器
+            await this.processScheduler.initialize(client);
+            await this.punishmentScheduler.initialize(client);
+            await this.voteScheduler.initialize(client);
 
-        // 注册各类定时任务
-        this.registerAnalysisTasks(client);
-        this.registerDatabaseTasks();
+            // 注册各类定时任务
+            this.registerAnalysisTasks(client);
+            this.registerDatabaseTasks();
+            this.registerMonitorTasks(client);
 
-        this.isInitialized = true;
+            this.isInitialized = true;
+        } catch (error) {
+            logTime(`任务调度器初始化失败: ${error.message}`, true);
+            throw error;
+        }
     }
 
     /**
@@ -685,6 +692,31 @@ class TaskScheduler {
                 }`,
                 true,
             );
+        }
+    }
+
+    // 注册监控任务
+    registerMonitorTasks(client) {
+        // 从配置中获取监控频道ID和消息ID
+        for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
+            if (!guildConfig.monitor?.channelId || !guildConfig.monitor?.enabled) {
+                continue;
+            }
+
+            this.addTask({
+                taskId: `monitor_${guildId}`,
+                interval: TIME_UNITS.MINUTE,
+                runImmediately: true,
+                task: async () => {
+                    try {
+                        const channelId = guildConfig.monitor.channelId;
+                        const messageId = guildConfig.monitor.messageId;
+                        await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
+                    } catch (error) {
+                        logTime(`监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                    }
+                },
+            });
         }
     }
 

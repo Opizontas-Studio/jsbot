@@ -73,6 +73,11 @@ export class GuildManager {
                         duration: 300000, // 5分钟后结束
                     },
                 },
+                monitor: {
+                    enabled: guildConfig.monitor?.enabled || false,
+                    channelId: guildConfig.monitor?.channelId || null,
+                    messageId: guildConfig.monitor?.messageId || null,
+                },
             };
 
             this.guilds.set(guildId, serverConfig);

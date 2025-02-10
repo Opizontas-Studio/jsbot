@@ -1,6 +1,6 @@
 {
     "name": "jsbot",
-    "version": "2.18.0",
+    "version": "2.22.0",
     "main": "dist/index.js",
     "type": "module",
     "scripts": {

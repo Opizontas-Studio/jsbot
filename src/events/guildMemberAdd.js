@@ -36,9 +36,6 @@ export default {
             // 处理身份组同步
             try {
                 const { syncedRoles } = await syncMemberRoles(member, true);
-                if (syncedRoles.length > 0) {
-                    logTime(`[加入同步] 用户 ${member.user.tag} 加入服务器 ${member.guild.name}，已同步 ${syncedRoles.length} 个身份组`);
-                }
             } catch (error) {
                 logTime(`处理用户 ${member.user.tag} 的身份组同步时发生错误: ${error.message}`, true);
             }

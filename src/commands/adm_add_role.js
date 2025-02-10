@@ -93,7 +93,7 @@ export default {
                 try {
                     // 先移除源身份组，再添加目标身份组
                     await member.roles.remove(sourceRole, '缓冲区转移到已验证');
-                    await delay(800);
+                    await delay(700);
                     await member.roles.add(targetRole, '缓冲区转移到已验证');
                     successCount++;
                 } catch (error) {
@@ -113,8 +113,8 @@ export default {
                     });
                 }
 
-                // 等待1秒再处理下一个成员
-                await delay(800);
+                // 等待700ms再处理下一个成员
+                await delay(700);
             }
 
             // 发送最终报告
@@ -146,7 +146,7 @@ export default {
                                 `失败数量: ${failCount}`,
                             ].join('\n'),
                             timestamp: new Date(),
-                            footer: { text: '论坛自动化系统' },
+                            footer: { text: '自动化系统' },
                         },
                     ],
                 });

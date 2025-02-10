@@ -48,7 +48,7 @@ export default {
                 return;
             }
 
-            // 获取消息
+            // 获取起点消息
             const channel = interaction.channel;
             const startMessage = await channel.messages.fetch(startMessageId).catch(() => null);
             let endMessage = null;
@@ -71,50 +71,10 @@ export default {
                 }
             }
 
-            // 获取指定范围内的消息
-            let messages = new Collection();
-            try {
-                // 先获取起点消息
-                messages.set(startMessageId, startMessage);
-
-                let currentId = startMessageId;
-                while (true) {
-                    const options = {
-                        limit: 100,
-                        after: currentId,
-                    };
-                    if (endMessageId) {
-                        options.before = endMessageId;
-                    }
-
-                    const batch = await channel.messages.fetch(options);
-                    if (batch.size === 0) break;
-                    
-                    // Collection合并
-                    messages = new Collection([...messages, ...batch]);
-                    
-                    if (batch.size < 100) break;
-                    currentId = batch.last().id;
-                    
-                    // 保持延迟以遵守速率限制
-                    await delay(1000);
-                }
-
-                // 如果有终点消息，确保包含它
-                if (endMessageId && !messages.has(endMessageId)) {
-                    messages.set(endMessageId, endMessage);
-                }
-            } catch (error) {
-                logTime(`获取消息时出错: ${error.message}`, true);
-                await interaction.editReply('❌ 获取消息时出现错误，请稍后重试');
-                return;
-            }
-
-            const totalMessages = messages.size;
-            if (totalMessages === 0) {
-                await interaction.editReply('❌ 指定范围内没有可以清理的消息');
-                return;
-            }
+            // 估算消息数量（基于消息ID的差值）
+            const estimatedCount = endMessageId 
+                ? Math.floor((BigInt(endMessageId) - BigInt(startMessageId)) / BigInt(1000)) + 1
+                : '未知（将清理至频道末尾）';
 
             await handleConfirmationButton({
                 interaction,
@@ -127,9 +87,9 @@ export default {
                         `你确定要清理 ${channel.name} 中的历史消息吗？`,
                         '',
                         '**清理范围：**',
-                        `- 起点消息：${startMessage.content.slice(0, 100)}...`,
-                        endMessage ? `- 终点消息：${endMessage.content.slice(0, 100)}...` : '- 终点：频道结束',
-                        `- 预计清理消息数：${totalMessages}`,
+                        `- 起点消息：${startMessage.content?.slice(0, 100) || '[无内容]'}...`,
+                        endMessage ? `- 终点消息：${endMessage.content?.slice(0, 100) || '[无内容]'}...` : '- 终点：频道结束',
+                        `- 预计清理消息数：约${estimatedCount}条`,
                         `- 清理时间范围：${
                             startMessage.createdAt.toLocaleString() + ' 至 ' + (endMessage ? endMessage.createdAt.toLocaleString() : '频道结束')
                         }`,
@@ -147,53 +107,99 @@ export default {
                     let deletedCount = 0;
                     let processedCount = 0;
                     const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+                    let messages = new Collection();
+                    let currentId = endMessageId || null;
+                    let isFirstBatch = true;
 
-                    // 分离新旧消息
-                    const recentMessages = Array.from(messages.values()).filter(
-                        msg => msg.createdTimestamp > twoWeeksAgo,
-                    );
-                    const oldMessages = Array.from(messages.values()).filter(
-                        msg => msg.createdTimestamp <= twoWeeksAgo,
-                    );
+                    while (true) {
+                        const options = {
+                            limit: 100,
+                            before: currentId || undefined,
+                        };
 
-                    // 处理新消息（批量删除）
-                    if (recentMessages.length > 0) {
-                        const recentMessageBatches = [];
-                        for (let i = 0; i < recentMessages.length; i += 100) {
-                            recentMessageBatches.push(recentMessages.slice(i, i + 100));
+                        const batch = await channel.messages.fetch(options);
+                        if (batch.size === 0) break;
+
+                        // 找到起点消息或更早的消息时停止
+                        const reachedStart = Array.from(batch.values()).some(msg => 
+                            BigInt(msg.id) <= BigInt(startMessageId)
+                        );
+
+                        // 过滤出需要删除的消息（在起点之后的消息）
+                        const batchToDelete = batch.filter(msg => 
+                            BigInt(msg.id) >= BigInt(startMessageId)
+                        );
+
+                        if (batchToDelete.size > 0) {
+                            messages = new Collection([...messages, ...batchToDelete]);
                         }
 
-                        for (const batch of recentMessageBatches) {
-                            try {
-                                await channel.bulkDelete(batch);
-                                deletedCount += batch.length;
-                                processedCount += batch.length;
+                        if (reachedStart || batch.size < 100) break;
+                        currentId = batch.last().id;
+                        isFirstBatch = false;
 
-                                await confirmation.editReply({
-                                    content: generateProgressReport(processedCount, totalMessages, {
-                                        prefix: '清理进度',
-                                        suffix: `(已删除 ${processedCount}/${totalMessages} 条消息)`,
-                                        progressChar: '🗑️',
-                                    }),
-                                });
-                            } catch (error) {
-                                logTime(`批量删除消息失败: ${error.message}`, true);
-                            }
-                            await delay(1000);
-                        }
+                        await delay(1000);
                     }
 
-                    // 处理旧消息（单条删除）
-                    if (oldMessages.length > 0) {
-                        await globalBatchProcessor.processBatch(
-                            oldMessages,
-                            async message => {
-                                try {
-                                    await message.delete();
-                                    deletedCount++;
-                                    processedCount++;
+                    const totalMessages = messages.size;
+                    if (totalMessages === 0) {
+                        await interaction.editReply('❌ 指定范围内没有可以清理的消息');
+                        return;
+                    }
 
-                                    if (processedCount % 5 === 0) {
+                    await handleConfirmationButton({
+                        interaction,
+                        customId: 'confirm_purge',
+                        buttonLabel: '确认清理',
+                        embed: {
+                            color: 0xff0000,
+                            title: '⚠️ 清理确认',
+                            description: [
+                                `你确定要清理 ${channel.name} 中的历史消息吗？`,
+                                '',
+                                '**清理范围：**',
+                                `- 起点消息：${startMessage.content.slice(0, 100)}...`,
+                                endMessage ? `- 终点消息：${endMessage.content.slice(0, 100)}...` : '- 终点：频道结束',
+                                `- 预计清理消息数（仅估算）：${totalMessages}`,
+                                `- 清理时间范围：${
+                                    startMessage.createdAt.toLocaleString() + ' 至 ' + (endMessage ? endMessage.createdAt.toLocaleString() : '频道结束')
+                                }`,
+                                '',
+                                '**⚠️ 警告：此操作不可撤销！**',
+                            ].join('\n'),
+                        },
+                        onConfirm: async confirmation => {
+                            await confirmation.update({
+                                content: '正在清理消息...',
+                                embeds: [],
+                                components: [],
+                            });
+
+                            let deletedCount = 0;
+                            let processedCount = 0;
+                            const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+
+                            // 分离新旧消息
+                            const recentMessages = Array.from(messages.values()).filter(
+                                msg => msg.createdTimestamp > twoWeeksAgo,
+                            );
+                            const oldMessages = Array.from(messages.values()).filter(
+                                msg => msg.createdTimestamp <= twoWeeksAgo,
+                            );
+
+                            // 处理新消息（批量删除）
+                            if (recentMessages.length > 0) {
+                                const recentMessageBatches = [];
+                                for (let i = 0; i < recentMessages.length; i += 100) {
+                                    recentMessageBatches.push(recentMessages.slice(i, i + 100));
+                                }
+
+                                for (const batch of recentMessageBatches) {
+                                    try {
+                                        await channel.bulkDelete(batch);
+                                        deletedCount += batch.length;
+                                        processedCount += batch.length;
+
                                         await confirmation.editReply({
                                             content: generateProgressReport(processedCount, totalMessages, {
                                                 prefix: '清理进度',
@@ -201,73 +207,108 @@ export default {
                                                 progressChar: '🗑️',
                                             }),
                                         });
+                                    } catch (error) {
+                                        logTime(`批量删除消息失败: ${error.message}`, true);
                                     }
-                                } catch (error) {
-                                    logTime(`删除旧消息失败: ${error.message}`, true);
+                                    await delay(1000);
                                 }
-                            },
-                            null,
-                            'messages',
-                        );
-                    }
+                            }
 
-                    const executionTime = executionTimer();
+                            // 处理旧消息（单条删除）
+                            if (oldMessages.length > 0) {
+                                await globalBatchProcessor.processBatch(
+                                    oldMessages,
+                                    async message => {
+                                        try {
+                                            await message.delete();
+                                            deletedCount++;
+                                            processedCount++;
 
-                    // 发送完成消息
-                    await confirmation.editReply({
-                        content: [
-                            '✅ 清理完成！',
-                            `📊 共清理 ${deletedCount} 条消息`,
-                            `⏱️ 执行时间: ${executionTime}秒`,
-                        ].join('\n'),
-                        embeds: [],
-                        components: [],
-                    });
+                                            if (processedCount % 5 === 0) {
+                                                await confirmation.editReply({
+                                                    content: generateProgressReport(processedCount, totalMessages, {
+                                                        prefix: '清理进度',
+                                                        suffix: `(已删除 ${processedCount}/${totalMessages} 条消息)`,
+                                                        progressChar: '🗑️',
+                                                    }),
+                                                });
+                                            }
+                                        } catch (error) {
+                                            logTime(`删除旧消息失败: ${error.message}`, true);
+                                        }
+                                    },
+                                    null,
+                                    'messages',
+                                );
+                            }
 
-                    if(guildConfig.threadLogThreadId){
-                        const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-                        await logChannel.send({
-                            embeds: [
-                                {
-                                    color: 0x0099ff,
-                                    title: '频道清理日志',
-                                    fields: [
+                            const executionTime = executionTimer();
+
+                            // 发送完成消息
+                            await confirmation.editReply({
+                                content: [
+                                    '✅ 清理完成！',
+                                    `📊 共清理 ${deletedCount} 条消息`,
+                                    `⏱️ 执行时间: ${executionTime}秒`,
+                                ].join('\n'),
+                                embeds: [],
+                                components: [],
+                            });
+
+                            if(guildConfig.threadLogThreadId){
+                                const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
+                                await logChannel.send({
+                                    embeds: [
                                         {
-                                            name: '操作人',
-                                            value: `<@${interaction.user.id}>`,
-                                            inline: true,
-                                        },
-                                        {
-                                            name: '清理频道',
-                                            value: `<#${channel.id}>`,
-                                            inline: true,
-                                        },
-                                        {
-                                            name: '清理范围',
-                                            value: startMessage.createdAt.toLocaleString() + ' 至 ' + (endMessage ? endMessage.createdAt.toLocaleString() : '频道结束'),
-                                            inline: false,
-                                        },
-                                        {
-                                            name: '清理数量',
-                                            value: `${deletedCount} 条消息`,
-                                            inline: true,
-                                        },
-                                        {
-                                            name: '执行时间',
-                                            value: `${executionTime}秒`,
-                                            inline: true,
+                                            color: 0x0099ff,
+                                            title: '频道清理日志',
+                                            fields: [
+                                                {
+                                                    name: '操作人',
+                                                    value: `<@${interaction.user.id}>`,
+                                                    inline: true,
+                                                },
+                                                {
+                                                    name: '清理频道',
+                                                    value: `<#${channel.id}>`,
+                                                    inline: true,
+                                                },
+                                                {
+                                                    name: '清理范围',
+                                                    value: startMessage.createdAt.toLocaleString() + ' 至 ' + (endMessage ? endMessage.createdAt.toLocaleString() : '频道结束'),
+                                                    inline: false,
+                                                },
+                                                {
+                                                    name: '清理数量',
+                                                    value: `${deletedCount} 条消息`,
+                                                    inline: true,
+                                                },
+                                                {
+                                                    name: '执行时间',
+                                                    value: `${executionTime}秒`,
+                                                    inline: true,
+                                                },
+                                            ],
+                                            timestamp: new Date(),
                                         },
                                     ],
-                                    timestamp: new Date(),
-                                },
-                            ],
-                        });
-                    }
+                                });
+                            }
 
-                    // 记录到控制台日志
-                    logTime(
-                        `管理员 ${interaction.user.tag} 清理了频道 ${channel.name} 中的 ${deletedCount} 条消息，耗时 ${executionTime}秒`,
-                    );
+                            // 记录到控制台日志
+                            logTime(
+                                `管理员 ${interaction.user.tag} 清理了频道 ${channel.name} 中的 ${deletedCount} 条消息，耗时 ${executionTime}秒`,
+                            );
+                        },
+                        onError: async error => {
+                            logTime(`清理消息时出错: ${error}`, true);
+                            await interaction.editReply({
+                                content: '❌ 清理过程中出现错误，请稍后重试。',
+                                embeds: [],
+                                components: [],
+                            });
+                        },
+                    });
                 },
                 onError: async error => {
                     logTime(`清理消息时出错: ${error}`, true);

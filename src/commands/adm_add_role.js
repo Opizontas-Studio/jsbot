@@ -130,7 +130,7 @@ export default {
 
             // 记录到日志频道
             if (guildConfig.automation?.logThreadId) {
-                const logChannel = await interaction.client.channels.fetch(guildConfig.automation.logThreadId);
+                const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
                 await logChannel.send({
                     embeds: [
                         {

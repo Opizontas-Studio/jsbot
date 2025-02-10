@@ -10,8 +10,8 @@ module.exports = {
     error_file: 'logs/err.log',
     out_file: 'logs/out.log',
     time: true,
-    // 每168小时重启一次
-    cron_restart: '0 */168 * * *',
+    // 每7天（168小时）重启一次
+    cron_restart: '0 0 */7 * *',
     // 优雅关闭
     kill_timeout: 10000,
     wait_ready: true,

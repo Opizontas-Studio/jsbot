@@ -35,7 +35,7 @@ module.exports = {
     out_file: 'logs/out.log',
     time: true,
     // 每168小时重启一次
-    cron_restart: '0 */168 * * *',
+    cron_restart: '0 0 */7 * *',
     // 优雅关闭
     kill_timeout: 10000,
     wait_ready: true,

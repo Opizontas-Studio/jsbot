@@ -17,6 +17,12 @@ export default {
                 .setName('目标')
                 .setDescription('要处罚的用户')
                 .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('理由')
+                .setDescription('处罚理由')
+                .setRequired(false)
         ),
 
     async execute(interaction, guildConfig) {
@@ -27,6 +33,7 @@ export default {
             }
 
             const targetUser = interaction.options.getUser('目标');
+            const reason = interaction.options.getString('理由') ?? '违反问答规范';
             const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
 
             // 找到缓冲区和已验证的同步组
@@ -62,7 +69,6 @@ export default {
                     .setDescription('✅ 处罚执行成功')
                     .addFields(
                         { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
-                        { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                     );
 
                 // 发送操作日志
@@ -73,8 +79,8 @@ export default {
                     .addFields(
                         { name: '执行者', value: interaction.user.tag, inline: true },
                         { name: '目标用户', value: targetUser.tag, inline: true },
+                        { name: '处罚理由', value: reason },
                         { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
-                        { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                     );
 
                 const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
@@ -84,7 +90,7 @@ export default {
 
                 // 发送简单的通知消息到执行频道
                 const notifyEmbed = new EmbedBuilder()
-                    .setDescription(`<@${targetUser.id}> 被管理员 <@${interaction.user.id}> 执行了重新答题处罚。`)
+                    .setDescription(`<@${targetUser.id}> 被管理员 <@${interaction.user.id}> 执行了重新答题处罚。\n理由：${reason}`)
                     .setColor(0xff0000)
                     .setTimestamp();
 
@@ -92,7 +98,7 @@ export default {
                     embeds: [notifyEmbed],
                     allowedMentions: { users: [targetUser.id] } // 只@ 被处罚的用户
                 });
-                logTime(`管理员 ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。`, true);
+                logTime(`管理员 ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, true);
             } else {
                 replyEmbed
                     .setDescription('❌ 处罚执行失败')

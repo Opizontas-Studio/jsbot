@@ -118,7 +118,7 @@ export const executePunishmentAction = async (guild, punishment) => {
                     }
                 } catch (error) {
                     if (error.code === 10007) { // UNKNOWN_MEMBER
-                        logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`, true);
+                        logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`);
                         // 返回 true 因为这是预期的情况
                         return true;
                     }

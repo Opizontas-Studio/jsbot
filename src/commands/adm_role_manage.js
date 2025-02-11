@@ -3,10 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { revokeRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
+
+// 添加紧急处理身份组ID
+const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705']; // 紧急处理身份组ID
 
 export default {
     cooldown: 5,
@@ -38,8 +41,16 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            // 检查管理权限
-            if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
+            // 检查权限：管理员或紧急处理身份组
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            const hasAdminRole = member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+            const hasEmergencyRole = member.roles.cache.some(role => EMERGENCY_ROLE_IDS.includes(role.id));
+
+            if (!hasAdminRole && !hasEmergencyRole) {
+                await interaction.editReply({
+                    content: '❌ 你没有权限执行此命令',
+                    flags: ['Ephemeral']
+                });
                 return;
             }
 
@@ -59,20 +70,23 @@ export default {
 
             if (operation === 'remove') {
                 // 检查用户是否有该身份组
-                const member = await interaction.guild.members.fetch(targetUser.id);
+                const targetMember = await interaction.guild.members.fetch(targetUser.id);
                 
-                // 检查目标用户是否有管理员身份组
-                const hasAdminRole = member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
-                if (hasAdminRole) {
+                // 检查目标用户是否有管理员身份组，只有当执行者是管理员（非紧急处理）时才限制
+                const targetHasAdminRole = targetMember.roles.cache.some(role => 
+                    guildConfig.AdministratorRoleIds.includes(role.id)
+                );
+                
+                if (targetHasAdminRole && hasAdminRole && !hasEmergencyRole) {
                     replyEmbed
                         .setColor(0xff0000)
-                        .setDescription('❌ 无法移除高级管理员的身份组');
+                        .setDescription('❌ 管理员无法移除其他管理员的身份组，请使用紧急处理权限');
                     
                     await interaction.editReply({ embeds: [replyEmbed] });
                     return;
                 }
 
-                if (!member.roles.cache.has(role.id)) {
+                if (!targetMember.roles.cache.has(role.id)) {
                     replyEmbed
                         .setColor(0xff9900)
                         .setDescription('❌ 用户没有该身份组，无需移除');

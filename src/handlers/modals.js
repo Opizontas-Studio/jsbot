@@ -140,11 +140,6 @@ export const modalHandlers = {
                             const successResults = syncResults.filter(r => r.success);
                             const failedResults = syncResults.filter(r => !r.success);
 
-                            // 记录完整日志到后台
-                            if (failedResults.length > 0) {
-                                logTime(`同步创作者身份组失败的服务器：${failedResults.map(r => `${r.name}（${r.error}）`).join('、')}`, true);
-                            }
-
                             // 只向用户显示成功的结果
                             if (successResults.length > 0) {
                                 await interaction.editReply(`✅ 审核通过！已为您添加创作者身份组${successResults.length > 1 ? `（已同步至：${successResults.map(r => r.name).join('、')}）` : ''}`);
@@ -156,8 +151,8 @@ export const modalHandlers = {
                             if (moderationChannel) {
                                 await moderationChannel.send({ embeds: [auditEmbed] });
                             }
-
-                            logTime(`用户 ${interaction.user.tag} 获得了创作者身份组`);
+                            // 记录完整日志到后台
+                            logTime(`用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${successResults.map(r => r.name).join('、')}`);
                         } else {
                             // 如果没有找到同步配置，只在当前服务器添加
                             const member = await interaction.guild.members.fetch(interaction.user.id);

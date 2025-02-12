@@ -186,7 +186,7 @@ export default {
                         try {
                             // 检查服务器是否在配置中
                             const guildConfig = interaction.client.guildManager.getGuildConfig(guild.id);
-                            if (!guildConfig?.roleApplication?.enabled) continue;
+                            if (!guildConfig) continue;
 
                             // 获取目标服务器的成员
                             const targetMember = await guild.members.fetch(applicant.id).catch(() => null);

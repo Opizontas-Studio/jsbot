@@ -260,7 +260,7 @@ export const modalHandlers = {
                         color: 0x5865f2,
                         title: '处罚上诉申请',
                         description: [
-                            `<@${interaction.user.id}> 对所受处罚提出上诉`,
+                            `<@${interaction.user.id}> 上诉，议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
                             '',
                             '**上诉理由：**',
                             appealContent,
@@ -288,7 +288,7 @@ export const modalHandlers = {
                         ],
                         timestamp: new Date(),
                         footer: {
-                            text: `处罚ID: ${punishment.id}`,
+                            text: `处罚ID: ${punishment.id} | 再次点击支持可以撤销支持`,
                         },
                     },
                 ],

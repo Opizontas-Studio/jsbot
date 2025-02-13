@@ -117,7 +117,7 @@ export default {
                 try {
                     // 检查链接所属服务器是否在配置中
                     const linkGuildConfig = interaction.client.guildManager.getGuildConfig(link.guildId);
-                    if (!linkGuildConfig?.roleApplication?.enabled) {
+                    if (!linkGuildConfig) {
                         continue;
                     }
 

@@ -16,7 +16,7 @@ export class RequestQueue {
             processed: 0,
             failed: 0,
         };
-        this.taskTimeout = 180000; // 任务超时时间：3分钟
+        this.taskTimeout = 360000; // 任务超时时间：6分钟
         this.lastProcessTime = Date.now();
         this.healthCheckInterval = setInterval(() => this.healthCheck(), 60000); // 1分钟
     }

@@ -637,23 +637,35 @@ class TaskScheduler {
 
     // 注册子区分析和清理任务
     registerAnalysisTasks(client) {
-        for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
-            if (!guildConfig.automation?.analysis) {
-                continue;
-            }
+        // 获取所有启用了分析的服务器
+        const analysisGuilds = Array.from(client.guildManager.guilds.entries())
+            .filter(([_, config]) => config.automation?.analysis)
+            .map(([guildId]) => guildId);
 
-            // 计算下次整点执行时间
-            const now = new Date();
-            const nextRun = new Date(now);
-            nextRun.setHours(nextRun.getHours() + 1, 0, 0, 0);
+        if (analysisGuilds.length === 0) return;
+
+        // 计算当前时间到下一个整点的时间
+        const now = new Date();
+        const nextHour = new Date(now);
+        nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+
+        // 为每个服务器设置错开的执行时间
+        analysisGuilds.forEach((guildId, index) => {
+            const guildConfig = client.guildManager.guilds.get(guildId);
+            
+            // 计算该服务器的首次执行时间
+            // 基础时间为下一个整点，每个服务器额外延迟10分钟 * index
+            const initialDelay = nextHour.getTime() - now.getTime() + (index * 10 * TIME_UNITS.MINUTE);
+            const startTime = new Date(now.getTime() + initialDelay);
 
             this.addTask({
                 taskId: `analysis_${guildId}`,
-                interval: TIME_UNITS.HOUR,
-                startAt: nextRun,
+                interval: 2 * TIME_UNITS.HOUR, // 改为2小时间隔
+                startAt: startTime,
                 task: async () => {
                     try {
                         await this.executeThreadTasks(client, guildConfig, guildId);
+                        logTime(`完成服务器 ${guildId} 的子区分析任务，下次执行时间：${new Date(Date.now() + 2 * TIME_UNITS.HOUR).toLocaleString()}`);
                     } catch (error) {
                         logTime(
                             `服务器 ${guildId} 的定时任务执行失败: ${error.name}${
@@ -664,7 +676,10 @@ class TaskScheduler {
                     }
                 },
             });
-        }
+
+            // 输出调度信息
+            logTime(`已为服务器 ${guildId} 调度子区分析任务，首次执行时间：${startTime.toLocaleString()}`);
+        });
     }
 
     // 执行子区分析和清理任务

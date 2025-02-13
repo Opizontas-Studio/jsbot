@@ -60,12 +60,17 @@ export default {
 
             // 获取源身份组的所有成员
             const members = await interaction.guild.members.fetch();
-            const membersToProcess = members.filter(
+            const eligibleMembers = members.filter(
                 member =>
                     member.roles.cache.has(roleIds.SOURCE_ROLE_ID) &&
                     !member.roles.cache.has(roleIds.TARGET_ROLE_ID) &&
                     !member.user.bot,
-            ).first(requestedCount); // 只获取请求数量的成员
+            );
+
+            // 按加入服务器时间排序（从早到晚）
+            const membersToProcess = Array.from(eligibleMembers.values())
+                .sort((a, b) => a.joinedTimestamp - b.joinedTimestamp)
+                .slice(0, requestedCount);
 
             if (membersToProcess.length === 0) {
                 await interaction.editReply({

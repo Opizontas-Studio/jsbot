@@ -165,21 +165,21 @@ class RateLimitedBatchProcessor {
             // 消息相关操作 - 5次/秒
             messages: {
                 maxRequests: 5,
-                windowMs: 1020, // 预留20ms延迟
+                windowMs: 1050, // 预留50ms延迟
                 requests: [],
-                concurrency: 2,
+                concurrency: 1,
             },
             // 成员相关操作 - 5次/秒
             members: {
                 maxRequests: 5,
-                windowMs: 1020, // 预留20ms延迟
+                windowMs: 1050, // 预留50ms延迟
                 requests: [],
                 concurrency: 3,
             },
             // 其他操作 - 30次/秒
             default: {
                 maxRequests: 40,
-                windowMs: 1020, // 预留20ms延迟
+                windowMs: 1050, // 预留50ms延迟
                 requests: [],
                 concurrency: 10,
             },
@@ -188,7 +188,7 @@ class RateLimitedBatchProcessor {
         // 全局限制 - 50次/秒
         this.globalLimit = {
             maxRequests: 50,
-            windowMs: 1020, // 预留20ms延迟
+            windowMs: 1050, // 预留50ms延迟
             requests: [],
         };
 

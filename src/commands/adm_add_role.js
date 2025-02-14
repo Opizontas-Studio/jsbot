@@ -47,15 +47,13 @@ export default {
 
             if (!targetRole || !sourceRole) {
                 await interaction.editReply({
-                    content: `❌ 无法找到指定的身份组，请检查配置\n服务器类型: ${guildConfig.serverType}`,
-                    flags: ['Ephemeral'],
+                    content: `❌ 无法找到指定的身份组，请检查配置\n服务器类型: ${guildConfig.serverType}`
                 });
                 return;
             }
 
             await interaction.editReply({
-                content: '⏳ 正在获取源身份组成员列表...',
-                flags: ['Ephemeral'],
+                content: '⏳ 正在获取源身份组成员列表...'
             });
 
             // 获取源身份组的所有成员
@@ -74,8 +72,7 @@ export default {
 
             if (membersToProcess.length === 0) {
                 await interaction.editReply({
-                    content: '✅ 没有找到需要处理的成员',
-                    flags: ['Ephemeral'],
+                    content: '✅ 没有找到需要处理的成员'
                 });
                 return;
             }
@@ -83,8 +80,7 @@ export default {
             // 计算实际处理数量
             const actualCount = Math.min(membersToProcess.length, requestedCount);
             await interaction.editReply({
-                content: `⏳ 开始处理 ${actualCount} 个成员...`,
-                flags: ['Ephemeral'],
+                content: `⏳ 开始处理 ${actualCount} 个成员...`
             });
             logTime(`开始 ${actualCount} 个成员的身份组转移操作，操作服务器: ${interaction.guild.name}`);
 
@@ -113,8 +109,7 @@ export default {
                 if (now - lastProgressUpdate > 1000) {
                     lastProgressUpdate = now;
                     await interaction.editReply({
-                        content: `⏳ 正在转移身份组... (${processedCount}/${actualCount})\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`,
-                        flags: ['Ephemeral'],
+                        content: `⏳ 正在转移身份组... (${processedCount}/${actualCount})\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`
                     });
                 }
 
@@ -129,8 +124,7 @@ export default {
                     `📊 处理成员总数: ${actualCount}`,
                     `✅ 成功数量: ${successCount}`,
                     `❌ 失败数量: ${failCount}`,
-                ].join('\n'),
-                flags: ['Ephemeral'],
+                ].join('\n')
             });
 
             // 记录到日志频道

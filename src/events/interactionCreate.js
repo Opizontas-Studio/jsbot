@@ -2,7 +2,7 @@ import { Collection, Events } from 'discord.js';
 import { handleButton } from '../handlers/buttons.js';
 import { handleModal } from '../handlers/modals.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
-import { handleInteractionError, handleCommandError } from '../utils/helper.js';
+import { handleCommandError, handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 创建一个用于存储冷却时间的集合
@@ -58,7 +58,12 @@ export default {
 
         // 处理斜杠命令
         if (interaction.isChatInputCommand()) {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
+            // 对于批量转移身份组命令，不使用Ephemeral
+            if (interaction.commandName === '批量转移身份组') {
+                await interaction.deferReply();
+            } else {
+                await interaction.deferReply({ flags: ['Ephemeral'] });
+            }
 
             try {
                 const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);

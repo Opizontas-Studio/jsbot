@@ -119,7 +119,7 @@ export default {
                     // 销毁客户端
                     client.destroy();
 
-                    // 延迟5秒后重新登录和初始化
+                    // 延迟3秒后重新登录和初始化
                     setTimeout(async () => {
                         try {
                             await client.login(config.token);
@@ -129,7 +129,7 @@ export default {
                         } catch (error) {
                             logTime(`Token重新连接失败: ${error.message}`, true);
                         }
-                    }, 5000);
+                    }, 3000);
                 }
             });
     },

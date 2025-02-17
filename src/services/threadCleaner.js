@@ -95,7 +95,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         }
 
         // 获取所有消息以统计发言用户
-        logTime(`[${thread.name}] 开始子区重整`, true);
+        logTime(`[${thread.name}] 开始子区重整`);
         const activeUsers = new Map();
         let lastId = null;
         let messagesProcessed = 0;

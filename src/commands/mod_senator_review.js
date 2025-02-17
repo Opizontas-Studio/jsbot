@@ -84,9 +84,9 @@ export default {
             const joinedAt = member.joinedAt;
             const daysSinceJoin = Math.floor((Date.now() - joinedAt.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (daysSinceJoin < 15) {
+            if (daysSinceJoin < 45) {
                 await interaction.editReply({
-                    content: `❌ 申请者加入服务器时间不足15天（当前: ${daysSinceJoin}天）`,
+                    content: `❌ 申请者加入服务器时间不足45天（当前: ${daysSinceJoin}天）`,
                 });
                 return;
             }

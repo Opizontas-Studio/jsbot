@@ -41,7 +41,6 @@ export default {
             }
         } catch (error) {
             logTime(`处理用户 ${member.user.tag} 加入事件时发生错误: ${error.message}`, true);
-            console.error(error);
         }
     },
 };

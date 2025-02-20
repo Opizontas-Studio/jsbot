@@ -193,6 +193,7 @@ async function main() {
             logTime(`提交时间: ${versionInfo.commitDate}`);
         }
 
+        // 初始化进程事件调度器
         setupProcessHandlers(client);
 
         // 初始化数据库连接

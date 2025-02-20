@@ -129,6 +129,16 @@ export default {
                     return;
                 }
 
+                // 检查禁言时长是否超过14天
+                const TIME_IN_MS = 14 * 24 * 60 * 60 * 1000;
+                if (muteDuration > TIME_IN_MS) {
+                    await interaction.editReply({
+                        content: '❌ 禁言时长不能超过14天',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
                 const muteData = {
                     type: 'mute',
                     userId: target.id,

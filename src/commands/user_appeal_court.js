@@ -120,6 +120,16 @@ export default {
                         return;
                     }
 
+                    // 检查禁言时长是否超过14天
+                    const maxMuteDuration = 14 * 24 * 60 * 60 * 1000; // 14天的毫秒数
+                    if (muteDuration > maxMuteDuration) {
+                        await interaction.editReply({
+                            content: '❌ 禁言时长不能超过14天',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
                     // 检查撤销身份组
                     if (revokeRole) {
                         if (!member.roles.cache.has(revokeRole.id)) {

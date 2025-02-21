@@ -8,11 +8,14 @@ const COLORS = {
     紫色: 0x9b59b6,
     粉色: 0xff69b4,
     青色: 0x00ffff,
+    橙色: 0xffa500,
+    黄色: 0xffff00,
+    灰色: 0x808080,
 };
 
 export default {
-    // 设置命令冷却时间为30秒
-    cooldown: 30,
+    // 设置命令冷却时间为10秒
+    cooldown: 10,
 
     // 定义命令
     data: new SlashCommandBuilder()
@@ -36,6 +39,9 @@ export default {
                     { name: '紫色', value: '紫色' },
                     { name: '粉色', value: '粉色' },
                     { name: '青色', value: '青色' },
+                    { name: '橙色', value: '橙色' },
+                    { name: '黄色', value: '黄色' },
+                    { name: '灰色', value: '灰色' },
                 ),
         ),
 

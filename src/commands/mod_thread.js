@@ -13,7 +13,7 @@ import { logTime } from '../utils/logger.js';
  * 注意：标注功能是将帖子标注到论坛顶部，而不是标注帖子内的消息
  */
 export default {
-    cooldown: 10,
+    cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('管理帖子')
         .setDescription('管理论坛帖子')

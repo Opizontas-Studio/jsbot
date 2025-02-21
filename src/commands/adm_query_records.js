@@ -5,7 +5,7 @@ import { checkModeratorPermission, handleCommandError } from '../utils/helper.js
 import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
-    cooldown: 3,
+    cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('查询记录')
         .setDescription('查询数据库记录')

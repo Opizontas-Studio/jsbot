@@ -8,7 +8,7 @@ import { logTime } from '../utils/logger.js';
  * 注意：部分设置仅适用于特定类型的频道
  */
 export default {
-    cooldown: 10,
+    cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('管理频道')
         .setDescription('频道管理相关命令')

@@ -1,12 +1,12 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { logTime } from '../utils/logger.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 export default {
-    cooldown: 10,
+    cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('发送文案')
         .setDescription('发送预设的文案内容')

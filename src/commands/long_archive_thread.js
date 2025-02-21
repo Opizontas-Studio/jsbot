@@ -8,7 +8,7 @@ import { checkAndHandlePermission, handleCommandError, measureTime } from '../ut
  * 当活跃子区数量超过阈值时，自动归档最不活跃的子区
  */
 export default {
-    cooldown: 10, // 设置10秒冷却时间
+    cooldown: 30,
     data: new SlashCommandBuilder()
         .setName('清理活跃贴')
         .setDescription('清理不活跃的子区')

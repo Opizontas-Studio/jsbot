@@ -5,7 +5,7 @@ import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js
 import { logTime } from '../utils/logger.js';
 
 export default {
-    cooldown: 10,
+    cooldown: 30,
     data: new SlashCommandBuilder().setName('提交议事').setDescription('将当前帖子提交到议事区进行投票准备'),
 
     async execute(interaction, guildConfig) {

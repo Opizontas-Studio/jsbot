@@ -3,6 +3,7 @@ import { checkAndHandlePermission, handleCommandError, measureTime } from '../ut
 import { logTime } from '../utils/logger.js';
 
 export default {
+    cooldown: 30,
     data: new SlashCommandBuilder()
         .setName('同步永封')
         .setDescription('同步所有服务器的永封列表'),

@@ -4,7 +4,7 @@ import { checkAndHandlePermission, handleCommandError, sendModerationLog } from 
 import { logTime } from '../utils/logger.js';
 
 export default {
-    cooldown: 10,
+    cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('暂停邀请')
         .setDescription('管理服务器的邀请功能')

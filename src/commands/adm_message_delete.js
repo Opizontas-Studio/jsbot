@@ -6,7 +6,7 @@ import { logTime } from '../utils/logger.js';
 const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705'];
 
 export default {
-    cooldown: 5,
+    cooldown: 3,
     data: new SlashCommandBuilder()
         .setName('删除消息')
         .setDescription('通过消息链接删除指定消息')

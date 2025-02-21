@@ -7,7 +7,7 @@ import { logTime } from '../utils/logger.js';
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 export default {
-    cooldown: 10,
+    cooldown: 5,
     data: new SlashCommandBuilder().setName('议员快速审核').setDescription('快速审核议员申请帖'),
 
     async execute(interaction, guildConfig) {

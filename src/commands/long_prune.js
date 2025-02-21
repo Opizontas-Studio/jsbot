@@ -9,7 +9,7 @@ import { logTime } from '../utils/logger.js';
  * 支持单个子区清理和全服清理两种模式
  */
 export default {
-    cooldown: 10,
+    cooldown: 30,
     data: new SlashCommandBuilder()
         .setName('清理子区不活跃用户')
         .setDescription('清理子区中的不活跃用户')

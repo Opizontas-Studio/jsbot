@@ -5,7 +5,7 @@ import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
-    cooldown: 10,
+    cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('自助管理')
         .setDescription('管理你自己的帖子')

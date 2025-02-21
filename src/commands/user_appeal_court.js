@@ -1,4 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
@@ -75,6 +76,32 @@ export default {
             return;
         }
 
+        // 检查用户是否正在参与其他辩诉
+        try {
+            const db = dbManager.getDb();
+            const activeVotes = await db.all(`
+                SELECT v.* 
+                FROM votes v 
+                JOIN processes p ON v.processId = p.id 
+                WHERE v.status = 'in_progress' 
+                AND (
+                    v.redVoters LIKE ? 
+                    OR v.blueVoters LIKE ?
+                )
+            `, [`%${interaction.user.id}%`, `%${interaction.user.id}%`]);
+
+            if (activeVotes.length > 0) {
+                await interaction.editReply({
+                    content: '❌ 你正在参与其他辩诉，无法提交新的申请',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+        } catch (error) {
+            await handleCommandError(interaction, error, '验证投票状态');
+            return;
+        }
+
         const subcommand = interaction.options.getSubcommand();
 
         try {
@@ -82,16 +109,6 @@ export default {
                 const target = interaction.options.getUser('目标');
                 const reason = interaction.options.getString('理由');
                 const imageUrl = interaction.options.getString('图片链接');
-
-                // 检查目标用户是否为管理员
-                const member = await interaction.guild.members.fetch(target.id);
-                if (member.permissions.has(PermissionFlagsBits.Administrator)) {
-                    await interaction.editReply({
-                        content: '❌ 无法对管理员执行处罚',
-                        flags: ['Ephemeral'],
-                    });
-                    return;
-                }
 
                 // 在获取图片链接后立即验证
                 if (imageUrl) {

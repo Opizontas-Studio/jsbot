@@ -210,19 +210,17 @@ class PunishmentModel {
         try {
             const now = Date.now();
             const query = `
-	            SELECT * FROM punishments 
-	            ${
+                SELECT * FROM punishments 
+                ${
                     !includeExpired
                         ? `
-	                WHERE (
-	                    (status = 'active' AND (duration = -1 OR createdAt + duration > ?))
-	                    OR status IN ('appealed', 'revoked')
-	                )
-	            `
+                    WHERE status = 'active'
+                    AND (duration = -1 OR createdAt + duration > ?)
+                    `
                         : ''
                 }
-	            ORDER BY createdAt DESC
-	        `;
+                ORDER BY createdAt DESC
+            `;
 
             const punishments = await dbManager.safeExecute('all', query, !includeExpired ? [now] : []);
 

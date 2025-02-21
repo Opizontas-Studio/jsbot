@@ -247,6 +247,16 @@ class VoteService {
                         throw new Error('无法获取原处罚记录');
                     }
 
+                    // 获取主服务器配置
+                    const mainGuildConfig = client.guildManager.getGuildConfig(
+                        client.guildManager.getGuildIds()
+                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server')
+                    );
+
+                    if (!mainGuildConfig) {
+                        throw new Error('无法获取主服务器配置');
+                    }
+
                     // 构建新的处罚数据
                     const newPunishmentData = {
                         userId: details.targetId,
@@ -257,6 +267,11 @@ class VoteService {
                         warningDuration: originalWarningDuration || 0,
                         processId: latestVote.processId,
                         noAppeal: true, // 禁止再次上诉
+                        voteInfo: {
+                            messageId: vote.messageId,
+                            channelId: vote.threadId,
+                            guildId: mainGuildConfig.id
+                        }
                     };
 
                     // 执行新处罚
@@ -285,7 +300,16 @@ class VoteService {
                 }
             } else if (type.startsWith('court_')) {
                 if (result === 'red_win') {
-                    // 获取处罚详情
+                    // 获取主服务器配置
+                    const mainGuildConfig = client.guildManager.getGuildConfig(
+                        client.guildManager.getGuildIds()
+                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server')
+                    );
+
+                    if (!mainGuildConfig) {
+                        throw new Error('无法获取主服务器配置');
+                    }
+
                     const punishmentDetails = {
                         userId: details.targetId,
                         type: type === 'court_ban' ? 'ban' : 'mute',
@@ -296,6 +320,11 @@ class VoteService {
                         warningDuration: details.warningTime ? calculatePunishmentDuration(details.warningTime) : 0,
                         keepMessages: details.keepMessages ?? true,
                         noAppeal: true,
+                        voteInfo: {
+                            messageId: vote.messageId,
+                            channelId: vote.threadId,
+                            guildId: mainGuildConfig.id
+                        }
                     };
 
                     // 如果是禁言且需要撤销身份组
@@ -545,7 +574,7 @@ class VoteService {
             }
 
             // 使用硬编码的议员总数
-            const HARDCODED_SENATOR_COUNT = 230; // 根据实际议员数量设置
+            const HARDCODED_SENATOR_COUNT = 300; // 根据实际议员数量设置
 
             // 记录议员数量日志
             logTime(

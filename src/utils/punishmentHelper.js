@@ -194,6 +194,16 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
             });
         }
 
+        // 如果有投票信息，添加链接
+        if (punishment.voteInfo) {
+            const voteLink = `https://discord.com/channels/${punishment.voteInfo.guildId}/${punishment.voteInfo.channelId}/${punishment.voteInfo.messageId}`;
+            embed.fields.push({
+                name: '议会投票',
+                value: `[点击查看投票结果](${voteLink})`,
+                inline: true,
+            });
+        }
+
         const message = await channel.send({ embeds: [embed] });
         return {
             success: true,

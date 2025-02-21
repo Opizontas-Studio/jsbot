@@ -210,16 +210,20 @@ class PunishmentModel {
         try {
             const now = Date.now();
             const query = `
-                SELECT * FROM punishments 
+                SELECT p.*, 
+                       p.userId as targetId,
+                       u.tag as targetTag
+                FROM punishments p
+                LEFT JOIN users u ON p.userId = u.id
                 ${
                     !includeExpired
                         ? `
-                    WHERE status = 'active'
-                    AND (duration = -1 OR createdAt + duration > ?)
+                    WHERE p.status = 'active'
+                    AND (p.duration = -1 OR p.createdAt + p.duration > ?)
                     `
                         : ''
                 }
-                ORDER BY createdAt DESC
+                ORDER BY p.createdAt DESC
             `;
 
             const punishments = await dbManager.safeExecute('all', query, !includeExpired ? [now] : []);
@@ -228,6 +232,7 @@ class PunishmentModel {
                 ...p,
                 syncedServers: JSON.parse(p.syncedServers),
                 keepMessages: Boolean(p.keepMessages),
+                targetId: p.userId,
             }));
         } catch (error) {
             logTime(`获取全库处罚记录失败: ${error.message}`, true);

@@ -53,9 +53,17 @@ export default {
             }
 
             // 检查目标用户是否为管理员
-            const member = await interaction.guild.members.fetch(target.id);
-            const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) || 
-                          member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+            let isAdmin = false;
+            try {
+                const member = await interaction.guild.members.fetch(target.id);
+                isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) || 
+                         member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+            } catch (error) {
+                // 如果用户不在服务器中，则跳过管理员检查
+                if (error.code !== 10007) { // 10007 是 Discord API 返回的"Unknown Member"错误码
+                    throw error; // 如果是其他错误，则继续抛出
+                }
+            }
             
             if (isAdmin) {
                 await interaction.editReply({

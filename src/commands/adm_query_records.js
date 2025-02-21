@@ -68,6 +68,7 @@ export default {
                             // 格式化处罚信息
                             const punishmentInfo = [
                                 `**执行人:** ${executor ? `<@${executor.id}>` : '未知'}`,
+                                `**处罚对象:** <@${p.targetId}>`,
                                 `**原因:** ${p.reason}`,
                                 `**时长:** ${formatPunishmentDuration(p.duration)}`,
                                 p.status === 'active'

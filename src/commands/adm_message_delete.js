@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { handleCommandError } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 
 // 使用已有的紧急处理身份组ID
 const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705'];
@@ -65,6 +66,8 @@ export default {
             }
 
             await message.delete();
+            logTime(`${interaction.user.tag} 删除了消息 ${messageId} (频道: ${channel.name})`);
+            
             await interaction.editReply({
                 content: '✅ 消息已成功删除',
                 flags: ['Ephemeral']

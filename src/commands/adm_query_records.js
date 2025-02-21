@@ -71,6 +71,7 @@ export default {
                                 `**处罚对象:** <@${p.targetId}>`,
                                 `**原因:** ${p.reason}`,
                                 `**时长:** ${formatPunishmentDuration(p.duration)}`,
+                                p.warningDuration ? `**警告期:** ${formatPunishmentDuration(p.warningDuration)}` : null,
                                 p.status === 'active'
                                     ? `**到期时间:** ${
                                           p.duration === -1
@@ -141,6 +142,17 @@ export default {
                     return;
                 }
 
+                // 获取主服务器配置
+                const mainGuildConfig = Array.from(interaction.client.guildManager.guilds.values())
+                    .find(config => config.serverType === 'Main server' && config.courtSystem?.enabled);
+                
+                // 构建消息链接基础URL（如果可用）
+                const courtChannelId = mainGuildConfig?.courtSystem?.courtChannelId;
+                const mainGuildId = mainGuildConfig?.id;
+                const baseMessageUrl = courtChannelId && mainGuildId 
+                    ? `https://discord.com/channels/${mainGuildId}/${courtChannelId}/`
+                    : '';
+
                 // 分页处理（每页10条记录）
                 const pages = [];
                 const pageSize = 10;
@@ -170,6 +182,9 @@ export default {
                                 interaction.client.users.fetch(p.targetId).catch(() => null),
                             ]);
 
+                            // 使用预先构建的baseMessageUrl
+                            const messageLink = p.messageId && baseMessageUrl ? `${baseMessageUrl}${p.messageId}` : '';
+
                             return {
                                 name: `${statusText[p.status]} ${typeText[p.type]} (#${i + index + 1})`,
                                 value: [
@@ -180,6 +195,7 @@ export default {
                                         ? `**结果:** ${p.result || '无'}\n**原因:** ${p.reason || '无'}`
                                         : `**到期时间:** <t:${Math.floor(p.expireAt / 1000)}:R>`,
                                     p.debateThreadId ? `**辩诉帖:** <#${p.debateThreadId}>` : null,
+                                    messageLink ? `**议事消息:** [点击查看](${messageLink})` : null,
                                     `**流程ID:** ${p.id}`,
                                 ]
                                     .filter(Boolean)

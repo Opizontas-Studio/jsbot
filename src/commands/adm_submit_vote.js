@@ -141,6 +141,18 @@ export default {
                 },
             });
 
+            // 更新消息以添加流程ID
+            await message.edit({
+                embeds: [
+                    {
+                        ...message.embeds[0].data,
+                        footer: {
+                            text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持 | 流程ID: ${process.id}`,
+                        },
+                    },
+                ],
+            });
+
             // 调度流程到期处理
             if (process) {
                 await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);

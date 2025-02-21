@@ -13,7 +13,7 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('禁言')
-                .setDescription('申请禁言处罚')
+                .setDescription('申请禁言处罚（可撤销身份组，禁言最大14天）')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
                     option.setName('禁言时间').setDescription('禁言时长 (例如: 3d5h，即3天5小时)').setRequired(true),

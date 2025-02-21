@@ -72,6 +72,7 @@ class DatabaseManager {
 
             // 创建数据库表
             await this._createTables();
+            await this._updateTables();
 
             logTime('数据库初始化完成');
         } catch (error) {
@@ -177,6 +178,39 @@ class DatabaseManager {
 	        CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
 	        CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
 	    `);
+    }
+
+    private async _updateTables(): Promise<void> {
+        assertIsDatabase(this.db);
+        
+        // 检查并添加新列
+        const columns = await this.db.all(`PRAGMA table_info(punishments)`);
+        const columnNames = columns.map(col => col.name);
+
+        // 需要添加的新列
+        const newColumns = [
+            {
+                name: 'notificationMessageId',
+                type: 'TEXT',
+                default: 'NULL'
+            },
+            {
+                name: 'notificationGuildId',
+                type: 'TEXT',
+                default: 'NULL'
+            }
+        ];
+
+        // 安全地添加新列
+        for (const column of newColumns) {
+            if (!columnNames.includes(column.name)) {
+                await this.db.exec(
+                    `ALTER TABLE punishments 
+                    ADD COLUMN ${column.name} ${column.type} DEFAULT ${column.default}`
+                );
+                logTime(`已添加数据库列: ${column.name}`);
+            }
+        }
     }
 
     /**

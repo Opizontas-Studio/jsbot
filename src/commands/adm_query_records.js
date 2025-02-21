@@ -71,14 +71,14 @@ export default {
                                 `**处罚对象:** <@${p.targetId}>`,
                                 `**原因:** ${p.reason}`,
                                 `**时长:** ${formatPunishmentDuration(p.duration)}`,
-                                p.warningDuration ? `**警告期:** ${formatPunishmentDuration(p.warningDuration)}` : null,
+                                p.warningDuration ? `**警告剩余时间:** <t:${Math.floor((p.createdAt + p.warningDuration) / 1000)}:R>` : null,
                                 p.status === 'active'
                                     ? `**到期时间:** ${
                                           p.duration === -1
                                               ? '永久'
                                               : `<t:${Math.floor((p.createdAt + p.duration) / 1000)}:R>`
                                       }`
-                                    : `**结束时间:** <t:${Math.floor(p.updatedAt / 1000)}:R>`,
+                                    : `**禁言剩余时间:** <t:${Math.floor(p.updatedAt / 1000)}:R>`,
                                 p.status === 'revoked' ? `**撤销原因:** ${p.revokeReason || '无'}` : null,
                                 `**处罚ID:** ${p.id}`,
                             ]

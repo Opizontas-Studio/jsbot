@@ -16,9 +16,7 @@ export default {
                 .setRequired(true)
         ),
 
-    async execute(interaction) {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-        
+    async execute(interaction) {        
         try {
             // 检查权限
             const member = await interaction.guild.members.fetch(interaction.user.id);

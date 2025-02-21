@@ -56,7 +56,22 @@ export default {
 
             // 尝试删除原议事消息
             try {
-                const channel = await interaction.guild.channels.fetch(interaction.guild.config.courtSystem.courtChannelId);
+                // 获取主服务器配置
+                const mainGuildConfig = interaction.client.guildManager
+                    .getGuildIds()
+                    .map(id => interaction.client.guildManager.getGuildConfig(id))
+                    .find(config => config?.serverType === 'Main server');
+
+                if (!mainGuildConfig?.courtSystem?.enabled) {
+                    logTime('主服务器未启用议事系统', true);
+                    await interaction.editReply({
+                        content: '❌ 主服务器未正确配置议事系统',
+                        flags: ['Ephemeral']
+                    });
+                    return;
+                }
+
+                const channel = await interaction.client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
                 const message = await channel.messages.fetch(process.messageId);
                 await message.delete();
             } catch (error) {

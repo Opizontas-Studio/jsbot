@@ -253,45 +253,53 @@ export const modalHandlers = {
             // 计算过期时间
             const expireTime = new Date(Date.now() + mainGuildConfig.courtSystem.appealDuration);
 
-            // 发送议事消息
-            const message = await courtChannel.send({
-                embeds: [
+            // 准备议事消息
+            const messageEmbed = {
+                color: 0x5865f2,
+                title: '处罚上诉申请',
+                description: [
+                    `<@${interaction.user.id}> 上诉，议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
+                    '',
+                    '**上诉理由：**',
+                    appealContent,
+                ].join('\n'),
+                fields: [
                     {
-                        color: 0x5865f2,
-                        title: '处罚上诉申请',
-                        description: [
-                            `<@${interaction.user.id}> 上诉，议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
-                            '',
-                            '**上诉理由：**',
-                            appealContent,
-                        ].join('\n'),
-                        fields: [
-                            {
-                                name: '处罚执行者',
-                                value: `<@${executor.id}>`,
-                                inline: true,
-                            },
-                            {
-                                name: '处罚详情',
-                                value: `${
-                                    punishment.type === 'ban'
-                                        ? '永久封禁'
-                                        : `禁言 ${formatPunishmentDuration(punishment.duration)}`
-                                }`,
-                                inline: true,
-                            },
-                            {
-                                name: '原处罚理由',
-                                value: punishment.reason,
-                                inline: false,
-                            },
-                        ],
-                        timestamp: new Date(),
-                        footer: {
-                            text: `处罚ID: ${punishment.id} | 再次点击支持可以撤销支持`,
-                        },
+                        name: '处罚执行者',
+                        value: `<@${executor.id}>`,
+                        inline: true,
+                    },
+                    {
+                        name: '处罚详情',
+                        value: `${
+                            punishment.type === 'ban'
+                                ? '永久封禁'
+                                : `禁言 ${formatPunishmentDuration(punishment.duration)}`
+                        }`,
+                        inline: true,
+                    },
+                    {
+                        name: '原处罚理由',
+                        value: punishment.reason,
+                        inline: false,
                     },
                 ],
+                timestamp: new Date(),
+                footer: {
+                    text: `处罚ID: ${punishment.id} | 再次点击支持可以撤销支持`,
+                },
+            };
+
+            // 获取原处罚服务器的配置
+            const punishmentGuildConfig = interaction.client.guildManager.getGuildConfig(punishment.notificationGuildId);
+            if (punishment.notificationMessageId && punishmentGuildConfig?.moderationLogThreadId) {
+                const notificationLink = `https://discord.com/channels/${punishment.notificationGuildId}/${punishmentGuildConfig.moderationLogThreadId}/${punishment.notificationMessageId}`;
+                messageEmbed.description += `\n\n**原处罚通知：**\n[点击查看](${notificationLink})`;
+            }
+
+            // 发送议事消息
+            const message = await courtChannel.send({
+                embeds: [messageEmbed],
                 components: [
                     {
                         type: 1,

@@ -102,7 +102,9 @@ class DatabaseManager {
 	            keepMessages INTEGER DEFAULT 0,
 	            channelId TEXT,
 	            createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-	            updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+	            updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+	            notificationMessageId TEXT DEFAULT NULL,
+	            notificationGuildId TEXT DEFAULT NULL
 	        )
 	    `);
 

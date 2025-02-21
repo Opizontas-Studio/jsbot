@@ -144,7 +144,7 @@ export const executePunishmentAction = async (guild, punishment) => {
  * @param {Object} punishment - 处罚数据库记录
  * @param {Object} executor - 执行者用户对象
  * @param {Object} target - 目标用户对象
- * @returns {Promise<boolean>} 发送是否成功
+ * @returns {Promise<Object>} 发送结果，包含消息ID和服务器ID
  */
 export const sendModLogNotification = async (channel, punishment, executor, target) => {
     try {
@@ -194,11 +194,17 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
             });
         }
 
-        await channel.send({ embeds: [embed] });
-        return true;
+        const message = await channel.send({ embeds: [embed] });
+        return {
+            success: true,
+            messageId: message.id,
+            guildId: channel.guild.id
+        };
     } catch (error) {
         logTime(`发送管理日志通知失败: ${error.message}`, true);
-        return false;
+        return {
+            success: false
+        };
     }
 };
 

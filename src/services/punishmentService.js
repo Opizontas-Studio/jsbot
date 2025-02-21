@@ -14,9 +14,10 @@ class PunishmentService {
      * 执行处罚
      * @param {Object} client - Discord客户端
      * @param {Object} data - 处罚数据
+     * @param {string} executingGuildId - 执行处罚的服务器ID
      * @returns {Promise<{success: boolean, message: string}>}
      */
-    static async executePunishment(client, data) {
+    static async executePunishment(client, data, executingGuildId) {
         try {
             // 1. 获取关键信息
             const executor = await client.users.fetch(data.executorId);
@@ -164,12 +165,18 @@ class PunishmentService {
             for (const guildData of allGuilds) {
                 try {
                     if (guildData.moderationLogThreadId) {
-                        const logChannel = await client.channels
-                            .fetch(guildData.moderationLogThreadId)
-                            .catch(() => null);
+                        const logChannel = await client.channels.fetch(guildData.moderationLogThreadId).catch(() => null);
                         if (logChannel) {
-                            const success = await sendModLogNotification(logChannel, punishment, executor, target);
-                            if (success) {
+                            const notificationResult = await sendModLogNotification(logChannel, punishment, executor, target);
+                            if (notificationResult.success) {
+                                // 只保存执行处罚的服务器的通知消息
+                                if (guildData.id === executingGuildId) {
+                                    await PunishmentModel.updateNotificationInfo(
+                                        punishment.id,
+                                        notificationResult.messageId,
+                                        notificationResult.guildId
+                                    );
+                                }
                                 const guildName = logChannel.guild?.name || '未知服务器';
                                 notificationResults.push(`服务器 ${guildName} 的管理日志`);
                             }

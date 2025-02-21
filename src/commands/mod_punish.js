@@ -25,7 +25,7 @@ export default {
                 .setDescription('临时禁言用户')
                 .addUserOption(option => option.setName('用户').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
-                    option.setName('时长').setDescription('禁言时长 (例如: 3d4h5m)').setRequired(true),
+                    option.setName('时长').setDescription('禁言时长 (例如: 3d4h5m)，最大14天').setRequired(true),
                 )
                 .addStringOption(option => option.setName('原因').setDescription('处罚原因').setRequired(true))
                 .addStringOption(option =>
@@ -105,7 +105,11 @@ export default {
                             channelId: interaction.channelId,
                         };
 
-                        const result = await PunishmentService.executePunishment(interaction.client, banData);
+                        const result = await PunishmentService.executePunishment(
+                            interaction.client, 
+                            banData,
+                            interaction.guildId
+                        );
                         await interaction.editReply({
                             content: result.message,
                             flags: ['Ephemeral'],
@@ -156,7 +160,11 @@ export default {
                 });
 
                 // 执行处罚
-                const result = await PunishmentService.executePunishment(interaction.client, muteData);
+                const result = await PunishmentService.executePunishment(
+                    interaction.client, 
+                    muteData,
+                    interaction.guildId
+                );
 
                 // 更新最终结果
                 await interaction.editReply({

@@ -260,6 +260,33 @@ class PunishmentModel {
             return false;
         }
     }
+
+    /**
+     * 更新处罚通知信息
+     * @param {number} id - 处罚ID
+     * @param {string} messageId - 消息ID
+     * @param {string} guildId - 服务器ID
+     * @returns {Promise<boolean>} 更新是否成功
+     */
+    static async updateNotificationInfo(id, messageId, guildId) {
+        try {
+            await dbManager.safeExecute(
+                'run',
+                `UPDATE punishments 
+                SET notificationMessageId = ?, notificationGuildId = ?, updatedAt = ?
+                WHERE id = ?`,
+                [messageId, guildId, Date.now(), id]
+            );
+
+            // 清除相关缓存
+            this._clearRelatedCache(null, id);
+
+            return true;
+        } catch (error) {
+            logTime(`更新处罚通知信息失败: ${error.message}`, true);
+            return false;
+        }
+    }
 }
 
 export { PunishmentModel };

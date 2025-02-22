@@ -1,7 +1,10 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
+import { revokeRolesByGroups } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
 import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 import { VoteService } from './voteService.js';
@@ -468,7 +471,7 @@ class CourtService {
     }
 
     /**
-     * 为双方添加辩诉通行身份组
+     * 为双方调整辩诉身份组
      * @private
      * @param {Object} client - Discord客户端
      * @param {Object} guildConfig - 服务器配置
@@ -526,6 +529,21 @@ class CourtService {
                         '处罚申请辩诉通行',
                     );
 
+                    // 读取身份组同步配置
+                    const roleSyncConfig = JSON.parse(readFileSync(join(process.cwd(), 'data', 'roleSyncConfig.json'), 'utf8'));
+                    
+                    // 找到已验证身份组的同步组
+                    const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+                    if (verifiedGroup) {
+                        // 移除目标用户的已验证身份组
+                        await revokeRolesByGroups(
+                            client,
+                            process.targetId,
+                            [verifiedGroup],
+                            '处罚申请辩诉期间暂时移除已验证身份组'
+                        );
+                    }
+
                     // 更新流程状态为completed
                     await ProcessModel.updateStatus(process.id, 'completed', {
                         result: 'approved',
@@ -541,7 +559,12 @@ class CourtService {
                         ]);
 
                         if (executor && target) {
-                            const notifyContent = `✅ 您的处罚申请已获得足够议员支持，辩诉帖已创建：${debateThread.url}`;
+                            const notifyContent = [
+                                '✅ 有关您的处罚申请已获得足够议员支持，辩诉帖已创建：',
+                                `[点击查看辩诉帖](${debateThread.url})`,
+                                '注意：辩诉期间目标用户的已验证身份组将被暂时移除，请事后自行答题验证'
+                            ].join('\n');
+                            
                             await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
                             await target.send({ content: notifyContent, flags: ['Ephemeral'] });
                         }
@@ -594,6 +617,21 @@ class CourtService {
                         '上诉申请通过',
                     );
 
+                    // 读取身份组同步配置
+                    const roleSyncConfig = JSON.parse(readFileSync(join(process.cwd(), 'data', 'roleSyncConfig.json'), 'utf8'));
+                    
+                    // 找到已验证身份组的同步组
+                    const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+                    if (verifiedGroup) {
+                        // 移除目标用户的已验证身份组
+                        await revokeRolesByGroups(
+                            client,
+                            process.targetId,
+                            [verifiedGroup],
+                            '上诉辩诉期间暂时移除已验证身份组'
+                        );
+                    }
+
                     // 创建辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);
 
@@ -611,7 +649,7 @@ class CourtService {
                             const notifyContent = [
                                 '✅ 有关您的上诉申请已获得足够议员支持。',
                                 isPunishmentExpired ? '- 另外，处罚已过期' : '- 上诉期间处罚限制已解除',
-                                '- 已为您添加辩诉通行身份组',
+                                '- 已为您添加辩诉通行身份组，且上诉人的已验证身份组将被暂时移除，请事后自行答题验证',
                                 `辩诉帖已创建：${debateThread.url}`,
                             ].join('\n');
 

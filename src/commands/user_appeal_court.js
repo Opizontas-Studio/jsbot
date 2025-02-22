@@ -1,5 +1,4 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
@@ -14,7 +13,7 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('禁言')
-                .setDescription('申请禁言处罚（可撤销身份组，禁言最大14天）')
+                .setDescription('申请禁言及弹劾处罚（可弹劾管理员，禁言最大14天）')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
                     option.setName('禁言时间').setDescription('禁言时长 (例如: 3d5h，即3天5小时)').setRequired(true),
@@ -76,29 +75,13 @@ export default {
             return;
         }
 
-        // 检查用户是否正在参与其他辩诉
-        try {
-            const db = dbManager.getDb();
-            const activeVotes = await db.all(`
-                SELECT v.* 
-                FROM votes v 
-                JOIN processes p ON v.processId = p.id 
-                WHERE v.status = 'in_progress' 
-                AND (
-                    v.redVoters LIKE ? 
-                    OR v.blueVoters LIKE ?
-                )
-            `, [`%${interaction.user.id}%`, `%${interaction.user.id}%`]);
-
-            if (activeVotes.length > 0) {
-                await interaction.editReply({
-                    content: '❌ 你正在参与其他辩诉，无法提交新的申请',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-        } catch (error) {
-            await handleCommandError(interaction, error, '验证投票状态');
+        // 检查用户是否正在参与辩诉
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (member.roles.cache.has(guildConfig.courtSystem.appealDebateRoleId)) {
+            await interaction.editReply({
+                content: '❌ 你正在参与其他辩诉，无法提交新的申请',
+                flags: ['Ephemeral'],
+            });
             return;
         }
 

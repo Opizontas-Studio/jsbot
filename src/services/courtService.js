@@ -9,6 +9,9 @@ import { logTime } from '../utils/logger.js';
 import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 import { VoteService } from './voteService.js';
 
+// 配置文件路径
+const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
+
 class CourtService {
     /**
      * 创建辩诉帖子
@@ -530,7 +533,7 @@ class CourtService {
                     );
 
                     // 读取身份组同步配置
-                    const roleSyncConfig = JSON.parse(readFileSync(join(process.cwd(), 'data', 'roleSyncConfig.json'), 'utf8'));
+                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
                     
                     // 找到已验证身份组的同步组
                     const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
@@ -618,7 +621,7 @@ class CourtService {
                     );
 
                     // 读取身份组同步配置
-                    const roleSyncConfig = JSON.parse(readFileSync(join(process.cwd(), 'data', 'roleSyncConfig.json'), 'utf8'));
+                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
                     
                     // 找到已验证身份组的同步组
                     const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');

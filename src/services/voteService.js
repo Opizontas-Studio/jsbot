@@ -213,7 +213,7 @@ class VoteService {
             const { redVoters, blueVoters, details, type } = latestVote;
             const redCount = redVoters.length;
             const blueCount = blueVoters.length;
-            const threshold = Math.ceil(currentTotalVoters * 0.1); // 使用当前议员总数计算10%阈值
+            const threshold = Math.ceil(20 + currentTotalVoters * 0.01); // 使用"20+1%议员人数"作为有效阈值
 
             // 在执行结果之前，先移除双方的辩诉通行身份组
             await this._removeDebateRolesFromBothParties(client, latestVote);
@@ -222,7 +222,7 @@ class VoteService {
             let result, message;
             if (redCount + blueCount < threshold) {
                 result = 'blue_win';
-                message = `投票人数未达到当前议员总数10%（${threshold}票），执行蓝方诉求`;
+                message = `投票人数未达到有效标准，执行蓝方诉求`;
             } else if (redCount === blueCount) {
                 result = 'blue_win';
                 message = '投票持平，执行蓝方诉求';
@@ -573,18 +573,23 @@ class VoteService {
                 return 0;
             }
 
-            // 使用硬编码的议员总数
-            const HARDCODED_SENATOR_COUNT = 300; // 根据实际议员数量设置
+            // 获取所有服务器成员
+            const members = await guild.members.fetch();
+            
+            // 统计拥有议员身份组的成员数量
+            const senatorsCount = members.filter(
+                member => member.roles.cache.has(mainGuildConfig.courtSystem.senatorRoleId) && !member.user.bot
+            ).size;
 
-            // 记录议员数量日志
+            // 记录实际议员数量日志
             logTime(
-                `议员总数(硬编码): ${HARDCODED_SENATOR_COUNT} ` +
+                `议员总数(实际): ${senatorsCount} ` +
                 `(服务器: ${guild.name}, ` +
                 `身份组: ${role.name}, ` +
                 `身份组ID: ${role.id})`,
             );
 
-            return HARDCODED_SENATOR_COUNT;
+            return senatorsCount;
         } catch (error) {
             logTime(`获取议员总数失败: ${error.message}`, true);
             return 0;

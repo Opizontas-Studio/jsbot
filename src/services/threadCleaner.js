@@ -1,7 +1,62 @@
+import { promises as fs } from 'fs';
+import path from 'path';
 import { delay, globalBatchProcessor } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
 const noop = () => undefined;
+
+// 缓存目录路径
+const CACHE_DIR = path.join(process.cwd(), 'data', 'thread_cache');
+
+/**
+ * 确保缓存目录存在
+ */
+async function ensureCacheDirectory() {
+    try {
+        await fs.mkdir(CACHE_DIR, { recursive: true });
+    } catch (error) {
+        logTime(`创建缓存目录失败: ${error.message}`, true);
+    }
+}
+
+/**
+ * 获取子区缓存文件路径
+ * @param {string} threadId - 子区ID
+ */
+function getThreadCacheFilePath(threadId) {
+    return path.join(CACHE_DIR, `${threadId}.json`);
+}
+
+/**
+ * 保存子区缓存信息
+ * @param {string} threadId - 子区ID 
+ * @param {Object} data - 缓存数据
+ */
+async function saveThreadCache(threadId, data) {
+    try {
+        await ensureCacheDirectory();
+        const filePath = getThreadCacheFilePath(threadId);
+        await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+        logTime(`[${threadId}] 子区缓存已保存`);
+    } catch (error) {
+        logTime(`保存子区缓存失败: ${error.message}`, true);
+    }
+}
+
+/**
+ * 读取子区缓存信息
+ * @param {string} threadId - 子区ID
+ */
+async function loadThreadCache(threadId) {
+    try {
+        const filePath = getThreadCacheFilePath(threadId);
+        const data = await fs.readFile(filePath, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        // 如果文件不存在或其他错误，返回null
+        return null;
+    }
+}
 
 /**
  * 发送子区清理报告
@@ -94,14 +149,33 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             };
         }
 
+        // 获取历史缓存
+        const cache = await loadThreadCache(thread.id);
+        let cachedMessageIds = [];
+        let activeUsers = new Map();
+        
+        // 如果存在缓存，读取活跃用户数据
+        if (cache) {
+            logTime(`[${thread.name}] 使用缓存数据`);
+            cachedMessageIds = cache.lastMessageIds || [];
+            
+            // 恢复活跃用户数据
+            if (cache.activeUsers) {
+                Object.entries(cache.activeUsers).forEach(([userId, count]) => {
+                    activeUsers.set(userId, count);
+                });
+            }
+        }
+        
         // 获取所有消息以统计发言用户
         logTime(`[${thread.name}] 开始子区重整`);
-        const activeUsers = new Map();
         let lastId = null;
         let messagesProcessed = 0;
         let hasMoreMessages = true;
+        let reachedCachedMessages = false;
+        let lastMessageIds = [];
 
-        while (hasMoreMessages) {
+        while (hasMoreMessages && !reachedCachedMessages) {
             try {
                 // 获取消息批次
                 const messages = await fetchMessagesBatch(thread, lastId);
@@ -109,6 +183,31 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                 if (messages.size === 0) {
                     hasMoreMessages = false;
                     continue;
+                }
+
+                // 收集最新的消息ID（仅收集前5条，用于下次缓存）
+                if (lastMessageIds.length < 5) {
+                    messages.forEach(msg => {
+                        if (lastMessageIds.length < 5) {
+                            lastMessageIds.push(msg.id);
+                        }
+                    });
+                }
+
+                // 检查是否已到达缓存的消息
+                if (cachedMessageIds.length > 0) {
+                    let foundCached = false;
+                    messages.forEach(msg => {
+                        if (cachedMessageIds.includes(msg.id)) {
+                            foundCached = true;
+                        }
+                    });
+                    
+                    if (foundCached) {
+                        logTime(`[${thread.name}] 检测到缓存的消息，停止扫描`);
+                        reachedCachedMessages = true;
+                        continue;
+                    }
                 }
 
                 // 处理消息
@@ -200,6 +299,24 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         );
 
         result.removedCount = removedResults.filter(success => success).length;
+
+        // 保存缓存数据
+        // 把Map转换为对象以便存储
+        const activeUsersObj = {};
+        // 过滤掉已移除的成员
+        const removedMemberIds = toRemove.map(member => member.id);
+        activeUsers.forEach((count, userId) => {
+            if (!removedMemberIds.includes(userId)) {
+                activeUsersObj[userId] = count;
+            }
+        });
+        
+        await saveThreadCache(thread.id, {
+            lastUpdateTime: Date.now(),
+            lastMessageIds,
+            activeUsers: activeUsersObj,
+            memberCount: memberCount - result.removedCount
+        });
 
         if (options.sendThreadReport) {
             await sendThreadReport(thread, result);

@@ -226,8 +226,8 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                     messagesProcessed,
                 });
 
-                // 添加小延迟避免API限制
-                await delay(50);
+                // 添加延迟避免API限制
+                await delay(600);
             } catch (error) {
                 logTime(`获取消息批次失败: ${error.message}`, true);
                 throw error;

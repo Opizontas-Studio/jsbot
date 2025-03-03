@@ -171,10 +171,10 @@ class RateLimitedBatchProcessor {
             },
             // 成员相关操作 - 5次/秒
             members: {
-                maxRequests: 5,
-                windowMs: 1050, // 预留50ms延迟
+                maxRequests: 3,
+                windowMs: 1050, // 预留100ms延迟
                 requests: [],
-                concurrency: 3,
+                concurrency: 1,
             },
             // 其他操作 - 30次/秒
             default: {

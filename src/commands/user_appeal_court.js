@@ -16,7 +16,7 @@ export default {
                 .setDescription('申请禁言及弹劾处罚（可弹劾管理员，禁言最大14天）')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
-                    option.setName('禁言时间').setDescription('禁言时长 (例如: 3d5h，即3天5小时)').setRequired(true),
+                    option.setName('禁言时间').setDescription('禁言时长 (最短2天，例如: 3d5h，即3天5小时)').setRequired(true),
                 )
                 .addStringOption(option =>
                     option
@@ -31,7 +31,7 @@ export default {
                         .setRequired(false),
                 )
                 .addStringOption(option =>
-                    option.setName('附加警告期').setDescription('附加警告时长 (例如: 30d，即30天)').setRequired(false),
+                    option.setName('附加警告期').setDescription('附加警告时长 (最短15天，格式如: 30d，即30天)').setRequired(false),
                 )
                 .addStringOption(option =>
                     option
@@ -120,6 +120,16 @@ export default {
                         return;
                     }
 
+                    // 检查禁言时长是否至少2天
+                    const minMuteDuration = 2 * 24 * 60 * 60 * 1000; // 2天的毫秒数
+                    if (muteDuration < minMuteDuration) {
+                        await interaction.editReply({
+                            content: '❌ 禁言时长不能少于2天',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
                     // 检查禁言时长是否超过14天
                     const maxMuteDuration = 14 * 24 * 60 * 60 * 1000; // 14天的毫秒数
                     if (muteDuration > maxMuteDuration) {
@@ -147,6 +157,16 @@ export default {
                         if (warningDuration === -1) {
                             await interaction.editReply({
                                 content: '❌ 无效的警告时长格式',
+                                flags: ['Ephemeral'],
+                            });
+                            return;
+                        }
+
+                        // 检查警告期是否至少15天
+                        const minWarningDuration = 15 * 24 * 60 * 60 * 1000; // 15天的毫秒数
+                        if (warningDuration < minWarningDuration) {
+                            await interaction.editReply({
+                                content: '❌ 附加警告期不能少于15天',
                                 flags: ['Ephemeral'],
                             });
                             return;

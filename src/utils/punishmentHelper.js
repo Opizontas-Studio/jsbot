@@ -235,8 +235,8 @@ export const sendChannelNotification = async (channel, target, punishment) => {
             size: 64,
         }) || target.defaultAvatarURL;
 
-        // 检查处罚时长是否小于24小时
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
+        // 检查处罚时长是否小于48小时+1秒
+        const isShortPunishment = punishment.duration > 0 && punishment.duration < (48 * 60 * 60 * 1000) + 1000;
 
         // 检查处罚是否已过期
         const now = Date.now();
@@ -286,7 +286,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
         if (punishment.type === 'mute') {
             let appealInfo = '';
             if (isShortPunishment) {
-                appealInfo = '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。';
+                appealInfo = '⚠️ 由于处罚时长小于议事周期，不予受理上诉申请。';
             } else if (isPunishmentExpired) {
                 appealInfo = '⚠️ 处罚已到期，无需上诉。';
             } else {
@@ -319,8 +319,8 @@ export const sendAppealNotification = async (channel, target, punishment) => {
     try {
         const executor = await channel.client.users.fetch(punishment.executorId);
 
-        // 检查处罚时长是否小于24小时
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < 24 * 60 * 60 * 1000;
+        // 检查处罚时长是否小于48小时+1秒
+        const isShortPunishment = punishment.duration > 0 && punishment.duration < (48 * 60 * 60 * 1000) + 1000;
 
         // 检查处罚是否已过期
         const now = Date.now();
@@ -341,7 +341,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                 `• 处罚理由：${punishment.reason || '未提供原因'}`,
                 '',
                 isShortPunishment
-                    ? '⚠️ 由于处罚时长小于24小时，不予受理上诉申请。'
+                    ? '⚠️ 由于处罚时长小于议事周期，不予受理上诉申请。'
                     : isPunishmentExpired
                     ? '⚠️ 处罚已到期，无需上诉。'
                     : [
@@ -360,7 +360,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
             timestamp: new Date(),
         };
 
-        // 只有在处罚未过期且时长大于24小时时才添加上诉按钮
+        // 只有在处罚未过期且时长大于48小时+1秒时才添加上诉按钮
         const appealComponents =
             !isShortPunishment && !isPunishmentExpired
                 ? [

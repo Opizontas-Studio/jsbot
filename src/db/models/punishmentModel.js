@@ -208,21 +208,13 @@ class PunishmentModel {
      */
     static async getAllPunishments(includeExpired = false) {
         try {
-            const now = Date.now();
             const query = `
                 SELECT * FROM punishments 
-                ${
-                    !includeExpired
-                        ? `
-                    WHERE status = 'active'
-                    AND (duration = -1 OR createdAt + duration > ?)
-                    `
-                        : ''
-                }
+                ${!includeExpired ? `WHERE status = 'active'` : ''}
                 ORDER BY createdAt DESC
             `;
 
-            const punishments = await dbManager.safeExecute('all', query, !includeExpired ? [now] : []);
+            const punishments = await dbManager.safeExecute('all', query, []);
 
             return punishments.map(p => ({
                 ...p,

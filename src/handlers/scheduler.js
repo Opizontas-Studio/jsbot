@@ -747,6 +747,7 @@ class TaskScheduler {
         // 清理流程和处罚调度器
         this.processScheduler.cleanup();
         this.punishmentScheduler.cleanup();
+        this.voteScheduler.cleanup();
 
         if (taskCount > 0) {
             logTime(`已停止 ${taskCount} 个定时任务`);

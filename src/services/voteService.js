@@ -222,7 +222,7 @@ class VoteService {
             let result, message;
             if (redCount + blueCount < threshold) {
                 result = 'blue_win';
-                message = `投票人数未达到有效标准，执行蓝方诉求`;
+                message = `投票人数未达到有效标准（${threshold}票），执行蓝方诉求`;
             } else if (redCount === blueCount) {
                 result = 'blue_win';
                 message = '投票持平，执行蓝方诉求';
@@ -407,11 +407,11 @@ class VoteService {
                 }
             }
 
-            // 修改最终日志格式，使用当前议员总数
+            // 使用当前议员总数
             logTime(
                 `投票结束 [ID: ${latestVote.id}] - ` +
                     `结果: ${result}, ` +
-                    `当前总议员: ${currentTotalVoters}, ` +
+                    `当前总议员: ${currentTotalVoters}, 有效阈值: ${threshold}票` +
                     `红方: ${redCount}票, ` +
                     `蓝方: ${blueCount}票`,
             );

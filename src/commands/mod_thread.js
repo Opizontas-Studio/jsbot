@@ -1,4 +1,5 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
+import { handleConfirmationButton } from '../handlers/buttons.js';
 import {
     checkModeratorPermission,
     handleCommandError,
@@ -30,6 +31,7 @@ export default {
                     { name: '开启', value: 'unarchive' },
                     { name: '论坛标注', value: 'pin' },
                     { name: '取消论坛标注', value: 'unpin' },
+                    { name: '删除', value: 'delete' },
                 ),
         )
         .addStringOption(option => option.setName('理由').setDescription('处理原因').setRequired(true)),
@@ -83,7 +85,77 @@ export default {
             const action = interaction.options.getString('操作');
             const reason = interaction.options.getString('理由');
 
-            // 执行操作
+            // 处理删除操作
+            if (action === 'delete') {
+                await handleConfirmationButton({
+                    interaction,
+                    customId: 'confirm_mod_delete',
+                    buttonLabel: '确认删除',
+                    embed: {
+                        color: 0xff0000,
+                        title: '⚠️ 删除确认',
+                        description: `你确定要删除帖子 "${
+                            thread.name
+                        }" 吗？\n\n**⚠️ 警告：此操作不可撤销！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${
+                            thread.messageCount
+                        }\n删除原因：${reason || '未提供'}`,
+                    },
+                    onConfirm: async confirmation => {
+                        await confirmation.update({
+                            content: '⏳ 正在删除帖子...',
+                            components: [],
+                            embeds: [],
+                        });
+
+                        try {
+                            const threadName = thread.name;
+                            const userTag = interaction.user.tag;
+                            const threadOwner = thread.ownerId ? await interaction.client.users.fetch(thread.ownerId).catch(() => null) : null;
+                            const ownerTag = threadOwner ? threadOwner.tag : '未知用户';
+
+                            // 发送操作日志
+                            await sendModerationLog(interaction.client, guildConfig.threadLogThreadId, {
+                                title: `管理员删除帖子`,
+                                executorId: interaction.user.id,
+                                threadName: thread.name,
+                                reason: reason,
+                                additionalInfo: `帖子作者: ${ownerTag}`,
+                            });
+
+                            await thread.delete(`管理员删除: ${reason}`);
+
+                            // 记录日志
+                            logTime(`管理员 ${userTag} 删除了帖子 ${threadName}，原因: ${reason}`);
+                        } catch (error) {
+                            // 如果删除过程中出现错误，尝试通知用户
+                            if (!thread.deleted) {
+                                await confirmation
+                                    .editReply({
+                                        content: `❌ 删除失败: ${error.message}`,
+                                        components: [],
+                                        embeds: [],
+                                    })
+                                    .catch(() => {
+                                        // 忽略编辑回复时的错误
+                                        logTime(`删除帖子失败: ${error.message}`, true);
+                                    });
+                            }
+                            throw error;
+                        }
+                    },
+                    onError: async error => {
+                        // 只处理未被删除的情况
+                        if (!thread.deleted) {
+                            await handleCommandError(interaction, error, '删除帖子').catch(() => {
+                                // 忽略错误处理时的错误
+                            });
+                        }
+                    },
+                });
+                return;
+            }
+
+            // 执行其他操作
             switch (action) {
                 case 'lock':
                     await thread.setLocked(true, reason);
@@ -121,14 +193,15 @@ export default {
 
             // 只有锁定操作才发送日志和通知
             if (action === 'lock') {
-                // 发送操作日志
-                await sendModerationLog(interaction.client, guildConfig.threadLogThreadId, {
-                    title: `管理员${actionDesc}帖子`,
-                    executorId: interaction.user.id,
-                    threadName: thread.name,
-                    threadUrl: thread.url,
-                    reason: reason,
-                });
+            // 发送操作日志
+            await sendModerationLog(interaction.client, guildConfig.threadLogThreadId, {
+                title: `管理员${actionDesc}帖子`,
+                executorId: interaction.user.id,
+                threadName: thread.name,
+                threadUrl: thread.url,
+                reason: reason,
+                additionalInfo: thread.ownerId ? `帖子作者: <@${thread.ownerId}>` : undefined,
+            });
 
                 // 发送通知
                 await sendThreadNotification(thread, {

@@ -2,7 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { handleConfirmationButton } from '../handlers/buttons.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 export default {
@@ -20,9 +20,9 @@ export default {
         ),
 
     async execute(interaction, guildConfig) {
-        // 检查权限
-        if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
-            return;
+        // 需要版主或管理员权限
+        if (!(await checkModeratorPermission(interaction, guildConfig))) {
+                return;
         }
 
         try {

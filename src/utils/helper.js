@@ -152,6 +152,7 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
             threadName: thread.name,
             threadUrl: thread.url,
             reason: finalReason,
+            additionalInfo: thread.ownerId ? `帖子作者: <@${thread.ownerId}>` : undefined,
         });
     }
 
@@ -165,40 +166,65 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
 };
 
 /**
- * 发送操作日志到管理频道
+ * 发送管理操作日志到指定频道
  * @param {Client} client - Discord客户端
- * @param {string} moderationChannelId - 管理频道ID
+ * @param {string} moderationChannelId - 管理日志频道ID
  * @param {Object} logData - 日志数据
  * @param {string} logData.title - 日志标题
  * @param {string} logData.executorId - 执行者ID
  * @param {string} logData.threadName - 帖子名称
- * @param {string} logData.threadUrl - 帖子链接
+ * @param {string} [logData.threadUrl] - 帖子链接（可选，对于删除操作可能不提供）
  * @param {string} logData.reason - 操作原因
+ * @param {string} [logData.additionalInfo] - 额外信息（可选）
  */
 export const sendModerationLog = async (client, moderationChannelId, logData) => {
     const moderationChannel = await client.channels.fetch(moderationChannelId);
+    
+    // 构建字段数组
+    const fields = [
+        {
+            name: '操作人',
+            value: `<@${logData.executorId}>`,
+            inline: true,
+        }
+    ];
+    
+    // 根据是否有帖子链接决定主题字段的内容
+    if (logData.threadUrl) {
+        fields.push({
+            name: '主题',
+            value: `[${logData.threadName}](${logData.threadUrl})`,
+            inline: true,
+        });
+    } else {
+        fields.push({
+            name: '主题',
+            value: logData.threadName,
+            inline: true,
+        });
+    }
+    
+    fields.push({
+        name: '原因',
+        value: logData.reason,
+        inline: false,
+    });
+    
+    // 如果有额外信息，添加到字段中
+    if (logData.additionalInfo) {
+        fields.push({
+            name: '额外信息',
+            value: logData.additionalInfo,
+            inline: false,
+        });
+    }
+    
     await moderationChannel.send({
         embeds: [
             {
                 color: 0x0099ff,
                 title: logData.title,
-                fields: [
-                    {
-                        name: '操作人',
-                        value: `<@${logData.executorId}>`,
-                        inline: true,
-                    },
-                    {
-                        name: '主题',
-                        value: `[${logData.threadName}](${logData.threadUrl})`,
-                        inline: true,
-                    },
-                    {
-                        name: '原因',
-                        value: logData.reason,
-                        inline: false,
-                    },
-                ],
+                fields: fields,
                 timestamp: new Date(),
                 footer: {
                     text: '论坛管理系统',

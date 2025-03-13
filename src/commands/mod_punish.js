@@ -151,6 +151,29 @@ export default {
                     return;
                 }
 
+                // 如果提供了警告时长，验证格式和时长
+                let warningDuration = null;
+                if (warnTime) {
+                    warningDuration = calculatePunishmentDuration(warnTime);
+                    if (warningDuration === -1) {
+                        await interaction.editReply({
+                            content: '❌ 无效的警告时长格式',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    // 检查警告时长是否超过90天
+                    const MAX_WARNING_TIME = 90 * 24 * 60 * 60 * 1000;
+                    if (warningDuration > MAX_WARNING_TIME) {
+                        await interaction.editReply({
+                            content: '❌ 警告时长不能超过90天',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+                }
+
                 const muteData = {
                     type: 'mute',
                     userId: target.id,
@@ -158,7 +181,7 @@ export default {
                     duration: muteDuration,
                     executorId: interaction.user.id,
                     channelId: interaction.channelId,
-                    warningDuration: warnTime ? calculatePunishmentDuration(warnTime) : null,
+                    warningDuration: warningDuration,
                 };
 
                 // 显示处理中消息

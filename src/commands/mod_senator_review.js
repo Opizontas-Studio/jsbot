@@ -80,17 +80,6 @@ export default {
                 return;
             }
 
-            // 检查申请者加入时间
-            const joinedAt = member.joinedAt;
-            const daysSinceJoin = Math.floor((Date.now() - joinedAt.getTime()) / (1000 * 60 * 60 * 24));
-
-            if (daysSinceJoin < 45) {
-                await interaction.editReply({
-                    content: `❌ 申请者加入服务器时间不足45天（当前: ${daysSinceJoin}天）`,
-                });
-                return;
-            }
-
             // 提取消息中的链接
             const linkPattern = /https:\/\/discord\.com\/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/g;
             const content = firstMessage.content;
@@ -112,6 +101,8 @@ export default {
             // 检查并统计每个链接的反应
             let totalReactions = 0;
             const linkResults = [];
+            let oldestPostDate = null;
+            let oldestPostDays = 0;
 
             for (const link of links) {
                 try {
@@ -131,6 +122,16 @@ export default {
                         continue;
                     }
 
+                    // 使用子区创建时间作为帖子时间
+                    const postDate = thread.createdAt;
+                    const daysSincePost = Math.floor((Date.now() - postDate.getTime()) / (1000 * 60 * 60 * 24));
+                    
+                    // 更新最早的帖子时间
+                    if (oldestPostDate === null || postDate < oldestPostDate) {
+                        oldestPostDate = postDate;
+                        oldestPostDays = daysSincePost;
+                    }
+
                     // 获取最大反应数
                     let maxReactions = 0;
                     threadFirstMessage.reactions.cache.forEach(reaction => {
@@ -145,10 +146,24 @@ export default {
                         link: `https://discord.com/channels/${link.guildId}/${link.threadId}`,
                         reactions: maxReactions,
                         server: thread.guild.name,
+                        days: daysSincePost
                     });
                 } catch (error) {
                     console.error('处理链接时出错:', error);
                 }
+            }
+
+            // 检查是否有帖子满足45天的要求
+            if (oldestPostDays < 45 || oldestPostDate === null) {
+                // 向申请帖子发送一条简单的通知消息
+                await interaction.channel.send({
+                    content: `❌ 抱歉，您最早的作品仅发布了${oldestPostDays}天，不满足45天的时间要求，请耐心等待。`
+                });
+                
+                await interaction.editReply({
+                    content: `❌ 提交的作品中最早的帖子未满足45天要求（当前最早: ${oldestPostDays}天）`,
+                });
+                return;
             }
 
             // 创建审核结果嵌入消息
@@ -159,12 +174,12 @@ export default {
                 .addFields(
                     { name: '申请者', value: `<@${applicant.id}>`, inline: true },
                     { name: '总反应数', value: `${totalReactions}/50`, inline: true },
-                    { name: '加入天数', value: `${daysSinceJoin}天`, inline: true },
+                    { name: '最早作品发布', value: `${oldestPostDays}天前`, inline: true },
                     { name: '审核者', value: `<@${interaction.user.id}>`, inline: true },
                     {
                         name: '作品详情',
                         value:
-                            linkResults.map(r => `[链接](${r.link}) - ${r.reactions}个反应 (${r.server})`).join('\n') ||
+                            linkResults.map(r => `[链接](${r.link}) - ${r.reactions}个反应 (${r.server}, ${r.days}天前)`).join('\n') ||
                             '无有效作品',
                     },
                 )

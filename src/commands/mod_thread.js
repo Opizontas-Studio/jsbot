@@ -126,29 +126,39 @@ export default {
 
                             // 记录日志
                             logTime(`管理员 ${userTag} 删除了帖子 ${threadName}，原因: ${reason}`);
+                            
+                            // 尝试发送成功消息
+                            try {
+                                await confirmation.editReply({
+                                    content: `✅ 已成功删除帖子 "${threadName}"`,
+                                    components: [],
+                                    embeds: [],
+                                });
+                            } catch (replyError) {
+                                // 忽略回复错误，可能是因为命令在被删除的帖子内执行
+                            }
                         } catch (error) {
-                            // 如果删除过程中出现错误，尝试通知用户
-                            if (!thread.deleted) {
-                                await confirmation
-                                    .editReply({
-                                        content: `❌ 删除失败: ${error.message}`,
-                                        components: [],
-                                        embeds: [],
-                                    })
-                                    .catch(() => {
-                                        // 忽略编辑回复时的错误
-                                        logTime(`删除帖子失败: ${error.message}`, true);
-                                    });
+                            // 删除失败时的处理
+                            try {
+                                await confirmation.editReply({
+                                    content: `❌ 删除失败: ${error.message}`,
+                                    components: [],
+                                    embeds: [],
+                                });
+                            } catch (replyError) {
+                                // 忽略编辑回复时的错误
+                                logTime(`删除帖子失败: ${error.message}`, true);
                             }
                             throw error;
                         }
                     },
                     onError: async error => {
-                        // 只处理未被删除的情况
-                        if (!thread.deleted) {
-                            await handleCommandError(interaction, error, '删除帖子').catch(() => {
-                                // 忽略错误处理时的错误
-                            });
+                        // 处理错误情况
+                        try {
+                            await handleCommandError(interaction, error, '删除帖子');
+                        } catch (_) {
+                            // 忽略错误处理时的错误
+                            logTime(`处理删除帖子错误时发生异常: ${error.message}`, true);
                         }
                     },
                 });

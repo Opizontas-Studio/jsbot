@@ -14,7 +14,7 @@ export default {
                 .setName('永封')
                 .setDescription('永久封禁用户')
                 .addUserOption(option => option.setName('用户').setDescription('要处罚的用户').setRequired(true))
-                .addStringOption(option => option.setName('原因').setDescription('处罚原因').setRequired(true))
+                .addStringOption(option => option.setName('原因').setDescription('处罚原因（手机使用此命令建议小于60个汉字，否则有截断BUG）').setRequired(true))
                 .addBooleanOption(option =>
                     option.setName('保留消息').setDescription('是否保留用户的消息').setRequired(true),
                 ),
@@ -27,7 +27,7 @@ export default {
                 .addStringOption(option =>
                     option.setName('时长').setDescription('禁言时长 (例如: 3d4h5m)，最大14天').setRequired(true),
                 )
-                .addStringOption(option => option.setName('原因').setDescription('处罚原因').setRequired(true))
+                .addStringOption(option => option.setName('原因').setDescription('处罚原因（手机使用此命令建议小于60个汉字，否则有截断BUG）').setRequired(true))
                 .addStringOption(option =>
                     option.setName('警告').setDescription('同时添加警告 (例如: 30d)').setRequired(false),
                 ),

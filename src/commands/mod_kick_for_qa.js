@@ -64,7 +64,8 @@ export default {
                     { name: '执行者', value: interaction.user.tag, inline: true }
                 );
 
-            if (result.success) {
+            // 更改判断条件：只要有任何服务器成功，就视为操作成功
+            if (result.successfulServers.length > 0) {
                 replyEmbed
                     .setDescription('✅ 处罚执行成功')
                     .addFields(

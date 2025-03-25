@@ -134,7 +134,7 @@ export default {
 
                 // 发送简单的通知消息到执行频道
                 const notifyEmbed = new EmbedBuilder()
-                    .setDescription(`<@${targetUser.id}> 被${isQAerOperation ? '答疑员' : '管理员'} <@${interaction.user.id}> 执行了重新答题处罚。\n理由：${reason}`)
+                    .setDescription(`<@${targetUser.id}> 被${isQAerOperation ? '答疑员' : '管理员'} <@${interaction.user.id}> 执行了重新答题处罚。理由：${reason}`)
                     .setColor(0xff0000)
                     .setTimestamp();
 

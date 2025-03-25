@@ -2,7 +2,7 @@ import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { revokeRolesByGroups } from '../services/roleApplication.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
+import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
@@ -31,15 +31,19 @@ export default {
             const reason = interaction.options.getString('理由') ?? '违反问答规范';
             const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
             
-            // 验证管理员权限
-            const hasModeratorPermission = await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds, {
-                errorMessage: null // 不返回错误，因为我们还要检查QAer权限
-            });
+            // 检查管理员或版主权限
+            const hasAdminPermission = interaction.member.roles.cache.some(role => 
+                guildConfig.AdministratorRoleIds.includes(role.id)
+            );
+            const hasModeratorPermission = interaction.member.roles.cache.some(role => 
+                guildConfig.ModeratorRoleIds.includes(role.id)
+            );
+            const hasManagementPermission = hasAdminPermission || hasModeratorPermission;
             
             let targetGroups = [];
             let isQAerOperation = false;
             
-            if (hasModeratorPermission) {
+            if (hasManagementPermission) {
                 // 管理员可以移除缓冲区和已验证的同步组
                 targetGroups = roleSyncConfig.syncGroups.filter(group => 
                     ['缓冲区', '已验证'].includes(group.name)
@@ -138,14 +142,14 @@ export default {
                     embeds: [notifyEmbed],
                     allowedMentions: { users: [targetUser.id] } // 只@ 被处罚的用户
                 });
-                logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, true);
+                logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, false);
             } else {
                 replyEmbed
                     .setDescription('❌ 处罚执行失败')
                     .setColor(0xff0000);
                 logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行重新答题处罚失败`, true);
             }
- 
+
             await interaction.editReply({ embeds: [replyEmbed] });
         } catch (error) {
             await handleCommandError(interaction, error, '答题处罚');

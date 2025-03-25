@@ -51,11 +51,9 @@ export class GuildManager {
                 roleApplication: guildConfig.roleApplication || {
                     enabled: false, // boolean - 是否启用角色申请系统
                     logThreadId: null, // string | null - 角色申请日志频道ID
-                    creatorRoleThreadId: null, // string | null - 创作者角色主题ID
                     creatorRoleId: null, // string | null - 创作者角色ID
                     senatorRoleId: null, // string | null - 参议员角色ID
                     senatorRoleForumId: null, // string | null - 参议员论坛ID
-                    roleSyncThreadId: null, // string | null - 身份组同步主题ID
                 },
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,

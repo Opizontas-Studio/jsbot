@@ -3,7 +3,6 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { createApplicationMessage, createSyncMessage } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
 
 // 添加重连计数器和时间记录
@@ -18,12 +17,6 @@ const config = JSON.parse(readFileSync(join(process.cwd(), 'config.json'), 'utf8
 async function initializeClient(client) {
     // 初始化所有定时任务
     globalTaskScheduler.initialize(client);
-
-    // 初始化身份组申请消息
-    await createApplicationMessage(client);
-    
-    // 初始化身份组同步消息
-    await createSyncMessage(client);
 
     // 初始化WebSocket状态监控
     const wsStateMonitor = {

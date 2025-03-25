@@ -27,31 +27,69 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            // 检查管理权限（版主及以上）
-            if (!(await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds))) {
-                return;
-            }
-
             const targetUser = interaction.options.getUser('目标');
             const reason = interaction.options.getString('理由') ?? '违反问答规范';
             const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-
-            // 找到缓冲区和已验证的同步组
-            const targetGroups = roleSyncConfig.syncGroups.filter(group => 
-                ['缓冲区', '已验证'].includes(group.name)
-            );
-
-            if (!targetGroups.length) {
-                await interaction.editReply('❌ 未找到缓冲区或已验证的身份组配置');
-                return;
+            
+            // 验证管理员权限
+            const hasModeratorPermission = await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds, {
+                errorMessage: null // 不返回错误，因为我们还要检查QAer权限
+            });
+            
+            let targetGroups = [];
+            let isQAerOperation = false;
+            
+            if (hasModeratorPermission) {
+                // 管理员可以移除缓冲区和已验证的同步组
+                targetGroups = roleSyncConfig.syncGroups.filter(group => 
+                    ['缓冲区', '已验证'].includes(group.name)
+                );
+                
+                if (!targetGroups.length) {
+                    await interaction.editReply('❌ 未找到缓冲区或已验证的身份组配置');
+                    return;
+                }
+            } else {
+                // 检查是否有QAer身份组
+                const hasQAerPermission = interaction.member.roles.cache.some(role => 
+                    role.id === guildConfig.QAerRoleId
+                );
+                
+                if (!hasQAerPermission) {
+                    await interaction.editReply('❌ 你没有权限使用此命令。需要具有管理员或答疑区战神身份组。');
+                    return;
+                }
+                
+                // QAer只能移除缓冲区身份组
+                const bufferGroup = roleSyncConfig.syncGroups.find(group => group.name === '缓冲区');
+                
+                if (!bufferGroup) {
+                    await interaction.editReply('❌ 未找到缓冲区身份组配置');
+                    return;
+                }
+                
+                // 获取目标用户在当前服务器的成员信息
+                const targetMember = await interaction.guild.members.fetch(targetUser.id);
+                
+                // 检查目标用户是否具有缓冲区身份组
+                const bufferRoleId = bufferGroup.roles[interaction.guild.id];
+                const hasBufferRole = bufferRoleId && targetMember.roles.cache.has(bufferRoleId);
+                
+                if (!hasBufferRole) {
+                    await interaction.editReply('❌ 目标用户没有缓冲区身份组，无法执行处罚操作');
+                    return;
+                }
+                
+                targetGroups = [bufferGroup];
+                isQAerOperation = true;
             }
 
-            // 使用新的批量处理函数
+            // 使用批量处理函数
             const result = await revokeRolesByGroups(
                 interaction.client,
                 targetUser.id,
                 targetGroups,
-                `由管理员 ${interaction.user.tag} 执行答题处罚`
+                `由${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 执行答题处罚`
             );
 
             // 创建回复用的Embed
@@ -64,7 +102,7 @@ export default {
                     { name: '执行者', value: interaction.user.tag, inline: true }
                 );
 
-            // 更改判断条件：只要有任何服务器成功，就视为操作成功
+            // 只要有任何服务器成功，就视为操作成功
             if (result.successfulServers.length > 0) {
                 replyEmbed
                     .setDescription('✅ 处罚执行成功')
@@ -81,6 +119,7 @@ export default {
                         { name: '执行者', value: interaction.user.tag, inline: true },
                         { name: '目标用户', value: targetUser.tag, inline: true },
                         { name: '处罚理由', value: reason },
+                        { name: '移除的身份组', value: targetGroups.map(g => g.name).join(', ') },
                         { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
                     );
 
@@ -91,7 +130,7 @@ export default {
 
                 // 发送简单的通知消息到执行频道
                 const notifyEmbed = new EmbedBuilder()
-                    .setDescription(`<@${targetUser.id}> 被管理员 <@${interaction.user.id}> 执行了重新答题处罚。\n理由：${reason}`)
+                    .setDescription(`<@${targetUser.id}> 被${isQAerOperation ? '答疑员' : '管理员'} <@${interaction.user.id}> 执行了重新答题处罚。\n理由：${reason}`)
                     .setColor(0xff0000)
                     .setTimestamp();
 
@@ -99,14 +138,14 @@ export default {
                     embeds: [notifyEmbed],
                     allowedMentions: { users: [targetUser.id] } // 只@ 被处罚的用户
                 });
-                logTime(`管理员 ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, true);
+                logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, true);
             } else {
                 replyEmbed
                     .setDescription('❌ 处罚执行失败')
                     .setColor(0xff0000);
-                logTime(`管理员 ${interaction.user.tag} 对 ${targetUser.tag} 执行重新答题处罚失败`, true);
+                logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行重新答题处罚失败`, true);
             }
-
+ 
             await interaction.editReply({ embeds: [replyEmbed] });
         } catch (error) {
             await handleCommandError(interaction, error, '答题处罚');

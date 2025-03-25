@@ -35,6 +35,7 @@ export class GuildManager {
                 threadLogThreadId: guildConfig.threadLogThreadId, // string - 帖子操作日志频道ID
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
+                QAerRoleId: guildConfig.QAerRoleId, // string - 答题员角色ID
                 WarnedRoleId: guildConfig.WarnedRoleId, // string - 警告角色ID
                 eventsCategoryId: guildConfig.eventsCategoryId, // 添加这一行
                 eventModeratorRoleIds: guildConfig.eventModeratorRoleIds || [], // 添加这一行

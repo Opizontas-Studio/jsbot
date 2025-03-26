@@ -313,7 +313,7 @@ export const buttonHandlers = {
             .setCustomId('debate_title')
             .setLabel('议案标题（最多30字）')
             .setStyle(TextInputStyle.Short)
-            .setPlaceholder('格式形如：议案：关于对于商业化的进一步对策')
+            .setPlaceholder('格式形如：议案：对于商业化的进一步对策')
             .setMaxLength(30)
             .setRequired(true);
 
@@ -863,8 +863,6 @@ const BUTTON_CONFIG = {
         vote_blue: { handler: interaction => handleVoteButton(interaction, 'blue') },
         sync_roles: { handler: buttonHandlers.sync_roles },
         revoke_process: { handler: buttonHandlers.revoke_process },
-        page_prev: { handler: buttonHandlers.page_prev },
-        page_next: { handler: buttonHandlers.page_next },
         revoke_appeal: { handler: buttonHandlers.revoke_appeal },
     },
 
@@ -876,6 +874,8 @@ const BUTTON_CONFIG = {
         },
         apply_creator_role: buttonHandlers.apply_creator_role,
         start_debate: buttonHandlers.start_debate,
+        page_prev: buttonHandlers.page_prev,
+        page_next: buttonHandlers.page_next,
     },
 };
 
@@ -923,16 +923,25 @@ export async function handleButton(interaction) {
  */
 function findButtonConfig(customId) {
     // 检查完全匹配的defer按钮
-    if (BUTTON_CONFIG.deferButtons[customId.split('_').slice(0, 2).join('_')]) {
+    const buttonPrefix = customId.split('_').slice(0, 2).join('_');
+    if (BUTTON_CONFIG.deferButtons[buttonPrefix]) {
         return {
             needDefer: true,
-            handler: BUTTON_CONFIG.deferButtons[customId.split('_').slice(0, 2).join('_')].handler,
+            handler: BUTTON_CONFIG.deferButtons[buttonPrefix].handler,
+        };
+    }
+    
+    // 检查完全匹配的非defer按钮
+    if (BUTTON_CONFIG.modalButtons[buttonPrefix]) {
+        return {
+            needDefer: false,
+            handler: BUTTON_CONFIG.modalButtons[buttonPrefix],
         };
     }
 
     // 检查前缀匹配的模态框按钮
     for (const [prefix, handler] of Object.entries(BUTTON_CONFIG.modalButtons)) {
-        if (customId === prefix || customId.startsWith(prefix)) {
+        if (customId !== prefix && customId.startsWith(prefix)) {
             return {
                 needDefer: false,
                 handler: handler,

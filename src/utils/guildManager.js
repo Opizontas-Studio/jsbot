@@ -58,19 +58,16 @@ export class GuildManager {
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,
                     courtChannelId: null,
+                    forumChannelId: null,
                     debateForumId: null,
                     senatorRoleId: null,
                     appealDuration: 259200000,
                     summitDuration: 604800000,
-                    requiredSupports: 10,
+                    requiredSupports: 20,
                     debateTagId: null,
                     appealDebateRoleId: null,
                     votePublicDelay: 30000, // 默认30秒后公开
                     voteDuration: 60000, // 默认1分钟后结束
-                    quickVote: {
-                        publicDelay: 60000, // 1分钟后公开
-                        duration: 300000, // 5分钟后结束
-                    },
                 },
                 monitor: {
                     enabled: guildConfig.monitor?.enabled || false,

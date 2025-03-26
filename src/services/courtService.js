@@ -111,7 +111,9 @@ class CourtService {
                         '',
                         '🔴▬▬▬▬▬|▬▬▬▬▬🔵',
                         '',
-                        `票数将在 <t:${Math.floor((Date.now() + guildConfig.courtSystem.votePublicDelay) / 1000)}:R> 公开`,
+                        `票数将在 <t:${Math.floor(
+                            (Date.now() + guildConfig.courtSystem.votePublicDelay) / 1000,
+                        )}:R> 公开`,
                     ].join('\n'),
                     footer: {
                         text: `发起人：${executor?.tag || '未知用户'}`,
@@ -228,9 +230,10 @@ class CourtService {
     static async updateCourtMessage(message, process, options = {}) {
         const { debateThread, isExpired, removeComponents = false } = options;
         const embed = message.embeds[0];
+        const updatedEmbed = { ...embed.data };
         const updatedFields = [...embed.fields];
 
-        // 更新支持人数字段
+        // 1. 首先处理支持人数字段（无论何种情况都应该保留或更新）
         const supporters = process.supporters;
         const supportCount = supporters.length;
         const supportCountField = updatedFields.find(field => field.name === '支持人数');
@@ -250,19 +253,28 @@ class CourtService {
             });
         }
 
-        const updatedEmbed = {
-            ...embed.data,
-            fields: updatedFields,
-        };
-
-        // 更新消息描述
+        // 2. 根据状态更新消息内容
         if (isExpired) {
-            updatedEmbed.description = `${embed.description}\n\n❌ 议事已过期，未达到所需支持人数`;
+            // 过期情况：保留原始字段，只更新描述
+            updatedEmbed.fields = updatedFields;
+            updatedEmbed.description = `${embed.description}\n\n❌ 议事已过期，未达到支持数`;
         } else if (debateThread) {
-            updatedEmbed.description = `${embed.description}\n\n✅ 已达到所需支持人数，辩诉帖已创建：${debateThread.url}`;
+            // 成功完成情况
+            if (process.type === 'debate') {
+                // debate类型特殊处理：简化消息，清空字段
+                updatedEmbed.fields = [];
+                updatedEmbed.description = `${embed.description}\n\n✅ 已达到支持数，议案讨论帖已创建：${debateThread.url}`;
+            } else {
+                // 其他类型：保留所有字段
+                updatedEmbed.fields = updatedFields;
+                updatedEmbed.description = `${embed.description}\n\n✅ 已达到支持数，辩诉帖已创建：${debateThread.url}`;
+            }
+        } else {
+            // 正常进行中的情况：保留所有字段
+            updatedEmbed.fields = updatedFields;
         }
 
-        // 更新消息
+        // 3. 更新消息
         await message.edit({
             embeds: [updatedEmbed],
             components: removeComponents || debateThread || isExpired ? [] : message.components,
@@ -385,38 +397,6 @@ class CourtService {
                     components: [],
                 });
                 logTime(`更新过期消息成功: ${currentProcess.id}`);
-            }
-
-            // 如果是debate类型，更新原帖子状态
-            if (currentProcess.type === 'debate' && details.threadId) {
-                await client.channels
-                    .fetch(details.threadId)
-                    .then(thread => thread?.messages.fetch(currentProcess.statusMessageId))
-                    .then(statusMessage =>
-                        statusMessage?.edit({
-                            embeds: [
-                                {
-                                    color: 0xff0000,
-                                    title: '📢 议事投票已过期',
-                                    description: [
-                                        '此帖的议事投票已过期。',
-                                        '',
-                                        '**议事详情：**',
-                                        `- 提交人：<@${currentProcess.executorId}>`,
-                                        `- 议事消息：[点击查看](${message?.url || thread?.url})`,
-                                        '',
-                                        '当前状态：未达到所需支持人数，议事已结束',
-                                    ].join('\n'),
-                                    timestamp: new Date(),
-                                    footer: {
-                                        text: '如需重新议事，请管理员重新提交',
-                                    },
-                                },
-                            ],
-                        }),
-                    )
-                    .then(() => logTime(`已更新议事状态消息: ${currentProcess.id}`))
-                    .catch(() => logTime(`更新议事状态消息失败: ${currentProcess.id}`, true));
             }
 
             // 更新流程状态
@@ -546,7 +526,7 @@ class CourtService {
 
                     // 读取身份组同步配置
                     const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-                    
+
                     // 找到已验证身份组的同步组
                     const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
                     if (verifiedGroup) {
@@ -555,7 +535,7 @@ class CourtService {
                             client,
                             process.targetId,
                             [verifiedGroup],
-                            '处罚申请辩诉期间暂时移除已验证身份组'
+                            '处罚申请辩诉期间暂时移除已验证身份组',
                         );
                     }
 
@@ -577,9 +557,9 @@ class CourtService {
                             const notifyContent = [
                                 '✅ 有关您的处罚申请已获得足够议员支持，辩诉帖已创建：',
                                 `[点击查看辩诉帖](${debateThread.url})`,
-                                '注意：辩诉期间目标用户的已验证身份组将被暂时移除，请事后自行答题验证'
+                                '注意：辩诉期间目标用户的已验证身份组将被暂时移除，请事后自行答题验证',
                             ].join('\n');
-                            
+
                             await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
                             await target.send({ content: notifyContent, flags: ['Ephemeral'] });
                         }
@@ -634,7 +614,7 @@ class CourtService {
 
                     // 读取身份组同步配置
                     const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-                    
+
                     // 找到已验证身份组的同步组
                     const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
                     if (verifiedGroup) {
@@ -643,7 +623,7 @@ class CourtService {
                             client,
                             process.targetId,
                             [verifiedGroup],
-                            '上诉辩诉期间暂时移除已验证身份组'
+                            '上诉辩诉期间暂时移除已验证身份组',
                         );
                     }
 
@@ -679,102 +659,80 @@ class CourtService {
                 }
 
                 case 'debate': {
-                    // 更新流程状态为completed
-                    await ProcessModel.updateStatus(process.id, 'completed', {
-                        result: 'approved',
-                        reason: '已达到所需支持人数，等待投票执行',
-                    });
-
-                    // 获取消息并更新
-                    const message = await client.channels
-                        .fetch(guildConfig.courtSystem.courtChannelId)
-                        .then(channel => channel.messages.fetch(process.messageId))
-                        .catch(() => null);
-
-                    if (message) {
-                        const embed = message.embeds[0];
-                        const updatedEmbed = {
-                            ...embed.data,
-                            description: `${embed.description}\n\n✅ 已达到所需支持人数，等待投票执行`,
-                        };
-
-                        await message.edit({
-                            embeds: [updatedEmbed],
-                            components: [], // 移除支持按钮
-                        });
-                    }
-
-                    // 更新原帖子中的状态消息
+                    // 如果是 debate 类型，创建论坛帖子
                     try {
-                        const { threadId } = process.details;
-                        if (threadId && process.statusMessageId) {
-                            await client.channels
-                                .fetch(threadId)
-                                .then(thread => thread?.messages.fetch(process.statusMessageId))
-                                .then(statusMessage =>
-                                    statusMessage?.edit({
-                                        embeds: [
+                        // 检查论坛频道是否配置
+                        if (!guildConfig.courtSystem.forumChannelId) {
+                            return { error: '未配置议事论坛频道' };
+                        }
+
+                        // 获取论坛频道
+                        const forumChannel = await client.channels.fetch(guildConfig.courtSystem.forumChannelId);
+                        if (!forumChannel) {
+                            return { error: '无法访问议事论坛频道' };
+                        }
+
+                        // 从流程详情中获取议事内容
+                        const { title, reason, motion, implementation, voteTime } = process.details;
+
+                        // 创建帖子内容
+                        const threadContent = [
+                            `-# 提议人: <@${process.targetId}>`,
+                            '### 📝 提案原因',
+                            reason,
+                            '### 📝 议案动议',
+                            motion,
+                            '### 🔧 执行方案',
+                            implementation,
+                            `### 🕰️ 投票时间：${voteTime}`,
+                        ].join('\n');
+
+                        // 创建论坛帖子
+                        const thread = await forumChannel.threads.create({
+                            name: title,
+                            message: {
+                                content: threadContent,
+                                allowedMentions: { users: [process.targetId] }, // 允许 @ 提议者
+                            },
+                            reason: `创建议案`,
+                        });
+
+                        // 发送私信通知给提议者
+                        try {
+                            const user = await client.users.fetch(process.targetId);
+                            await user.send({
+                                embeds: [
+                                    {
+                                        color: 0x00ff00,
+                                        title: '✅ 提案成功',
+                                        description: `您的提案"${title}"已获得足够支持，已创建帖子以供进一步讨论。`,
+                                        fields: [
                                             {
-                                                color: 0x00ff00,
-                                                title: '📢 议事投票已获得支持',
-                                                description: [
-                                                    '此帖的议事投票已获得足够议员支持。',
-                                                    '',
-                                                    '**议事详情：**',
-                                                    `- 提交人：<@${process.executorId}>`,
-                                                    `- 议事消息：[点击查看](${message?.url || thread?.url})`,
-                                                ].join('\n'),
-                                                timestamp: new Date(),
-                                                footer: {
-                                                    text: '投票将由管理员稍后执行',
-                                                },
+                                                name: '帖子链接',
+                                                value: `[点击查看](${thread.url})`,
                                             },
                                         ],
-                                    }),
-                                )
-                                .then(() => logTime(`已更新议事状态消息: ${process.id}`))
-                                .catch(() => logTime(`更新议事状态消息失败: ${process.id}`, true));
+                                        timestamp: new Date(),
+                                    },
+                                ],
+                            });
+                        } catch (error) {
+                            logTime(`向用户 ${process.targetId} 发送议事成功通知失败: ${error.message}`, true);
                         }
+
+                        // 更新流程状态
+                        await ProcessModel.updateStatus(process.id, 'completed', {
+                            result: 'approved',
+                            reason: '已达到所需支持人数，开启讨论',
+                            debateThreadId: thread.id,
+                        });
+
+                        return { debateThread: thread, error: null };
                     } catch (error) {
-                        logTime(`更新原帖子状态消息失败: ${error.message}`, true);
+                        logTime(`创建议事论坛帖子失败: ${error.message}`, true);
+                        return { error: '创建论坛帖子失败' };
                     }
-
-                    // 发送通知
-                    try {
-                        const [executor, target] = await Promise.all([
-                            client.users.fetch(process.executorId).catch(() => null),
-                            client.users.fetch(process.targetId).catch(() => null),
-                        ]);
-
-                        if (executor && target) {
-                            // 构建议事消息链接
-                            let messageUrl = message?.url;
-                            if (!messageUrl && process.messageId) {
-                                messageUrl = `https://discord.com/channels/${guildConfig.id}/${guildConfig.courtSystem.courtChannelId}/${process.messageId}`;
-                            }
-
-                            const notifyContent = [
-                                '✅ 议事投票已获得足够议员支持',
-                                '',
-                                '**议事详情：**',
-                                `- 帖子：${process.details.embed.title}`,
-                                messageUrl ? `- 议事消息：${messageUrl}` : null,
-                                '',
-                                '当前状态：等待投票执行',
-                            ]
-                                .filter(Boolean)
-                                .join('\n');
-
-                            await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                            await target.send({ content: notifyContent, flags: ['Ephemeral'] });
-                        }
-                    } catch (error) {
-                        logTime(`发送通知失败: ${error.message}`, true);
-                    }
-
-                    return { error: null };
                 }
-
                 default:
                     return { error: '不支持的议事类型' };
             }

@@ -16,7 +16,10 @@ export default {
                 .setDescription('申请禁言及弹劾处罚（可弹劾管理员，禁言最大14天）')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
-                    option.setName('禁言时间').setDescription('禁言时长 (最短2天，例如: 3d5h，即3天5小时)').setRequired(true),
+                    option
+                        .setName('禁言时间')
+                        .setDescription('禁言时长 (最短2天，例如: 3d5h，即3天5小时)')
+                        .setRequired(true),
                 )
                 .addStringOption(option =>
                     option
@@ -31,7 +34,10 @@ export default {
                         .setRequired(false),
                 )
                 .addStringOption(option =>
-                    option.setName('附加警告期').setDescription('附加警告时长 (最短15天，格式如: 30d，即30天)').setRequired(false),
+                    option
+                        .setName('附加警告期')
+                        .setDescription('附加警告时长 (最短15天，格式如: 30d，即30天)')
+                        .setRequired(false),
                 )
                 .addStringOption(option =>
                     option
@@ -54,14 +60,6 @@ export default {
                         .setName('图片链接')
                         .setDescription('相关证据的图片链接 (可来自图床/DiscordCDN)')
                         .setRequired(false),
-                ),
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('撤销')
-                .setDescription('撤销处罚申请')
-                .addStringOption(option =>
-                    option.setName('消息链接').setDescription('要撤销的议事区议事消息的链接').setRequired(true),
                 ),
         ),
 
@@ -266,6 +264,13 @@ export default {
                                                 custom_id: `support_mute_${target.id}_${interaction.user.id}`,
                                                 emoji: '👍',
                                             },
+                                            {
+                                                type: 2,
+                                                style: 4,
+                                                label: '撤回申请',
+                                                custom_id: `revoke_process_${interaction.user.id}_court_mute`,
+                                                emoji: '↩️',
+                                            },
                                         ],
                                     },
                                 ],
@@ -430,6 +435,13 @@ export default {
                                                 custom_id: `support_ban_${target.id}_${interaction.user.id}`,
                                                 emoji: '👍',
                                             },
+                                            {
+                                                type: 2,
+                                                style: 4,
+                                                label: '撤回申请',
+                                                custom_id: `revoke_process_${interaction.user.id}_court_ban`,
+                                                emoji: '↩️',
+                                            },
                                         ],
                                     },
                                 ],
@@ -486,78 +498,6 @@ export default {
                             await handleCommandError(interaction, error, '申请上庭');
                         },
                     });
-                }
-            } else if (subcommand === '撤销') {
-                const messageUrl = interaction.options.getString('消息链接');
-
-                // 从链接中提取消息ID
-                const messageId = messageUrl.split('/').pop();
-                if (!messageId) {
-                    await interaction.editReply({
-                        content: '❌ 无效的消息链接',
-                        flags: ['Ephemeral'],
-                    });
-                    return;
-                }
-
-                // 获取流程记录
-                const process = await ProcessModel.getProcessByMessageId(messageId);
-                if (!process) {
-                    await interaction.editReply({
-                        content: '❌ 找不到相关的议事流程',
-                        flags: ['Ephemeral'],
-                    });
-                    return;
-                }
-
-                // 验证申请人身份
-                if (process.executorId !== interaction.user.id) {
-                    await interaction.editReply({
-                        content: '❌ 只有原申请人可以撤销申请',
-                        flags: ['Ephemeral'],
-                    });
-                    return;
-                }
-
-                // 验证流程状态
-                if (!['pending', 'in_progress'].includes(process.status)) {
-                    await interaction.editReply({
-                        content: '❌ 此申请已无法撤销',
-                        flags: ['Ephemeral'],
-                    });
-                    return;
-                }
-
-                try {
-                    // 删除原消息
-                    const channel = await interaction.guild.channels.fetch(guildConfig.courtSystem.courtChannelId);
-                    const message = await channel.messages.fetch(messageId);
-                    await message.delete();
-
-                    // 更新流程状态
-                    await ProcessModel.updateStatus(process.id, 'cancelled', {
-                        reason: '申请人撤销',
-                    });
-
-                    // 清除定时器
-                    await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
-
-                    // 通知双方
-                    const [executor, target] = await Promise.all([
-                        interaction.client.users.fetch(process.executorId).catch(() => null),
-                        interaction.client.users.fetch(process.targetId).catch(() => null),
-                    ]);
-
-                    const notifyContent = '✅ 关于您的上庭申请已被申请者撤销';
-                    if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                    if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
-
-                    await interaction.editReply({
-                        content: '✅ 已撤销申请',
-                        flags: ['Ephemeral'],
-                    });
-                } catch (error) {
-                    await handleCommandError(interaction, error, '撤销申请');
                 }
             }
         } catch (error) {

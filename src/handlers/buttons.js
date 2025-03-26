@@ -8,6 +8,7 @@ import {
     TextInputStyle,
 } from 'discord.js';
 import { dbManager } from '../db/dbManager.js';
+import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
@@ -16,6 +17,7 @@ import { VoteService } from '../services/voteService.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { checkAppealEligibility, checkPunishmentStatus } from '../utils/punishmentHelper.js';
+import { globalTaskScheduler } from './scheduler.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -41,7 +43,7 @@ export async function handleConfirmationButton({
     onConfirm,
     onTimeout,
     onError,
-    timeout = 200000,
+    timeout = 120000,
 }) {
     // 创建确认按钮
     const confirmButton = new ButtonBuilder().setCustomId(customId).setLabel(buttonLabel).setStyle(ButtonStyle.Danger);
@@ -102,7 +104,7 @@ export async function handleConfirmationButton({
  * @param {number} [duration=30000] - 冷却时间（毫秒）
  * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
  */
-function checkCooldown(type, userId, duration = 30000) {
+function checkCooldown(type, userId, duration = 10000) {
     const now = Date.now();
     const cooldownKey = `${type}:${userId}`;
     const cooldownTime = cooldowns.get(cooldownKey);
@@ -206,7 +208,7 @@ export const buttonHandlers = {
         await interaction.update(pages[newPage - 1]);
     },
 
-    // 议事区支持按钮处理器 - 需要defer
+    // 议事区支持按钮处理器
     support_mute: async interaction => {
         await handleCourtSupport(interaction, 'mute');
     },
@@ -223,7 +225,7 @@ export const buttonHandlers = {
         await handleCourtSupport(interaction, 'debate');
     },
 
-    // 投票按钮处理器 - 需要defer
+    // 投票按钮处理器
     vote_red: async interaction => {
         await handleVoteButton(interaction, 'red');
     },
@@ -232,7 +234,7 @@ export const buttonHandlers = {
         await handleVoteButton(interaction, 'blue');
     },
 
-    // 身份组同步按钮处理器 - 需要defer
+    // 身份组同步按钮处理器
     sync_roles: async interaction => {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('role_sync', interaction.user.id, 60000); // 1分钟冷却
@@ -245,7 +247,7 @@ export const buttonHandlers = {
         try {
             // 同步身份组
             const { syncedRoles } = await syncMemberRoles(interaction.member);
-            
+
             // 构建回复消息
             let replyContent;
             if (syncedRoles.length > 0) {
@@ -253,16 +255,12 @@ export const buttonHandlers = {
                     '✅ 身份组同步完成',
                     '',
                     '**同步成功的身份组：**',
-                    ...syncedRoles.map(role => 
-                        `• ${role.name} (从 ${role.sourceServer} 同步到 ${role.targetServer})`
-                    ),
+                    ...syncedRoles.map(role => `• ${role.name} (从 ${role.sourceServer} 同步到 ${role.targetServer})`),
                 ].join('\n');
             } else {
-                replyContent = [
-                    '✅ 没有需要同步的身份组',
-                ].join('\n');
+                replyContent = ['✅ 没有需要同步的身份组'].join('\n');
             }
-            
+
             // 回复用户
             await interaction.editReply({
                 content: replyContent,
@@ -272,6 +270,288 @@ export const buttonHandlers = {
                 content: '❌ 同步身份组时出错，请稍后重试',
             });
             logTime(`同步身份组失败: ${error.message}`, true);
+        }
+    },
+
+    // 提交议事按钮处理器
+    start_debate: async interaction => {
+        // 检查冷却时间
+        const cooldownLeft = checkCooldown('start_debate', interaction.user.id, 60000); // 1分钟冷却
+        if (cooldownLeft) {
+            await interaction.reply({
+                content: `❌ 请等待 ${cooldownLeft} 秒后再次提交`,
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 检查议事系统是否启用
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig?.courtSystem?.enabled) {
+            await interaction.reply({
+                content: '❌ 此服务器未启用议事系统',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 检查是否为议员
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+            await interaction.reply({
+                content: '❌ 只有议员可以提交议案',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 创建模态框
+        const modal = new ModalBuilder().setCustomId('submit_debate_modal').setTitle('提交议事');
+
+        // 标题输入
+        const titleInput = new TextInputBuilder()
+            .setCustomId('debate_title')
+            .setLabel('议案标题（最多30字）')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('格式形如：议案：关于对于商业化的进一步对策')
+            .setMaxLength(30)
+            .setRequired(true);
+
+        // 原因输入
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('debate_reason')
+            .setLabel('提案原因（20到300字，可以分段、换行）')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('请详细说明提出此议案的原因')
+            .setMinLength(20)
+            .setMaxLength(300)
+            .setRequired(true);
+
+        // 动议输入
+        const motionInput = new TextInputBuilder()
+            .setCustomId('debate_motion')
+            .setLabel('议案动议（20到300字，可以分段、换行）')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('请详细说明您的动议内容，具体的目标是什么')
+            .setMinLength(20)
+            .setMaxLength(300)
+            .setRequired(true);
+
+        // 执行方式输入
+        const implementationInput = new TextInputBuilder()
+            .setCustomId('debate_implementation')
+            .setLabel('执行方案（30到600字，可以分段、换行）')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('请详细说明如何执行此动议，包括执行人是谁，执行方式，如何考核监督等')
+            .setMinLength(30)
+            .setMaxLength(600)
+            .setRequired(true);
+
+        // 投票时间输入
+        const voteTimeInput = new TextInputBuilder()
+            .setCustomId('debate_vote_time')
+            .setLabel('投票时间（不超过7天）')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('填写格式形如：1天')
+            .setMaxLength(10)
+            .setRequired(true);
+
+        // 将输入添加到模态框
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(reasonInput),
+            new ActionRowBuilder().addComponents(motionInput),
+            new ActionRowBuilder().addComponents(implementationInput),
+            new ActionRowBuilder().addComponents(voteTimeInput),
+        );
+
+        // 显示模态框
+        await interaction.showModal(modal);
+    },
+
+    // 撤销流程按钮处理器
+    revoke_process: async interaction => {
+        try {
+            // 获取议事消息
+            const message = interaction.message;
+
+            // 解析按钮ID获取提交者ID和流程类型
+            const [, , submitterId, processType] = interaction.customId.split('_');
+
+            // 检查是否是提交者本人
+            if (interaction.user.id !== submitterId) {
+                await interaction.editReply({
+                    content: '❌ 只有申请人本人可以撤销申请',
+                });
+                return;
+            }
+
+            // 获取流程记录
+            const process = await ProcessModel.getProcessByMessageId(message.id);
+            if (!process) {
+                await interaction.editReply({
+                    content: '❌ 找不到相关流程记录',
+                });
+                return;
+            }
+
+            // 检查流程状态
+            if (process.status === 'completed' || process.status === 'cancelled') {
+                await interaction.editReply({
+                    content: '❌ 该流程已结束，无法撤销',
+                });
+                return;
+            }
+
+            // 更新流程状态
+            await ProcessModel.updateStatus(process.id, 'cancelled', {
+                result: 'cancelled',
+                reason: `由申请人 ${interaction.user.tag} 撤销`,
+            });
+
+            try {
+                // 直接删除流程消息
+                await message.delete();
+                logTime(`流程消息已被删除: ${message.id}, 类型: ${process.type}`);
+            } catch (error) {
+                logTime(`删除流程消息失败: ${error.message}`, true);
+                // 即使删除失败，我们仍然继续处理流程撤销
+            }
+
+            // 取消计时器
+            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
+
+            // 记录操作日志
+            logTime(`${process.type} 流程 ${process.id} 已被申请人 ${interaction.user.tag} 撤销`);
+
+            await interaction.editReply({
+                content: '✅ 申请已成功撤销，相关消息已删除',
+            });
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'revoke_process');
+        }
+    },
+
+    // 撤回上诉按钮处理器
+    revoke_appeal: async interaction => {
+        try {
+            // 解析按钮ID获取提交者ID、流程ID和原始消息ID
+            const [, , submitterId, processId, originalMessageId] = interaction.customId.split('_');
+
+            // 检查是否是提交者本人
+            if (interaction.user.id !== submitterId) {
+                await interaction.editReply({
+                    content: '❌ 只有申请人本人可以撤销上诉',
+                });
+                return;
+            }
+
+            // 获取流程记录
+            const process = await ProcessModel.getProcessById(parseInt(processId));
+            if (!process) {
+                await interaction.editReply({
+                    content: '❌ 找不到相关上诉流程记录',
+                });
+                return;
+            }
+
+            // 检查流程状态
+            if (process.status === 'completed' || process.status === 'cancelled') {
+                await interaction.editReply({
+                    content: '❌ 该上诉已结束，无法撤销',
+                });
+
+                // 更新原始消息，移除撤回按钮
+                try {
+                    const dmChannel = await interaction.user.createDM();
+                    if (dmChannel && originalMessageId) {
+                        const originalMessage = await dmChannel.messages.fetch(originalMessageId).catch(() => null);
+                        if (originalMessage) {
+                            await originalMessage.edit({ components: [] });
+                            logTime(`已移除已结束上诉的撤回按钮: ${originalMessageId}`);
+                        }
+                    }
+                } catch (error) {
+                    logTime(`移除已结束上诉按钮失败: ${error.message}`, true);
+                }
+                return;
+            }
+
+            // 获取主服务器配置
+            const mainGuildConfig = interaction.client.guildManager
+                .getGuildIds()
+                .map(id => interaction.client.guildManager.getGuildConfig(id))
+                .find(config => config?.serverType === 'Main server');
+
+            // 尝试删除议事区消息
+            try {
+                if (process.messageId) {
+                    // 使用议事区配置的频道ID
+                    const courtChannelId = mainGuildConfig?.courtSystem?.courtChannelId;
+
+                    if (courtChannelId) {
+                        // 尝试从主服务器获取议事频道
+                        const courtChannel = await interaction.client.channels.fetch(courtChannelId).catch(err => {
+                            logTime(`获取议事频道失败: ${err.message}`, true);
+                            return null;
+                        });
+
+                        if (courtChannel) {
+                            const courtMessage = await courtChannel.messages.fetch(process.messageId).catch(err => {
+                                logTime(`获取议事消息失败: ${err.message}`, true);
+                                return null;
+                            });
+
+                            if (courtMessage) {
+                                await courtMessage.delete();
+                                logTime(`上诉议事消息已被删除: ${process.messageId}`);
+                            } else {
+                                logTime(`未找到上诉议事消息: ${process.messageId}`, true);
+                            }
+                        }
+                    } else {
+                        logTime(`找不到议事区频道ID，无法删除上诉消息`, true);
+                    }
+                } else {
+                    logTime(`流程中无消息ID，无法删除上诉消息`, true);
+                }
+            } catch (error) {
+                logTime(`删除上诉议事消息失败: ${error.message}`, true);
+                // 继续执行，不影响主流程
+            }
+
+            // 更新流程状态
+            await ProcessModel.updateStatus(process.id, 'cancelled', {
+                result: 'cancelled',
+                reason: `由申请人 ${interaction.user.tag} 撤销上诉`,
+            });
+
+            // 取消计时器
+            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
+
+            // 更新原始消息，移除撤回按钮
+            try {
+                const dmChannel = await interaction.user.createDM();
+                if (dmChannel && originalMessageId) {
+                    const originalMessage = await dmChannel.messages.fetch(originalMessageId).catch(() => null);
+                    if (originalMessage) {
+                        await originalMessage.edit({ components: [] });
+                        logTime(`已移除上诉撤回按钮: ${originalMessageId}`);
+                    }
+                }
+            } catch (error) {
+                logTime(`移除上诉按钮失败: ${error.message}`, true);
+                // 继续执行，不影响主流程
+            }
+
+            // 记录操作日志
+            logTime(`上诉流程 ${process.id} 已被申请人 ${interaction.user.tag} 撤销`);
+
+            await interaction.editReply({
+                content: '✅ 上诉申请已成功撤销',
+            });
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'revoke_appeal');
         }
     },
 };
@@ -361,13 +641,6 @@ async function handleCourtSupport(interaction, type) {
                 // 更新消息
                 const message = await interaction.message.fetch();
                 await CourtService.updateCourtMessage(message, updatedProcess, { debateThread });
-
-                // 更新回复内容
-                if (updatedProcess.type === 'debate') {
-                    finalReplyContent += '\n📢 已达到所需支持人数，等待投票执行';
-                } else if (debateThread) {
-                    finalReplyContent += `\n📢 已达到所需支持人数，辩诉帖子已创建：${debateThread.url}`;
-                }
             } catch (error) {
                 logTime(`处理议事完成失败: ${error.message}`, true);
                 return await interaction.editReply({
@@ -485,7 +758,7 @@ async function handleAppealButton(interaction, punishmentId) {
     }
 }
 
-// 修改投票按钮处理函数
+// 投票按钮处理函数
 async function handleVoteButton(interaction, choice) {
     try {
         // 检查冷却时间
@@ -578,63 +851,94 @@ async function handleVoteButton(interaction, choice) {
     }
 }
 
+// 按钮处理配置对象
+const BUTTON_CONFIG = {
+    // 需要defer的按钮
+    deferButtons: {
+        support_mute: { handler: interaction => handleCourtSupport(interaction, 'mute') },
+        support_ban: { handler: interaction => handleCourtSupport(interaction, 'ban') },
+        support_appeal: { handler: interaction => handleCourtSupport(interaction, 'appeal') },
+        support_debate: { handler: interaction => handleCourtSupport(interaction, 'debate') },
+        vote_red: { handler: interaction => handleVoteButton(interaction, 'red') },
+        vote_blue: { handler: interaction => handleVoteButton(interaction, 'blue') },
+        sync_roles: { handler: buttonHandlers.sync_roles },
+        revoke_process: { handler: buttonHandlers.revoke_process },
+        page_prev: { handler: buttonHandlers.page_prev },
+        page_next: { handler: buttonHandlers.page_next },
+        revoke_appeal: { handler: buttonHandlers.revoke_appeal },
+    },
+
+    // 不需要defer的按钮（显示模态框）
+    modalButtons: {
+        appeal_: interaction => {
+            const punishmentId = interaction.customId.split('_')[1];
+            return handleAppealButton(interaction, punishmentId);
+        },
+        apply_creator_role: buttonHandlers.apply_creator_role,
+        start_debate: buttonHandlers.start_debate,
+    },
+};
+
 /**
  * 统一的按钮交互处理函数
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
  */
 export async function handleButton(interaction) {
     try {
-        // 如果是确认按钮，直接返回
+        // 1. 首先处理确认类按钮
         if (interaction.customId.startsWith('confirm_')) {
             return;
         }
 
-        // 处理需要defer的按钮
-        if (
-            interaction.customId.startsWith('vote_') || 
-            interaction.customId.startsWith('support_') ||
-            interaction.customId === 'sync_roles'
-        ) {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-            if (interaction.customId === 'sync_roles') {
-                await buttonHandlers.sync_roles(interaction);
-                return;
-            }
-            const [action, type] = interaction.customId.split('_');
-            const handler = buttonHandlers[`${action}_${type}`];
-            if (handler) {
-                await handler(interaction);
-            }
-            return;
-        }
+        // 2. 查找匹配的按钮处理配置
+        const buttonConfig = findButtonConfig(interaction.customId);
 
-        // 处理显示模态框的按钮（不需要defer）
-        if (interaction.customId.startsWith('appeal_') || interaction.customId.startsWith('apply_creator_role')) {
-            if (interaction.customId.startsWith('appeal_')) {
-                const punishmentId = interaction.customId.split('_')[1];
-                return handleAppealButton(interaction, punishmentId);
-            } else {
-                const handler = buttonHandlers['apply_creator_role'];
-                if (handler) {
-                    return handler(interaction);
-                }
-            }
-        }
-
-        // 处理其他按钮
-        const handler = buttonHandlers[interaction.customId];
-        if (!handler) {
+        if (!buttonConfig) {
             logTime(`未找到按钮处理器: ${interaction.customId}`, true);
             return;
         }
 
-        await handler(interaction);
+        // 3. 根据配置决定是否需要defer
+        if (buttonConfig.needDefer) {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+        }
+
+        // 4. 执行对应处理器
+        await buttonConfig.handler(interaction);
     } catch (error) {
         // 如果是已知的交互错误，不再重复处理
         if (error.name === 'InteractionAlreadyReplied') {
             logTime(`按钮交互已回复: ${interaction.customId}`, true);
             return;
         }
+
         await handleInteractionError(interaction, error, 'button');
     }
+}
+
+/**
+ * 查找对应的按钮配置
+ * @param {string} customId - 按钮的自定义ID
+ * @returns {Object|null} - 按钮配置对象或null
+ */
+function findButtonConfig(customId) {
+    // 检查完全匹配的defer按钮
+    if (BUTTON_CONFIG.deferButtons[customId.split('_').slice(0, 2).join('_')]) {
+        return {
+            needDefer: true,
+            handler: BUTTON_CONFIG.deferButtons[customId.split('_').slice(0, 2).join('_')].handler,
+        };
+    }
+
+    // 检查前缀匹配的模态框按钮
+    for (const [prefix, handler] of Object.entries(BUTTON_CONFIG.modalButtons)) {
+        if (customId === prefix || customId.startsWith(prefix)) {
+            return {
+                needDefer: false,
+                handler: handler,
+            };
+        }
+    }
+
+    return null;
 }

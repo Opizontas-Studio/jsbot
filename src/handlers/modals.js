@@ -125,13 +125,13 @@ export const modalHandlers = {
                                     await guildMember.roles.add(roleId);
                                     syncResults.push({
                                         name: guild.name,
-                                        success: true
+                                        success: true,
                                     });
                                 } catch (error) {
                                     syncResults.push({
                                         name: guildId,
                                         success: false,
-                                        error: error.message
+                                        error: error.message,
                                     });
                                 }
                             }
@@ -142,7 +142,13 @@ export const modalHandlers = {
 
                             // 只向用户显示成功的结果
                             if (successResults.length > 0) {
-                                await interaction.editReply(`✅ 审核通过！已为您添加创作者身份组${successResults.length > 1 ? `（已同步至：${successResults.map(r => r.name).join('、')}）` : ''}`);
+                                await interaction.editReply(
+                                    `✅ 审核通过！已为您添加创作者身份组${
+                                        successResults.length > 1
+                                            ? `（已同步至：${successResults.map(r => r.name).join('、')}）`
+                                            : ''
+                                    }`,
+                                );
                             } else {
                                 await interaction.editReply('❌ 添加身份组时出现错误，请联系管理员。');
                             }
@@ -152,7 +158,11 @@ export const modalHandlers = {
                                 await moderationChannel.send({ embeds: [auditEmbed] });
                             }
                             // 记录完整日志到后台
-                            logTime(`用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${successResults.map(r => r.name).join('、')}`);
+                            logTime(
+                                `用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${successResults
+                                    .map(r => r.name)
+                                    .join('、')}`,
+                            );
                         } else {
                             // 如果没有找到同步配置，只在当前服务器添加
                             const member = await interaction.guild.members.fetch(interaction.user.id);
@@ -291,7 +301,9 @@ export const modalHandlers = {
             };
 
             // 获取原处罚服务器的配置
-            const punishmentGuildConfig = interaction.client.guildManager.getGuildConfig(punishment.notificationGuildId);
+            const punishmentGuildConfig = interaction.client.guildManager.getGuildConfig(
+                punishment.notificationGuildId,
+            );
             if (punishment.notificationMessageId && punishmentGuildConfig?.moderationLogThreadId) {
                 const notificationLink = `https://discord.com/channels/${punishment.notificationGuildId}/${punishmentGuildConfig.moderationLogThreadId}/${punishment.notificationMessageId}`;
                 messageEmbed.description += `\n\n**原处罚通知：**\n[点击查看](${notificationLink})`;
@@ -349,9 +361,22 @@ export const modalHandlers = {
                         try {
                             const originalMessage = await dmChannel.messages.fetch(messageId);
                             if (originalMessage) {
-                                // 更新消息，移除按钮组件
+                                // 更新消息，添加撤回上诉按钮（而不是清空所有按钮）
                                 await originalMessage.edit({
-                                    components: [], // 清空所有按钮
+                                    components: [
+                                        {
+                                            type: 1,
+                                            components: [
+                                                {
+                                                    type: 2,
+                                                    style: 4,
+                                                    label: '撤回上诉',
+                                                    custom_id: `revoke_appeal_${interaction.user.id}_${process.id}_${messageId}`,
+                                                    emoji: '↩️',
+                                                },
+                                            ],
+                                        },
+                                    ],
                                 });
                             }
                         } catch (error) {
@@ -361,7 +386,7 @@ export const modalHandlers = {
                     }
                 }
             } catch (error) {
-                logTime(`移除上诉按钮失败: ${error.message}`, true);
+                logTime(`更新原始上诉消息失败: ${error.message}`, true);
                 // 继续执行，不影响主流程
             }
 
@@ -375,6 +400,142 @@ export const modalHandlers = {
             await interaction.editReply({
                 content: '❌ 处理上诉申请时出错，请稍后重试',
                 flags: ['Ephemeral'],
+            });
+        }
+    },
+
+    // 议事模态框处理器
+    submit_debate_modal: async interaction => {
+        try {
+            // 检查议事系统是否启用
+            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+            if (!guildConfig?.courtSystem?.enabled) {
+                await interaction.editReply({
+                    content: '❌ 此服务器未启用议事系统',
+                });
+                return;
+            }
+
+            // 获取用户输入
+            const title = interaction.fields.getTextInputValue('debate_title');
+            const reason = interaction.fields.getTextInputValue('debate_reason');
+            const motion = interaction.fields.getTextInputValue('debate_motion');
+            const implementation = interaction.fields.getTextInputValue('debate_implementation');
+            const voteTime = interaction.fields.getTextInputValue('debate_vote_time');
+
+            // 获取议事区频道
+            const courtChannel = await interaction.guild.channels.fetch(guildConfig.courtSystem.courtChannelId);
+            if (!courtChannel) {
+                await interaction.editReply({
+                    content: '❌ 无法获取议事频道',
+                });
+                return;
+            }
+
+            // 计算过期时间
+            const expireTime = new Date(Date.now() + guildConfig.courtSystem.summitDuration);
+
+            // 准备议事消息
+            const messageEmbed = {
+                color: 0x5865f2,
+                title: title,
+                description: `提案人：<@${interaction.user.id}>\n\n议事截止：<t:${Math.floor(
+                    expireTime.getTime() / 1000,
+                )}:R>`,
+                fields: [
+                    {
+                        name: '📝 原因',
+                        value: reason,
+                    },
+                    {
+                        name: '📋 动议',
+                        value: motion,
+                    },
+                    {
+                        name: '🔧 执行方案',
+                        value: implementation,
+                    },
+                    {
+                        name: '🕰️ 投票时间',
+                        value: voteTime,
+                    },
+                ],
+                timestamp: new Date(),
+                footer: {
+                    text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持`,
+                },
+            };
+
+            // 发送议事消息
+            const message = await courtChannel.send({
+                embeds: [messageEmbed],
+                components: [
+                    {
+                        type: 1,
+                        components: [
+                            {
+                                type: 2,
+                                style: 3,
+                                label: '支持',
+                                custom_id: `support_debate_${interaction.user.id}_${interaction.user.id}`,
+                                emoji: '👍',
+                            },
+                            {
+                                type: 2,
+                                style: 4,
+                                label: '撤回提案',
+                                custom_id: `revoke_process_${interaction.user.id}_debate`,
+                                emoji: '↩️',
+                            },
+                        ],
+                    },
+                ],
+            });
+
+            // 创建议事流程
+            const process = await ProcessModel.createCourtProcess({
+                type: 'debate',
+                targetId: interaction.user.id,
+                executorId: interaction.user.id,
+                messageId: message.id,
+                expireAt: expireTime.getTime(),
+                details: {
+                    embed: message.embeds[0].toJSON(),
+                    title: title,
+                    reason: reason,
+                    motion: motion,
+                    implementation: implementation,
+                    voteTime: voteTime,
+                },
+            });
+
+            // 更新消息以添加流程ID
+            await message.edit({
+                embeds: [
+                    {
+                        ...message.embeds[0].data,
+                        footer: {
+                            text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持 | 流程ID: ${process.id}`,
+                        },
+                    },
+                ],
+            });
+
+            // 调度流程到期处理
+            if (process) {
+                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
+            }
+
+            // 发送确认消息
+            await interaction.editReply({
+                content: `✅ 已提交议事申请\n👉 [点击查看议事消息](${message.url})`,
+            });
+
+            logTime(`用户 ${interaction.user.tag} 提交了议事 "${title}"`);
+        } catch (error) {
+            logTime(`提交议事申请失败: ${error.message}`, true);
+            await interaction.editReply({
+                content: '❌ 提交议事申请时出错，请稍后重试',
             });
         }
     },

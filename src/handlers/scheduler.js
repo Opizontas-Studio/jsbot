@@ -5,7 +5,7 @@ import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
 import PunishmentService from '../services/punishmentService.js';
-import { analyzeForumActivity, cleanupInactiveThreads } from '../services/threadAnalyzer.js';
+import { executeThreadManagement } from '../services/threadAnalyzer.js';
 import { VoteService } from '../services/voteService.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
@@ -164,8 +164,8 @@ class PunishmentScheduler {
             // 获取所有活跃的处罚
             const punishments = await dbManager.safeExecute(
                 'all',
-                `SELECT * FROM punishments 
-                WHERE status = 'active' 
+                `SELECT * FROM punishments
+                WHERE status = 'active'
                 AND (duration > 0 OR warningDuration > 0)`,
                 [],
             );
@@ -292,7 +292,7 @@ class VoteScheduler {
             // 获取所有进行中的投票
             const votes = await dbManager.safeExecute(
                 'all',
-                `SELECT * FROM votes 
+                `SELECT * FROM votes
                 WHERE status = 'in_progress'
                 AND (publicTime > ? OR endTime > ?)`,
                 [Date.now(), Date.now()],
@@ -480,7 +480,7 @@ class TaskScheduler {
             logTime('任务调度器已经初始化');
             return;
         }
-        
+
         // 保存client引用以供重载任务使用
         this.client = client;
 
@@ -637,12 +637,12 @@ class TaskScheduler {
 
     // 注册子区分析和清理任务
     registerAnalysisTasks(client) {
-        // 获取所有启用了分析的服务器
-        const analysisGuilds = Array.from(client.guildManager.guilds.entries())
-            .filter(([_, config]) => config.automation?.analysis)
+        // 获取所有启用了子区管理的服务器（mode不为disabled）
+        const managedGuilds = Array.from(client.guildManager.guilds.entries())
+            .filter(([_, config]) => config.automation?.mode !== 'disabled')
             .map(([guildId]) => guildId);
 
-        if (analysisGuilds.length === 0) return;
+        if (managedGuilds.length === 0) return;
 
         // 计算当前时间到下一个整点的时间
         const now = new Date();
@@ -650,22 +650,30 @@ class TaskScheduler {
         nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
 
         // 为每个服务器设置错开的执行时间
-        analysisGuilds.forEach((guildId, index) => {
+        managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
-            
+
             // 计算该服务器的首次执行时间
             // 基础时间为下一个整点，每个服务器额外延迟10分钟 * index
             const initialDelay = nextHour.getTime() - now.getTime() + (index * 10 * TIME_UNITS.MINUTE);
             const startTime = new Date(now.getTime() + initialDelay);
 
             this.addTask({
-                taskId: `analysis_${guildId}`,
-                interval: 2 * TIME_UNITS.HOUR, // 改为2小时间隔
+                taskId: `thread_management_${guildId}`,
+                interval: 2 * TIME_UNITS.HOUR, // 2小时间隔
                 startAt: startTime,
                 task: async () => {
                     try {
-                        await this.executeThreadTasks(client, guildConfig, guildId);
-                        logTime(`完成服务器 ${guildId} 的子区分析任务，下次执行时间：${new Date(Date.now() + 2 * TIME_UNITS.HOUR).toLocaleString()}`);
+                        await globalRequestQueue.add(async () => {
+                            // 获取活跃子区数据
+                            const guild = await client.guilds.fetch(guildId);
+                            const activeThreads = await guild.channels.fetchActiveThreads();
+
+                            // 执行子区管理（分析和/或清理）
+                            await executeThreadManagement(client, guildConfig, guildId, activeThreads);
+                        }, 0);
+
+                        logTime(`完成服务器 ${guildId} 的子区管理任务，下次执行时间：${new Date(Date.now() + 2 * TIME_UNITS.HOUR).toLocaleString()}`);
                     } catch (error) {
                         logTime(
                             `服务器 ${guildId} 的定时任务执行失败: ${error.name}${
@@ -678,36 +686,9 @@ class TaskScheduler {
             });
 
             // 输出调度信息
-            logTime(`已为服务器 ${guildId} 调度子区分析任务，首次执行时间：${startTime.toLocaleString()}`);
+            const modeText = guildConfig.automation.mode === 'analysis' ? '分析' : '分析和清理';
+            logTime(`已为服务器 ${guildId} 调度子区${modeText}任务，首次执行时间：${startTime.toLocaleString()}`);
         });
-    }
-
-    // 执行子区分析和清理任务
-    async executeThreadTasks(client, guildConfig, guildId) {
-        try {
-            await globalRequestQueue.add(async () => {
-                // 获取活跃子区数据
-                const guild = await client.guilds.fetch(guildId);
-                const activeThreads = await guild.channels.fetchActiveThreads();
-
-                // 执行分析和清理
-                if (guildConfig.automation?.analysis) {
-                    await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
-                }
-
-                if (guildConfig.automation?.cleanup?.enabled) {
-                    const threshold = guildConfig.automation.cleanup.threshold || 960;
-                    await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
-                }
-            }, 0);
-        } catch (error) {
-            logTime(
-                `服务器 ${guildId} 的定时任务执行失败: ${error.name}${error.code ? ` (${error.code})` : ''} - ${
-                    error.message
-                }`,
-                true,
-            );
-        }
     }
 
     // 注册监控任务

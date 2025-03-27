@@ -37,11 +37,8 @@ export class GuildManager {
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID
                 automation: {
-                    analysis: automationConfig.analysis || false, // boolean - 是否启用自动分析
-                    cleanup: {
-                        enabled: automationConfig.cleanup?.enabled || false, // boolean - 是否启用自动清理
-                        threshold: automationConfig.cleanup?.threshold || 960, // number - 清理阈值（分钟）
-                    },
+                    mode: automationConfig.mode || 'disabled', // string - 子区管理模式：'analysis'、'cleanup'或'disabled'
+                    threshold: automationConfig.threshold || 960, // number - 清理阈值
                     logThreadId: automationConfig.logThreadId, // string - 自动化日志频道ID
                     whitelistedThreads: automationConfig.whitelistedThreads || [], // string[] - 白名单主题ID数组
                 },
@@ -77,11 +74,10 @@ export class GuildManager {
 
             // 构建状态信息
             const features = [];
-            if (automationConfig.analysis) {
+            if (serverConfig.automation.mode === 'analysis') {
                 features.push('已启用分析');
-            }
-            if (automationConfig.cleanup?.enabled) {
-                features.push(`已启用清理(阈值:${automationConfig.cleanup.threshold || 960})`);
+            } else if (serverConfig.automation.mode === 'cleanup') {
+                features.push(`已启用清理(阈值:${serverConfig.automation.threshold})`);
             }
 
             logTime(`已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);

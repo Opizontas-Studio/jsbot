@@ -124,7 +124,7 @@ export async function handleConfirmationButton({
  * 每个处理器函数接收一个 ButtonInteraction 参数
  */
 export const buttonHandlers = {
-    // 身份组申请按钮处理器 - 不需要defer（显示模态框）
+    // 身份组申请按钮处理器
     apply_creator_role: async interaction => {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('roleapply', interaction.user.id);

@@ -36,13 +36,13 @@ async function loadMessageIds() {
         if (!messageIds.analysisMessages) {
             messageIds.analysisMessages = {};
         }
-        
+
         ['top10', 'statistics'].forEach(type => {
             if (!messageIds.analysisMessages[type]) {
                 messageIds.analysisMessages[type] = {};
             }
         });
-        
+
         return messageIds;
     } catch (error) {
         // 如果文件不存在或解析失败，创建新的配置
@@ -374,7 +374,7 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
         // 获取日志频道
         const logChannelId = guildConfig.automation.logThreadId;
         const logChannel = await client.channels.fetch(logChannelId);
-        
+
         // 加载消息ID配置
         const messageIds = await loadMessageIds();
 
@@ -402,6 +402,13 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
     logTime(`开始清理服务器 ${guildId} 的不活跃子区`);
 
     try {
+        // 获取日志频道
+        const logChannelId = guildConfig.automation.logThreadId;
+        const logChannel = await client.channels.fetch(logChannelId);
+
+        // 加载消息ID配置
+        const messageIds = await loadMessageIds();
+
         // 收集数据
         const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
 
@@ -412,9 +419,13 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         Object.assign(statistics, cleanupResult.statistics);
         failedOperations.push(...cleanupResult.failedOperations);
 
+        // 生成报告
+        await sendInactiveThreadsList(logChannel, guildId, validThreads, messageIds);
+        await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
+
         // 输出清理结果日志
         logTime(`清理统计: 总活跃子区数 ${statistics.totalThreads}, 已清理子区数 ${cleanupResult.statistics.archivedThreads}, 跳过置顶子区 ${cleanupResult.statistics.skippedPinnedThreads}, 清理阈值 ${threshold}`);
-        
+
         if (failedOperations.length > 0) {
             logTime(`清理失败记录: ${failedOperations.length}个操作失败`, true);
             failedOperations.slice(0, 5).forEach(fail => {
@@ -430,6 +441,37 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         return { statistics, failedOperations };
     } catch (error) {
         logTime(`服务器 ${guildId} 清理操作失败: ${error.message}`, true);
+        throw error;
+    }
+};
+
+/**
+ * 根据配置模式执行子区管理操作
+ * @param {Object} client - Discord客户端
+ * @param {Object} guildConfig - 服务器配置
+ * @param {string} guildId - 服务器ID
+ * @param {Object} activeThreads - 活跃子区列表（可选）
+ */
+export const executeThreadManagement = async (client, guildConfig, guildId, activeThreads = null) => {
+    // 检查配置的模式
+    const mode = guildConfig.automation.mode;
+    const threshold = guildConfig.automation.threshold;
+
+    if (mode === 'disabled') {
+        logTime(`服务器 ${guildId} 未启用子区自动管理`);
+        return null;
+    }
+
+    try {
+        if (mode === 'analysis') {
+            // 仅执行分析，不清理
+            return await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
+        } else if (mode === 'cleanup') {
+            // 分析并执行清理
+            return await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
+        }
+    } catch (error) {
+        logTime(`服务器 ${guildId} 子区管理操作失败: ${error.message}`, true);
         throw error;
     }
 };

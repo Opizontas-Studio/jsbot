@@ -26,7 +26,7 @@ const cooldowns = new Collection();
  * 检查并设置冷却时间
  * @param {string} type - 操作类型
  * @param {string} userId - 用户ID
- * @param {number} [duration=30000] - 冷却时间（毫秒）
+ * @param {number} [duration=10000] - 冷却时间（毫秒）
  * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
  */
 function checkCooldown(type, userId, duration = 10000) {
@@ -428,14 +428,6 @@ export const buttonHandlers = {
             // 解析按钮ID获取提交者ID、流程ID和原始消息ID
             const [, , submitterId, processId, originalMessageId] = interaction.customId.split('_');
 
-            // 检查是否是提交者本人
-            if (interaction.user.id !== submitterId) {
-                await interaction.editReply({
-                    content: '❌ 只有申请人本人可以撤销上诉',
-                });
-                return;
-            }
-
             // 获取流程记录
             const process = await ProcessModel.getProcessById(parseInt(processId));
             if (!process) {
@@ -577,12 +569,6 @@ export const buttonHandlers = {
                             logTime(`获取原始上诉消息失败: ${error.message}`, true);
                         }
                     }
-
-                    // 无论按钮移除是否成功，都发送错误消息
-                    await interaction.reply({
-                        content: `❌ ${errorMessage}`,
-                        flags: ['Ephemeral'],
-                    });
                 } catch (error) {
                     logTime(`移除上诉按钮失败: ${error.message}`, true);
                     // 如果整个过程失败，至少确保发送错误消息
@@ -850,7 +836,7 @@ const BUTTON_CONFIG = {
         revoke_appeal: { handler: buttonHandlers.revoke_appeal },
     },
 
-    // 不需要defer的按钮（显示模态框）
+    // 不需要defer的按钮
     modalButtons: {
         appeal_: interaction => {
             const punishmentId = interaction.customId.split('_')[1];

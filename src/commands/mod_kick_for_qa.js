@@ -31,7 +31,7 @@ export default {
             const reason = interaction.options.getString('理由') ?? '违反问答规范';
             const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
 
-            // 检查管理员或版主权限
+            // 统一验证权限
             const hasAdminPermission = interaction.member.roles.cache.some(role =>
                 guildConfig.AdministratorRoleIds.includes(role.id)
             );
@@ -39,53 +39,43 @@ export default {
                 guildConfig.ModeratorRoleIds.includes(role.id)
             );
             const hasManagementPermission = hasAdminPermission || hasModeratorPermission;
+            const hasQAerPermission = interaction.member.roles.cache.some(role =>
+                role.id === guildConfig.roleApplication?.QAerRoleId
+            );
+
+            // 检查权限
+            if (!hasManagementPermission && !hasQAerPermission) {
+                await interaction.editReply('❌ 你没有权限使用此命令。需要具有管理员、版主或答疑员身份组。');
+                return;
+            }
 
             let targetGroups = [];
-            let isQAerOperation = false;
+            let isQAerOperation = !hasManagementPermission && hasQAerPermission;
 
-            if (hasManagementPermission) {
-                // 管理员可以移除缓冲区和已验证的同步组
-                targetGroups = roleSyncConfig.syncGroups.filter(group =>
-                    ['缓冲区', '已验证'].includes(group.name)
-                );
+            // 提前获取缓冲区和已验证的同步组
+            targetGroups = roleSyncConfig.syncGroups.filter(group =>
+                ['缓冲区', '已验证'].includes(group.name)
+            );
 
-                if (!targetGroups.length) {
-                    await interaction.editReply('❌ 未找到缓冲区或已验证的身份组配置');
-                    return;
-                }
-            } else {
-                // 检查是否有QAer身份组
-                const hasQAerPermission = interaction.member.roles.cache.some(role =>
-                    role.id === guildConfig.roleApplication?.QAerRoleId
-                );
+            if (!targetGroups.length) {
+                await interaction.editReply('❌ 未找到缓冲区或已验证的身份组配置');
+                return;
+            }
 
-                if (!hasQAerPermission) {
-                    await interaction.editReply('❌ 你没有权限使用此命令。需要具有管理员或答疑区战神身份组。');
-                    return;
-                }
-
-                // QAer只能移除缓冲区身份组
-                const bufferGroup = roleSyncConfig.syncGroups.find(group => group.name === '缓冲区');
-
-                if (!bufferGroup) {
-                    await interaction.editReply('❌ 未找到缓冲区身份组配置');
-                    return;
-                }
-
+            // QAer操作额外检查目标是否具有创作者身份组
+            if (isQAerOperation) {
                 // 获取目标用户在当前服务器的成员信息
                 const targetMember = await interaction.guild.members.fetch(targetUser.id);
 
-                // 检查目标用户是否具有缓冲区身份组
-                const bufferRoleId = bufferGroup.roles[interaction.guild.id];
-                const hasBufferRole = bufferRoleId && targetMember.roles.cache.has(bufferRoleId);
-
-                if (!hasBufferRole) {
-                    await interaction.editReply('❌ 目标用户没有缓冲区身份组，无法执行处罚操作');
-                    return;
+                // 检查目标用户是否具有创作者身份组
+                const creatorGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
+                if (creatorGroup) {
+                    const creatorRoleId = creatorGroup.roles[interaction.guild.id];
+                    if (creatorRoleId && targetMember.roles.cache.has(creatorRoleId)) {
+                        await interaction.editReply('❌ 目标用户为创作者，无法对其直接操作，请联系管理员');
+                        return;
+                    }
                 }
-
-                targetGroups = [bufferGroup];
-                isQAerOperation = true;
             }
 
             // 使用批量处理函数

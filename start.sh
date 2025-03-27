@@ -8,24 +8,12 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# 构建TypeScript
-build_typescript() {
-    log "Building TypeScript files..."
-    if pnpm run build; then
-        log "TypeScript build completed successfully"
-        return 0
-    else
-        log "TypeScript build failed"
-        return 1
-    fi
-}
-
 # PM2配置文件
 cat > ecosystem.config.cjs << EOL
 module.exports = {
   apps: [{
     name: 'discord-bot',
-    script: 'dist/index.js',
+    script: 'src/index.js',
     watch: false,
     max_memory_restart: '1G',
     env: {
@@ -34,7 +22,7 @@ module.exports = {
     error_file: 'logs/err.log',
     out_file: 'logs/out.log',
     time: true,
-    // 每168小时重启一次
+    // 每7天（168小时）重启一次
     cron_restart: '0 0 */7 * *',
     // 优雅关闭
     kill_timeout: 10000,
@@ -48,29 +36,23 @@ EOL
 # 创建日志目录
 mkdir -p logs
 
-# 构建项目
-if ! build_typescript; then
-    log "Build failed, exiting..."
-    exit 1
-fi
-
 # 检查PM2是否已经在运行这个应用
 if pm2 list | grep -q "discord-bot"; then
-    log "Stopping existing discord-bot process..."
+    log "停止现有discord-bot进程..."
     pm2 stop discord-bot
     pm2 delete discord-bot
 fi
 
 # 启动应用
-log "Starting Discord Bot with PM2..."
+log "使用PM2启动Discord机器人..."
 pm2 start ecosystem.config.cjs
 
 # 保存PM2配置
-log "Saving PM2 configuration..."
+log "保存PM2配置..."
 pm2 save
 
 # 设置开机自启
-log "Setting up startup script..."
+log "设置启动脚本..."
 pm2 startup
 
-log "Bot startup complete. Use 'pm2 logs discord-bot' to view logs" 
+log "机器人启动完成。使用 'pm2 logs discord-bot' 查看日志"

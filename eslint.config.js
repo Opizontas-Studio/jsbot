@@ -1,18 +1,12 @@
 import eslint from '@eslint/js';
 import eslintConfigPrettier from 'eslint-config-prettier';
-import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
+export default [
     eslint.configs.recommended,
-    // enable it afterwards
-    // tseslint.configs.recommendedTypeChecked,
     {
         languageOptions: {
             ecmaVersion: 'latest',
-            // parserOptions: {
-            //   projectService: true,
-            //   tsconfigRootDir: import.meta.dirname,
-            // },
+            sourceType: 'module',
         },
         rules: {
             'handle-callback-err': 'off',
@@ -29,4 +23,4 @@ export default tseslint.config(
         },
     },
     eslintConfigPrettier,
-);
+];

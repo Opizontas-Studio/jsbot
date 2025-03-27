@@ -1,6 +1,6 @@
 # Discord.js Bot Project
 
-## 使用
+## 本地使用
 
 将 `config.json` 放在根目录下, 将 `messageIds.json` 放在 `data` 文件夹下
 
@@ -17,11 +17,73 @@ pnpm install
 pnpm start
 ```
 
-为了避免 bot 在一些未知的极端情况下卡死, 你可以运行能自动重启的 `start.ps1` 脚本, 而非直接运行 `pnpm start`.
+## Linux上配合PM2使用
+
+1. 确保已安装Node.js和pnpm
+```bash
+# 安装Node.js
+
+# 到项目目录
+
+# 安装pnpm
+npm install -g pnpm
+
+# 安装PM2
+npm install -g pm2
+```
+
+2. 使用脚本启动机器人
+```bash
+# 添加执行权限
+chmod +x start.sh update.sh monitor.sh
+
+# 启动BOT
+./start.sh
+
+# 更新BOT
+./update.sh
+```
+
+### 管理机器人
+
+1. 启动与停止
+```bash
+# 启动
+./start.sh
+# 或直接使用PM2
+pm2 start ecosystem.config.cjs
+
+# 停止
+pm2 stop discord-bot
+
+# 重启
+pm2 restart discord-bot
+```
+
+1. 监控机器人状态
+```bash
+# 后台运行监控脚本
+./monitor.sh &
+
+# 查看日志
+pm2 logs discord-bot --lines 200
+
+# 查看状态
+pm2 status
+```
+
+4. 设置开机自启
+```bash
+# PM2启动脚本
+pm2 startup
+
+# 保存当前运行的应用列表
+pm2 save
+```
 
 ## 参与贡献
 
-本项目采用 JavaScript 混合了少量 TypeScript 编写, 项目整体为自建架构, 因而有如下文件结构:
+本项目采用 JavaScript 编写, 项目整体为自建架构, 因而有如下文件结构:
 
 ```txt
 ..
@@ -48,6 +110,7 @@ pnpm start
 │
 ├── services  # 对于较为复杂的命令, 在此编写处理逻辑
 │   ├── courtService.js  # 辩诉系统服务
+    ├── monitorService.js # 系统监控服务
 │   ├── punishmentService.js  # 处罚系统服务
 │   ├── roleApplication.js  # 身份组管理服务
 │   ├── threadAnalyzer.js  # 子区活跃度分析服务
@@ -55,14 +118,13 @@ pnpm start
 │   └── voteService.js  # 投票系统服务
 │
 ├── db  # 存取数据库, 数据文件将存储于 data/database.sqlite 中
-│   ├── dbManager.ts  # 对数据库建表、查询等操作的封装, 目前的建表是直接以 SQL 形式硬编码在代码中
+│   ├── dbManager.js  # 对数据库建表、查询等操作的封装, 目前的建表是直接以 SQL 形式硬编码在代码中
 │   └── models        # 对各表存取的封装
 │       ├── processModel.js     # 议事流程记录
 │       ├── punishmentModel.js  # 成员处罚记录
 │       └── voteModel.js        # 红蓝投票记录
 │
 └── utils
-    ├── assertion.ts  # 断言工具
     ├── concurrency.js  # 并发控制工具（队列器+批处理限速器）
     ├── guildManager.js  # 服务器配置管理
     ├── helper.js         # 通用函数封装

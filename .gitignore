@@ -9,13 +9,11 @@ yarn-error.log*
 data/
 config.json
 .env
+ecosystem.config.cjs
 
 # 依赖
 node_modules/
-
-# TypeScript 编译结果
-dist/
-build/
+pnpm-lock.yaml
 
 # 操作系统相关文件
 .DS_Store
@@ -29,3 +27,4 @@ $RECYCLE.BIN/
 .TemporaryItems
 ehthumbs.db
 Thumbs.db
+

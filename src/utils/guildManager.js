@@ -36,7 +36,6 @@ export class GuildManager {
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID
-                eventModeratorRoleIds: guildConfig.eventModeratorRoleIds || [], // 赛事管理员角色ID数组
                 automation: {
                     analysis: automationConfig.analysis || false, // boolean - 是否启用自动分析
                     cleanup: {

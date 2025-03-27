@@ -63,9 +63,8 @@ export default {
                 }
                 await handleEditChannel(interaction);
             } else if (subcommand === '创建赛事') {
-                // 创建赛事频道需要赛事管理员权限或管理员权限
-                const allowedRoles = [...guildConfig.eventModeratorRoleIds, ...guildConfig.AdministratorRoleIds];
-                if (!(await checkAndHandlePermission(interaction, allowedRoles))) {
+                // 创建赛事频道需要版主权限
+                if (!(await checkAndHandlePermission(interaction, guildConfig.ModeratorRoleIds))) {
                     return;
                 }
                 await handleCreateEventChannel(interaction, guildConfig);

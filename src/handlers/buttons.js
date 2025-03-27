@@ -23,6 +23,28 @@ import { globalTaskScheduler } from './scheduler.js';
 const cooldowns = new Collection();
 
 /**
+ * 检查并设置冷却时间
+ * @param {string} type - 操作类型
+ * @param {string} userId - 用户ID
+ * @param {number} [duration=30000] - 冷却时间（毫秒）
+ * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
+ */
+function checkCooldown(type, userId, duration = 10000) {
+    const now = Date.now();
+    const cooldownKey = `${type}:${userId}`;
+    const cooldownTime = cooldowns.get(cooldownKey);
+
+    if (cooldownTime && now < cooldownTime) {
+        return Math.ceil((cooldownTime - now) / 1000);
+    }
+
+    // 设置冷却时间
+    cooldowns.set(cooldownKey, now + duration);
+    setTimeout(() => cooldowns.delete(cooldownKey), duration);
+    return null;
+}
+
+/**
  * 创建并处理确认按钮
  * @param {Object} options - 配置选项
  * @param {BaseInteraction} options.interaction - Discord交互对象
@@ -95,28 +117,6 @@ export async function handleConfirmationButton({
             throw error;
         }
     }
-}
-
-/**
- * 检查并设置冷却时间
- * @param {string} type - 操作类型
- * @param {string} userId - 用户ID
- * @param {number} [duration=30000] - 冷却时间（毫秒）
- * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
- */
-function checkCooldown(type, userId, duration = 10000) {
-    const now = Date.now();
-    const cooldownKey = `${type}:${userId}`;
-    const cooldownTime = cooldowns.get(cooldownKey);
-
-    if (cooldownTime && now < cooldownTime) {
-        return Math.ceil((cooldownTime - now) / 1000);
-    }
-
-    // 设置冷却时间
-    cooldowns.set(cooldownKey, now + duration);
-    setTimeout(() => cooldowns.delete(cooldownKey), duration);
-    return null;
 }
 
 /**
@@ -494,7 +494,6 @@ export const buttonHandlers = {
 
                             if (courtMessage) {
                                 await courtMessage.delete();
-                                logTime(`上诉议事消息已被删除: ${process.messageId}`);
                             } else {
                                 logTime(`未找到上诉议事消息: ${process.messageId}`, true);
                             }
@@ -526,7 +525,6 @@ export const buttonHandlers = {
                     const originalMessage = await dmChannel.messages.fetch(originalMessageId).catch(() => null);
                     if (originalMessage) {
                         await originalMessage.edit({ components: [] });
-                        logTime(`已移除上诉撤回按钮: ${originalMessageId}`);
                     }
                 }
             } catch (error) {
@@ -544,10 +542,102 @@ export const buttonHandlers = {
             await handleInteractionError(interaction, error, 'revoke_appeal');
         }
     },
+
+    // 上诉按钮处理器
+    appeal: async (interaction, punishmentId) => {
+        try {
+            // 检查冷却时间
+            const cooldownLeft = checkCooldown('appeal', interaction.user.id);
+            if (cooldownLeft) {
+                await interaction.reply({
+                    content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+
+            // 获取处罚记录
+            const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
+
+            // 移除上诉按钮的通用函数
+            const removeAppealButton = async errorMessage => {
+                try {
+                    // 先尝试获取用户的DM channel
+                    const dmChannel = await interaction.user.createDM();
+                    if (dmChannel) {
+                        try {
+                            const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
+                            if (originalMessage) {
+                                await originalMessage.edit({
+                                    components: [], // 清空所有按钮
+                                });
+                            }
+                        } catch (error) {
+                            // 如果获取消息失败，记录日志但不影响主流程
+                            logTime(`获取原始上诉消息失败: ${error.message}`, true);
+                        }
+                    }
+
+                    // 无论按钮移除是否成功，都发送错误消息
+                    await interaction.reply({
+                        content: `❌ ${errorMessage}`,
+                        flags: ['Ephemeral'],
+                    });
+                } catch (error) {
+                    logTime(`移除上诉按钮失败: ${error.message}`, true);
+                    // 如果整个过程失败，至少确保发送错误消息
+                    await interaction.reply({
+                        content: `❌ ${errorMessage}`,
+                        flags: ['Ephemeral'],
+                    });
+                }
+            };
+
+            // 检查处罚状态
+            const { isValid, error: statusError } = checkPunishmentStatus(punishment);
+            if (!isValid) {
+                await removeAppealButton(statusError);
+                return;
+            }
+
+            // 检查上诉资格
+            const { isEligible, error: eligibilityError } = await checkAppealEligibility(interaction.user.id);
+            if (!isEligible) {
+                await removeAppealButton(eligibilityError);
+                return;
+            }
+
+            // 调试日志
+            logTime(`用户申请上诉，处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
+
+            // 创建上诉表单
+            const modal = new ModalBuilder()
+                .setCustomId(`appeal_modal_${punishmentId}_${interaction.message.id}`)
+                .setTitle('提交上诉申请');
+
+            const appealContentInput = new TextInputBuilder()
+                .setCustomId('appeal_content')
+                .setLabel('请详细说明你的上诉理由')
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder(
+                    '请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。',
+                )
+                .setMinLength(10)
+                .setMaxLength(1000)
+                .setRequired(true);
+
+            const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);
+            modal.addComponents(firstActionRow);
+
+            await interaction.showModal(modal);
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'appeal_button');
+        }
+    },
 };
 
 /**
- * 处理议事区支持按钮
+ * 议事区支持处理函数
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
  * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate')
  */
@@ -649,102 +739,6 @@ async function handleCourtSupport(interaction, type) {
         });
     } catch (error) {
         await handleInteractionError(interaction, error, 'court_support');
-    }
-}
-
-/**
- * 处理上诉按钮点击
- * @param {ButtonInteraction} interaction - Discord按钮交互对象
- * @param {string} punishmentId - 处罚ID
- */
-async function handleAppealButton(interaction, punishmentId) {
-    try {
-        // 检查冷却时间
-        const cooldownLeft = checkCooldown('appeal', interaction.user.id);
-        if (cooldownLeft) {
-            await interaction.reply({
-                content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
-
-        // 获取处罚记录
-        const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-
-        // 移除上诉按钮的通用函数
-        const removeAppealButton = async errorMessage => {
-            try {
-                // 先尝试获取用户的DM channel
-                const dmChannel = await interaction.user.createDM();
-                if (dmChannel) {
-                    try {
-                        const originalMessage = await dmChannel.messages.fetch(interaction.message.id);
-                        if (originalMessage) {
-                            await originalMessage.edit({
-                                components: [], // 清空所有按钮
-                            });
-                        }
-                    } catch (error) {
-                        // 如果获取消息失败，记录日志但不影响主流程
-                        logTime(`获取原始上诉消息失败: ${error.message}`, true);
-                    }
-                }
-
-                // 无论按钮移除是否成功，都发送错误消息
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    flags: ['Ephemeral'],
-                });
-            } catch (error) {
-                logTime(`移除上诉按钮失败: ${error.message}`, true);
-                // 如果整个过程失败，至少确保发送错误消息
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    flags: ['Ephemeral'],
-                });
-            }
-        };
-
-        // 检查处罚状态
-        const { isValid, error: statusError } = checkPunishmentStatus(punishment);
-        if (!isValid) {
-            await removeAppealButton(statusError);
-            return;
-        }
-
-        // 检查上诉资格
-        const { isEligible, error: eligibilityError } = await checkAppealEligibility(interaction.user.id);
-        if (!isEligible) {
-            await removeAppealButton(eligibilityError);
-            return;
-        }
-
-        // 调试日志
-        logTime(`用户申请上诉，处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
-
-        // 创建上诉表单
-        const modal = new ModalBuilder()
-            .setCustomId(`appeal_modal_${punishmentId}_${interaction.message.id}`)
-            .setTitle('提交上诉申请');
-
-        const appealContentInput = new TextInputBuilder()
-            .setCustomId('appeal_content')
-            .setLabel('请详细说明你的上诉理由')
-            .setStyle(TextInputStyle.Paragraph)
-            .setPlaceholder(
-                '请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。',
-            )
-            .setMinLength(10)
-            .setMaxLength(1000)
-            .setRequired(true);
-
-        const firstActionRow = new ActionRowBuilder().addComponents(appealContentInput);
-        modal.addComponents(firstActionRow);
-
-        await interaction.showModal(modal);
-    } catch (error) {
-        await handleInteractionError(interaction, error, 'appeal_button');
     }
 }
 
@@ -860,7 +854,7 @@ const BUTTON_CONFIG = {
     modalButtons: {
         appeal_: interaction => {
             const punishmentId = interaction.customId.split('_')[1];
-            return handleAppealButton(interaction, punishmentId);
+            return buttonHandlers.appeal(interaction, punishmentId);
         },
         apply_creator_role: buttonHandlers.apply_creator_role,
         start_debate: buttonHandlers.start_debate,

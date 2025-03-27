@@ -41,7 +41,7 @@ const client = new Client({
 client.commands = new Collection();
 client.guildManager = new GuildManager();
 
-// 加载事件处理器
+// 加载事件函数
 async function loadEvents() {
     const eventsPath = join(currentDir, 'events');
     const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
@@ -78,7 +78,7 @@ async function loadEvents() {
     logTime(`已加载 ${loadedEvents} 个事件处理器`);
 }
 
-// 进程错误处理函数
+// 进程错误处理
 const handleProcessError = async (error, source = '') => {
     const errorDetails = error instanceof Error ? error : new Error(String(error));
     logTime(`${source ? `[${source}] ` : ''}发生错误:`, true);
@@ -186,7 +186,7 @@ const setupProcessHandlers = client => {
 // 主函数
 async function main() {
     try {
-        // 在开始时记录版本信息
+        // 版本信息
         const versionInfo = getVersionInfo();
         if (versionInfo) {
             logTime(`GateKeeper in Odysseia ${versionInfo.version} (${versionInfo.commitHash})`);
@@ -208,10 +208,10 @@ async function main() {
             process.exit(1);
         }
 
-        // 初始化服务器管理器
+        // 初始化配置管理器
         client.guildManager.initialize(config);
 
-        // 先登录
+        // 登录
         try {
             await client.login(config.token);
         } catch (error) {
@@ -232,8 +232,6 @@ async function main() {
         // 加载命令
         const commandsPath = join(currentDir, 'commands');
         const commands = await loadCommandFiles(commandsPath);
-        const commandData = Array.from(commands.values()).map(cmd => cmd.data.toJSON());
-        const rest = new REST({ version: '10' }).setToken(config.token);
 
         // 部署命令
         await deployCommands(client, commands, config);
@@ -244,7 +242,7 @@ async function main() {
         logTime('启动过程中发生错误:', true);
         console.error(error);
 
-        // 确保在发生错误时也能正确清理资源
+        // 发生错误时也正确断开数据库
         if (dbManager && dbManager.getConnectionStatus()) {
             await dbManager.disconnect();
         }

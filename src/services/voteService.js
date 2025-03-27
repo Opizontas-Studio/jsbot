@@ -29,7 +29,7 @@ class VoteService {
             }
 
             const { type, targetId, executorId, details } = process;
-            const totalVoters = guildConfig.courtSystem.senatorRoleId
+            const totalVoters = guildConfig.roleApplication?.senatorRoleId
                 ? await this._getSenatorsCount(client)
                 : 0;
 
@@ -156,7 +156,7 @@ class VoteService {
             const mainGuildConfig = Array.from(client.guildManager.guilds.values())
                 .find(config => config.serverType === 'Main server');
 
-            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.courtSystem.appealDebateRoleId) {
+            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.appealDebateRoleId) {
                 return;
             }
 
@@ -179,7 +179,7 @@ class VoteService {
                 .filter(member => member) // 过滤掉不存在的成员
                 .map(member =>
                     member.roles
-                        .remove(mainGuildConfig.courtSystem.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
+                        .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
                         .then(() => logTime(`已移除用户 ${member.user.tag} 的辩诉通行身份组`))
                         .catch(error => logTime(`移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
                 );
@@ -338,7 +338,7 @@ class VoteService {
 
                         // 读取身份组同步配置，查找对应的同步组
                         const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-                        let foundSyncGroup = roleSyncConfig.syncGroups.find(group => 
+                        let foundSyncGroup = roleSyncConfig.syncGroups.find(group =>
                             Object.values(group.roles).includes(details.revokeRoleId)
                         );
 
@@ -552,7 +552,7 @@ class VoteService {
             const mainGuildConfig = Array.from(client.guildManager.guilds.values())
                 .find(config => config.serverType === 'Main server');
 
-            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.courtSystem.senatorRoleId) {
+            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.senatorRoleId) {
                 logTime('无法获取主服务器配置或议事系统未启用', true);
                 return 0;
             }
@@ -566,19 +566,19 @@ class VoteService {
 
             // 获取最新的身份组信息
             const roles = await guild.roles.fetch();
-            const role = roles.get(mainGuildConfig.courtSystem.senatorRoleId);
+            const role = roles.get(mainGuildConfig.roleApplication?.senatorRoleId);
 
             if (!role) {
-                logTime(`无法获取议员身份组: ${mainGuildConfig.courtSystem.senatorRoleId}`, true);
+                logTime(`无法获取议员身份组: ${mainGuildConfig.roleApplication?.senatorRoleId}`, true);
                 return 0;
             }
 
             // 获取所有服务器成员
             const members = await guild.members.fetch();
-            
+
             // 统计拥有议员身份组的成员数量
             const senatorsCount = members.filter(
-                member => member.roles.cache.has(mainGuildConfig.courtSystem.senatorRoleId) && !member.user.bot
+                member => member.roles.cache.has(mainGuildConfig.roleApplication?.senatorRoleId) && !member.user.bot
             ).size;
 
             // 记录实际议员数量日志

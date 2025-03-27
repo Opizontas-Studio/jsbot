@@ -30,12 +30,6 @@ export const modalHandlers = {
             const [, linkGuildId, threadId] = matches;
             const currentGuildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 
-            // 检查当前服务器是否启用功能
-            if (!currentGuildConfig?.roleApplication?.enabled) {
-                await interaction.editReply('❌ 此服务器未启用身份组申请功能');
-                return;
-            }
-
             if (!currentGuildConfig?.roleApplication?.creatorRoleId) {
                 await interaction.editReply('❌ 服务器配置错误');
                 return;

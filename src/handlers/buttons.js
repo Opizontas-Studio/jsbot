@@ -136,16 +136,6 @@ export const buttonHandlers = {
             return;
         }
 
-        // 检查功能是否启用
-        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-        if (!guildConfig?.roleApplication?.enabled) {
-            await interaction.reply({
-                content: '❌ 此服务器未启用身份组申请功能',
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
-
         // 检查用户是否已有创作者身份组
         const member = await interaction.guild.members.fetch(interaction.user.id);
 
@@ -297,7 +287,7 @@ export const buttonHandlers = {
 
         // 检查是否为议员
         const member = await interaction.guild.members.fetch(interaction.user.id);
-        if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+        if (!member.roles.cache.has(guildConfig.roleApplication?.senatorRoleId)) {
             await interaction.reply({
                 content: '❌ 只有议员可以提交议案',
                 flags: ['Ephemeral'],
@@ -581,7 +571,7 @@ async function handleCourtSupport(interaction, type) {
 
         // 检查是否为议员
         const member = await interaction.guild.members.fetch(interaction.user.id);
-        if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+        if (!member.roles.cache.has(guildConfig.roleApplication?.senatorRoleId)) {
             return await interaction.editReply({
                 content: '❌ 只有议员可以参与议事投票',
             });
@@ -779,7 +769,7 @@ async function handleVoteButton(interaction, choice) {
 
         // 检查是否为议员
         const member = await interaction.guild.members.fetch(interaction.user.id);
-        if (!member.roles.cache.has(guildConfig.courtSystem.senatorRoleId)) {
+        if (!member.roles.cache.has(guildConfig.roleApplication?.senatorRoleId)) {
             return await interaction.editReply({
                 content: '❌ 只有议员可以参与投票',
             });
@@ -930,7 +920,7 @@ function findButtonConfig(customId) {
             handler: BUTTON_CONFIG.deferButtons[buttonPrefix].handler,
         };
     }
-    
+
     // 检查完全匹配的非defer按钮
     if (BUTTON_CONFIG.modalButtons[buttonPrefix]) {
         return {

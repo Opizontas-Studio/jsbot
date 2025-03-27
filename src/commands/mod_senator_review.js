@@ -17,14 +17,6 @@ export default {
                 return;
             }
 
-            // 检查服务器是否启用身份组申请功能
-            if (!guildConfig?.roleApplication?.enabled) {
-                await interaction.editReply({
-                    content: '❌ 此服务器未启用身份组申请功能',
-                });
-                return;
-            }
-
             // 验证当前频道是否为论坛帖子
             if (!interaction.channel.isThread()) {
                 await interaction.editReply({
@@ -44,8 +36,8 @@ export default {
 
             // 检查是否在指定的议员申请论坛中
             if (
-                !guildConfig.roleApplication.senatorRoleForumId ||
-                interaction.channel.parent.id !== guildConfig.roleApplication.senatorRoleForumId
+                !guildConfig.roleApplication?.senatorRoleForumId ||
+                interaction.channel.parent.id !== guildConfig.roleApplication?.senatorRoleForumId
             ) {
                 await interaction.editReply({
                     content: '❌ 此命令只能在议员申请论坛中使用',
@@ -125,7 +117,7 @@ export default {
                     // 使用子区创建时间作为帖子时间
                     const postDate = thread.createdAt;
                     const daysSincePost = Math.floor((Date.now() - postDate.getTime()) / (1000 * 60 * 60 * 24));
-                    
+
                     // 更新最早的帖子时间
                     if (oldestPostDate === null || postDate < oldestPostDate) {
                         oldestPostDate = postDate;
@@ -159,7 +151,7 @@ export default {
                 await interaction.channel.send({
                     content: `❌ 抱歉，您最早的作品仅发布了${oldestPostDays}天，不满足45天的时间要求，请耐心等待。`
                 });
-                
+
                 await interaction.editReply({
                     content: `❌ 提交的作品中最早的帖子未满足45天要求（当前最早: ${oldestPostDays}天）`,
                 });

@@ -477,7 +477,7 @@ class CourtService {
      */
     static async _addDebateRolesToBothParties(client, guildConfig, executorId, targetId, reason) {
         const mainGuild = await client.guilds.fetch(guildConfig.id).catch(() => null);
-        if (!mainGuild || !guildConfig.courtSystem.appealDebateRoleId) {
+        if (!mainGuild || !guildConfig.roleApplication?.appealDebateRoleId) {
             return;
         }
 
@@ -492,7 +492,7 @@ class CourtService {
             .filter(member => member) // 过滤掉不存在的成员
             .map(member =>
                 member.roles
-                    .add(guildConfig.courtSystem.appealDebateRoleId, reason)
+                    .add(guildConfig.roleApplication?.appealDebateRoleId, reason)
                     .then(() => logTime(`已添加用户 ${member.user.tag} 的辩诉通行身份组`))
                     .catch(error => logTime(`添加辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
             );

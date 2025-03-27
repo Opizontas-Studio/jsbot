@@ -107,12 +107,12 @@ export const executePunishmentAction = async (guild, punishment) => {
                     await member.timeout(remainingDuration, reason);
 
                     // 如果有警告，添加警告身份组
-                    if (punishment.warningDuration && guildConfig?.WarnedRoleId) {
+                    if (punishment.warningDuration && guildConfig?.roleApplication?.WarnedRoleId) {
                         // 检查警告是否仍然有效
                         const warningExpiryTime = punishment.createdAt + punishment.warningDuration;
                         if (warningExpiryTime > now) {
                             await member.roles
-                                .add(guildConfig.WarnedRoleId, reason)
+                                .add(guildConfig.roleApplication?.WarnedRoleId, reason)
                                 .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
                         }
                     }
@@ -149,7 +149,7 @@ export const executePunishmentAction = async (guild, punishment) => {
 export const sendModLogNotification = async (channel, punishment, executor, target) => {
     try {
         // 获取目标用户的头像URL
-        const targetAvatarURL = target.displayAvatarURL({ 
+        const targetAvatarURL = target.displayAvatarURL({
             dynamic: true,
             size: 64,
         }) || target.defaultAvatarURL;
@@ -230,7 +230,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
         const executor = await channel.client.users.fetch(punishment.executorId);
 
         // 获取目标用户的头像URL
-        const targetAvatarURL = target.displayAvatarURL({ 
+        const targetAvatarURL = target.displayAvatarURL({
             dynamic: true,
             size: 64,
         }) || target.defaultAvatarURL;
@@ -257,7 +257,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
                 },
                 {
                     name: '处罚期限',
-                    value: punishment.duration > 0 
+                    value: punishment.duration > 0
                         ? formatPunishmentDuration(punishment.duration)
                         : '永久',
                     inline: true,
@@ -473,9 +473,9 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
                             });
 
                         // 移除警告身份组
-                        if (guildData.WarnedRoleId) {
+                        if (guildData.roleApplication?.WarnedRoleId) {
                             await targetMember.roles
-                                .remove(guildData.WarnedRoleId, reason)
+                                .remove(guildData.roleApplication?.WarnedRoleId, reason)
                                 .then(() => logTime(`已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`))
                                 .catch(error =>
                                     logTime(`在服务器 ${guild.name} 移除警告身份组失败: ${error.message}`, true),

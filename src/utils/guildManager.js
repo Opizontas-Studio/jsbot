@@ -35,10 +35,8 @@ export class GuildManager {
                 threadLogThreadId: guildConfig.threadLogThreadId, // string - 帖子操作日志频道ID
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
-                QAerRoleId: guildConfig.QAerRoleId, // string - 答题员角色ID
-                WarnedRoleId: guildConfig.WarnedRoleId, // string - 警告角色ID
-                eventsCategoryId: guildConfig.eventsCategoryId, // 添加这一行
-                eventModeratorRoleIds: guildConfig.eventModeratorRoleIds || [], // 添加这一行
+                eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID
+                eventModeratorRoleIds: guildConfig.eventModeratorRoleIds || [], // 赛事管理员角色ID数组
                 automation: {
                     analysis: automationConfig.analysis || false, // boolean - 是否启用自动分析
                     cleanup: {
@@ -49,23 +47,23 @@ export class GuildManager {
                     whitelistedThreads: automationConfig.whitelistedThreads || [], // string[] - 白名单主题ID数组
                 },
                 roleApplication: guildConfig.roleApplication || {
-                    enabled: false, // boolean - 是否启用角色申请系统
                     logThreadId: null, // string | null - 角色申请日志频道ID
                     creatorRoleId: null, // string | null - 创作者角色ID
                     senatorRoleId: null, // string | null - 参议员角色ID
+                    appealDebateRoleId: null, // string | null - 辩诉通行角色ID
+                    QAerRoleId: null, // string | null - 答题员角色ID
                     senatorRoleForumId: null, // string | null - 参议员论坛ID
+                    WarnedRoleId: null, // string - 警告角色ID，从根级别移动到此处
                 },
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,
                     courtChannelId: null,
                     forumChannelId: null,
                     debateForumId: null,
-                    senatorRoleId: null,
                     appealDuration: 259200000,
                     summitDuration: 604800000,
                     requiredSupports: 20,
                     debateTagId: null,
-                    appealDebateRoleId: null,
                     votePublicDelay: 30000, // 默认30秒后公开
                     voteDuration: 60000, // 默认1分钟后结束
                 },

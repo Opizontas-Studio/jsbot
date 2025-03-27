@@ -144,7 +144,7 @@ class PunishmentService {
 
             // 6. 发送通知
             const notificationResults = [];
-            
+
             // 如果有指定频道，先发送频道通知
             if (data.channelId) {
                 try {
@@ -258,7 +258,7 @@ class PunishmentService {
 
                 for (const guildData of allGuilds) {
                     try {
-                        if (!guildData || !guildData.id || !guildData.WarnedRoleId) {
+                        if (!guildData || !guildData.id || !guildData.roleApplication?.WarnedRoleId) {
                             logTime(`服务器 ${guildData?.id || 'unknown'} 配置不完整，跳过`, true);
                             continue;
                         }
@@ -279,9 +279,9 @@ class PunishmentService {
                             continue;
                         }
 
-                        if (member.roles.cache.has(guildData.WarnedRoleId)) {
+                        if (member.roles.cache.has(guildData.roleApplication?.WarnedRoleId)) {
                             await member.roles
-                                .remove(guildData.WarnedRoleId, '警告已到期')
+                                .remove(guildData.roleApplication?.WarnedRoleId, '警告已到期')
                                 .then(() => {
                                     logTime(
                                         `已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`,

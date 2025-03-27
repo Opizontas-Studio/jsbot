@@ -12,7 +12,7 @@ export default {
     data: new SlashCommandBuilder()
         .setName('答题处罚')
         .setDescription('移除用户在所有服务器的缓冲区和已验证身份组')
-        .addUserOption(option => 
+        .addUserOption(option =>
             option
                 .setName('目标')
                 .setDescription('要处罚的用户')
@@ -30,60 +30,60 @@ export default {
             const targetUser = interaction.options.getUser('目标');
             const reason = interaction.options.getString('理由') ?? '违反问答规范';
             const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-            
+
             // 检查管理员或版主权限
-            const hasAdminPermission = interaction.member.roles.cache.some(role => 
+            const hasAdminPermission = interaction.member.roles.cache.some(role =>
                 guildConfig.AdministratorRoleIds.includes(role.id)
             );
-            const hasModeratorPermission = interaction.member.roles.cache.some(role => 
+            const hasModeratorPermission = interaction.member.roles.cache.some(role =>
                 guildConfig.ModeratorRoleIds.includes(role.id)
             );
             const hasManagementPermission = hasAdminPermission || hasModeratorPermission;
-            
+
             let targetGroups = [];
             let isQAerOperation = false;
-            
+
             if (hasManagementPermission) {
                 // 管理员可以移除缓冲区和已验证的同步组
-                targetGroups = roleSyncConfig.syncGroups.filter(group => 
+                targetGroups = roleSyncConfig.syncGroups.filter(group =>
                     ['缓冲区', '已验证'].includes(group.name)
                 );
-                
+
                 if (!targetGroups.length) {
                     await interaction.editReply('❌ 未找到缓冲区或已验证的身份组配置');
                     return;
                 }
             } else {
                 // 检查是否有QAer身份组
-                const hasQAerPermission = interaction.member.roles.cache.some(role => 
-                    role.id === guildConfig.QAerRoleId
+                const hasQAerPermission = interaction.member.roles.cache.some(role =>
+                    role.id === guildConfig.roleApplication?.QAerRoleId
                 );
-                
+
                 if (!hasQAerPermission) {
                     await interaction.editReply('❌ 你没有权限使用此命令。需要具有管理员或答疑区战神身份组。');
                     return;
                 }
-                
+
                 // QAer只能移除缓冲区身份组
                 const bufferGroup = roleSyncConfig.syncGroups.find(group => group.name === '缓冲区');
-                
+
                 if (!bufferGroup) {
                     await interaction.editReply('❌ 未找到缓冲区身份组配置');
                     return;
                 }
-                
+
                 // 获取目标用户在当前服务器的成员信息
                 const targetMember = await interaction.guild.members.fetch(targetUser.id);
-                
+
                 // 检查目标用户是否具有缓冲区身份组
                 const bufferRoleId = bufferGroup.roles[interaction.guild.id];
                 const hasBufferRole = bufferRoleId && targetMember.roles.cache.has(bufferRoleId);
-                
+
                 if (!hasBufferRole) {
                     await interaction.editReply('❌ 目标用户没有缓冲区身份组，无法执行处罚操作');
                     return;
                 }
-                
+
                 targetGroups = [bufferGroup];
                 isQAerOperation = true;
             }
@@ -123,7 +123,6 @@ export default {
                         { name: '执行者', value: interaction.user.tag, inline: true },
                         { name: '目标用户', value: targetUser.tag, inline: true },
                         { name: '处罚理由', value: reason },
-                        { name: '移除的身份组', value: targetGroups.map(g => g.name).join(', ') },
                         { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
                     );
 
@@ -138,7 +137,7 @@ export default {
                     .setColor(0xff0000)
                     .setTimestamp();
 
-                await interaction.channel.send({ 
+                await interaction.channel.send({
                     embeds: [notifyEmbed],
                     allowedMentions: { users: [targetUser.id] } // 只@ 被处罚的用户
                 });
@@ -155,4 +154,4 @@ export default {
             await handleCommandError(interaction, error, '答题处罚');
         }
     },
-}; 
+};

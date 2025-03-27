@@ -75,7 +75,7 @@ export default {
 
         // 检查用户是否正在参与辩诉
         const member = await interaction.guild.members.fetch(interaction.user.id);
-        if (member.roles.cache.has(guildConfig.courtSystem.appealDebateRoleId)) {
+        if (member.roles.cache.has(guildConfig.roleApplication?.appealDebateRoleId)) {
             await interaction.editReply({
                 content: '❌ 你正在参与其他辩诉，无法提交新的申请',
                 flags: ['Ephemeral'],

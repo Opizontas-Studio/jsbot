@@ -19,10 +19,8 @@ pnpm start
 
 ## Linux上配合PM2使用
 
-1. 确保已安装Node.js和pnpm
+1. 确保已安装Node.js
 ```bash
-# 安装Node.js
-
 # 到项目目录
 
 # 安装pnpm
@@ -42,25 +40,12 @@ chmod +x start.sh update.sh monitor.sh
 
 # 更新BOT
 ./update.sh
-```
-
-### 管理机器人
-
-1. 启动与停止
-```bash
-# 启动
-./start.sh
-# 或直接使用PM2
-pm2 start ecosystem.config.cjs
 
 # 停止
 pm2 stop discord-bot
-
-# 重启
-pm2 restart discord-bot
 ```
 
-1. 监控机器人状态
+3. 管理机器人
 ```bash
 # 后台运行监控脚本
 ./monitor.sh &
@@ -70,15 +55,6 @@ pm2 logs discord-bot --lines 200
 
 # 查看状态
 pm2 status
-```
-
-4. 设置开机自启
-```bash
-# PM2启动脚本
-pm2 startup
-
-# 保存当前运行的应用列表
-pm2 save
 ```
 
 ## 参与贡献

@@ -892,8 +892,24 @@ export async function handleButton(interaction) {
  * @returns {Object|null} - 按钮配置对象或null
  */
 function findButtonConfig(customId) {
-    // 检查完全匹配的defer按钮
+    // 1. 首先检查完整customId是否直接匹配
+    if (BUTTON_CONFIG.deferButtons[customId]) {
+        return {
+            needDefer: true,
+            handler: BUTTON_CONFIG.deferButtons[customId].handler,
+        };
+    }
+
+    if (BUTTON_CONFIG.modalButtons[customId]) {
+        return {
+            needDefer: false,
+            handler: BUTTON_CONFIG.modalButtons[customId],
+        };
+    }
+
+    // 2. 检查前缀匹配（针对带有额外参数的按钮ID）
     const buttonPrefix = customId.split('_').slice(0, 2).join('_');
+
     if (BUTTON_CONFIG.deferButtons[buttonPrefix]) {
         return {
             needDefer: true,
@@ -901,7 +917,6 @@ function findButtonConfig(customId) {
         };
     }
 
-    // 检查完全匹配的非defer按钮
     if (BUTTON_CONFIG.modalButtons[buttonPrefix]) {
         return {
             needDefer: false,
@@ -909,7 +924,7 @@ function findButtonConfig(customId) {
         };
     }
 
-    // 检查前缀匹配的模态框按钮
+    // 3. 处理特殊前缀匹配（如appeal_等需要部分匹配的情况）
     for (const [prefix, handler] of Object.entries(BUTTON_CONFIG.modalButtons)) {
         if (customId !== prefix && customId.startsWith(prefix)) {
             return {

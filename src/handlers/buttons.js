@@ -136,6 +136,16 @@ export const buttonHandlers = {
             return;
         }
 
+        // 获取服务器配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.creatorRoleId) {
+            await interaction.reply({
+                content: '❌ 服务器未正确配置创作者身份组',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
         // 检查用户是否已有创作者身份组
         const member = await interaction.guild.members.fetch(interaction.user.id);
 

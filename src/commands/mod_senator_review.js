@@ -73,15 +73,15 @@ export default {
             }
 
             // 提取消息中的链接
-            const linkPattern = /https:\/\/discord\.com\/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/g;
+            const linkPattern = /https:\/\/(discord\.com|discordapp\.com)\/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/g;
             const content = firstMessage.content;
             const links = [];
             let match;
 
             while ((match = linkPattern.exec(content)) !== null && links.length < 4) {
                 links.push({
-                    guildId: match[1],
-                    threadId: match[2],
+                    guildId: match[2],
+                    threadId: match[3],
                 });
             }
 

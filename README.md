@@ -85,11 +85,11 @@ pm2 status
 │   └── scheduler.js  # 处理定时任务
 │
 ├── services  # 对于较为复杂的命令, 在此编写处理逻辑
-│   ├── courtService.js  # 辩诉系统服务
+│   ├── courtService.js  # 流程系统服务
     ├── monitorService.js # 系统监控服务
 │   ├── punishmentService.js  # 处罚系统服务
 │   ├── roleApplication.js  # 身份组管理服务
-│   ├── threadAnalyzer.js  # 子区活跃度分析服务
+│   ├── threadAnalyzer.js  # 活跃子区管理服务
 │   ├── threadCleaner.js  # 子区人数清理服务
 │   └── voteService.js  # 投票系统服务
 │

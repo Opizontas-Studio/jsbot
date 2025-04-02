@@ -253,59 +253,73 @@ class PunishmentService {
 
             // 处理警告到期
             if (warningExpired && punishment.warningDuration) {
-                // 遍历所有配置的服务器
-                const allGuilds = Array.from(client.guildManager.guilds.values());
+                // 检查用户是否还有其他活跃的警告处罚
+                const userId = punishment.userId;
+                const otherActivePunishments = await PunishmentModel.getUserPunishments(userId, false);
+                const hasOtherActiveWarnings = otherActivePunishments.some(p =>
+                    p.id !== punishment.id &&
+                    p.warningDuration &&
+                    p.createdAt + p.warningDuration > now
+                );
 
-                for (const guildData of allGuilds) {
-                    try {
-                        if (!guildData || !guildData.id || !guildData.roleApplication?.WarnedRoleId) {
-                            logTime(`服务器 ${guildData?.id || 'unknown'} 配置不完整，跳过`, true);
-                            continue;
+                // 只有在没有其他活跃警告处罚时才移除警告身份组
+                if (!hasOtherActiveWarnings) {
+                    // 遍历所有配置的服务器
+                    const allGuilds = Array.from(client.guildManager.guilds.values());
+
+                    for (const guildData of allGuilds) {
+                        try {
+                            if (!guildData || !guildData.id || !guildData.roleApplication?.WarnedRoleId) {
+                                logTime(`服务器 ${guildData?.id || 'unknown'} 配置不完整，跳过`, true);
+                                continue;
+                            }
+
+                            const guild = await client.guilds.fetch(guildData.id).catch(error => {
+                                logTime(`获取服务器失败: ${error.message}`, true);
+                                return null;
+                            });
+
+                            if (!guild) {
+                                logTime(`无法获取服务器 ${guildData.id} 的信息，跳过`, true);
+                                continue;
+                            }
+
+                            const member = await guild.members.fetch(punishment.userId).catch(() => null);
+                            if (!member) {
+                                logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
+                                continue;
+                            }
+
+                            if (member.roles.cache.has(guildData.roleApplication?.WarnedRoleId)) {
+                                await member.roles
+                                    .remove(guildData.roleApplication?.WarnedRoleId, '警告已到期')
+                                    .then(() => {
+                                        logTime(
+                                            `已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`,
+                                        );
+                                    })
+                                    .catch(error => {
+                                        logTime(
+                                            `在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组失败: ${error.message}`,
+                                            true,
+                                        );
+                                    });
+                            } else {
+                                logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有警告身份组，无需移除`);
+                            }
+                        } catch (error) {
+                            logTime(`处理服务器 ${guildData?.id || 'unknown'} 的警告到期失败: ${error.message}`, true);
                         }
-
-                        const guild = await client.guilds.fetch(guildData.id).catch(error => {
-                            logTime(`获取服务器失败: ${error.message}`, true);
-                            return null;
-                        });
-
-                        if (!guild) {
-                            logTime(`无法获取服务器 ${guildData.id} 的信息，跳过`, true);
-                            continue;
-                        }
-
-                        const member = await guild.members.fetch(punishment.userId).catch(() => null);
-                        if (!member) {
-                            logTime(`无法在服务器 ${guild.name} 找到目标用户，跳过`, true);
-                            continue;
-                        }
-
-                        if (member.roles.cache.has(guildData.roleApplication?.WarnedRoleId)) {
-                            await member.roles
-                                .remove(guildData.roleApplication?.WarnedRoleId, '警告已到期')
-                                .then(() => {
-                                    logTime(
-                                        `已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`,
-                                    );
-                                })
-                                .catch(error => {
-                                    logTime(
-                                        `在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组失败: ${error.message}`,
-                                        true,
-                                    );
-                                });
-                        } else {
-                            logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有警告身份组，无需移除`);
-                        }
-                    } catch (error) {
-                        logTime(`处理服务器 ${guildData?.id || 'unknown'} 的警告到期失败: ${error.message}`, true);
                     }
+                } else {
+                    logTime(`用户 ${punishment.userId} 还有其他活跃的警告处罚，保留警告身份组`);
                 }
             }
 
             // 只有当禁言和警告都到期时，才更新状态为已过期
             if ((muteExpired && punishment.type === 'mute') || warningExpired) {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '处罚已到期');
-                logTime(`处罚 ${punishment.id} 状态已更新为已到期`);
+                logTime(`处罚 ${punishment.id} 状态已更新为已过期`);
             }
         } catch (error) {
             logTime(`处理处罚到期失败 [ID: ${punishment.id}]: ${error.message}`, true);

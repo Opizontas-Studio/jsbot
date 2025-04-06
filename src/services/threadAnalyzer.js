@@ -228,6 +228,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                         delay(250);
                         await thread.setArchived(false, '定时重归档');
                         await thread.pin('保持标注');
+                        logTime(`设置置顶子区 ${thread.name} 状态: 标注`);
                     } catch (error) {
                         logTime(`设置置顶子区 ${thread.name} 状态失败: ${handleDiscordError(error)}`, true);
                         // 继续执行，不中断流程

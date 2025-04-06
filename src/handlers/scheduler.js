@@ -53,7 +53,7 @@ const formatInterval = ms => {
  */
 class ProcessScheduler {
     constructor() {
-        this.timers = new Map();
+        this.jobs = new Map();
     }
 
     /**
@@ -81,20 +81,20 @@ class ProcessScheduler {
     async scheduleProcess(process, client) {
         try {
             const now = Date.now();
-            const timeUntilExpiry = process.expireAt - now;
+            const expiryTime = new Date(process.expireAt);
 
-            // 清除已存在的定时器
-            if (this.timers.has(process.id)) {
-                clearTimeout(this.timers.get(process.id));
-                this.timers.delete(process.id);
+            // 清除已存在的任务
+            if (this.jobs.has(process.id)) {
+                this.jobs.get(process.id).cancel();
+                this.jobs.delete(process.id);
             }
 
-            if (timeUntilExpiry <= 0) {
+            if (expiryTime.getTime() <= now) {
                 // 已过期，直接处理
                 await CourtService.handleProcessExpiry(process, client);
             } else {
-                // 设置定时器
-                const timer = setTimeout(async () => {
+                // 设置定时任务
+                const job = schedule.scheduleJob(expiryTime, async () => {
                     // 检查流程状态
                     const currentProcess = await ProcessModel.getProcessById(process.id);
                     if (currentProcess && currentProcess.status === 'completed') {
@@ -102,11 +102,11 @@ class ProcessScheduler {
                         return;
                     }
                     await CourtService.handleProcessExpiry(process, client);
-                    this.timers.delete(process.id);
-                }, timeUntilExpiry);
+                    this.jobs.delete(process.id);
+                });
 
-                this.timers.set(process.id, timer);
-                logTime(`已调度流程 ${process.id} 的到期处理，将在 ${Math.ceil(timeUntilExpiry / 1000)} 秒后执行`);
+                this.jobs.set(process.id, job);
+                logTime(`已调度流程 ${process.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
             }
         } catch (error) {
             logTime(`调度流程失败: ${error.message}`, true);
@@ -118,9 +118,9 @@ class ProcessScheduler {
      * @param {number} processId - 流程ID
      */
     async cancelProcess(processId) {
-        if (this.timers.has(processId)) {
-            clearTimeout(this.timers.get(processId));
-            this.timers.delete(processId);
+        if (this.jobs.has(processId)) {
+            this.jobs.get(processId).cancel();
+            this.jobs.delete(processId);
             logTime(`已取消流程 ${processId} 的定时器`);
         }
     }
@@ -129,10 +129,10 @@ class ProcessScheduler {
      * 清理所有定时器
      */
     cleanup() {
-        for (const timer of this.timers.values()) {
-            clearTimeout(timer);
+        for (const job of this.jobs.values()) {
+            job.cancel();
         }
-        this.timers.clear();
+        this.jobs.clear();
         logTime('已清理所有流程到期定时器');
     }
 }
@@ -224,7 +224,7 @@ class PunishmentScheduler {
  */
 class VoteScheduler {
     constructor() {
-        this.timers = new Map(); // 存储所有投票的定时器
+        this.jobs = new Map(); // 存储所有投票的定时任务
         this.votes = new Map(); // 存储所有活跃投票的状态
     }
 
@@ -279,8 +279,8 @@ class VoteScheduler {
 
             // 设置公开时间定时器
             if (now < parsedVote.publicTime) {
-                const publicDelay = parsedVote.publicTime - now;
-                const publicTimer = setTimeout(async () => {
+                const publicTime = new Date(parsedVote.publicTime);
+                const publicJob = schedule.scheduleJob(publicTime, async () => {
                     try {
                         const channel = await client.channels.fetch(parsedVote.threadId);
                         if (!channel) {
@@ -305,16 +305,16 @@ class VoteScheduler {
                     } catch (error) {
                         logTime(`处理投票公开失败 [ID: ${vote.id}]: ${error.message}`, true);
                     }
-                }, publicDelay);
+                });
 
-                this.timers.set(`public_${vote.id}`, publicTimer);
-                logTime(`已设置投票 ${vote.id} 的公开定时器，将在 ${Math.ceil(publicDelay / 1000)}秒后公开`);
+                this.jobs.set(`public_${vote.id}`, publicJob);
+                logTime(`已设置投票 ${vote.id} 的公开定时器，将在 ${publicTime.toLocaleString()} 公开`);
             }
 
             // 设置结束时间定时器
             if (now < parsedVote.endTime) {
-                const endDelay = parsedVote.endTime - now;
-                const endTimer = setTimeout(async () => {
+                const endTime = new Date(parsedVote.endTime);
+                const endJob = schedule.scheduleJob(endTime, async () => {
                     try {
                         // 获取最新的投票状态，检查是否已经结束
                         const currentVote = await VoteModel.getVoteById(vote.id);
@@ -355,10 +355,10 @@ class VoteScheduler {
                     } catch (error) {
                         logTime(`处理投票结束失败 [ID: ${vote.id}]: ${error.message}`, true);
                     }
-                }, endDelay);
+                });
 
-                this.timers.set(`end_${vote.id}`, endTimer);
-                logTime(`已设置投票 ${vote.id} 的结束定时器，将在 ${Math.ceil(endDelay / 1000)}秒后结束`);
+                this.jobs.set(`end_${vote.id}`, endJob);
+                logTime(`已设置投票 ${vote.id} 的结束定时器，将在 ${endTime.toLocaleString()} 结束`);
             }
         } catch (error) {
             logTime(`调度投票失败 [ID: ${vote.id}]: ${error.message}`, true);
@@ -374,16 +374,16 @@ class VoteScheduler {
      * @param {number} voteId - 投票ID
      */
     clearVoteTimers(voteId) {
-        const publicTimer = this.timers.get(`public_${voteId}`);
-        if (publicTimer) {
-            clearTimeout(publicTimer);
-            this.timers.delete(`public_${voteId}`);
+        const publicJob = this.jobs.get(`public_${voteId}`);
+        if (publicJob) {
+            publicJob.cancel();
+            this.jobs.delete(`public_${voteId}`);
         }
 
-        const endTimer = this.timers.get(`end_${voteId}`);
-        if (endTimer) {
-            clearTimeout(endTimer);
-            this.timers.delete(`end_${voteId}`);
+        const endJob = this.jobs.get(`end_${voteId}`);
+        if (endJob) {
+            endJob.cancel();
+            this.jobs.delete(`end_${voteId}`);
         }
     }
 
@@ -391,10 +391,10 @@ class VoteScheduler {
      * 清理所有定时器和状态
      */
     cleanup() {
-        for (const timer of this.timers.values()) {
-            clearTimeout(timer);
+        for (const job of this.jobs.values()) {
+            job.cancel();
         }
-        this.timers.clear();
+        this.jobs.clear();
         this.votes.clear();
         logTime('已清理所有投票定时器和状态');
     }
@@ -411,7 +411,7 @@ class VoteScheduler {
  */
 class TaskScheduler {
     constructor() {
-        this.timers = new Map(); // 存储定时器ID
+        this.jobs = new Map(); // 存储定时任务
         this.tasks = new Map(); // 存储任务配置
         this.processScheduler = new ProcessScheduler();
         this.punishmentScheduler = new PunishmentScheduler();
@@ -448,6 +448,59 @@ class TaskScheduler {
     }
 
     /**
+     * 添加每日执行的任务
+     * @param {Object} options - 任务配置
+     * @param {string} options.taskId - 任务ID
+     * @param {Function} options.task - 任务函数
+     * @param {number} options.hour - 每天执行的小时（0-23）
+     * @param {number} options.minute - 每天执行的分钟（0-59），默认为0
+     * @param {boolean} [options.runImmediately=false] - 是否立即执行一次
+     */
+    addDailyTask({ taskId, task, hour, minute = 0, runImmediately = false }) {
+        // 清除已存在的定时器
+        this.removeTask(taskId);
+
+        // 包装任务执行函数，统一错误处理
+        const wrappedTask = async () => {
+            try {
+                await task();
+            } catch (error) {
+                logTime(`任务 ${taskId} 执行失败: ${error.message}`, true);
+            }
+        };
+
+        // 创建每日执行规则
+        const rule = new schedule.RecurrenceRule();
+        rule.hour = hour;
+        rule.minute = minute;
+        rule.second = 0;
+
+        // 创建定时任务
+        const job = schedule.scheduleJob(rule, wrappedTask);
+        this.jobs.set(taskId, job);
+
+        // 构建任务信息日志
+        const nextInvocation = job.nextInvocation();
+        const taskInfo = [
+            `每日定时任务: ${taskId}`,
+            `执行时间: 每天${hour}:${minute.toString().padStart(2, '0')}`,
+            `下次执行: ${nextInvocation.toLocaleString()}`
+        ];
+
+        // 如果需要立即执行一次
+        if (runImmediately) {
+            taskInfo.push('立即执行: 是');
+            wrappedTask();
+        }
+
+        // 输出统一格式的日志
+        logTime(taskInfo.join(' | '));
+
+        // 存储任务信息
+        this.tasks.set(taskId, { hour, minute, task });
+    }
+
+    /**
      * 添加定时任务
      * @param {Object} options - 任务配置
      * @param {string} options.taskId - 任务ID
@@ -469,77 +522,77 @@ class TaskScheduler {
             }
         };
 
-        // 计算首次执行的延迟
-        let initialDelay = 0;
-        if (startAt) {
-            const now = new Date();
-            initialDelay = startAt - now;
-            if (initialDelay <= 0) {
-                initialDelay = interval - (-initialDelay % interval);
-            }
-        }
-
         // 构建任务信息日志
         const taskInfo = [`定时任务: ${taskId}`, `执行间隔: ${formatInterval(interval)}`];
 
+        // 创建调度规则
+        let rule;
+
         if (startAt) {
-            const executionTime = new Date(Date.now() + initialDelay);
-            taskInfo.push(`首次执行: ${executionTime.toLocaleString()}`);
-        } else if (runImmediately) {
-            taskInfo.push('立即执行: 是');
+            // 如果指定了开始时间，先安排一次性任务
+            const firstExecutionTime = new Date(startAt);
+            taskInfo.push(`首次执行: ${firstExecutionTime.toLocaleString()}`);
+
+            // 为第一次执行创建一次性任务
+            const firstJob = schedule.scheduleJob(firstExecutionTime, async () => {
+                await wrappedTask();
+
+                // 然后创建循环任务
+                const recurringRule = new schedule.RecurrenceRule();
+                recurringRule.second = new schedule.Range(0, 59, Math.floor(interval / 1000));
+
+                const recurringJob = schedule.scheduleJob(recurringRule, wrappedTask);
+                this.jobs.set(taskId, recurringJob);
+            });
+
+            this.jobs.set(`${taskId}_first`, firstJob);
+        } else {
+            // 创建循环执行规则
+            rule = new schedule.RecurrenceRule();
+            rule.second = new schedule.Range(0, 59, Math.floor(interval / 1000));
+
+            // 创建定时任务
+            const job = schedule.scheduleJob(rule, wrappedTask);
+            this.jobs.set(taskId, job);
+
+            // 如果需要立即执行一次
+            if (runImmediately) {
+                taskInfo.push('立即执行: 是');
+                wrappedTask();
+            }
         }
 
         // 输出统一格式的日志
         logTime(taskInfo.join(' | '));
 
-        // 如果需要立即执行
-        if (runImmediately) {
-            wrappedTask();
-        }
-
-        // 创建定时器
-        let timer;
-        if (initialDelay > 0) {
-            // 首先设置一个一次性的定时器来处理首次执行
-            timer = setTimeout(() => {
-                wrappedTask();
-                // 然后设置固定间隔的定时器
-                timer = setInterval(wrappedTask, interval);
-                this.timers.set(taskId, timer);
-            }, initialDelay);
-        } else {
-            // 直接设置固定间隔的定时器
-            timer = setInterval(wrappedTask, interval);
-        }
-
         // 存储任务信息
-        this.timers.set(taskId, timer);
         this.tasks.set(taskId, { interval, task });
     }
 
     // 移除指定任务
     removeTask(taskId) {
-        if (this.timers.has(taskId)) {
-            clearInterval(this.timers.get(taskId));
-            this.timers.delete(taskId);
-            this.tasks.delete(taskId);
-        }
-    }
-    // 注册数据库相关任务
-    registerDatabaseTasks() {
-        // 计算下一个早上6点
-        const now = new Date();
-        const nextBackup = new Date(now);
-        nextBackup.setHours(6, 0, 0, 0);
-        if (nextBackup <= now) {
-            nextBackup.setDate(nextBackup.getDate() + 1);
+        // 移除常规任务
+        if (this.jobs.has(taskId)) {
+            this.jobs.get(taskId).cancel();
+            this.jobs.delete(taskId);
         }
 
-        // 数据库备份任务
-        this.addTask({
+        // 移除首次执行任务（如果存在）
+        if (this.jobs.has(`${taskId}_first`)) {
+            this.jobs.get(`${taskId}_first`).cancel();
+            this.jobs.delete(`${taskId}_first`);
+        }
+
+        this.tasks.delete(taskId);
+    }
+
+    // 注册数据库相关任务
+    registerDatabaseTasks() {
+        // 数据库备份任务 - 每天早上6点执行
+        this.addDailyTask({
             taskId: 'databaseBackup',
-            interval: TIME_UNITS.DAY,
-            startAt: nextBackup,
+            hour: 6,
+            minute: 0,
             task: async () => {
                 try {
                     await dbManager.backup();
@@ -550,18 +603,11 @@ class TaskScheduler {
             },
         });
 
-        // 计算下一个凌晨3点（选择低峰时段）
-        const nextReload = new Date(now);
-        nextReload.setHours(3, 0, 0, 0);
-        if (nextReload <= now) {
-            nextReload.setDate(nextReload.getDate() + 1);
-        }
-
-        // 重新加载所有流程和处罚的定时任务
-        this.addTask({
+        // 重新加载所有流程和处罚的定时任务 - 每天凌晨3点执行
+        this.addDailyTask({
             taskId: 'reloadSchedulers',
-            interval: TIME_UNITS.DAY,
-            startAt: nextReload,
+            hour: 3,
+            minute: 0,
             task: async () => {
                 try {
                     // 清理现有定时器
@@ -589,50 +635,45 @@ class TaskScheduler {
 
         if (managedGuilds.length === 0) return;
 
-        // 计算当前时间到下一个整点的时间
-        const now = new Date();
-        const nextHour = new Date(now);
-        nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
-
-        // 为每个服务器设置错开的执行时间
+        // 为每个服务器设置错开的执行时间，避免同时执行过多任务
         managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
 
-            // 计算该服务器的首次执行时间
-            // 基础时间为下一个整点，每个服务器额外延迟10分钟 * index
-            const initialDelay = nextHour.getTime() - now.getTime() + (index * 10 * TIME_UNITS.MINUTE);
-            const startTime = new Date(now.getTime() + initialDelay);
+            // 创建每2小时执行一次的规则
+            // 将服务器的执行时间错开，每个服务器的分钟偏移量为index * 10
+            const rule = new schedule.RecurrenceRule();
+            // 设置分钟为当前服务器的偏移量
+            const offsetMinute = (index * 10) % 60;
+            rule.minute = offsetMinute;
+            // 如果需要跨小时，则设置小时为偶数+偏移
+            const hourOffset = Math.floor((index * 10) / 60) % 2;
+            rule.hour = new schedule.Range(0, 23, 2, hourOffset);
 
-            this.addTask({
-                taskId: `thread_management_${guildId}`,
-                interval: 2 * TIME_UNITS.HOUR, // 2小时间隔
-                startAt: startTime,
-                task: async () => {
-                    try {
-                        await globalRequestQueue.add(async () => {
-                            // 获取活跃子区数据
-                            const guild = await client.guilds.fetch(guildId);
-                            const activeThreads = await guild.channels.fetchActiveThreads();
+            // 为该服务器创建定时任务
+            const job = schedule.scheduleJob(rule, async () => {
+                try {
+                    await globalRequestQueue.add(async () => {
+                        // 获取活跃子区数据
+                        const guild = await client.guilds.fetch(guildId);
+                        const activeThreads = await guild.channels.fetchActiveThreads();
 
-                            // 执行子区管理（分析和/或清理）
-                            await executeThreadManagement(client, guildConfig, guildId, activeThreads);
-                        }, 0);
+                        // 执行子区管理（分析和/或清理）
+                        await executeThreadManagement(client, guildConfig, guildId, activeThreads);
+                    }, 0);
 
-                        logTime(`完成服务器 ${guildId} 的子区管理任务，下次执行时间：${new Date(Date.now() + 2 * TIME_UNITS.HOUR).toLocaleString()}`);
-                    } catch (error) {
-                        logTime(
-                            `服务器 ${guildId} 的定时任务执行失败: ${error.name}${
-                                error.code ? ` (${error.code})` : ''
-                            } - ${error.message}`,
-                            true,
-                        );
-                    }
-                },
+                    logTime(`完成服务器 ${guildId} 的子区管理任务，下次执行时间：${job.nextInvocation().toLocaleString()}`);
+                } catch (error) {
+                    logTime(
+                        `服务器 ${guildId} 的定时任务执行失败: ${error.name}${
+                            error.code ? ` (${error.code})` : ''
+                        } - ${error.message}`,
+                        true,
+                    );
+                }
             });
 
-            // 输出调度信息
-            const modeText = guildConfig.automation.mode === 'analysis' ? '分析' : '分析和清理';
-            logTime(`已为服务器 ${guildId} 调度子区${modeText}任务，首次执行时间：${startTime.toLocaleString()}`);
+            // 存储任务
+            this.jobs.set(`thread_management_${guildId}`, job);
         });
     }
 
@@ -644,30 +685,44 @@ class TaskScheduler {
                 continue;
             }
 
-            this.addTask({
-                taskId: `monitor_${guildId}`,
-                interval: TIME_UNITS.MINUTE,
-                runImmediately: true,
-                task: async () => {
-                    try {
-                        const channelId = guildConfig.monitor.channelId;
-                        const messageId = guildConfig.monitor.messageId;
-                        await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
-                    } catch (error) {
-                        logTime(`监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
-                    }
-                },
+            // 创建每分钟执行一次的规则
+            const rule = new schedule.RecurrenceRule();
+            rule.second = 0; // 每分钟的0秒执行
+
+            const job = schedule.scheduleJob(rule, async () => {
+                try {
+                    const channelId = guildConfig.monitor.channelId;
+                    const messageId = guildConfig.monitor.messageId;
+                    await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
+                } catch (error) {
+                    logTime(`监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                }
             });
+
+            // 存储任务
+            this.jobs.set(`monitor_${guildId}`, job);
+
+            // 立即执行一次
+            (async () => {
+                try {
+                    const channelId = guildConfig.monitor.channelId;
+                    const messageId = guildConfig.monitor.messageId;
+                    await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
+                    logTime(`已为服务器 ${guildId} 创建监控任务，每分钟执行一次，下次执行时间：${job.nextInvocation().toLocaleString()}`);
+                } catch (error) {
+                    logTime(`初始监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                }
+            })();
         }
     }
 
     // 停止所有任务
     stopAll() {
-        const taskCount = this.timers.size;
+        const taskCount = this.jobs.size;
 
         // 清理所有定时器
-        for (const timer of this.timers.values()) {
-            clearInterval(timer);
+        for (const job of this.jobs.values()) {
+            job.cancel();
         }
 
         // 清理流程和处罚调度器
@@ -678,7 +733,7 @@ class TaskScheduler {
         if (taskCount > 0) {
             logTime(`已停止 ${taskCount} 个定时任务`);
         }
-        this.timers.clear();
+        this.jobs.clear();
         this.tasks.clear();
         this.isInitialized = false;
     }

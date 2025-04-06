@@ -246,11 +246,6 @@ class PunishmentService {
             const warningExpired =
                 punishment.warningDuration > 0 && punishment.createdAt + punishment.warningDuration <= now;
 
-            // 处理禁言到期
-            if (muteExpired && punishment.type === 'mute') {
-                logTime(`禁言处罚 ${punishment.id} 已到期`);
-            }
-
             // 处理警告到期
             if (warningExpired && punishment.warningDuration) {
                 // 检查用户是否还有其他活跃的警告处罚
@@ -278,11 +273,6 @@ class PunishmentService {
                                 logTime(`获取服务器失败: ${error.message}`, true);
                                 return null;
                             });
-
-                            if (!guild) {
-                                logTime(`无法获取服务器 ${guildData.id} 的信息，跳过`, true);
-                                continue;
-                            }
 
                             const member = await guild.members.fetch(punishment.userId).catch(() => null);
                             if (!member) {

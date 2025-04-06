@@ -1,6 +1,6 @@
+import schedule from 'node-schedule';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
@@ -80,16 +80,6 @@ class ProcessScheduler {
      */
     async scheduleProcess(process, client) {
         try {
-            // 检查是否为议事流程
-            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'debate')
-                return;
-
-            // 检查流程状态
-            if (process.status === 'completed') {
-                logTime(`流程 ${process.id} 已完成，跳过到期处理`);
-                return;
-            }
-
             const now = Date.now();
             const timeUntilExpiry = process.expireAt - now;
 
@@ -105,7 +95,7 @@ class ProcessScheduler {
             } else {
                 // 设置定时器
                 const timer = setTimeout(async () => {
-                    // 在执行到期处理前再次检查流程状态
+                    // 检查流程状态
                     const currentProcess = await ProcessModel.getProcessById(process.id);
                     if (currentProcess && currentProcess.status === 'completed') {
                         logTime(`流程 ${process.id} 已完成，跳过到期处理`);
@@ -153,6 +143,7 @@ class ProcessScheduler {
 class PunishmentScheduler {
     constructor() {
         this.timers = new Map();
+        this.jobs = new Map();
     }
 
     /**
@@ -195,66 +186,19 @@ class PunishmentScheduler {
      */
     async schedulePunishment(punishment, client) {
         try {
-            if (punishment.status !== 'active') {
-                return;
-            }
+            // 计算到期时间
+            const expiryTime = new Date(Math.max(
+                punishment.duration > 0 ? punishment.createdAt + punishment.duration : 0,
+                punishment.warningDuration ? punishment.createdAt + punishment.warningDuration : 0
+            ));
 
-            const now = Date.now();
-            // 计算到期时间（取禁言和警告中较长的时间）
-            const muteDuration = punishment.duration > 0 ? punishment.createdAt + punishment.duration : 0;
-            const warnDuration = punishment.warningDuration ? punishment.createdAt + punishment.warningDuration : 0;
-            const expiryTime = Math.max(muteDuration, warnDuration);
-
-            // 如果没有到期时间（永久处罚）或已经过期，直接返回
-            if (expiryTime === 0) {
-                return;
-            }
-
-            // 如果已经过期，直接处理
-            if (expiryTime <= now && punishment.status === 'active') {
-                await PunishmentService.handleExpiry(client, punishment);
-                return;
-            }
-
-            // 清除已存在的定时器
-            if (this.timers.has(punishment.id)) {
-                clearTimeout(this.timers.get(punishment.id));
-                this.timers.delete(punishment.id);
-            }
-
-            // 计算延迟时间
-            const delay = expiryTime - now;
-
-            // 设置最大延迟为 24.85 天 (2147483647 毫秒)
-            const MAX_TIMEOUT = 2147483647;
-
-            if (delay > MAX_TIMEOUT) {
-                // 如果延迟时间超过最大值，设置一个中间定时器
-                const timer = setTimeout(async () => {
-                    // 重新调度剩余时间
-                    await this.schedulePunishment(punishment, client);
-                }, MAX_TIMEOUT);
-
-                this.timers.set(punishment.id, timer);
-                logTime(`已为处罚 ${punishment.id} 设置中间定时器，将在 ${formatInterval(MAX_TIMEOUT)} 后重新调度`);
-            } else {
-                // 设置到期定时器
-                const timer = setTimeout(async () => {
-                    try {
-                        // 在执行到期处理前再次检查处罚状态
-                        const currentPunishment = await PunishmentModel.getPunishmentById(punishment.id);
-                        if (currentPunishment && currentPunishment.status === 'active') {
-                            await PunishmentService.handleExpiry(client, currentPunishment);
-                        }
-                    } catch (error) {
-                        logTime(`处理处罚到期失败 [ID: ${punishment.id}]: ${error.message}`, true);
-                    } finally {
-                        this.timers.delete(punishment.id);
-                    }
-                }, delay);
-
-                this.timers.set(punishment.id, timer);
-                logTime(`已调度处罚 ${punishment.id} 的到期处理，将在 ${formatInterval(delay)} 后执行`);
+            if (expiryTime.getTime() > 0) {
+                // 使用node-schedule直接调度到特定日期
+                const job = schedule.scheduleJob(expiryTime, async function() {
+                    await PunishmentService.handleExpiry(client, punishment);
+                });
+                logTime(`已调度处罚 ${punishment.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
+                this.jobs.set(punishment.id, job);
             }
         } catch (error) {
             logTime(`调度处罚失败 [ID: ${punishment.id}]: ${error.message}`, true);
@@ -270,6 +214,7 @@ class PunishmentScheduler {
             clearTimeout(timer);
         }
         this.timers.clear();
+        this.jobs.clear();
         logTime('已清理所有处罚到期定时器');
     }
 }

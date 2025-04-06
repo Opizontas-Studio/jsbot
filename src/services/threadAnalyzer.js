@@ -1,7 +1,7 @@
 import { ChannelFlags } from 'discord.js';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { globalBatchProcessor } from '../utils/concurrency.js';
+import { delay, globalBatchProcessor } from '../utils/concurrency.js';
 import { handleDiscordError, measureTime } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -224,16 +224,10 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                 if (thread.flags.has(ChannelFlags.Pinned)) {
                     try {
                         // 无条件确保子区开启和标注
-                        await withTimeout(
-                            thread.setArchived(false, '保持置顶子区开放'),
-                            5000,
-                            `开启置顶子区 ${thread.name}`
-                        );
-                        await withTimeout(
-                            thread.pin('保持置顶子区标注'),
-                            5000,
-                            `标注置顶子区 ${thread.name}`
-                        );
+                        await thread.setArchived(true, '定时重归档');
+                        delay(250);
+                        await thread.setArchived(false, '定时重归档');
+                        await thread.pin('保持标注');
                     } catch (error) {
                         logTime(`设置置顶子区 ${thread.name} 状态失败: ${handleDiscordError(error)}`, true);
                         // 继续执行，不中断流程

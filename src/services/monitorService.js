@@ -47,7 +47,7 @@ class MonitorService {
             .setColor(0x0099ff)
             .setTitle('系统运行状态')
             .setFooter({ text: '系统监控' });
-        
+
         // 记录启动时间
         this.startTime = Date.now();
     }
@@ -129,7 +129,7 @@ class MonitorService {
             }
 
             config.guilds[guildId].monitor.messageId = messageId;
-            
+
             // 写入配置文件
             await writeFile(configPath, JSON.stringify(config, null, 4), 'utf8');
             logTime(`已更新服务器 ${guildId} 的监控消息ID: ${messageId}`);
@@ -175,7 +175,18 @@ class MonitorService {
 
             // 只有在没有messageId或消息不存在时才创建新消息
             const newMessage = await channel.send({ embeds: [embed] });
+
+            // 更新配置文件
             await this.updateConfigMessageId(guildId, newMessage.id);
+
+            // 直接更新内存中的配置
+            if (client.guildManager && client.guildManager.guilds.has(guildId)) {
+                const guildConfig = client.guildManager.guilds.get(guildId);
+                if (guildConfig.monitor) {
+                    guildConfig.monitor.messageId = newMessage.id;
+                    logTime(`已更新内存中服务器 ${guildId} 的监控消息ID: ${newMessage.id}`);
+                }
+            }
 
         } catch (error) {
             logTime(`更新状态消息失败: ${error.message}`, true);
@@ -183,4 +194,4 @@ class MonitorService {
     }
 }
 
-export const monitorService = new MonitorService(); 
+export const monitorService = new MonitorService();

@@ -54,12 +54,13 @@ export class GuildManager {
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,
                     courtChannelId: null,
-                    forumChannelId: null,
-                    debateForumId: null,
+                    motionChannelId: null,
+                    debateChannelId: null,
                     appealDuration: 259200000,
                     summitDuration: 604800000,
                     requiredSupports: 20,
                     debateTagId: null,
+                    motionTagId: null,
                     votePublicDelay: 30000, // 默认30秒后公开
                     voteDuration: 60000, // 默认1分钟后结束
                 },

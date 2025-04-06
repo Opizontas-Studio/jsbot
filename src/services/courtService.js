@@ -21,7 +21,7 @@ class CourtService {
      * @returns {Promise<Object>} 创建的辩诉帖子
      */
     static async createDebateThread(process, guildConfig, client) {
-        const debateForum = await client.channels.fetch(guildConfig.courtSystem.debateForumId);
+        const debateForum = await client.channels.fetch(guildConfig.courtSystem.debateChannelId);
 
         // 获取申请人和目标用户
         const [executor, target] = await Promise.all([
@@ -662,12 +662,12 @@ class CourtService {
                     // 如果是 debate 类型，创建论坛帖子
                     try {
                         // 检查论坛频道是否配置
-                        if (!guildConfig.courtSystem.forumChannelId) {
+                        if (!guildConfig.courtSystem.motionChannelId) {
                             return { error: '未配置议事论坛频道' };
                         }
 
                         // 获取论坛频道
-                        const forumChannel = await client.channels.fetch(guildConfig.courtSystem.forumChannelId);
+                        const forumChannel = await client.channels.fetch(guildConfig.courtSystem.motionChannelId);
                         if (!forumChannel) {
                             return { error: '无法访问议事论坛频道' };
                         }
@@ -694,6 +694,7 @@ class CourtService {
                                 content: threadContent,
                                 allowedMentions: { users: [process.targetId] }, // 允许 @ 提议者
                             },
+                            appliedTags: guildConfig.courtSystem.motionTagId ? [guildConfig.courtSystem.motionTagId] : [],
                             reason: `创建议案`,
                         });
 

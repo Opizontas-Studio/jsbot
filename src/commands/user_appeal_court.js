@@ -6,7 +6,7 @@ import { handleCommandError, validateImageUrl } from '../utils/helper.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
-    cooldown: 180,
+    cooldown: 120,
     data: new SlashCommandBuilder()
         .setName('申请上庭')
         .setDescription('向议事区提交处罚申请，交议事流程处理')
@@ -331,6 +331,18 @@ export default {
                                 flags: ['Ephemeral'],
                             });
                         },
+                        onTimeout: async interaction => {
+                            await interaction.editReply({
+                                embeds: [
+                                    {
+                                        color: 0x808080,
+                                        title: '❌ 确认已超时',
+                                        description: '禁言处罚申请操作已超时。如需继续请重新执行命令。',
+                                    }
+                                ],
+                                components: [],
+                            });
+                        },
                         onError: async error => {
                             await handleCommandError(interaction, error, '申请上庭');
                         },
@@ -492,6 +504,18 @@ export default {
                                 components: [],
                                 embeds: [],
                                 flags: ['Ephemeral'],
+                            });
+                        },
+                        onTimeout: async interaction => {
+                            await interaction.editReply({
+                                embeds: [
+                                    {
+                                        color: 0x808080,
+                                        title: '❌ 确认已超时',
+                                        description: '永封处罚申请操作已超时。如需继续请重新执行命令。',
+                                    }
+                                ],
+                                components: [],
                             });
                         },
                         onError: async error => {

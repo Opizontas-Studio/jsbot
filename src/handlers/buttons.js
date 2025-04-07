@@ -54,7 +54,7 @@ function checkCooldown(type, userId, duration = 10000) {
  * @param {Function} options.onConfirm - 确认后的回调函数
  * @param {Function} [options.onTimeout] - 超时后的回调函数
  * @param {Function} [options.onError] - 错误处理回调函数
- * @param {number} [options.timeout=300000] - 超时时间（毫秒）
+ * @param {number} [options.timeout=120000] - 超时时间（毫秒）
  * @returns {Promise<void>}
  */
 export async function handleConfirmationButton({
@@ -74,7 +74,7 @@ export async function handleConfirmationButton({
 
     // 添加默认的页脚文本
     if (!embed.footer) {
-        embed.footer = { text: '此确认按钮将在5分钟后失效' };
+        embed.footer = { text: '此确认按钮将在2分钟后失效' };
     }
 
     // 发送确认消息

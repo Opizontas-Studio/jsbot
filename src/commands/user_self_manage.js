@@ -197,6 +197,18 @@ export default {
                             throw error;
                         }
                     },
+                    onTimeout: async interaction => {
+                        await interaction.editReply({
+                            embeds: [
+                                {
+                                    color: 0x808080,
+                                    title: '❌ 确认已超时',
+                                    description: '删除帖子操作已超时。如需继续请重新执行命令。',
+                                }
+                            ],
+                            components: [],
+                        });
+                    },
                     onError: async error => {
                         // 只处理未被删除的情况
                         if (!thread.deleted) {
@@ -249,6 +261,18 @@ export default {
                         } catch (error) {
                             await handleCommandError(interaction, error, '锁定帖子');
                         }
+                    },
+                    onTimeout: async interaction => {
+                        await interaction.editReply({
+                            embeds: [
+                                {
+                                    color: 0x808080,
+                                    title: '❌ 确认已超时',
+                                    description: '锁定帖子操作已超时。如需继续请重新执行命令。',
+                                }
+                            ],
+                            components: [],
+                        });
                     },
                     onError: async error => {
                         await handleCommandError(interaction, error, '锁定帖子');
@@ -307,6 +331,18 @@ export default {
                         await handleSingleThreadCleanup(interaction, guildConfig);
                         logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                     },
+                    onTimeout: async interaction => {
+                        await interaction.editReply({
+                            embeds: [
+                                {
+                                    color: 0x808080,
+                                    title: '❌ 确认已超时',
+                                    description: '清理不活跃用户操作已超时。如需继续请重新执行命令。',
+                                }
+                            ],
+                            components: [],
+                        });
+                    },
                     onError: async error => {
                         await handleCommandError(interaction, error, '清理不活跃用户');
                     },
@@ -318,7 +354,7 @@ export default {
             try {
                 const messageUrl = interaction.options.getString('消息链接');
                 const matches = messageUrl.match(/channels\/(\d+)\/(\d+)\/(\d+)/);
-                
+
                 if (!matches) {
                     await interaction.editReply({
                         content: '❌ 无效的消息链接格式',
@@ -351,10 +387,10 @@ export default {
                     // 保存消息内容和发送者信息用于日志
                     const messageContent = message.content;
                     const messageAuthor = message.author;
-                    
+
                     // 删除消息
                     await message.delete();
-                    
+
                     await interaction.editReply({
                         content: `✅ 已删除 ${messageAuthor.tag} 发送的消息`,
                         flags: ['Ephemeral'],

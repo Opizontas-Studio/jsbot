@@ -53,8 +53,7 @@ export class GuildManager {
                 },
                 fastgpt: guildConfig.fastgpt || {
                     enabled: false,
-                    apiUrl: null,
-                    apiKey: null,
+                    endpoints: [], // 默认为空数组
                 },
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,
@@ -75,6 +74,27 @@ export class GuildManager {
                     messageId: guildConfig.monitor?.messageId || null,
                 },
             };
+
+            // 验证 FastGPT 配置
+            if (serverConfig.fastgpt.enabled) {
+                if (!serverConfig.fastgpt.endpoints || serverConfig.fastgpt.endpoints.length === 0) {
+                    logTime(`警告: 服务器 ${guildId} 启用了 FastGPT 但未配置任何 endpoints`, true);
+                    serverConfig.fastgpt.enabled = false; // 禁用，因为没有可用端点
+                } else {
+                    serverConfig.fastgpt.endpoints.forEach((ep, index) => {
+                        if (!ep.url || !ep.key) {
+                            logTime(`警告: 服务器 ${guildId} FastGPT endpoint #${index + 1} 配置不完整 (缺少 url 或 key)`, true);
+                            // 你可以选择移除这个无效的endpoint或禁用整个功能
+                        }
+                    });
+                    // 移除无效的endpoints (可选)
+                    serverConfig.fastgpt.endpoints = serverConfig.fastgpt.endpoints.filter(ep => ep.url && ep.key);
+                    if (serverConfig.fastgpt.endpoints.length === 0) {
+                        logTime(`警告: 服务器 ${guildId} 所有 FastGPT endpoints 均无效，已禁用 FastGPT`, true);
+                        serverConfig.fastgpt.enabled = false;
+                    }
+                }
+            }
 
             this.guilds.set(guildId, serverConfig);
 

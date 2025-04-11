@@ -9,11 +9,12 @@ import {
 import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
-// 用于跟踪活动答疑会话的Set，防止并发执行
-const activeQASessions = new Set();
+// 用于跟踪活动答疑会话的 Map，键是 guildId，值是当前活动会话数
+const activeQASessions = new Map();
+const MAX_CONCURRENT_QA = 2; // 每个服务器最大并发数
 
 export default {
-    cooldown: 30, // 30秒冷却时间
+    cooldown: 10, // 降低冷却时间，允许多个用户同时请求
     data: new SlashCommandBuilder()
         .setName('答疑')
         .setDescription('使用AI助手回答用户问题')
@@ -36,17 +37,19 @@ export default {
         ),
 
     async execute(interaction, guildConfig) {
-        // 检查是否有正在进行的会话
-        if (activeQASessions.has(interaction.guildId)) {
+        const currentSessions = activeQASessions.get(interaction.guildId) || 0;
+
+        // 检查是否有超过并发限制
+        if (currentSessions >= MAX_CONCURRENT_QA) {
             await interaction.editReply({
-                content: '⏳ 当前服务器已有一个答疑任务正在运行，请稍后再试。',
+                content: `⏳ 当前服务器的答疑任务已达到最大并发数 (${MAX_CONCURRENT_QA})，请稍后再试。`,
                 flags: ['Ephemeral'],
             });
             return;
         }
 
-        // 获取锁
-        activeQASessions.add(interaction.guildId);
+        // 增加会话计数
+        activeQASessions.set(interaction.guildId, currentSessions + 1);
 
         try {
             // 检查FastGPT功能是否启用
@@ -165,8 +168,13 @@ export default {
         } catch (error) {
             await handleCommandError(interaction, error, '答疑命令');
         } finally {
-            // 确保释放锁
-            activeQASessions.delete(interaction.guildId);
+            // 减少会话计数
+            const updatedSessions = (activeQASessions.get(interaction.guildId) || 1) - 1;
+            if (updatedSessions <= 0) {
+                activeQASessions.delete(interaction.guildId);
+            } else {
+                activeQASessions.set(interaction.guildId, updatedSessions);
+            }
         }
     },
 };

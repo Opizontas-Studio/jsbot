@@ -141,51 +141,59 @@ export function buildFastGPTRequestBody(messages, prompt, targetUser, executorUs
 }
 
 /**
- * 发送请求到FastGPT API
+ * 发送请求到FastGPT API，支持随机轮询和失败重试
  * @param {Object} requestBody - 请求体
  * @param {Object} guildConfig - 服务器配置
  * @returns {Object} API响应
  */
 export async function sendToFastGPT(requestBody, guildConfig) {
-    try {
-        const { apiUrl, apiKey } = guildConfig.fastgpt;
+    const { endpoints } = guildConfig.fastgpt;
 
-        if (!apiUrl || !apiKey) {
-            throw new Error('FastGPT API配置不完整');
+    if (!endpoints || endpoints.length === 0) {
+        throw new Error('FastGPT 未配置或所有端点均无效');
+    }
+
+    // 随机打乱端点顺序以实现轮询
+    const shuffledEndpoints = [...endpoints].sort(() => Math.random() - 0.5);
+
+    let lastError = null;
+
+    for (const endpoint of shuffledEndpoints) {
+        const { url: apiUrl, key: apiKey } = endpoint;
+        logTime(`尝试发送请求到 FastGPT API: ${apiUrl}`);
+
+        try {
+            const response = await axios.post(apiUrl, requestBody, {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 120000, // 120秒超时
+            });
+
+            logTime(`FastGPT API 请求成功 (来自: ${apiUrl})`);
+            return response.data; // 成功则直接返回
+
+        } catch (error) {
+            lastError = error; // 记录错误
+            logTime(`FastGPT API 请求失败 (端点: ${apiUrl}): ${error.message}`, true);
+            if (error.response && error.response.status >= 400 && error.response.status < 500) {
+                 logTime(`客户端错误 (${error.response.status})，停止尝试其他端点。`, true);
+                 break; // 不再尝试其他端点
+            }
+            // 如果是网络错误或服务器错误 (5xx)，则继续尝试下一个
         }
+    }
 
-        logTime(`正在发送请求到FastGPT API`);
-
-        // logTime(`请求体: ${JSON.stringify(requestBody)}`);
-
-        const response = await axios.post(apiUrl, requestBody, {
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            timeout: 60000, // 60秒超时
-        });
-
-        logTime(`FastGPT API请求成功`);
-        return response.data;
-    } catch (error) {
-        // 处理不同类型的错误
-        if (error.response) {
-            // API返回了错误状态码
-            logTime(
-                `FastGPT API请求失败: 状态码 ${error.response.status}, 响应: ${JSON.stringify(error.response.data)}`,
-                true,
-            );
-            throw new Error(`FastGPT API请求失败: ${error.response.status} ${JSON.stringify(error.response.data)}`);
-        } else if (error.request) {
-            // 请求发送但没有收到响应
-            logTime(`FastGPT API请求超时或无响应`, true);
-            throw new Error('FastGPT API请求超时或无响应');
-        } else {
-            // 请求设置过程中出错
-            logTime(`FastGPT API请求错误: ${error.message}`, true);
-            throw new Error(`FastGPT API请求错误: ${error.message}`);
-        }
+    // 如果所有端点都尝试失败，则抛出最后一个遇到的错误
+    logTime('所有 FastGPT 端点均请求失败', true);
+    if (lastError) {
+        const errorMessage = lastError.response
+            ? `状态码 ${lastError.response.status}, 响应: ${JSON.stringify(lastError.response.data)}`
+            : lastError.message;
+        throw new Error(`FastGPT API 请求失败: ${errorMessage}`);
+    } else {
+        throw new Error('无法连接到任何 FastGPT 端点');
     }
 }
 

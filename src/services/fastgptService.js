@@ -85,8 +85,11 @@ export function buildFastGPTRequestBody(messages, prompt, targetUser, executorUs
         // 构建新格式的提示词文本
         let formattedText = `### 需要答疑的用户${targetUser.username}发送了以下消息：\n`;
 
+        // 按时间顺序（从旧到新）排序消息
+        const sortedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp);
+
         // 添加用户消息和时间戳
-        messages.forEach(msg => {
+        sortedMessages.forEach(msg => {
             if (msg.content && msg.content.trim()) {
                 const timestampStr = msg.timestamp.toLocaleString('zh-CN', {
                     year: 'numeric',
@@ -110,7 +113,7 @@ export function buildFastGPTRequestBody(messages, prompt, targetUser, executorUs
         });
 
         // 添加图片
-        messages.forEach(msg => {
+        sortedMessages.forEach(msg => {
             msg.images.forEach(imageUrl => {
                 contentItems.push({
                     type: 'image_url',

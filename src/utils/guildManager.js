@@ -51,6 +51,11 @@ export class GuildManager {
                     senatorRoleForumId: null, // string | null - 参议员论坛ID
                     WarnedRoleId: null, // string - 警告角色ID，从根级别移动到此处
                 },
+                fastgpt: guildConfig.fastgpt || {
+                    enabled: false,
+                    apiUrl: null,
+                    apiKey: null,
+                },
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,
                     courtChannelId: null,

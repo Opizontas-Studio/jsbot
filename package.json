@@ -18,14 +18,18 @@
     },
     "dependencies": {
         "@discordjs/rest": "^2.4.2",
+        "axios": "^1.6.7",
         "discord-api-types": "^0.37.117",
         "discord.js": "^14.17.3",
+        "marked": "^9.1.5",
         "node-cron": "^3.0.3",
+        "node-html-to-image": "^4.0.0",
+        "node-schedule": "^2.1.0",
+        "puppeteer-core": "^21.6.1",
         "sqlite": "^5.1.1",
         "sqlite3": "^5.1.7",
         "winston": "^3.17.0",
-        "winston-daily-rotate-file": "^5.0.0",
-        "node-schedule": "^2.1.0"
+        "winston-daily-rotate-file": "^5.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.19.0",

@@ -204,7 +204,13 @@ function detectChromePath() {
             process.env.PROGRAMFILES + '\\Google\\Chrome\\Application\\chrome.exe',
             process.env['PROGRAMFILES(X86)'] + '\\Google\\Chrome\\Application\\chrome.exe',
         ],
-        linux: ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium', '/snap/bin/chromium'],
+        linux: [
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/snap/bin/chromium',
+            '/usr/bin/chromium-browser',
+        ],
         darwin: [
             '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
             '/Applications/Chromium.app/Contents/MacOS/Chromium',

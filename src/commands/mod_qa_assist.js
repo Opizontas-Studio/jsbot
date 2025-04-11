@@ -9,6 +9,9 @@ import {
 import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
+// 用于跟踪活动答疑会话的Set，防止并发执行
+const activeQASessions = new Set();
+
 export default {
     cooldown: 30, // 30秒冷却时间
     data: new SlashCommandBuilder()
@@ -33,6 +36,18 @@ export default {
         ),
 
     async execute(interaction, guildConfig) {
+        // 检查是否有正在进行的会话
+        if (activeQASessions.has(interaction.guildId)) {
+            await interaction.editReply({
+                content: '⏳ 当前服务器已有一个答疑任务正在运行，请稍后再试。',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 获取锁
+        activeQASessions.add(interaction.guildId);
+
         try {
             // 检查FastGPT功能是否启用
             if (!guildConfig.fastgpt?.enabled) {
@@ -149,6 +164,9 @@ export default {
             );
         } catch (error) {
             await handleCommandError(interaction, error, '答疑命令');
+        } finally {
+            // 确保释放锁
+            activeQASessions.delete(interaction.guildId);
         }
     },
 };

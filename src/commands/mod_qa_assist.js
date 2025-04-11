@@ -11,10 +11,12 @@ import { logTime } from '../utils/logger.js';
 
 // 用于跟踪活动答疑会话的 Map，键是 guildId，值是当前活动会话数
 const activeQASessions = new Map();
+// 用于跟踪正在处理的目标用户，防止对同一用户并发处理，存储 guildId-targetUserId
+const activeTargetUserSessions = new Set();
 const MAX_CONCURRENT_QA = 2; // 每个服务器最大并发数
 
 export default {
-    cooldown: 10, // 降低冷却时间，允许多个用户同时请求
+    cooldown: 10,
     data: new SlashCommandBuilder()
         .setName('答疑')
         .setDescription('使用AI助手回答用户问题')
@@ -37,6 +39,18 @@ export default {
         ),
 
     async execute(interaction, guildConfig) {
+        const targetUser = interaction.options.getUser('答疑对象');
+        const targetUserLockKey = `${interaction.guildId}-${targetUser.id}`;
+
+        // 检查是否已有针对同一用户的请求在处理
+        if (activeTargetUserSessions.has(targetUserLockKey)) {
+            await interaction.editReply({
+                content: `⏳ 已有另一个针对用户 ${targetUser.tag} 的答疑任务正在运行，请稍后再试。`,
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
         const currentSessions = activeQASessions.get(interaction.guildId) || 0;
 
         // 检查是否有超过并发限制
@@ -48,7 +62,9 @@ export default {
             return;
         }
 
-        // 增加会话计数
+        // 获取目标用户锁
+        activeTargetUserSessions.add(targetUserLockKey);
+        // 增加服务器会话计数
         activeQASessions.set(interaction.guildId, currentSessions + 1);
 
         try {
@@ -59,7 +75,6 @@ export default {
             }
 
             // 获取命令参数
-            const targetUser = interaction.options.getUser('答疑对象');
             const prompt = interaction.options.getString('提示词'); // 现在是可选参数
             const messageCount = interaction.options.getInteger('消息数量') || 5; // 默认获取5条消息
             const responseFormat = interaction.options.getString('响应格式') || 'text'; // 默认响应格式为文本文件
@@ -168,7 +183,9 @@ export default {
         } catch (error) {
             await handleCommandError(interaction, error, '答疑命令');
         } finally {
-            // 减少会话计数
+            // 释放目标用户锁
+            activeTargetUserSessions.delete(targetUserLockKey);
+            // 减少服务器会话计数
             const updatedSessions = (activeQASessions.get(interaction.guildId) || 1) - 1;
             if (updatedSessions <= 0) {
                 activeQASessions.delete(interaction.guildId);

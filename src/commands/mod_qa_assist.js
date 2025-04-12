@@ -159,7 +159,14 @@ export default {
             // 构建回复内容，如果存在链接且是图片格式，则添加链接
             let replyContent = '';
             if (responseFormat === 'image' && links && links.length > 0) {
-                replyContent = `**以下是回复中包含的链接：**\n${links.map(link => `• ${link}`).join('\n')}`;
+                replyContent = `**以下是回复中包含的链接：**\n${links.map((link, index) => {
+                    // 如果链接是对象(有text和url)，则使用"[文本](URL)"格式
+                    if (typeof link === 'object' && link.text && link.url) {
+                        return `• [${link.text}](${link.url})`;
+                    }
+                    // 否则直接显示URL
+                    return `• ${link}`;
+                }).join('\n')}`;
             }
 
             // 回复目标用户的最近消息

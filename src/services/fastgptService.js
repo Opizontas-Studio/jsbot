@@ -404,7 +404,7 @@ export async function textToImage(text) {
 /**
  * 提取文本中的超链接
  * @param {String} text - 包含可能超链接的文本
- * @returns {Array} 提取的超链接数组
+ * @returns {Array} 提取的超链接数组，每个元素为 {text, url} 对象或单独的 url 字符串
  */
 export function extractLinks(text) {
     if (!text) return [];
@@ -414,22 +414,28 @@ export function extractLinks(text) {
     const urlPattern = /(https?:\/\/[^\s\]()]+)/g;
 
     const links = new Set();
+    const linksWithText = [];
     let match;
 
     // 提取Markdown格式链接
     while ((match = markdownLinkPattern.exec(text)) !== null) {
-        links.add(match[2]);  // 添加URL部分
+        const linkText = match[1];
+        const url = match[2];
+        linksWithText.push({ text: linkText, url });
+        links.add(url); // 添加URL到集合中，用于后续去重
     }
 
     // 提取普通URL
     while ((match = urlPattern.exec(text)) !== null) {
+        const url = match[1];
         // 确保不是已经作为Markdown链接的一部分提取过的
-        if (!text.includes(`](${match[1]})`) && !text.includes(`](${match[1]}?`)) {
-            links.add(match[1]);
+        if (!links.has(url) && !text.includes(`](${url})`) && !text.includes(`](${url}?`)) {
+            linksWithText.push(url); // 普通URL没有链接文本，直接添加URL字符串
+            links.add(url);
         }
     }
 
-    return [...links];
+    return linksWithText;
 }
 
 /**
@@ -538,7 +544,14 @@ export async function logQAResult(logData, responseText, imageInfo, links = []) 
         // 如果有链接，添加链接部分
         let linksSection = '';
         if (links && links.length > 0) {
-            linksSection = `\n链接列表:\n${links.map((link, index) => `${index + 1}. ${link}`).join('\n')}\n`;
+            linksSection = `\n链接列表:\n${links.map((link, index) => {
+                // 如果链接是对象(有text和url)，则使用"文本 (URL)"格式
+                if (typeof link === 'object' && link.text && link.url) {
+                    return `${index + 1}. ${link.text} (${link.url})`;
+                }
+                // 否则直接显示URL
+                return `${index + 1}. ${link}`;
+            }).join('\n')}\n`;
         }
 
         const logContent = `${logHeader}${'-'.repeat(80)}${linksSection}\n${responseText}\n${'='.repeat(80)}\n\n`;

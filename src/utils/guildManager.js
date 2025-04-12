@@ -87,7 +87,7 @@ export class GuildManager {
                             // 你可以选择移除这个无效的endpoint或禁用整个功能
                         }
                     });
-                    // 移除无效的endpoints (可选)
+                    // 移除无效的endpoints
                     serverConfig.fastgpt.endpoints = serverConfig.fastgpt.endpoints.filter(ep => ep.url && ep.key);
                     if (serverConfig.fastgpt.endpoints.length === 0) {
                         logTime(`警告: 服务器 ${guildId} 所有 FastGPT endpoints 均无效，已禁用 FastGPT`, true);
@@ -108,6 +108,39 @@ export class GuildManager {
 
             logTime(`已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
         }
+    }
+
+    /**
+     * 重置并重新加载配置
+     * @param {Object} config - 新的配置对象
+     * @returns {Object} 包含添加、更新和移除的服务器ID数组
+     */
+    resetConfig(config) {
+        if (!config.guilds || typeof config.guilds !== 'object') {
+            throw new Error('配置文件缺少guilds对象');
+        }
+
+        const oldGuildIds = new Set(this.guilds.keys());
+        const newGuildIds = new Set(Object.keys(config.guilds));
+
+        // 计算差异
+        const added = [...newGuildIds].filter(id => !oldGuildIds.has(id));
+        const removed = [...oldGuildIds].filter(id => !newGuildIds.has(id));
+        const updated = [...newGuildIds].filter(id => oldGuildIds.has(id));
+
+        // 清空现有配置
+        this.guilds.clear();
+
+        // 重新加载所有配置
+        this.initialize(config);
+
+        // 返回变更摘要
+        return {
+            added,
+            removed,
+            updated,
+            total: this.guilds.size
+        };
     }
 
     /**

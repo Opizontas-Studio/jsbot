@@ -163,7 +163,7 @@ export async function sendToFastGPT(requestBody, guildConfig) {
 
     for (const endpoint of shuffledEndpoints) {
         const { url: apiUrl, key: apiKey } = endpoint;
-        logTime(`尝试发送请求到 FastGPT API: ${apiUrl}`);
+        // logTime(`尝试发送请求到 FastGPT API: ${apiUrl}`);
 
         try {
             const response = await axios.post(apiUrl, requestBody, {
@@ -236,7 +236,7 @@ function detectChromePath() {
     for (const path of paths) {
         try {
             if (existsSync(path)) {
-                logTime(`找到Chrome可执行文件: ${path}`);
+                // logTime(`找到Chrome可执行文件: ${path}`);
                 return path;
             }
         } catch (err) {
@@ -358,7 +358,6 @@ export async function textToImage(text) {
         }
 
         // 使用node-html-to-image生成图片
-        logTime(`开始生成图片...`);
         const imageBuffer = await nodeHtmlToImage({
             html: htmlTemplate,
             quality: 90,
@@ -369,13 +368,13 @@ export async function textToImage(text) {
 
         // 获取图片尺寸信息
         const sizeKB = Math.round(imageBuffer.length / 1024);
-        logTime(`图片生成完成，大小: ${sizeKB}KB`);
+        // logTime(`图片生成完成，大小: ${sizeKB}KB`);
 
         // 返回图片信息
         return {
             buffer: imageBuffer,
-            width: 800, // 固定宽度，可通过puppeteer获取实际尺寸
-            height: 600, // 近似高度，可通过puppeteer获取实际尺寸
+            width: 1000, // 固定宽度，可通过puppeteer获取实际尺寸
+            height: 800, // 近似高度，可通过puppeteer获取实际尺寸
             sizeKB: sizeKB,
         };
     } catch (error) {
@@ -403,6 +402,37 @@ export async function textToImage(text) {
 }
 
 /**
+ * 提取文本中的超链接
+ * @param {String} text - 包含可能超链接的文本
+ * @returns {Array} 提取的超链接数组
+ */
+export function extractLinks(text) {
+    if (!text) return [];
+
+    // 匹配Markdown格式的链接 [text](url) 和普通URL
+    const markdownLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const urlPattern = /(https?:\/\/[^\s\]()]+)/g;
+
+    const links = new Set();
+    let match;
+
+    // 提取Markdown格式链接
+    while ((match = markdownLinkPattern.exec(text)) !== null) {
+        links.add(match[2]);  // 添加URL部分
+    }
+
+    // 提取普通URL
+    while ((match = urlPattern.exec(text)) !== null) {
+        // 确保不是已经作为Markdown链接的一部分提取过的
+        if (!text.includes(`](${match[1]})`) && !text.includes(`](${match[1]}?`)) {
+            links.add(match[1]);
+        }
+    }
+
+    return [...links];
+}
+
+/**
  * 处理FastGPT响应并转换为Discord附件
  * @param {Object} response - FastGPT API响应
  * @param {String} format - 响应格式，'text'为文本文件，'image'为图片
@@ -416,6 +446,9 @@ export async function processResponseToAttachment(response, format = 'text') {
         if (!responseText) {
             throw new Error('FastGPT响应内容为空');
         }
+
+        // 提取所有超链接
+        const links = extractLinks(responseText);
 
         // 根据格式处理响应
         if (format === 'image') {
@@ -435,6 +468,7 @@ export async function processResponseToAttachment(response, format = 'text') {
                     sizeKB: imageResult.sizeKB,
                     isTextFallback: imageResult.isTextFallback || false,
                 },
+                links, // 返回提取的链接
             };
         } else {
             // 使用纯文本格式
@@ -453,6 +487,7 @@ export async function processResponseToAttachment(response, format = 'text') {
                     sizeKB: sizeKB,
                     isTextFallback: true,
                 },
+                links, // 返回提取的链接
             };
         }
     } catch (error) {
@@ -466,9 +501,10 @@ export async function processResponseToAttachment(response, format = 'text') {
  * @param {Object} logData - 日志数据
  * @param {String} responseText - API响应文本
  * @param {Object} imageInfo - 图片信息（宽度、高度、大小）
+ * @param {Array} links - 提取的超链接数组
  * @returns {Promise<void>}
  */
-export async function logQAResult(logData, responseText, imageInfo) {
+export async function logQAResult(logData, responseText, imageInfo, links = []) {
     try {
         const { timestamp, executor, target, prompt, messageCount, channelName } = logData;
 
@@ -485,15 +521,27 @@ export async function logQAResult(logData, responseText, imageInfo) {
             if (imageInfo.isTextFallback) {
                 imageInfoText = `| 图片生成失败，使用纯文本 (${imageInfo.sizeKB}KB)`;
             } else {
-                imageInfoText = `| 图片尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)`;
+                imageInfoText = `| 尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)`;
             }
+        }
+
+        // 添加链接信息
+        if (links && links.length > 0) {
+            imageInfoText += ` | 包含${links.length}个链接`;
         }
 
         // 构建日志头部
         const logHeader = `[${timestamp}] 执行人: ${executor} | 答疑对象: ${target} | 提示词: ${
             prompt || '默认'
         } | 消息数: ${messageCount} | 频道: ${channelName} ${imageInfoText}\n`;
-        const logContent = `${logHeader}${'-'.repeat(80)}\n${responseText}\n${'='.repeat(80)}\n\n`;
+
+        // 如果有链接，添加链接部分
+        let linksSection = '';
+        if (links && links.length > 0) {
+            linksSection = `\n链接列表:\n${links.map((link, index) => `${index + 1}. ${link}`).join('\n')}\n`;
+        }
+
+        const logContent = `${logHeader}${'-'.repeat(80)}${linksSection}\n${responseText}\n${'='.repeat(80)}\n\n`;
 
         // 追加写入日志文件
         await fs.appendFile(filePath, logContent, 'utf8');

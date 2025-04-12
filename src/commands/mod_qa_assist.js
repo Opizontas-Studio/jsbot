@@ -125,7 +125,7 @@ export default {
             }
 
             // 处理响应并转换为图片
-            const { attachment, imageInfo } = await processResponseToAttachment(apiResponse, responseFormat);
+            const { attachment, imageInfo, links } = await processResponseToAttachment(apiResponse, responseFormat);
 
             // 创建临时回复用的Embed
             const replyEmbed = new EmbedBuilder()
@@ -156,14 +156,21 @@ export default {
                 return;
             }
 
+            // 构建回复内容，如果存在链接且是图片格式，则添加链接
+            let replyContent = '';
+            if (responseFormat === 'image' && links && links.length > 0) {
+                replyContent = `**以下是回复中包含的链接：**\n${links.map(link => `• ${link}`).join('\n')}`;
+            }
+
             // 回复目标用户的最近消息
             await targetMessage.reply({
+                content: replyContent || null,
                 files: [attachment],
             });
 
             // 记录日志
             logTime(
-                `用户 ${interaction.user.tag} 成功对 ${targetUser.tag} 进行了答疑 [图片尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)]`,
+                `用户 ${interaction.user.tag} 成功对 ${targetUser.tag} 进行了答疑 [图片尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)]${links?.length > 0 ? ` [包含${links.length}个链接]` : ''}`,
             );
 
             // 记录到文件
@@ -179,6 +186,7 @@ export default {
                 },
                 responseText,
                 imageInfo,
+                links
             );
         } catch (error) {
             await handleCommandError(interaction, error, '答疑命令');

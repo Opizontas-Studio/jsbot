@@ -65,7 +65,7 @@ export async function handleConfirmationButton({
     onConfirm,
     onTimeout,
     onError,
-    timeout = 120000,
+    timeout = 180000,
 }) {
     // 创建确认按钮
     const confirmButton = new ButtonBuilder().setCustomId(customId).setLabel(buttonLabel).setStyle(ButtonStyle.Danger);
@@ -83,6 +83,17 @@ export async function handleConfirmationButton({
         components: [row],
     });
 
+    // 在后台处理按钮交互，不阻塞主流程
+    waitForConfirmation(response, interaction, customId, onConfirm, onTimeout, onError, timeout).catch(error => {
+        logTime(`确认按钮等待处理出错: ${error.message}`, true);
+    });
+}
+
+/**
+ * 等待用户确认交互
+ * @private
+ */
+async function waitForConfirmation(response, interaction, customId, onConfirm, onTimeout, onError, timeout) {
     try {
         const confirmation = await response.awaitMessageComponent({
             filter: i => i.user.id === interaction.user.id,
@@ -113,8 +124,8 @@ export async function handleConfirmationButton({
                 });
             }
         } else {
-            // 其他错误向上抛出，让调用者处理
-            throw error;
+            // 其他错误记录日志
+            logTime(`确认按钮处理错误: ${error.message}`, true);
         }
     }
 }

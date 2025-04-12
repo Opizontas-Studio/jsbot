@@ -106,8 +106,9 @@ async function waitForConfirmation(response, interaction, customId, onConfirm, o
     } catch (error) {
         if (onError) {
             await onError(error);
-        } else if (error.code === 'InteractionCollectorError') {
+        } else if (error.code === 'InteractionCollectorError' || error.message?.includes('Collector received no interactions before ending with reason: time')) {
             // 处理超时等基础交互错误
+            logTime(`按钮确认超时: ${customId}`);
             if (onTimeout) {
                 await onTimeout(interaction);
             } else {

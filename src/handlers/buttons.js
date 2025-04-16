@@ -332,31 +332,31 @@ export const buttonHandlers = {
         // 原因输入
         const reasonInput = new TextInputBuilder()
             .setCustomId('debate_reason')
-            .setLabel('提案原因（20到300字，可以分段、换行）')
+            .setLabel('提案原因（20到400字，可以分段、换行）')
             .setStyle(TextInputStyle.Paragraph)
             .setPlaceholder('请详细说明提出此议案的原因')
             .setMinLength(20)
-            .setMaxLength(300)
+            .setMaxLength(400)
             .setRequired(true);
 
         // 动议输入
         const motionInput = new TextInputBuilder()
             .setCustomId('debate_motion')
-            .setLabel('议案动议（20到300字，可以分段、换行）')
+            .setLabel('议案动议（20到400字，可以分段、换行）')
             .setStyle(TextInputStyle.Paragraph)
             .setPlaceholder('请详细说明您的动议内容，具体的目标是什么')
             .setMinLength(20)
-            .setMaxLength(300)
+            .setMaxLength(400)
             .setRequired(true);
 
         // 执行方式输入
         const implementationInput = new TextInputBuilder()
             .setCustomId('debate_implementation')
-            .setLabel('执行方案（30到600字，可以分段、换行）')
+            .setLabel('执行方案（30到1000字，可以分段、换行）')
             .setStyle(TextInputStyle.Paragraph)
             .setPlaceholder('请详细说明如何执行此动议，包括执行人是谁，执行方式，如何考核监督等')
             .setMinLength(30)
-            .setMaxLength(600)
+            .setMaxLength(1000)
             .setRequired(true);
 
         // 投票时间输入
@@ -365,7 +365,7 @@ export const buttonHandlers = {
             .setLabel('投票时间（不超过7天）')
             .setStyle(TextInputStyle.Short)
             .setPlaceholder('填写格式形如：1天')
-            .setMaxLength(10)
+            .setMaxLength(50)
             .setRequired(true);
 
         // 将输入添加到模态框

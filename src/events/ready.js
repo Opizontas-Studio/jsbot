@@ -5,12 +5,7 @@ import { fileURLToPath } from 'url';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { logTime } from '../utils/logger.js';
 
-// 添加重连计数器和时间记录
-let reconnectionCount = 0;
-let reconnectionTimeout = null;
-
 // 添加配置文件加载
-const currentDir = dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(readFileSync(join(process.cwd(), 'config.json'), 'utf8'));
 
 // 将初始化逻辑抽取为单独的函数
@@ -104,11 +99,11 @@ export default {
                 // token失效检测
                 if (response.status === 401) {
                     logTime('Token已失效，尝试重新连接...', true);
-                    
+
                     // 清理现有的监听器和定时器
                     client.removeAllListeners();
                     clearInterval(wsStateMonitor.heartbeatInterval);
-                    
+
                     // 销毁客户端
                     client.destroy();
 

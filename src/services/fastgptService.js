@@ -183,6 +183,9 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
         const { url: apiUrl, key: apiKey } = endpoint;
         currentEndpoint = apiUrl;
 
+        // 标记请求状态，每次重新尝试新端点时重置
+        let isRequestCompleted = false;
+
         // 更新交互，通知用户正在尝试的端点
         if (interaction) {
             const processingEmbed = new EmbedBuilder()
@@ -201,9 +204,6 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             const controller = new AbortController();
             const timeoutMs = 90000; // 90秒超时
             const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-            // 标记请求状态
-            let isRequestCompleted = false;
 
             // 启动定时器，每10秒更新一次进度
             let elapsed = 0;

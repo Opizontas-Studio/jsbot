@@ -54,6 +54,7 @@ export class GuildManager {
                 fastgpt: guildConfig.fastgpt || {
                     enabled: false,
                     endpoints: [], // 默认为空数组
+                    endpointNames: {}, // 端点名称映射
                 },
                 courtSystem: guildConfig.courtSystem || {
                     enabled: false,
@@ -94,6 +95,30 @@ export class GuildManager {
                         serverConfig.fastgpt.enabled = false;
                     }
                 }
+
+                // 处理端点名称映射
+                if (!serverConfig.fastgpt.endpointNames) {
+                    serverConfig.fastgpt.endpointNames = {};
+                }
+
+                // 为没有名称的端点自动生成名称
+                serverConfig.fastgpt.endpoints.forEach((ep, index) => {
+                    try {
+                        const url = new URL(ep.url);
+                        const domainKey = `${url.protocol}//${url.hostname}`;
+
+                        // 如果没有为此域名设置名称，自动生成一个
+                        if (!serverConfig.fastgpt.endpointNames[domainKey]) {
+                            // 使用域名的第一部分作为默认名称
+                            const defaultName = url.hostname.split('.')[0].charAt(0).toUpperCase() +
+                                              url.hostname.split('.')[0].slice(1);
+                            serverConfig.fastgpt.endpointNames[domainKey] = `端点${index + 1} (${defaultName})`;
+                        }
+                    } catch (error) {
+                        // URL解析错误，使用默认名称
+                        serverConfig.fastgpt.endpointNames[ep.url] = `端点${index + 1}`;
+                    }
+                });
             }
 
             this.guilds.set(guildId, serverConfig);

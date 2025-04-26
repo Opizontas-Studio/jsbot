@@ -15,6 +15,21 @@ const activeQASessions = new Map();
 const activeTargetUserSessions = new Set();
 const MAX_CONCURRENT_QA = 2; // 每个服务器最大并发数
 
+/**
+ * 创建进度更新的Embed
+ * @param {String} title - Embed标题
+ * @param {String} description - Embed描述
+ * @param {Number} color - Embed颜色代码
+ * @returns {EmbedBuilder} 生成的Embed
+ */
+function createStatusEmbed(title, description, color = 0x3498db) {
+    return new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(color)
+        .setTimestamp();
+}
+
 export default {
     cooldown: 10,
     data: new SlashCommandBuilder()
@@ -44,8 +59,14 @@ export default {
 
         // 检查是否已有针对同一用户的请求在处理
         if (activeTargetUserSessions.has(targetUserLockKey)) {
+            const errorEmbed = createStatusEmbed(
+                '答疑任务冲突',
+                `⏳ 已有另一个针对用户 ${targetUser.tag} 的答疑任务正在运行，请稍后再试。`,
+                0xf44336 // 红色
+            );
+
             await interaction.editReply({
-                content: `⏳ 已有另一个针对用户 ${targetUser.tag} 的答疑任务正在运行，请稍后再试。`,
+                embeds: [errorEmbed],
                 flags: ['Ephemeral'],
             });
             return;
@@ -55,8 +76,14 @@ export default {
 
         // 检查是否有超过并发限制
         if (currentSessions >= MAX_CONCURRENT_QA) {
+            const limitEmbed = createStatusEmbed(
+                '并发任务已达上限',
+                `⏳ 当前服务器的答疑任务已达到最大并发数 (${MAX_CONCURRENT_QA})，请稍后再试。`,
+                0xf44336 // 红色
+            );
+
             await interaction.editReply({
-                content: `⏳ 当前服务器的答疑任务已达到最大并发数 (${MAX_CONCURRENT_QA})，请稍后再试。`,
+                embeds: [limitEmbed],
                 flags: ['Ephemeral'],
             });
             return;
@@ -70,7 +97,13 @@ export default {
         try {
             // 检查FastGPT功能是否启用
             if (!guildConfig.fastgpt?.enabled) {
-                await interaction.editReply('❌ 此服务器未启用FastGPT功能');
+                const disabledEmbed = createStatusEmbed(
+                    '功能未启用',
+                    '❌ 此服务器未启用FastGPT功能',
+                    0xf44336 // 红色
+                );
+
+                await interaction.editReply({ embeds: [disabledEmbed] });
                 return;
             }
 
@@ -92,7 +125,13 @@ export default {
 
             // 检查权限
             if (!hasAdminPermission && !hasModeratorPermission && !hasQAerPermission) {
-                await interaction.editReply('❌ 你没有权限使用此命令。需要具有管理员、版主或答疑员身份组。');
+                const permissionEmbed = createStatusEmbed(
+                    '权限不足',
+                    '❌ 你没有权限使用此命令。需要具有管理员、版主或答疑员身份组。',
+                    0xf44336 // 红色
+                );
+
+                await interaction.editReply({ embeds: [permissionEmbed] });
                 return;
             }
 
@@ -101,7 +140,13 @@ export default {
             const userMessages = await fetchUserMessages(interaction.channel, targetUser.id, messageCount);
 
             if (userMessages.length === 0) {
-                await interaction.editReply(`❌ 无法找到用户 ${targetUser.tag} 在当前频道的1小时内消息`);
+                const noMessagesEmbed = createStatusEmbed(
+                    '未找到消息',
+                    `❌ 无法找到用户 ${targetUser.tag} 在当前频道的1小时内消息`,
+                    0xf44336 // 红色
+                );
+
+                await interaction.editReply({ embeds: [noMessagesEmbed] });
                 return;
             }
 
@@ -122,7 +167,13 @@ export default {
             };
 
             // 发送处理中的提示
-            await interaction.editReply(`⏳ 正在处理用户 ${targetUser.tag} 的问题，请稍候...`);
+            const processingEmbed = createStatusEmbed(
+                '正在处理',
+                `⏳ 正在处理用户 ${targetUser.tag} 的问题，请稍候...`,
+                0xffa500 // 橙色
+            );
+
+            await interaction.editReply({ embeds: [processingEmbed] });
 
             try {
                 // 发送请求到FastGPT API，传入interaction用于进度更新和logInitData用于日志记录
@@ -131,14 +182,26 @@ export default {
                 // 从响应中提取文本内容
                 const responseText = apiResponse.choices[0]?.message?.content;
                 if (!responseText) {
-                    await interaction.editReply('❌ FastGPT返回了空响应');
+                    const emptyResponseEmbed = createStatusEmbed(
+                        '响应为空',
+                        '❌ FastGPT返回了空响应',
+                        0xf44336 // 红色
+                    );
+
+                    await interaction.editReply({ embeds: [emptyResponseEmbed] });
                     // 记录日志
                     await logQAResult(logInitData, null, null, null, 'failed', null, 'FastGPT返回了空响应');
                     return;
                 }
 
                 // 立即更新进度消息，清除超时倒计时信息
-                await interaction.editReply(`✅ 请求成功，正在处理响应...`);
+                const processingResponseEmbed = createStatusEmbed(
+                    '处理响应',
+                    `✅ 请求成功，正在处理响应...`,
+                    0x00cc66 // 绿色
+                );
+
+                await interaction.editReply({ embeds: [processingResponseEmbed] });
 
                 // 处理响应并转换为图片
                 const { attachment, imageInfo, links } = await processResponseToAttachment(apiResponse, responseFormat);

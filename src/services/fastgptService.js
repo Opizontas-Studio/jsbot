@@ -6,6 +6,9 @@ import nodeHtmlToImage from 'node-html-to-image';
 import path from 'path';
 import { logTime } from '../utils/logger.js';
 
+// 用于记录每个服务器最近使用的端点 (guildId => endpointUrl)
+const lastUsedEndpoints = new Map();
+
 // 确保日志目录存在
 try {
     mkdirSync('./data/qalog', { recursive: true });
@@ -153,13 +156,24 @@ export function buildFastGPTRequestBody(messages, prompt, targetUser, executorUs
  */
 export async function sendToFastGPT(requestBody, guildConfig, interaction = null, logData = null) {
     const { endpoints } = guildConfig.fastgpt;
+    // 获取服务器ID，如果没有交互对象则使用默认值
+    const guildId = interaction?.guildId || 'default';
 
     if (!endpoints || endpoints.length === 0) {
         throw new Error('FastGPT 未配置或所有端点均无效');
     }
 
+    // 获取上次使用的端点
+    const lastUsedEndpoint = lastUsedEndpoints.get(guildId);
+
+    // 过滤掉上次使用的端点（如果有且有多个端点可选）
+    let availableEndpoints = [...endpoints];
+    if (lastUsedEndpoint && availableEndpoints.length > 1) {
+        availableEndpoints = availableEndpoints.filter(endpoint => endpoint.url !== lastUsedEndpoint);
+    }
+
     // 随机打乱端点顺序以实现轮询
-    const shuffledEndpoints = [...endpoints].sort(() => Math.random() - 0.5);
+    const shuffledEndpoints = availableEndpoints.sort(() => Math.random() - 0.5);
 
     let lastError = null;
     let currentEndpoint = null;
@@ -171,18 +185,18 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
 
         // 更新交互，通知用户正在尝试的端点
         if (interaction) {
-            await interaction.editReply(
-                `⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
+            const processingEmbed = new EmbedBuilder()
+                .setTitle('正在处理请求')
+                .setDescription(`⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
                     shuffledEndpoints.length
-                })`,
-            );
+                })`)
+                .setColor(0xffa500) // 橙色
+                .setTimestamp();
+
+            await interaction.editReply({ embeds: [processingEmbed] });
         }
 
-        // 注意：不再记录"开始请求"状态的日志
-
         try {
-            logTime(`尝试发送请求到 FastGPT API: ${apiUrl}`);
-
             // 创建超时控制器
             const controller = new AbortController();
             const timeoutMs = 90000; // 90秒超时
@@ -196,11 +210,15 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                 const remaining = Math.max(0, timeoutMs - elapsed);
                 if (interaction && !controller.signal.aborted) {
                     try {
-                        await interaction.editReply(
-                            `⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
+                        const progressEmbed = new EmbedBuilder()
+                            .setTitle('正在处理请求')
+                            .setDescription(`⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
                                 shuffledEndpoints.length
-                            })\n剩余超时时间: ${Math.ceil(remaining / 1000)}秒`,
-                        );
+                            })\n剩余超时时间: ${Math.ceil(remaining / 1000)}秒`)
+                            .setColor(0xffa500) // 橙色
+                            .setTimestamp();
+
+                        await interaction.editReply({ embeds: [progressEmbed] });
                     } catch (e) {
                         // 忽略更新失败的错误
                     }
@@ -229,7 +247,13 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             // 成功后立即更新交互状态，清除超时倒计时信息
             if (interaction) {
                 try {
-                    await interaction.editReply(`✅ 请求成功，正在处理响应...`);
+                    const successEmbed = new EmbedBuilder()
+                        .setTitle('请求成功')
+                        .setDescription(`✅ 请求成功，正在处理响应...`)
+                        .setColor(0x00cc66) // 绿色
+                        .setTimestamp();
+
+                    await interaction.editReply({ embeds: [successEmbed] });
                 } catch (e) {
                     // 忽略更新失败的错误
                 }
@@ -239,6 +263,10 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             const responseData = response.data;
             // 添加端点信息到响应对象，便于记录日志
             responseData.endpoint = apiUrl;
+
+            // 记录成功的端点，用于下次请求排除
+            lastUsedEndpoints.set(guildId, apiUrl);
+
             return responseData; // 成功则直接返回
         } catch (error) {
             lastError = error; // 记录错误
@@ -263,10 +291,14 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             // 更新交互，通知用户请求失败
             if (interaction) {
                 try {
-                    await interaction.editReply(
-                        `⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType})` +
-                            (i < shuffledEndpoints.length - 1 ? `，正在切换到下一个端点...` : ''),
-                    );
+                    const errorEmbed = new EmbedBuilder()
+                        .setTitle('请求失败')
+                        .setDescription(`⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType})` +
+                            (i < shuffledEndpoints.length - 1 ? `，正在切换到下一个端点...` : ''))
+                        .setColor(0xf44336) // 红色
+                        .setTimestamp();
+
+                    await interaction.editReply({ embeds: [errorEmbed] });
                 } catch (e) {
                     // 忽略更新失败的错误
                 }
@@ -721,9 +753,10 @@ export async function logQAResult(
 /**
  * 分析指定日期的FastGPT日志
  * @param {Date} [date] - 要分析的日期，默认为当天
+ * @param {Object} [endpointNames] - 端点名称映射，默认为空对象
  * @returns {Promise<Object>} 日志统计数据
  */
-export async function analyzeFastGPTLogs(date = new Date()) {
+export async function analyzeFastGPTLogs(date = new Date(), endpointNames = {}) {
     try {
         // 格式化日期为文件名格式 (YYYY-MM-DD.log)
         const fileName = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
@@ -766,6 +799,7 @@ export async function analyzeFastGPTLogs(date = new Date()) {
             successRequests: 0,
             failedRequests: 0,
             endpointStats: {}, // 按端点分类的统计
+            endpointToNameMap: {}, // 端点URL到名称的映射
         };
 
         // 按日志条目分割内容
@@ -788,6 +822,7 @@ export async function analyzeFastGPTLogs(date = new Date()) {
             // 提取端点
             const endpointMatch = entry.match(/端点:\s*([^|]+)/);
             let endpoint = '未知端点';
+            let endpointKey = '未知端点';
 
             if (endpointMatch) {
                 endpoint = endpointMatch[1].trim();
@@ -795,10 +830,20 @@ export async function analyzeFastGPTLogs(date = new Date()) {
                 try {
                     const url = new URL(endpoint);
                     endpoint = `${url.protocol}//${url.hostname}`;
+                    endpointKey = endpoint;
                 } catch (e) {
                     // 如果URL解析失败，使用简单的分割方法
                     endpoint = endpoint.split('/').slice(0, 3).join('/');
+                    endpointKey = endpoint;
                 }
+            }
+
+            // 映射端点名称
+            if (endpointNames[endpointKey]) {
+                stats.endpointToNameMap[endpointKey] = endpointNames[endpointKey];
+            } else {
+                // 使用域名作为默认名称
+                stats.endpointToNameMap[endpointKey] = endpointKey;
             }
 
             // 总请求数+1
@@ -809,20 +854,20 @@ export async function analyzeFastGPTLogs(date = new Date()) {
                 stats.successRequests++;
 
                 // 按端点统计成功
-                if (!stats.endpointStats[endpoint]) {
-                    stats.endpointStats[endpoint] = { total: 0, success: 0, failed: 0 };
+                if (!stats.endpointStats[endpointKey]) {
+                    stats.endpointStats[endpointKey] = { total: 0, success: 0, failed: 0 };
                 }
-                stats.endpointStats[endpoint].total++;
-                stats.endpointStats[endpoint].success++;
+                stats.endpointStats[endpointKey].total++;
+                stats.endpointStats[endpointKey].success++;
             } else {
                 stats.failedRequests++;
 
                 // 按端点统计失败
-                if (!stats.endpointStats[endpoint]) {
-                    stats.endpointStats[endpoint] = { total: 0, success: 0, failed: 0 };
+                if (!stats.endpointStats[endpointKey]) {
+                    stats.endpointStats[endpointKey] = { total: 0, success: 0, failed: 0 };
                 }
-                stats.endpointStats[endpoint].total++;
-                stats.endpointStats[endpoint].failed++;
+                stats.endpointStats[endpointKey].total++;
+                stats.endpointStats[endpointKey].failed++;
             }
         }
 
@@ -848,23 +893,11 @@ export async function analyzeFastGPTLogs(date = new Date()) {
 export function createFastGPTStatsEmbed(stats) {
     const successRate = stats.totalRequests > 0 ? Math.round((stats.successRequests / stats.totalRequests) * 100) : 0;
 
-    // 创建进度条展示成功率
-    const progressBarLength = 20; // 进度条总长度
-    const filledBars = Math.floor((successRate / 100) * progressBarLength);
-    const emptyBars = progressBarLength - filledBars;
-
-    let progressBarColor = '🟩'; // 默认绿色
-    if (successRate < 70) progressBarColor = '🟨'; // 黄色
-    if (successRate < 40) progressBarColor = '🟥'; // 红色
-
-    const progressBar = progressBarColor.repeat(filledBars) + '⬜'.repeat(emptyBars);
-
-    // 选择成功率对应的表情
-    let rateEmoji = '😁'; // 90-100%
-    if (successRate < 90) rateEmoji = '🙂'; // 70-89%
-    if (successRate < 70) rateEmoji = '😐'; // 50-69%
-    if (successRate < 50) rateEmoji = '😟'; // 30-49%
-    if (successRate < 30) rateEmoji = '😨'; // 0-29%
+    // 选择成功率对应的色块
+    let rateEmoji = '🟢'; // 90-100%
+    if (successRate < 90) rateEmoji = '🔵'; // 70-89%
+    if (successRate < 70) rateEmoji = '🟡'; // 40-69%
+    if (successRate < 40) rateEmoji = '🔴'; // 0-39%
 
     const embed = new EmbedBuilder()
         .setColor(successRate >= 70 ? 0x00cc66 : successRate >= 40 ? 0xffcc00 : 0xff3333)
@@ -877,7 +910,6 @@ export function createFastGPTStatsEmbed(stats) {
                 `✅ 成功: **${stats.successRequests}**`,
                 `❌ 失败: **${stats.failedRequests}**`,
                 `${rateEmoji} 成功率: **${successRate}%**`,
-                `\n${progressBar} ${successRate}%`,
             ].join('\n'),
             inline: false,
         })
@@ -907,13 +939,18 @@ export function createFastGPTStatsEmbed(stats) {
         const topEndpoints = sortedEndpoints.slice(0, 5);
 
         const endpointDetails = topEndpoints
-            .map(([endpoint, { total, success, failed }]) => {
+            .map(([endpointKey, { total, success, failed }]) => {
                 const endpointSuccessRate = total > 0 ? Math.round((success / total) * 100) : 0;
                 let statusEmoji = '🟢'; // 成功率高
                 if (endpointSuccessRate < 70) statusEmoji = '🟡'; // 成功率中
                 if (endpointSuccessRate < 40) statusEmoji = '🔴'; // 成功率低
 
-                return `${statusEmoji} **${endpoint}**\n总数: ${total} | 成功: ${success} | 失败: ${failed} | 成功率: ${endpointSuccessRate}%`;
+                // 使用映射的名称显示端点
+                let displayName = stats.endpointToNameMap && stats.endpointToNameMap[endpointKey]
+                                ? stats.endpointToNameMap[endpointKey]
+                                : endpointKey;
+
+                return `${statusEmoji} **${displayName}**\n总数: ${total} | 成功: ${success} | 失败: ${failed} | 成功率: ${endpointSuccessRate}%`;
             })
             .join('\n\n');
 

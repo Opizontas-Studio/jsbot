@@ -129,13 +129,13 @@ export default {
                         await interaction.editReply({
                             content: '✅ 消息已标注',
                         });
-                        logTime(`楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+                        logTime(`[自助管理] 楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
                     } else {
                         await message.unpin();
                         await interaction.editReply({
                             content: '✅ 消息已取消标注',
                         });
-                        logTime(`楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+                        logTime(`[自助管理] 楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
                     }
                 } catch (error) {
                     await interaction.editReply({
@@ -179,7 +179,7 @@ export default {
                             await thread.delete('作者自行删除');
 
                             // 记录日志
-                            logTime(`楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
+                            logTime(`[自助管理] 楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
                         } catch (error) {
                             // 如果删除过程中出现错误，尝试通知用户
                             if (!thread.deleted) {
@@ -329,7 +329,7 @@ export default {
 
                         // 执行清理
                         await handleSingleThreadCleanup(interaction, guildConfig);
-                        logTime(`楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
+                        logTime(`[自助管理] 楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
                     },
                     onTimeout: async interaction => {
                         await interaction.editReply({
@@ -397,7 +397,7 @@ export default {
                     });
 
                     // 记录日志
-                    logTime(`楼主 ${interaction.user.tag} 在帖子 ${thread.name} 中删除了 ${messageAuthor.tag} 发送的消息，内容：${messageContent}`);
+                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 在帖子 ${thread.name} 中删除了 ${messageAuthor.tag} 发送的消息，内容：${messageContent}`);
                 } catch (error) {
                     await interaction.editReply({
                         content: `❌ 删除消息失败: ${error.message}`,

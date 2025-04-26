@@ -44,7 +44,7 @@ export default {
             try {
                 const channel = interaction.channel;
                 // 使用目标日期分析日志
-                const fastgptStats = await analyzeFastGPTLogs(targetDate);
+                const fastgptStats = await analyzeFastGPTLogs(targetDate, guildConfig.fastgpt.endpointNames);
 
                 // 创建FastGPT统计的嵌入消息
                 const fastgptEmbed = createFastGPTStatsEmbed(fastgptStats);

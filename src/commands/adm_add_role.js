@@ -60,11 +60,26 @@ export default {
             // 检查是否操作管理员或版主角色
             const adminRoles = guildConfig.AdministratorRoleIds || [];
             const modRoles = guildConfig.ModeratorRoleIds || [];
-            const protectedRoles = [...adminRoles, ...modRoles];
+
+            // 添加敏感角色保护
+            const sensitiveRoles = [];
+
+            // 添加创作者、参议员、答题员角色到受保护列表
+            if (guildConfig.roleApplication?.creatorRoleId) {
+                sensitiveRoles.push(guildConfig.roleApplication.creatorRoleId);
+            }
+            if (guildConfig.roleApplication?.senatorRoleId) {
+                sensitiveRoles.push(guildConfig.roleApplication.senatorRoleId);
+            }
+            if (guildConfig.roleApplication?.QAerRoleId) {
+                sensitiveRoles.push(guildConfig.roleApplication.QAerRoleId);
+            }
+
+            const protectedRoles = [...adminRoles, ...modRoles, ...sensitiveRoles];
 
             if (protectedRoles.includes(sourceRole.id) || protectedRoles.includes(targetRole.id)) {
                 await interaction.editReply({
-                    content: '❌ 安全限制：不能操作管理员或版主身份组，以防止误操作',
+                    content: '❌ 安全限制：不能操作敏感身份组',
                 });
                 logTime(`管理员 ${interaction.user.tag} 尝试操作受保护身份组被阻止 - 源: ${sourceRole.name}(${sourceRole.id}), 目标: ${targetRole.name}(${targetRole.id})`, true);
                 return;

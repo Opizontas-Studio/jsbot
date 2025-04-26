@@ -161,7 +161,7 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
     await thread.setArchived(true, finalReason);
 
     // 记录日志
-    const actorType = options.isAdmin ? '管理员' : '楼主';
+    const actorType = options.isAdmin ? '管理员' : '[自助管理] 楼主';
     logTime(`${actorType} ${executor.tag} 锁定并归档了帖子 ${thread.name}`);
 };
 

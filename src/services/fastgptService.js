@@ -750,8 +750,6 @@ export async function logQAResult(
 
         // 追加写入日志文件
         await fs.appendFile(filePath, logContent, 'utf8');
-
-        logTime(`答疑记录已写入日志文件: ${fileName} (状态: ${status})`);
     } catch (error) {
         logTime(`记录答疑结果失败: ${error.message}`, true);
     }

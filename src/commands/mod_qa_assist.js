@@ -190,7 +190,7 @@ export default {
 
                     await interaction.editReply({ embeds: [emptyResponseEmbed] });
                     // 记录日志
-                    await logQAResult(logInitData, null, null, null, 'failed', null, 'FastGPT返回了空响应');
+                    await logQAResult(logInitData, null, null, null, 'failed', apiResponse.endpoint || null, 'FastGPT返回了空响应');
                     return;
                 }
 
@@ -278,9 +278,6 @@ export default {
             } catch (error) {
                 // 错误消息
                 await handleCommandError(interaction, error, '答疑命令');
-
-                // 记录日志 - 处理错误
-                await logQAResult(logInitData, null, null, null, 'failed', null, error.message);
             }
         } catch (error) {
             await handleCommandError(interaction, error, '答疑命令');

@@ -166,7 +166,13 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
     // 获取上次使用的端点
     const lastUsedEndpoint = lastUsedEndpoints.get(guildId);
 
-    // 过滤掉上次使用的端点（如果有且有多个端点可选）
+    // 保存上次成功的端点以备后用
+    let lastSuccessEndpoint = null;
+    if (lastUsedEndpoint) {
+        lastSuccessEndpoint = endpoints.find(endpoint => endpoint.url === lastUsedEndpoint);
+    }
+
+    // 初始化可用端点（排除上次使用的端点）
     let availableEndpoints = [...endpoints];
     if (lastUsedEndpoint && availableEndpoints.length > 1) {
         availableEndpoints = availableEndpoints.filter(endpoint => endpoint.url !== lastUsedEndpoint);
@@ -176,28 +182,27 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
     const shuffledEndpoints = availableEndpoints.sort(() => Math.random() - 0.5);
 
     let lastError = null;
-    let currentEndpoint = null;
 
-    for (let i = 0; i < shuffledEndpoints.length; i++) {
-        const endpoint = shuffledEndpoints[i];
+    // 尝试发送请求到端点的辅助函数
+    async function tryEndpoint(endpoint, index, totalCount, isLastChance = false) {
         const { url: apiUrl, key: apiKey } = endpoint;
-        currentEndpoint = apiUrl;
-
-        // 标记请求状态，每次重新尝试新端点时重置
-        let isRequestCompleted = false;
 
         // 更新交互，通知用户正在尝试的端点
         if (interaction) {
+            const statusText = isLastChance
+                ? `⏳ 正在尝试上次成功的端点: ${apiUrl.split('/').slice(0, 3).join('/')}...`
+                : `⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${index + 1}/${totalCount})`;
+
             const processingEmbed = new EmbedBuilder()
                 .setTitle('正在处理请求')
-                .setDescription(`⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
-                    shuffledEndpoints.length
-                })`)
+                .setDescription(statusText)
                 .setColor(0xffa500) // 橙色
                 .setTimestamp();
 
             await interaction.editReply({ embeds: [processingEmbed] });
         }
+
+        let completed = false; // 引入状态标志
 
         try {
             // 创建超时控制器
@@ -209,8 +214,7 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             let elapsed = 0;
             const progressInterval = 10000; // 10秒
             const updateProgress = async () => {
-                // 如果请求已完成，不再继续更新
-                if (isRequestCompleted || controller.signal.aborted) {
+                if (completed || controller.signal.aborted) { // 检查完成状态或中止信号
                     return;
                 }
 
@@ -220,8 +224,8 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                     try {
                         const progressEmbed = new EmbedBuilder()
                             .setTitle('正在处理请求')
-                            .setDescription(`⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
-                                shuffledEndpoints.length
+                            .setDescription(`⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${index + 1}/${
+                                totalCount
                             })\n剩余超时时间: ${Math.ceil(remaining / 1000)}秒`)
                             .setColor(0xffa500) // 橙色
                             .setTimestamp();
@@ -232,7 +236,7 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                     }
                 }
 
-                if (remaining > 0 && !controller.signal.aborted && !isRequestCompleted) {
+                if (remaining > 0 && !controller.signal.aborted && !completed) { // 检查完成状态
                     setTimeout(updateProgress, progressInterval);
                 }
             };
@@ -248,44 +252,21 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                 signal: controller.signal,
             });
 
-            // 标记请求已完成
-            isRequestCompleted = true;
-
-            // 清除计时器
+            completed = true; // 请求成功时设置标志
             clearTimeout(timeout);
-            clearTimeout(progressTimer);
-
-            // 成功后立即更新交互状态，清除超时倒计时信息
-            if (interaction) {
-                try {
-                    const successEmbed = new EmbedBuilder()
-                        .setTitle('请求成功')
-                        .setDescription(`✅ 请求成功，正在处理响应...`)
-                        .setColor(0x00cc66) // 绿色
-                        .setTimestamp();
-
-                    await interaction.editReply({ embeds: [successEmbed] });
-                } catch (e) {
-                    // 忽略更新失败的错误
-                }
-            }
+            clearTimeout(progressTimer); // 虽然可能不是完全必要，但保留无害
 
             logTime(`FastGPT API 请求成功 (来自: ${apiUrl})`);
             const responseData = response.data;
             // 添加端点信息到响应对象，便于记录日志
             responseData.endpoint = apiUrl;
 
-            // 记录成功的端点，用于下次请求排除
+            // 记录成功的端点，用于下次请求
             lastUsedEndpoints.set(guildId, apiUrl);
 
             return responseData; // 成功则直接返回
         } catch (error) {
-            // 标记请求已完成
-            isRequestCompleted = true;
-
-            lastError = error; // 记录错误
-
-            // 获取错误类型和消息
+            completed = true; // 请求失败时设置标志
             let errorType = '未知错误';
             let errorMessage = error.message;
 
@@ -305,10 +286,15 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             // 更新交互，通知用户请求失败
             if (interaction) {
                 try {
+                    const nextStepDesc = isLastChance ?
+                        '' : // 如果是最后一个尝试，不提示下一步
+                        ((index < totalCount - 1) ?
+                            `，正在切换到下一个端点...` :
+                            (lastSuccessEndpoint ? '，将尝试上次成功的端点...' : ''));
+
                     const errorEmbed = new EmbedBuilder()
                         .setTitle('请求失败')
-                        .setDescription(`⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType})` +
-                            (i < shuffledEndpoints.length - 1 ? `，正在切换到下一个端点...` : ''))
+                        .setDescription(`⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType})${nextStepDesc}`)
                         .setColor(0xf44336) // 红色
                         .setTimestamp();
 
@@ -318,32 +304,39 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                 }
             }
 
-            // 记录失败日志（每个端点失败都独立记录）
+            // 记录失败日志
             if (logData) {
                 const timestamp = new Date().toLocaleString('zh-CN');
                 logData.timestamp = timestamp; // 更新时间戳
                 await logQAResult(logData, null, null, null, 'failed', apiUrl, `${errorType} - ${errorMessage}`);
             }
 
+            lastError = error; // 记录错误
+
+            // 如果是客户端错误 (4xx)，停止尝试其他端点
             if (error.response && error.response.status >= 400 && error.response.status < 500) {
                 logTime(`客户端错误 (${error.response.status})，停止尝试其他端点。`, true);
-                break; // 不再尝试其他端点
+                throw error; // 直接抛出错误，不再尝试其他端点
             }
-            // 如果是网络错误或服务器错误 (5xx)，则继续尝试下一个
+
+            return null; // 返回null表示当前端点失败
         }
     }
 
-    // 如果所有端点都尝试失败，则抛出最后一个遇到的错误
-    logTime('所有 FastGPT 端点均请求失败', true);
-
-    if (lastError) {
-        const errorMessage = lastError.response
-            ? `状态码 ${lastError.response.status}, 响应: ${JSON.stringify(lastError.response.data)}`
-            : lastError.message;
-        throw new Error(`FastGPT API 请求失败: ${errorMessage}`);
-    } else {
-        throw new Error('无法连接到任何 FastGPT 端点');
+    // 第1阶段：尝试随机排序的端点
+    for (let i = 0; i < shuffledEndpoints.length; i++) {
+        const result = await tryEndpoint(shuffledEndpoints[i], i, shuffledEndpoints.length);
+        if (result) return result; // 如果成功，直接返回结果
     }
+
+    // 第2阶段：如果所有随机端点都尝试失败，但存在上次成功过的端点，则尝试该端点
+    if (lastSuccessEndpoint && !shuffledEndpoints.some(e => e.url === lastSuccessEndpoint.url)) {
+        const result = await tryEndpoint(lastSuccessEndpoint, 0, 1, true);
+        if (result) return result; // 如果成功，直接返回结果
+    }
+
+    // 所有端点都尝试失败
+    throw new Error('所有 FastGPT 端点请求失败');
 }
 
 /**
@@ -834,21 +827,24 @@ export async function analyzeFastGPTLogs(date = new Date(), endpointNames = {}) 
             const status = statusMatch[1].trim();
 
             // 提取端点
-            const endpointMatch = entry.match(/端点:\s*([^|]+)/);
-            let endpoint = '未知端点';
-            let endpointKey = '未知端点';
+            let endpointKey = '系统总结'; // 默认为系统总结，而不是未知端点
 
+            const endpointMatch = entry.match(/端点:\s*([^|]+)/);
             if (endpointMatch) {
-                endpoint = endpointMatch[1].trim();
+                const endpoint = endpointMatch[1].trim();
                 // 提取域名部分 (http(s)://domain.tld)
                 try {
                     const url = new URL(endpoint);
-                    endpoint = `${url.protocol}//${url.hostname}`;
-                    endpointKey = endpoint;
+                    endpointKey = `${url.protocol}//${url.hostname}`;
                 } catch (e) {
                     // 如果URL解析失败，使用简单的分割方法
-                    endpoint = endpoint.split('/').slice(0, 3).join('/');
-                    endpointKey = endpoint;
+                    endpointKey = endpoint.split('/').slice(0, 3).join('/');
+                }
+            } else {
+                // 如果没有端点信息，检查是否包含总结错误信息
+                if (entry.includes('所有') && entry.includes('端点') && entry.includes('请求失败')) {
+                    // 这是一个总结性错误日志，我们跳过这条记录，因为它可能导致重复计数
+                    continue;
                 }
             }
 

@@ -202,10 +202,18 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
             const timeoutMs = 90000; // 90秒超时
             const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+            // 标记请求状态
+            let isRequestCompleted = false;
+
             // 启动定时器，每10秒更新一次进度
             let elapsed = 0;
             const progressInterval = 10000; // 10秒
             const updateProgress = async () => {
+                // 如果请求已完成，不再继续更新
+                if (isRequestCompleted || controller.signal.aborted) {
+                    return;
+                }
+
                 elapsed += progressInterval;
                 const remaining = Math.max(0, timeoutMs - elapsed);
                 if (interaction && !controller.signal.aborted) {
@@ -224,7 +232,7 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                     }
                 }
 
-                if (remaining > 0 && !controller.signal.aborted) {
+                if (remaining > 0 && !controller.signal.aborted && !isRequestCompleted) {
                     setTimeout(updateProgress, progressInterval);
                 }
             };
@@ -239,6 +247,9 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                 timeout: timeoutMs,
                 signal: controller.signal,
             });
+
+            // 标记请求已完成
+            isRequestCompleted = true;
 
             // 清除计时器
             clearTimeout(timeout);
@@ -269,6 +280,9 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
 
             return responseData; // 成功则直接返回
         } catch (error) {
+            // 标记请求已完成
+            isRequestCompleted = true;
+
             lastError = error; // 记录错误
 
             // 获取错误类型和消息

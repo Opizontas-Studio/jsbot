@@ -35,7 +35,6 @@ export async function fetchUserMessages(channel, userId, messageCount = 5) {
 
         // 获取当前时间戳
         const currentTime = new Date();
-        // 一小时的毫秒数
         const ONE_HOUR_MS = 3600000;
 
         // 过滤出目标用户的消息，且仅保留1小时内的消息
@@ -64,7 +63,6 @@ export async function fetchUserMessages(channel, userId, messageCount = 5) {
             return { content, images, timestamp, messageId };
         });
 
-        logTime(`成功获取用户 ${userId} 的 ${processedMessages.length} 条消息（仅1小时内）`);
         return processedMessages;
     } catch (error) {
         logTime(`获取用户消息失败: ${error.message}`, true);
@@ -671,82 +669,44 @@ export async function logQAResult(
         ).padStart(2, '0')}.log`;
         const filePath = path.join(process.cwd(), 'data', 'qalog', fileName);
 
-        // 如果是开始请求状态，直接返回，不记录日志
+        // 如果是开始请求状态，直接返回，等待后续记录
         if (status === 'start') {
             return;
         }
 
-        // 添加端点信息
-        let endpointInfo = '';
-        if (endpoint) {
-            endpointInfo = `| 端点: ${endpoint} `;
-        }
-
-        // 添加状态信息
-        let statusText = '';
-        if (status === 'failed') {
-            statusText = '请求失败';
-        } else {
-            statusText = '请求成功';
-        }
-
-        // 添加图片信息
-        let imageInfoText = '';
-        if (imageInfo) {
-            if (imageInfo.isTextFallback) {
-                imageInfoText = `| 使用纯文本 (${imageInfo.sizeKB}KB)`;
-            } else {
-                imageInfoText = `| 尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)`;
-            }
-        }
-
-        // 添加链接信息
-        let linksInfo = '';
-        if (links && links.length > 0) {
-            linksInfo = ` | 包含${links.length}个链接`;
-        }
+        // 构建各部分信息
+        const statusText = status === 'failed' ? '请求失败' : '请求成功';
+        const endpointInfo = endpoint ? `| 端点: ${endpoint} ` : '';
+        const imageInfoText = imageInfo
+            ? (imageInfo.isTextFallback
+                ? `| 纯文本 (${imageInfo.sizeKB}KB)`
+                : `| 尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)`)
+            : '';
+        const linksInfo = links?.length > 0 ? ` | 包含${links.length}个链接` : '';
 
         // 构建日志头部
         const logHeader = `[${timestamp}] 执行人: ${executor} | 答疑对象: ${target} | 提示词: ${
             prompt || '默认'
         } | 消息数: ${messageCount} | 频道: ${channelName} ${endpointInfo}| 状态: ${statusText} ${imageInfoText}${linksInfo}\n`;
 
-        // 如果有链接，添加链接部分
-        let linksSection = '';
-        if (links && links.length > 0) {
-            linksSection = `\n链接列表:\n${links
+        // 构建各部分内容
+        const linksSection = links?.length > 0
+            ? `\n链接列表:\n${links
                 .map((link, index) => {
-                    // 如果链接是对象(有text和url)，则使用"文本 (URL)"格式
                     if (typeof link === 'object' && link.text && link.url) {
                         return `${index + 1}. ${link.text} (${link.url})`;
                     }
-                    // 否则直接显示URL
                     return `${index + 1}. ${link}`;
                 })
-                .join('\n')}\n`;
-        }
+                .join('\n')}\n`
+            : '';
 
-        // 构建错误部分
-        let errorSection = '';
-        if (status === 'failed' && errorMessage) {
-            errorSection = `\n错误详情:\n${errorMessage}\n`;
-        }
-
-        // 构建内容部分
-        let contentSection = '';
-        if (responseText) {
-            contentSection = `\n${responseText}\n`;
-        }
+        const errorSection = (status === 'failed' && errorMessage) ? `\n错误详情:\n${errorMessage}\n` : '';
+        const contentSection = responseText ? `\n${responseText}\n` : '';
+        const separator = status === 'success' ? `${'='.repeat(80)}\n\n` : `${'-'.repeat(80)}\n\n`;
 
         // 构建完整日志内容
-        let logContent = `${logHeader}${'-'.repeat(80)}${linksSection}${errorSection}${contentSection}`;
-
-        // 仅在'success'状态时添加分隔符
-        if (status === 'success') {
-            logContent += `${'='.repeat(80)}\n\n`;
-        } else {
-            logContent += `${'-'.repeat(80)}\n\n`;
-        }
+        const logContent = `${logHeader}${'-'.repeat(80)}${linksSection}${errorSection}${contentSection}${separator}`;
 
         // 追加写入日志文件
         await fs.appendFile(filePath, logContent, 'utf8');
@@ -807,7 +767,6 @@ export async function analyzeFastGPTLogs(date = new Date(), endpointNames = {}) 
             endpointToNameMap: {}, // 端点URL到名称的映射
         };
 
-        // 按日志条目分割内容
         // 通过查找日期格式的标记 [YYYY/M/D HH:MM:SS] 来分割日志条目
         const logEntries = logContent.split(/\[\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{1,2}:\d{1,2}\]/);
 
@@ -825,7 +784,7 @@ export async function analyzeFastGPTLogs(date = new Date(), endpointNames = {}) 
             const status = statusMatch[1].trim();
 
             // 提取端点
-            let endpointKey = '系统总结'; // 默认为系统总结，而不是未知端点
+            let endpointKey = '未知端点'; // 默认为系统总结，而不是未知端点
 
             const endpointMatch = entry.match(/端点:\s*([^|]+)/);
             if (endpointMatch) {
@@ -837,12 +796,6 @@ export async function analyzeFastGPTLogs(date = new Date(), endpointNames = {}) 
                 } catch (e) {
                     // 如果URL解析失败，使用简单的分割方法
                     endpointKey = endpoint.split('/').slice(0, 3).join('/');
-                }
-            } else {
-                // 如果没有端点信息，检查是否包含总结错误信息
-                if (entry.includes('所有') && entry.includes('端点') && entry.includes('请求失败')) {
-                    // 这是一个总结性错误日志，我们跳过这条记录，因为它可能导致重复计数
-                    continue;
                 }
             }
 
@@ -943,10 +896,7 @@ export function createFastGPTStatsEmbed(stats) {
             return bRate - aRate; // 降序排列
         });
 
-        // 选取前5个端点展示详情
-        const topEndpoints = sortedEndpoints.slice(0, 5);
-
-        const endpointDetails = topEndpoints
+        const endpointDetails = sortedEndpoints
             .map(([endpointKey, { total, success, failed }]) => {
                 const endpointSuccessRate = total > 0 ? Math.round((success / total) * 100) : 0;
                 let statusEmoji = '🟢'; // 成功率高
@@ -967,17 +917,6 @@ export function createFastGPTStatsEmbed(stats) {
             value: endpointDetails || '无端点数据',
             inline: false,
         });
-
-        // 如果有超过5个端点，添加更多端点的简略信息
-        if (sortedEndpoints.length > 5) {
-            const otherEndpointsCount = sortedEndpoints.length - 5;
-
-            embed.addFields({
-                name: `📌 另外还有${otherEndpointsCount}个端点`,
-                value: `使用\`/系统状态\`命令查看完整系统信息`,
-                inline: false,
-            });
-        }
     }
 
     return embed;

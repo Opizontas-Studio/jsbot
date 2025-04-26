@@ -84,7 +84,10 @@ export const checkModeratorPermission = async (interaction, guildConfig, options
     const hasAdminRole = interaction.member.roles.cache.some(role =>
         guildConfig.AdministratorRoleIds.includes(role.id),
     );
-    const hasModRole = interaction.member.roles.cache.some(role => guildConfig.ModeratorRoleIds.includes(role.id));
+    const hasModRole = interaction.member.roles.cache.some(role =>
+        guildConfig.ModeratorRoleIds.includes(role.id) ||
+        (guildConfig.roleApplication?.QAerRoleId && role.id === guildConfig.roleApplication.QAerRoleId)
+    );
 
     let hasPermission = hasAdminRole;
 
@@ -101,8 +104,8 @@ export const checkModeratorPermission = async (interaction, guildConfig, options
 
     if (!hasPermission) {
         const defaultError = options.requireForumPermission
-            ? '你没有权限执行此操作。需要具有管理员身份组或（版主身份组+该论坛的消息管理权限）。'
-            : '你没有权限执行此操作。需要具有管理员或版主身份组。';
+            ? '你没有权限执行此操作。需要具有管理员身份组或（恰当身份组+该论坛的消息管理权限）。'
+            : '你没有权限执行此操作。需要具有管理员或恰当身份组。';
 
         await interaction.editReply({
             content: options.customErrorMessage || defaultError,

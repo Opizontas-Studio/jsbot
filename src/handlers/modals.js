@@ -415,7 +415,12 @@ export const modalHandlers = {
             const reason = interaction.fields.getTextInputValue('debate_reason');
             const motion = interaction.fields.getTextInputValue('debate_motion');
             const implementation = interaction.fields.getTextInputValue('debate_implementation');
-            const voteTime = interaction.fields.getTextInputValue('debate_vote_time');
+            let voteTime = interaction.fields.getTextInputValue('debate_vote_time');
+
+            // 如果voteTime不以"天"结尾，添加"天"字
+            if (!voteTime.endsWith('天')) {
+                voteTime = voteTime + '天';
+            }
 
             // 获取议事区频道
             const courtChannel = await interaction.guild.channels.fetch(guildConfig.courtSystem.courtChannelId);

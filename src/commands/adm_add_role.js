@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { handleConfirmationButton } from '../handlers/buttons.js';
 import { delay } from '../utils/concurrency.js';
-import { checkAndHandlePermission } from '../utils/helper.js';
+import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 硬编码身份组ID - 主服务器
@@ -81,90 +82,150 @@ export default {
 
             // 计算实际处理数量
             const actualCount = Math.min(membersToProcess.length, requestedCount);
-            await interaction.editReply({
-                content: `⏳ 开始处理 ${actualCount} 个成员...`,
-            });
-            logTime(`开始 ${actualCount} 个成员的身份组转移操作，操作服务器: ${interaction.guild.name}`);
 
-            let successCount = 0;
-            let failCount = 0;
-            let lastProgressUpdate = Date.now();
-            let processedCount = 0;
+            // 添加确认流程
+            await handleConfirmationButton({
+                interaction,
+                customId: 'confirm_add_role',
+                buttonLabel: '确认转移',
+                embed: {
+                    color: 0xff9900,
+                    title: '⚠️ 批量转移身份组确认',
+                    description: `你确定要批量转移 ${actualCount} 个成员的身份组吗？`,
+                    fields: [
+                        {
+                            name: '源身份组',
+                            value: sourceRole.name,
+                            inline: true,
+                        },
+                        {
+                            name: '目标身份组',
+                            value: targetRole.name,
+                            inline: true,
+                        },
+                        {
+                            name: '数量',
+                            value: `${actualCount}`,
+                            inline: true,
+                        },
+                        {
+                            name: '移除源身份组',
+                            value: removeSourceRole ? '是' : '否',
+                            inline: true,
+                        },
+                        {
+                            name: '执行人',
+                            value: `<@${interaction.user.id}>`,
+                            inline: true,
+                        }
+                    ],
+                },
+                onConfirm: async confirmation => {
+                    await confirmation.deferUpdate();
+                    await interaction.editReply({
+                        content: `⏳ 开始处理 ${actualCount} 个成员...`,
+                        components: [],
+                        embeds: [],
+                    });
 
-            // 串行处理每个成员
-            for (const member of membersToProcess) {
-                try {
-                    const actionMessage = `从 ${sourceRole.name} 转移到 ${targetRole.name}`;
+                    logTime(`开始 ${actualCount} 个成员的身份组转移操作，操作服务器: ${interaction.guild.name}`);
 
-                    // 根据参数决定是否移除源身份组
-                    if (removeSourceRole) {
-                        await member.roles.remove(sourceRole, actionMessage);
+                    let successCount = 0;
+                    let failCount = 0;
+                    let lastProgressUpdate = Date.now();
+                    let processedCount = 0;
+
+                    // 串行处理每个成员
+                    for (const member of membersToProcess) {
+                        try {
+                            const actionMessage = `从 ${sourceRole.name} 转移到 ${targetRole.name}`;
+
+                            // 根据参数决定是否移除源身份组
+                            if (removeSourceRole) {
+                                await member.roles.remove(sourceRole, actionMessage);
+                                await delay(600);
+                            }
+
+                            // 添加目标身份组
+                            await member.roles.add(targetRole, actionMessage);
+                            successCount++;
+                        } catch (error) {
+                            logTime(`为成员 ${member.user.tag} (${member.id}) 转移身份组失败: ${error.message}`, true);
+                            failCount++;
+                        }
+
+                        processedCount++;
+
+                        // 更新进度（限制更新频率为1秒一次）
+                        const now = Date.now();
+                        if (now - lastProgressUpdate > 1000) {
+                            lastProgressUpdate = now;
+                            await interaction.editReply({
+                                content: `⏳ 正在转移身份组... (${processedCount}/${actualCount})\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`,
+                            });
+                        }
+
+                        // 等待600ms再处理下一个成员
                         await delay(600);
                     }
 
-                    // 添加目标身份组
-                    await member.roles.add(targetRole, actionMessage);
-                    successCount++;
-                } catch (error) {
-                    logTime(`为成员 ${member.user.tag} (${member.id}) 转移身份组失败: ${error.message}`, true);
-                    failCount++;
-                }
-
-                processedCount++;
-
-                // 更新进度（限制更新频率为1秒一次）
-                const now = Date.now();
-                if (now - lastProgressUpdate > 1000) {
-                    lastProgressUpdate = now;
+                    // 发送最终报告
                     await interaction.editReply({
-                        content: `⏳ 正在转移身份组... (${processedCount}/${actualCount})\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`,
+                        content: [
+                            '✅ 批量转移身份组操作已完成！',
+                            `📊 处理成员总数: ${actualCount}`,
+                            `✅ 成功数量: ${successCount}`,
+                            `❌ 失败数量: ${failCount}`,
+                        ].join('\n'),
                     });
-                }
 
-                // 等待600ms再处理下一个成员
-                await delay(600);
-            }
+                    // 记录到日志频道
+                    if (guildConfig.automation?.logThreadId) {
+                        const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
+                        await logChannel.send({
+                            embeds: [
+                                {
+                                    color: 0x0099ff,
+                                    title: '批量转移身份组操作报告',
+                                    description: [
+                                        `执行者: ${interaction.user.tag}`,
+                                        `源身份组: ${sourceRole.name}`,
+                                        `目标身份组: ${targetRole.name}`,
+                                        `请求处理数量: ${requestedCount}`,
+                                        `实际处理总数: ${actualCount}`,
+                                        `成功数量: ${successCount}`,
+                                        `失败数量: ${failCount}`,
+                                        `是否移除源身份组: ${removeSourceRole ? '是' : '否'}`,
+                                    ].join('\n'),
+                                    timestamp: new Date(),
+                                    footer: { text: '自动化系统' },
+                                },
+                            ],
+                        });
+                    }
 
-            // 发送最终报告
-            await interaction.editReply({
-                content: [
-                    '✅ 批量转移身份组操作已完成！',
-                    `📊 处理成员总数: ${actualCount}`,
-                    `✅ 成功数量: ${successCount}`,
-                    `❌ 失败数量: ${failCount}`,
-                ].join('\n'),
+                    // 记录操作完成的日志
+                    logTime(
+                        `批量转移身份组完成 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +
+                            `执行者: ${interaction.user.tag}, 总数: ${actualCount}, 成功: ${successCount}, 失败: ${failCount}`,
+                    );
+                },
+                onTimeout: async interaction => {
+                    await interaction.editReply({
+                        embeds: [
+                            {
+                                color: 0x808080,
+                                title: '❌ 确认已超时',
+                                description: '批量转移身份组操作已超时。如需继续请重新执行命令。',
+                            },
+                        ],
+                        components: [],
+                    });
+                },
+                onError: async error => {
+                    await handleCommandError(interaction, error, '批量转移身份组');
+                },
             });
-
-            // 记录到日志频道
-            if (guildConfig.automation?.logThreadId) {
-                const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-                await logChannel.send({
-                    embeds: [
-                        {
-                            color: 0x0099ff,
-                            title: '批量转移身份组操作报告',
-                            description: [
-                                `执行者: ${interaction.user.tag}`,
-                                `源身份组: ${sourceRole.name}`,
-                                `目标身份组: ${targetRole.name}`,
-                                `请求处理数量: ${requestedCount}`,
-                                `实际处理总数: ${actualCount}`,
-                                `成功数量: ${successCount}`,
-                                `失败数量: ${failCount}`,
-                                `是否移除源身份组: ${removeSourceRole ? '是' : '否'}`,
-                            ].join('\n'),
-                            timestamp: new Date(),
-                            footer: { text: '自动化系统' },
-                        },
-                    ],
-                });
-            }
-
-            // 记录操作完成的日志
-            logTime(
-                `批量转移身份组完成 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +
-                    `执行者: ${interaction.user.tag}, 总数: ${actualCount}, 成功: ${successCount}, 失败: ${failCount}`,
-            );
         } catch (error) {
             logTime(
                 `批量转移身份组命令执行失败 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +

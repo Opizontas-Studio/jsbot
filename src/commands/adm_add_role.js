@@ -57,6 +57,19 @@ export default {
                 return;
             }
 
+            // 检查是否操作管理员或版主角色
+            const adminRoles = guildConfig.AdministratorRoleIds || [];
+            const modRoles = guildConfig.ModeratorRoleIds || [];
+            const protectedRoles = [...adminRoles, ...modRoles];
+
+            if (protectedRoles.includes(sourceRole.id) || protectedRoles.includes(targetRole.id)) {
+                await interaction.editReply({
+                    content: '❌ 安全限制：不能操作管理员或版主身份组，以防止误操作',
+                });
+                logTime(`管理员 ${interaction.user.tag} 尝试操作受保护身份组被阻止 - 源: ${sourceRole.name}(${sourceRole.id}), 目标: ${targetRole.name}(${targetRole.id})`, true);
+                return;
+            }
+
             await interaction.editReply({
                 content: '⏳ 正在获取源身份组成员列表...',
             });

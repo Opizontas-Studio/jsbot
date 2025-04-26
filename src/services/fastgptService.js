@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { existsSync, promises as fs, mkdirSync } from 'fs';
 import { marked } from 'marked';
 import nodeHtmlToImage from 'node-html-to-image';
@@ -147,9 +147,11 @@ export function buildFastGPTRequestBody(messages, prompt, targetUser, executorUs
  * 发送请求到FastGPT API，支持随机轮询和失败重试
  * @param {Object} requestBody - 请求体
  * @param {Object} guildConfig - 服务器配置
+ * @param {Object} interaction - Discord交互对象，用于进度更新
+ * @param {Object} logData - 日志数据，用于请求开始和失败时记录
  * @returns {Object} API响应
  */
-export async function sendToFastGPT(requestBody, guildConfig) {
+export async function sendToFastGPT(requestBody, guildConfig, interaction = null, logData = null) {
     const { endpoints } = guildConfig.fastgpt;
 
     if (!endpoints || endpoints.length === 0) {
@@ -160,29 +162,126 @@ export async function sendToFastGPT(requestBody, guildConfig) {
     const shuffledEndpoints = [...endpoints].sort(() => Math.random() - 0.5);
 
     let lastError = null;
+    let currentEndpoint = null;
 
-    for (const endpoint of shuffledEndpoints) {
+    for (let i = 0; i < shuffledEndpoints.length; i++) {
+        const endpoint = shuffledEndpoints[i];
         const { url: apiUrl, key: apiKey } = endpoint;
-        // logTime(`尝试发送请求到 FastGPT API: ${apiUrl}`);
+        currentEndpoint = apiUrl;
+
+        // 更新交互，通知用户正在尝试的端点
+        if (interaction) {
+            await interaction.editReply(
+                `⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
+                    shuffledEndpoints.length
+                })`,
+            );
+        }
+
+        // 注意：不再记录"开始请求"状态的日志
 
         try {
+            logTime(`尝试发送请求到 FastGPT API: ${apiUrl}`);
+
+            // 创建超时控制器
+            const controller = new AbortController();
+            const timeoutMs = 90000; // 90秒超时
+            const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+            // 启动定时器，每10秒更新一次进度
+            let elapsed = 0;
+            const progressInterval = 10000; // 10秒
+            const updateProgress = async () => {
+                elapsed += progressInterval;
+                const remaining = Math.max(0, timeoutMs - elapsed);
+                if (interaction && !controller.signal.aborted) {
+                    try {
+                        await interaction.editReply(
+                            `⏳ 正在处理请求，使用端点: ${apiUrl.split('/').slice(0, 3).join('/')}... (${i + 1}/${
+                                shuffledEndpoints.length
+                            })\n剩余超时时间: ${Math.ceil(remaining / 1000)}秒`,
+                        );
+                    } catch (e) {
+                        // 忽略更新失败的错误
+                    }
+                }
+
+                if (remaining > 0 && !controller.signal.aborted) {
+                    setTimeout(updateProgress, progressInterval);
+                }
+            };
+
+            const progressTimer = setTimeout(updateProgress, progressInterval);
+
             const response = await axios.post(apiUrl, requestBody, {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
                 },
-                timeout: 120000, // 120秒超时
+                timeout: timeoutMs,
+                signal: controller.signal,
             });
 
-            logTime(`FastGPT API 请求成功 (来自: ${apiUrl})`);
-            return response.data; // 成功则直接返回
+            // 清除计时器
+            clearTimeout(timeout);
+            clearTimeout(progressTimer);
 
+            // 成功后立即更新交互状态，清除超时倒计时信息
+            if (interaction) {
+                try {
+                    await interaction.editReply(`✅ 请求成功，正在处理响应...`);
+                } catch (e) {
+                    // 忽略更新失败的错误
+                }
+            }
+
+            logTime(`FastGPT API 请求成功 (来自: ${apiUrl})`);
+            const responseData = response.data;
+            // 添加端点信息到响应对象，便于记录日志
+            responseData.endpoint = apiUrl;
+            return responseData; // 成功则直接返回
         } catch (error) {
             lastError = error; // 记录错误
-            logTime(`FastGPT API 请求失败 (端点: ${apiUrl}): ${error.message}`, true);
+
+            // 获取错误类型和消息
+            let errorType = '未知错误';
+            let errorMessage = error.message;
+
+            if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+                errorType = '请求超时';
+            } else if (error.response) {
+                errorType = `API错误 (${error.response.status})`;
+                if (error.response.data) {
+                    errorMessage = `${errorMessage} - ${JSON.stringify(error.response.data)}`;
+                }
+            } else if (error.request) {
+                errorType = '网络错误';
+            }
+
+            logTime(`FastGPT API 请求失败 (端点: ${apiUrl}): ${errorType} - ${errorMessage}`, true);
+
+            // 更新交互，通知用户请求失败
+            if (interaction) {
+                try {
+                    await interaction.editReply(
+                        `⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType})` +
+                            (i < shuffledEndpoints.length - 1 ? `，正在切换到下一个端点...` : ''),
+                    );
+                } catch (e) {
+                    // 忽略更新失败的错误
+                }
+            }
+
+            // 记录失败日志（每个端点失败都独立记录）
+            if (logData) {
+                const timestamp = new Date().toLocaleString('zh-CN');
+                logData.timestamp = timestamp; // 更新时间戳
+                await logQAResult(logData, null, null, null, 'failed', apiUrl, `${errorType} - ${errorMessage}`);
+            }
+
             if (error.response && error.response.status >= 400 && error.response.status < 500) {
-                 logTime(`客户端错误 (${error.response.status})，停止尝试其他端点。`, true);
-                 break; // 不再尝试其他端点
+                logTime(`客户端错误 (${error.response.status})，停止尝试其他端点。`, true);
+                break; // 不再尝试其他端点
             }
             // 如果是网络错误或服务器错误 (5xx)，则继续尝试下一个
         }
@@ -190,6 +289,7 @@ export async function sendToFastGPT(requestBody, guildConfig) {
 
     // 如果所有端点都尝试失败，则抛出最后一个遇到的错误
     logTime('所有 FastGPT 端点均请求失败', true);
+
     if (lastError) {
         const errorMessage = lastError.response
             ? `状态码 ${lastError.response.status}, 响应: ${JSON.stringify(lastError.response.data)}`
@@ -505,12 +605,23 @@ export async function processResponseToAttachment(response, format = 'text') {
 /**
  * 将答疑结果记录到日志文件
  * @param {Object} logData - 日志数据
- * @param {String} responseText - API响应文本
- * @param {Object} imageInfo - 图片信息（宽度、高度、大小）
- * @param {Array} links - 提取的超链接数组
+ * @param {String} responseText - API响应文本，可为null表示请求失败
+ * @param {Object} imageInfo - 图片信息（宽度、高度、大小），可为null
+ * @param {Array} links - 提取的超链接数组，可为null
+ * @param {String} status - 状态，可以是 'start'、'success'、'failed'
+ * @param {String} endpoint - 使用的端点URL
+ * @param {String} errorMessage - 错误信息，仅在status为'failed'时使用
  * @returns {Promise<void>}
  */
-export async function logQAResult(logData, responseText, imageInfo, links = []) {
+export async function logQAResult(
+    logData,
+    responseText = null,
+    imageInfo = null,
+    links = null,
+    status = 'success',
+    endpoint = null,
+    errorMessage = null,
+) {
     try {
         const { timestamp, executor, target, prompt, messageCount, channelName } = logData;
 
@@ -521,46 +632,308 @@ export async function logQAResult(logData, responseText, imageInfo, links = []) 
         ).padStart(2, '0')}.log`;
         const filePath = path.join(process.cwd(), 'data', 'qalog', fileName);
 
+        // 如果是开始请求状态，直接返回，不记录日志
+        if (status === 'start') {
+            return;
+        }
+
+        // 添加端点信息
+        let endpointInfo = '';
+        if (endpoint) {
+            endpointInfo = `| 端点: ${endpoint} `;
+        }
+
+        // 添加状态信息
+        let statusText = '';
+        if (status === 'failed') {
+            statusText = '请求失败';
+        } else {
+            statusText = '请求成功';
+        }
+
         // 添加图片信息
         let imageInfoText = '';
         if (imageInfo) {
             if (imageInfo.isTextFallback) {
-                imageInfoText = `| 图片生成失败，使用纯文本 (${imageInfo.sizeKB}KB)`;
+                imageInfoText = `| 使用纯文本 (${imageInfo.sizeKB}KB)`;
             } else {
                 imageInfoText = `| 尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)`;
             }
         }
 
         // 添加链接信息
+        let linksInfo = '';
         if (links && links.length > 0) {
-            imageInfoText += ` | 包含${links.length}个链接`;
+            linksInfo = ` | 包含${links.length}个链接`;
         }
 
         // 构建日志头部
         const logHeader = `[${timestamp}] 执行人: ${executor} | 答疑对象: ${target} | 提示词: ${
             prompt || '默认'
-        } | 消息数: ${messageCount} | 频道: ${channelName} ${imageInfoText}\n`;
+        } | 消息数: ${messageCount} | 频道: ${channelName} ${endpointInfo}| 状态: ${statusText} ${imageInfoText}${linksInfo}\n`;
 
         // 如果有链接，添加链接部分
         let linksSection = '';
         if (links && links.length > 0) {
-            linksSection = `\n链接列表:\n${links.map((link, index) => {
-                // 如果链接是对象(有text和url)，则使用"文本 (URL)"格式
-                if (typeof link === 'object' && link.text && link.url) {
-                    return `${index + 1}. ${link.text} (${link.url})`;
-                }
-                // 否则直接显示URL
-                return `${index + 1}. ${link}`;
-            }).join('\n')}\n`;
+            linksSection = `\n链接列表:\n${links
+                .map((link, index) => {
+                    // 如果链接是对象(有text和url)，则使用"文本 (URL)"格式
+                    if (typeof link === 'object' && link.text && link.url) {
+                        return `${index + 1}. ${link.text} (${link.url})`;
+                    }
+                    // 否则直接显示URL
+                    return `${index + 1}. ${link}`;
+                })
+                .join('\n')}\n`;
         }
 
-        const logContent = `${logHeader}${'-'.repeat(80)}${linksSection}\n${responseText}\n${'='.repeat(80)}\n\n`;
+        // 构建错误部分
+        let errorSection = '';
+        if (status === 'failed' && errorMessage) {
+            errorSection = `\n错误详情:\n${errorMessage}\n`;
+        }
+
+        // 构建内容部分
+        let contentSection = '';
+        if (responseText) {
+            contentSection = `\n${responseText}\n`;
+        }
+
+        // 构建完整日志内容
+        let logContent = `${logHeader}${'-'.repeat(80)}${linksSection}${errorSection}${contentSection}`;
+
+        // 仅在'success'状态时添加分隔符
+        if (status === 'success') {
+            logContent += `${'='.repeat(80)}\n\n`;
+        } else {
+            logContent += `${'-'.repeat(80)}\n\n`;
+        }
 
         // 追加写入日志文件
         await fs.appendFile(filePath, logContent, 'utf8');
 
-        logTime(`答疑结果已记录到日志文件: ${fileName}`);
+        logTime(`答疑记录已写入日志文件: ${fileName} (状态: ${status})`);
     } catch (error) {
         logTime(`记录答疑结果失败: ${error.message}`, true);
     }
+}
+
+/**
+ * 分析指定日期的FastGPT日志
+ * @param {Date} [date] - 要分析的日期，默认为当天
+ * @returns {Promise<Object>} 日志统计数据
+ */
+export async function analyzeFastGPTLogs(date = new Date()) {
+    try {
+        // 格式化日期为文件名格式 (YYYY-MM-DD.log)
+        const fileName = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+            date.getDate(),
+        ).padStart(2, '0')}.log`;
+
+        const filePath = path.join(process.cwd(), 'data', 'qalog', fileName);
+
+        // 检查日志文件是否存在
+        if (!existsSync(filePath)) {
+            return {
+                date: fileName.replace('.log', ''),
+                totalRequests: 0,
+                successRequests: 0,
+                failedRequests: 0,
+                endpointStats: {},
+                error: '没有找到当天的日志文件',
+            };
+        }
+
+        // 读取日志文件内容
+        const logContent = await fs.readFile(filePath, 'utf8');
+
+        // 如果日志为空，返回空统计
+        if (!logContent.trim()) {
+            return {
+                date: fileName.replace('.log', ''),
+                totalRequests: 0,
+                successRequests: 0,
+                failedRequests: 0,
+                endpointStats: {},
+                error: '日志文件为空',
+            };
+        }
+
+        // 初始化统计对象
+        const stats = {
+            date: fileName.replace('.log', ''),
+            totalRequests: 0,
+            successRequests: 0,
+            failedRequests: 0,
+            endpointStats: {}, // 按端点分类的统计
+        };
+
+        // 按日志条目分割内容
+        // 通过查找日期格式的标记 [YYYY/M/D HH:MM:SS] 来分割日志条目
+        const logEntries = logContent.split(/\[\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{1,2}:\d{1,2}\]/);
+
+        // 遍历每个日志条目（第一个可能是空的）
+        for (let i = 1; i < logEntries.length; i++) {
+            const entry = logEntries[i];
+
+            // 只处理包含"状态:"的条目
+            if (!entry.includes('状态:')) continue;
+
+            // 提取状态
+            const statusMatch = entry.match(/状态:\s*([^|]+)/);
+            if (!statusMatch) continue;
+
+            const status = statusMatch[1].trim();
+
+            // 提取端点
+            const endpointMatch = entry.match(/端点:\s*([^|]+)/);
+            let endpoint = '未知端点';
+
+            if (endpointMatch) {
+                endpoint = endpointMatch[1].trim();
+                // 提取域名部分 (http(s)://domain.tld)
+                try {
+                    const url = new URL(endpoint);
+                    endpoint = `${url.protocol}//${url.hostname}`;
+                } catch (e) {
+                    // 如果URL解析失败，使用简单的分割方法
+                    endpoint = endpoint.split('/').slice(0, 3).join('/');
+                }
+            }
+
+            // 总请求数+1
+            stats.totalRequests++;
+
+            // 按状态分类
+            if (status === '请求成功') {
+                stats.successRequests++;
+
+                // 按端点统计成功
+                if (!stats.endpointStats[endpoint]) {
+                    stats.endpointStats[endpoint] = { total: 0, success: 0, failed: 0 };
+                }
+                stats.endpointStats[endpoint].total++;
+                stats.endpointStats[endpoint].success++;
+            } else {
+                stats.failedRequests++;
+
+                // 按端点统计失败
+                if (!stats.endpointStats[endpoint]) {
+                    stats.endpointStats[endpoint] = { total: 0, success: 0, failed: 0 };
+                }
+                stats.endpointStats[endpoint].total++;
+                stats.endpointStats[endpoint].failed++;
+            }
+        }
+
+        return stats;
+    } catch (error) {
+        logTime(`分析FastGPT日志失败: ${error.message}`, true);
+        return {
+            date: date.toISOString().split('T')[0],
+            totalRequests: 0,
+            successRequests: 0,
+            failedRequests: 0,
+            endpointStats: {},
+            error: `分析日志时出错: ${error.message}`,
+        };
+    }
+}
+
+/**
+ * 创建FastGPT日志统计的Discord嵌入消息
+ * @param {Object} stats - 日志统计数据
+ * @returns {EmbedBuilder} 嵌入消息构建器
+ */
+export function createFastGPTStatsEmbed(stats) {
+    const successRate = stats.totalRequests > 0 ? Math.round((stats.successRequests / stats.totalRequests) * 100) : 0;
+
+    // 创建进度条展示成功率
+    const progressBarLength = 20; // 进度条总长度
+    const filledBars = Math.floor((successRate / 100) * progressBarLength);
+    const emptyBars = progressBarLength - filledBars;
+
+    let progressBarColor = '🟩'; // 默认绿色
+    if (successRate < 70) progressBarColor = '🟨'; // 黄色
+    if (successRate < 40) progressBarColor = '🟥'; // 红色
+
+    const progressBar = progressBarColor.repeat(filledBars) + '⬜'.repeat(emptyBars);
+
+    // 选择成功率对应的表情
+    let rateEmoji = '😁'; // 90-100%
+    if (successRate < 90) rateEmoji = '🙂'; // 70-89%
+    if (successRate < 70) rateEmoji = '😐'; // 50-69%
+    if (successRate < 50) rateEmoji = '😟'; // 30-49%
+    if (successRate < 30) rateEmoji = '😨'; // 0-29%
+
+    const embed = new EmbedBuilder()
+        .setColor(successRate >= 70 ? 0x00cc66 : successRate >= 40 ? 0xffcc00 : 0xff3333)
+        .setTitle('FastGPT 答疑统计')
+        .setDescription(`**📅 日期**: ${stats.date}`)
+        .addFields({
+            name: '📊 请求总览',
+            value: [
+                `📝 总请求数: **${stats.totalRequests}**`,
+                `✅ 成功: **${stats.successRequests}**`,
+                `❌ 失败: **${stats.failedRequests}**`,
+                `${rateEmoji} 成功率: **${successRate}%**`,
+                `\n${progressBar} ${successRate}%`,
+            ].join('\n'),
+            inline: false,
+        })
+        .setTimestamp()
+        .setFooter({ text: '每日FastGPT统计' });
+
+    // 如果有错误，添加错误信息
+    if (stats.error) {
+        embed.addFields({
+            name: '⚠️ 注意',
+            value: stats.error,
+            inline: false,
+        });
+        return embed; // 如果有错误，直接返回
+    }
+
+    // 如果有端点统计，添加端点详情
+    if (Object.keys(stats.endpointStats).length > 0) {
+        // 按成功率排序端点
+        const sortedEndpoints = Object.entries(stats.endpointStats).sort(([, a], [, b]) => {
+            const aRate = a.total > 0 ? a.success / a.total : 0;
+            const bRate = b.total > 0 ? b.success / b.total : 0;
+            return bRate - aRate; // 降序排列
+        });
+
+        // 选取前5个端点展示详情
+        const topEndpoints = sortedEndpoints.slice(0, 5);
+
+        const endpointDetails = topEndpoints
+            .map(([endpoint, { total, success, failed }]) => {
+                const endpointSuccessRate = total > 0 ? Math.round((success / total) * 100) : 0;
+                let statusEmoji = '🟢'; // 成功率高
+                if (endpointSuccessRate < 70) statusEmoji = '🟡'; // 成功率中
+                if (endpointSuccessRate < 40) statusEmoji = '🔴'; // 成功率低
+
+                return `${statusEmoji} **${endpoint}**\n总数: ${total} | 成功: ${success} | 失败: ${failed} | 成功率: ${endpointSuccessRate}%`;
+            })
+            .join('\n\n');
+
+        embed.addFields({
+            name: `🔌 端点统计`,
+            value: endpointDetails || '无端点数据',
+            inline: false,
+        });
+
+        // 如果有超过5个端点，添加更多端点的简略信息
+        if (sortedEndpoints.length > 5) {
+            const otherEndpointsCount = sortedEndpoints.length - 5;
+
+            embed.addFields({
+                name: `📌 另外还有${otherEndpointsCount}个端点`,
+                value: `使用\`/系统状态\`命令查看完整系统信息`,
+                inline: false,
+            });
+        }
+    }
+
+    return embed;
 }

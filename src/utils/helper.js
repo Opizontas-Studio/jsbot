@@ -179,16 +179,16 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
  */
 export const sendModerationLog = async (client, moderationChannelId, logData) => {
     const moderationChannel = await client.channels.fetch(moderationChannelId);
-    
+
     // 构建字段数组
     const fields = [
         {
             name: '操作人',
             value: `<@${logData.executorId}>`,
             inline: true,
-        }
+        },
     ];
-    
+
     // 根据是否有帖子链接决定主题字段的内容
     if (logData.threadUrl) {
         fields.push({
@@ -203,13 +203,13 @@ export const sendModerationLog = async (client, moderationChannelId, logData) =>
             inline: true,
         });
     }
-    
+
     fields.push({
         name: '原因',
         value: logData.reason,
         inline: false,
     });
-    
+
     // 如果有额外信息，添加到字段中
     if (logData.additionalInfo) {
         fields.push({
@@ -218,7 +218,7 @@ export const sendModerationLog = async (client, moderationChannelId, logData) =>
             inline: false,
         });
     }
-    
+
     await moderationChannel.send({
         embeds: [
             {
@@ -404,32 +404,30 @@ export const getVersionInfo = () => {
 };
 
 /**
- * 验证图片链接
- * @param {string} url - 图片链接
+ * 验证上传的图片文件
+ * @param {Object} attachment - Discord Attachment对象
  * @returns {{isValid: boolean, error: string|null}} 验证结果
  */
-export function validateImageUrl(url) {
-    if (!url) return { isValid: true, error: null }; // 允许为空
+export function validateImageFile(attachment) {
+    if (!attachment) return { isValid: true, error: null }; // 允许为空
 
-    try {
-        const urlObj = new URL(url);
-
-        // 检查协议
-        if (!['http:', 'https:'].includes(urlObj.protocol)) {
-            return { isValid: false, error: '图片链接必须使用 http 或 https 协议' };
-        }
-
-        // 检查文件扩展名
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-        if (!allowedExtensions.some(ext => urlObj.pathname.toLowerCase().endsWith(ext))) {
-            return {
-                isValid: false,
-                error: '图片链接必须以 .jpg、.jpeg、.png、.gif 或 .webp 结尾',
-            };
-        }
-
-        return { isValid: true, error: null };
-    } catch (error) {
-        return { isValid: false, error: '无效的图片链接格式' };
+    // 检查MIME类型
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedMimeTypes.includes(attachment.contentType)) {
+        return {
+            isValid: false,
+            error: '仅支持JPG、PNG、GIF或WebP格式的图片',
+        };
     }
+
+    // 检查文件大小（限制为10MB）
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (attachment.size > maxSize) {
+        return {
+            isValid: false,
+            error: '图片大小不能超过10MB',
+        };
+    }
+
+    return { isValid: true, error: null };
 }

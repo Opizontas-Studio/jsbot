@@ -94,7 +94,7 @@ export default {
             let totalReactions = 0;
             const linkResults = [];
             let oldestPostDate = null;
-            let oldestPostDays = 0;
+            let oldestPostHours = 0;
 
             for (const link of links) {
                 try {
@@ -116,12 +116,13 @@ export default {
 
                     // 使用子区创建时间作为帖子时间
                     const postDate = thread.createdAt;
-                    const daysSincePost = Math.floor((Date.now() - postDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const hoursSincePost = Math.floor((Date.now() - postDate.getTime()) / (1000 * 60 * 60));
+                    const daysSincePost = Math.floor(hoursSincePost / 24);
 
                     // 更新最早的帖子时间
                     if (oldestPostDate === null || postDate < oldestPostDate) {
                         oldestPostDate = postDate;
-                        oldestPostDays = daysSincePost;
+                        oldestPostHours = hoursSincePost;
                     }
 
                     // 获取最大反应数
@@ -138,23 +139,46 @@ export default {
                         link: `https://discord.com/channels/${link.guildId}/${link.threadId}`,
                         reactions: maxReactions,
                         server: thread.guild.name,
-                        days: daysSincePost
+                        days: daysSincePost,
+                        hours: hoursSincePost,
                     });
                 } catch (error) {
                     console.error('处理链接时出错:', error);
                 }
             }
 
-            // 检查是否有帖子满足45天的要求
-            if (oldestPostDays < 45 || oldestPostDate === null) {
-                // 向申请帖子发送一条简单的通知消息
-                await interaction.channel.send({
-                    content: `❌ 抱歉，您最早的作品仅发布了${oldestPostDays}天，不满足45天的时间要求，请耐心等待。`
-                });
+            // 计算天数和小时数
+            const oldestPostDays = Math.floor(oldestPostHours / 24);
+            const remainingHours = 45 * 24 - oldestPostHours;
+            const remainingDays = Math.floor(remainingHours / 24);
+            const hoursInLastDay = remainingHours % 24;
 
-                await interaction.editReply({
-                    content: `❌ 提交的作品中最早的帖子未满足45天要求（当前最早: ${oldestPostDays}天）`,
-                });
+            // 检查是否满足44天12小时的要求 (1068小时)
+            const requiredHours = 44 * 24 + 12; // 44天12小时
+
+            if (oldestPostHours < requiredHours || oldestPostDate === null) {
+                // 检查是否在3天内
+                if (remainingDays < 5) {
+                    // 向申请帖子发送一条详细通知消息
+                    await interaction.channel.send({
+                        content: `❌ 抱歉，您最早的作品发布了${oldestPostDays}天${
+                            oldestPostHours % 24
+                        }小时，距离申请通过还需等待${remainingDays}天${hoursInLastDay}小时。`,
+                    });
+
+                    await interaction.editReply({
+                        content: `❌ 提交的作品中最早的帖子未满足要求，距离申请通过还需等待${remainingDays}天${hoursInLastDay}小时。`,
+                    });
+                } else {
+                    // 向申请帖子发送一条简单的通知消息
+                    await interaction.channel.send({
+                        content: `❌ 抱歉，您最早的作品仅发布了${oldestPostDays}天，不满足45天的时间要求，请耐心等待。`,
+                    });
+
+                    await interaction.editReply({
+                        content: `❌ 提交的作品中最早的帖子未满足45天要求（当前最早: ${oldestPostDays}天）`,
+                    });
+                }
                 return;
             }
 
@@ -171,8 +195,9 @@ export default {
                     {
                         name: '作品详情',
                         value:
-                            linkResults.map(r => `[链接](${r.link}) - ${r.reactions}个反应 (${r.server}, ${r.days}天前)`).join('\n') ||
-                            '无有效作品',
+                            linkResults
+                                .map(r => `[链接](${r.link}) - ${r.reactions}个反应 (${r.server}, ${r.days}天前)`)
+                                .join('\n') || '无有效作品',
                     },
                 )
                 .setTimestamp();
@@ -230,7 +255,9 @@ export default {
                         });
                     }
 
-                    logTime(`管理员 ${interaction.user.tag} 通过了 ${applicant.tag} 的议员申请，对 ${syncResults.length} 个身份组授权。`);
+                    logTime(
+                        `管理员 ${interaction.user.tag} 通过了 ${applicant.tag} 的议员申请，对 ${syncResults.length} 个身份组授权。`,
+                    );
                 } catch (error) {
                     logTime(`添加身份组失败: ${error.message}`, true);
                     throw error;

@@ -56,6 +56,27 @@ export default {
             return;
         }
 
+        // 处理自动补全请求
+        if (interaction.isAutocomplete()) {
+            try {
+                const command = interaction.client.commands.get(interaction.commandName);
+                if (!command || !command.autocomplete) {
+                    return;
+                }
+
+                await command.autocomplete(interaction);
+            } catch (error) {
+                console.error(`自动补全处理错误: ${error}`);
+                // 自动补全错误时尝试返回空数组，避免用户界面卡住
+                try {
+                    await interaction.respond([]);
+                } catch (respondError) {
+                    console.error(`响应自动补全错误: ${respondError}`);
+                }
+            }
+            return;
+        }
+
         // 处理斜杠命令
         if (interaction.isChatInputCommand()) {
             // 对于批量转移身份组命令，不使用Ephemeral

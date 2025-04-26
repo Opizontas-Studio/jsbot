@@ -77,7 +77,7 @@ export default {
             // 获取命令参数
             const prompt = interaction.options.getString('提示词'); // 现在是可选参数
             const messageCount = interaction.options.getInteger('消息数量') || 5; // 默认获取5条消息
-            const responseFormat = interaction.options.getString('响应格式') || 'text'; // 默认响应格式为文本文件
+            const responseFormat = interaction.options.getString('响应格式') || 'image'; // 默认响应格式为图片
 
             // 权限验证
             const hasAdminPermission = interaction.member.roles.cache.some(role =>
@@ -111,90 +111,114 @@ export default {
             // 构建FastGPT请求体 - 使用新的格式和参数
             const requestBody = buildFastGPTRequestBody(userMessages, prompt, targetUser, interaction.user);
 
+            // 准备初始日志数据
+            const logInitData = {
+                timestamp: new Date().toLocaleString('zh-CN'),
+                executor: interaction.user.tag,
+                target: targetUser.tag,
+                prompt: prompt || '默认',
+                messageCount: userMessages.length,
+                channelName: interaction.channel.name,
+            };
+
             // 发送处理中的提示
             await interaction.editReply(`⏳ 正在处理用户 ${targetUser.tag} 的问题，请稍候...`);
 
-            // 发送请求到FastGPT API
-            const apiResponse = await sendToFastGPT(requestBody, guildConfig);
-
-            // 从响应中提取文本内容
-            const responseText = apiResponse.choices[0]?.message?.content;
-            if (!responseText) {
-                await interaction.editReply('❌ FastGPT返回了空响应');
-                return;
-            }
-
-            // 处理响应并转换为图片
-            const { attachment, imageInfo, links } = await processResponseToAttachment(apiResponse, responseFormat);
-
-            // 创建临时回复用的Embed
-            const replyEmbed = new EmbedBuilder()
-                .setTitle('答疑完成')
-                .setColor(0x3498db)
-                .setDescription(`✅ 已成功为 ${targetUser} 提供答疑`)
-                .setTimestamp();
-
-            // 更新原始回复为临时提示
-            await interaction.editReply({
-                embeds: [replyEmbed],
-                files: [],
-            });
-
-            // 获取目标消息用于回复
-            let targetMessage;
             try {
-                targetMessage = await interaction.channel.messages.fetch(recentMessageId);
-            } catch (error) {
-                logTime(`无法获取目标消息进行回复: ${error.message}`, true);
+                // 发送请求到FastGPT API，传入interaction用于进度更新和logInitData用于日志记录
+                const apiResponse = await sendToFastGPT(requestBody, guildConfig, interaction, logInitData);
 
-                // 如果无法获取目标消息，直接在当前频道发送
-                await interaction.channel.send({
-                    content: `回复给 ${targetUser}:`,
+                // 从响应中提取文本内容
+                const responseText = apiResponse.choices[0]?.message?.content;
+                if (!responseText) {
+                    await interaction.editReply('❌ FastGPT返回了空响应');
+                    // 记录日志
+                    await logQAResult(logInitData, null, null, null, 'failed', null, 'FastGPT返回了空响应');
+                    return;
+                }
+
+                // 立即更新进度消息，清除超时倒计时信息
+                await interaction.editReply(`✅ 请求成功，正在处理响应...`);
+
+                // 处理响应并转换为图片
+                const { attachment, imageInfo, links } = await processResponseToAttachment(apiResponse, responseFormat);
+
+                // 创建临时回复用的Embed
+                const replyEmbed = new EmbedBuilder()
+                    .setTitle('答疑完成')
+                    .setColor(0x3498db)
+                    .setDescription(`✅ 已成功为 ${targetUser} 提供答疑`)
+                    .setTimestamp();
+
+                // 更新原始回复为临时提示
+                await interaction.editReply({
+                    embeds: [replyEmbed],
+                    files: [],
+                });
+
+                // 获取目标消息用于回复
+                let targetMessage;
+                try {
+                    targetMessage = await interaction.channel.messages.fetch(recentMessageId);
+                } catch (error) {
+                    logTime(`无法获取目标消息进行回复: ${error.message}`, true);
+
+                    // 如果无法获取目标消息，直接在当前频道发送
+                    await interaction.channel.send({
+                        content: `回复给 ${targetUser}:`,
+                        files: [attachment],
+                    });
+
+                    // 记录日志 - 成功但发送方式不同
+                    await logQAResult(
+                        logInitData,
+                        responseText,
+                        imageInfo,
+                        links,
+                        'success',
+                        apiResponse.endpoint || null,
+                    );
+
+                    return;
+                }
+
+                // 构建回复内容，如果存在链接且是图片格式，则添加链接
+                let replyContent = '';
+                if (responseFormat === 'image' && links && links.length > 0) {
+                    replyContent = `**以下是回复中包含的链接：**\n${links
+                        .map((link, index) => {
+                            // 如果链接是对象(有text和url)，则使用"[文本](URL)"格式
+                            if (typeof link === 'object' && link.text && link.url) {
+                                return `• [${link.text}](${link.url})`;
+                            }
+                            // 否则直接显示URL
+                            return `• ${link}`;
+                        })
+                        .join('\n')}`;
+                }
+
+                // 回复目标用户的最近消息
+                await targetMessage.reply({
+                    content: replyContent || null,
                     files: [attachment],
                 });
 
-                return;
+                // 记录日志
+                logTime(
+                    `用户 ${interaction.user.tag} 成功对 ${targetUser.tag} 进行了答疑 [图片尺寸: ${imageInfo.width}x${
+                        imageInfo.height
+                    }px (${imageInfo.sizeKB}KB)]${links?.length > 0 ? ` [包含${links.length}个链接]` : ''}`,
+                );
+
+                // 记录到文件 - 完整成功日志
+                await logQAResult(logInitData, responseText, imageInfo, links, 'success', apiResponse.endpoint || null);
+            } catch (error) {
+                // 错误消息
+                await handleCommandError(interaction, error, '答疑命令');
+
+                // 记录日志 - 处理错误
+                await logQAResult(logInitData, null, null, null, 'failed', null, error.message);
             }
-
-            // 构建回复内容，如果存在链接且是图片格式，则添加链接
-            let replyContent = '';
-            if (responseFormat === 'image' && links && links.length > 0) {
-                replyContent = `**以下是回复中包含的链接：**\n${links.map((link, index) => {
-                    // 如果链接是对象(有text和url)，则使用"[文本](URL)"格式
-                    if (typeof link === 'object' && link.text && link.url) {
-                        return `• [${link.text}](${link.url})`;
-                    }
-                    // 否则直接显示URL
-                    return `• ${link}`;
-                }).join('\n')}`;
-            }
-
-            // 回复目标用户的最近消息
-            await targetMessage.reply({
-                content: replyContent || null,
-                files: [attachment],
-            });
-
-            // 记录日志
-            logTime(
-                `用户 ${interaction.user.tag} 成功对 ${targetUser.tag} 进行了答疑 [图片尺寸: ${imageInfo.width}x${imageInfo.height}px (${imageInfo.sizeKB}KB)]${links?.length > 0 ? ` [包含${links.length}个链接]` : ''}`,
-            );
-
-            // 记录到文件
-            const timestamp = new Date().toLocaleString('zh-CN');
-            await logQAResult(
-                {
-                    timestamp,
-                    executor: interaction.user.tag,
-                    target: targetUser.tag,
-                    prompt: prompt || '默认',
-                    messageCount: userMessages.length,
-                    channelName: interaction.channel.name,
-                },
-                responseText,
-                imageInfo,
-                links
-            );
         } catch (error) {
             await handleCommandError(interaction, error, '答疑命令');
         } finally {

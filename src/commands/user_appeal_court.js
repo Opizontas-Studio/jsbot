@@ -2,7 +2,7 @@ import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { handleCommandError, validateImageUrl } from '../utils/helper.js';
+import { handleCommandError, validateImageFile } from '../utils/helper.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
@@ -39,10 +39,10 @@ export default {
                         .setDescription('附加警告时长 (最短15天，格式如: 30d，即30天)')
                         .setRequired(false),
                 )
-                .addStringOption(option =>
+                .addAttachmentOption(option =>
                     option
-                        .setName('图片链接')
-                        .setDescription('相关证据的图片链接 (可来自图床/DiscordCDN)')
+                        .setName('证据图片')
+                        .setDescription('相关证据的图片文件 (支持jpg、jpeg、png、gif或webp格式)')
                         .setRequired(false),
                 ),
         )
@@ -55,10 +55,10 @@ export default {
                 .addBooleanOption(option =>
                     option.setName('保留消息').setDescription('是否保留用户的消息').setRequired(false),
                 )
-                .addStringOption(option =>
+                .addAttachmentOption(option =>
                     option
-                        .setName('图片链接')
-                        .setDescription('相关证据的图片链接 (可来自图床/DiscordCDN)')
+                        .setName('证据图片')
+                        .setDescription('相关证据的图片文件 (支持jpg、jpeg、png、gif或webp格式)')
                         .setRequired(false),
                 ),
         ),
@@ -89,11 +89,11 @@ export default {
             if (subcommand === '禁言' || subcommand === '永封') {
                 const target = interaction.options.getUser('目标');
                 const reason = interaction.options.getString('理由');
-                const imageUrl = interaction.options.getString('图片链接');
+                const imageAttachment = interaction.options.getAttachment('证据图片');
 
-                // 在获取图片链接后立即验证
-                if (imageUrl) {
-                    const { isValid, error } = validateImageUrl(imageUrl);
+                // 在获取图片附件后立即验证
+                if (imageAttachment) {
+                    const { isValid, error } = validateImageFile(imageAttachment);
                     if (!isValid) {
                         await interaction.editReply({
                             content: `❌ ${error}`,
@@ -194,7 +194,7 @@ export default {
                             ]
                                 .filter(Boolean)
                                 .join('\n'),
-                            image: imageUrl ? { url: imageUrl } : undefined,
+                            image: imageAttachment ? { url: imageAttachment.url } : undefined,
                         },
                         onConfirm: async confirmation => {
                             // 更新交互消息
@@ -250,7 +250,7 @@ export default {
                                         footer: {
                                             text: `申请人：${interaction.user.tag}`,
                                         },
-                                        image: imageUrl ? { url: imageUrl } : undefined,
+                                        image: imageAttachment ? { url: imageAttachment.url } : undefined,
                                     },
                                 ],
                                 components: [
@@ -288,6 +288,7 @@ export default {
                                     muteTime,
                                     warningTime,
                                     revokeRoleId: revokeRole?.id,
+                                    imageUrl: imageAttachment?.url,
                                 },
                             });
 
@@ -338,7 +339,7 @@ export default {
                                         color: 0x808080,
                                         title: '❌ 确认已超时',
                                         description: '禁言处罚申请操作已超时。如需继续请重新执行命令。',
-                                    }
+                                    },
                                 ],
                                 components: [],
                             });
@@ -349,7 +350,7 @@ export default {
                     });
                 } else if (subcommand === '永封') {
                     const keepMessages = interaction.options.getBoolean('保留消息') ?? true;
-                    const imageUrl = interaction.options.getString('图片链接');
+                    const imageAttachment = interaction.options.getAttachment('证据图片');
 
                     // 检查目标用户是否为管理员
                     const member = await interaction.guild.members.fetch(target.id);
@@ -359,18 +360,6 @@ export default {
                             flags: ['Ephemeral'],
                         });
                         return;
-                    }
-
-                    // 在获取图片链接后立即验证
-                    if (imageUrl) {
-                        const { isValid, error } = validateImageUrl(imageUrl);
-                        if (!isValid) {
-                            await interaction.editReply({
-                                content: `❌ ${error}`,
-                                flags: ['Ephemeral'],
-                            });
-                            return;
-                        }
                     }
 
                     await handleConfirmationButton({
@@ -391,7 +380,7 @@ export default {
                                 '',
                                 '请慎重考虑占用公共资源。如需撤销请使用 撤销 子命令。',
                             ].join('\n'),
-                            image: imageUrl ? { url: imageUrl } : undefined,
+                            image: imageAttachment ? { url: imageAttachment.url } : undefined,
                         },
                         onConfirm: async confirmation => {
                             // 更新交互消息
@@ -433,7 +422,7 @@ export default {
                                         footer: {
                                             text: `申请人：${interaction.user.tag}`,
                                         },
-                                        image: imageUrl ? { url: imageUrl } : undefined,
+                                        image: imageAttachment ? { url: imageAttachment.url } : undefined,
                                     },
                                 ],
                                 components: [
@@ -469,6 +458,7 @@ export default {
                                 details: {
                                     embed: message.embeds[0].toJSON(),
                                     keepMessages,
+                                    imageUrl: imageAttachment?.url,
                                 },
                             });
 
@@ -513,7 +503,7 @@ export default {
                                         color: 0x808080,
                                         title: '❌ 确认已超时',
                                         description: '永封处罚申请操作已超时。如需继续请重新执行命令。',
-                                    }
+                                    },
                                 ],
                                 components: [],
                             });

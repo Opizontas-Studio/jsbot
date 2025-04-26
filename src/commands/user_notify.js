@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleCommandError, validateImageUrl } from '../utils/helper.js';
+import { handleCommandError, validateImageFile } from '../utils/helper.js';
 
 // 定义颜色映射
 const COLORS = {
@@ -27,7 +27,12 @@ export default {
         .addStringOption(
             option => option.setName('内容').setDescription('通知的具体内容').setRequired(true).setMaxLength(4096), // Discord embed描述最大长度
         )
-        .addStringOption(option => option.setName('图片').setDescription('要显示的图片URL（可选）').setRequired(false))
+        .addAttachmentOption(option =>
+            option
+                .setName('图片')
+                .setDescription('要显示的图片（可选，支持jpg、jpeg、png、gif或webp格式）')
+                .setRequired(false),
+        )
         .addStringOption(option =>
             option
                 .setName('颜色')
@@ -49,7 +54,7 @@ export default {
         try {
             const channel = interaction.channel;
             const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-            
+
             if (!guildConfig) {
                 await interaction.editReply({
                     content: '❌ 无法获取服务器配置',
@@ -61,12 +66,12 @@ export default {
             // 获取参数
             const title = interaction.options.getString('标题');
             const description = interaction.options.getString('内容');
-            const imageUrl = interaction.options.getString('图片');
+            const imageAttachment = interaction.options.getAttachment('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
 
-            // 验证图片链接
-            if (imageUrl) {
-                const { isValid, error } = validateImageUrl(imageUrl);
+            // 验证图片附件
+            if (imageAttachment) {
+                const { isValid, error } = validateImageFile(imageAttachment);
                 if (!isValid) {
                     await interaction.editReply({
                         content: `❌ ${error}`,
@@ -77,8 +82,8 @@ export default {
             }
 
             // 检查用户是否是管理组成员
-            const isModerator = interaction.member.roles.cache.some(role => 
-                guildConfig.ModeratorRoleIds.includes(role.id)
+            const isModerator = interaction.member.roles.cache.some(role =>
+                guildConfig.ModeratorRoleIds.includes(role.id),
             );
 
             const embed = {
@@ -87,13 +92,15 @@ export default {
                 description: description,
                 timestamp: new Date(),
                 footer: {
-                    text: isModerator ? `由管理员 ${interaction.member.displayName} 发送` : `由 ${interaction.member.displayName} 发送`,
+                    text: isModerator
+                        ? `由管理员 ${interaction.member.displayName} 发送`
+                        : `由 ${interaction.member.displayName} 发送`,
                 },
             };
 
-            // 如果提供了图片URL，添加图片
-            if (imageUrl) {
-                embed.image = { url: imageUrl };
+            // 如果提供了图片附件，添加图片
+            if (imageAttachment) {
+                embed.image = { url: imageAttachment.url };
             }
 
             await channel.send({ embeds: [embed] });

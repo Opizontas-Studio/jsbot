@@ -16,23 +16,98 @@ export default {
                 .setDescription('文案编号(1-99)')
                 .setRequired(true)
                 .setMinValue(1)
-                .setMaxValue(99),
+                .setMaxValue(99)
+                .setAutocomplete(true),
         ),
+
+    // 处理自动补全请求
+    async autocomplete(interaction) {
+        try {
+            const focusedValue = interaction.options.getFocused();
+            const copywritingDir = path.join(process.cwd(), 'data', 'copywriting');
+
+            // 确保目录存在
+            try {
+                await fs.mkdir(copywritingDir, { recursive: true });
+            } catch (error) {
+                // 忽略目录已存在的错误
+            }
+
+            // 读取目录
+            let files;
+            try {
+                files = await fs.readdir(copywritingDir);
+            } catch (error) {
+                console.error(`读取文案目录失败: ${error}`);
+                return interaction.respond([]);
+            }
+
+            // 过滤出.txt文件并提取编号
+            const fileNumbers = files
+                .filter(file => file.endsWith('.txt'))
+                .map(file => {
+                    const numberStr = file.replace('.txt', '');
+                    return parseInt(numberStr, 10);
+                })
+                .filter(number => !isNaN(number) && number >= 1 && number <= 99);
+
+            // 如果没有文件，返回空数组
+            if (fileNumbers.length === 0) {
+                return interaction.respond([]);
+            }
+
+            // 根据输入筛选编号
+            const filtered = fileNumbers.filter(number =>
+                focusedValue ? number.toString().startsWith(focusedValue) : true,
+            );
+
+            // 读取每个文件的内容，获取前15个字符
+            const options = await Promise.all(
+                filtered.slice(0, 25).map(async number => {
+                    const filePath = path.join(copywritingDir, `${number}.txt`);
+                    try {
+                        // 明确指定UTF-8编码读取文件
+                        const content = await fs.readFile(filePath, { encoding: 'utf-8' });
+                        // 获取文案的前15个字符（如果有）
+                        const preview = content.trim().slice(0, 15);
+                        // 格式化展示名称：编号-文案预览
+                        return {
+                            name: `${number}-${preview}${content.length > 15 ? '...' : ''}`,
+                            value: number,
+                        };
+                    } catch (error) {
+                        // 如果无法读取文件，只显示编号
+                        console.error(`读取文件 ${number}.txt 失败: ${error.message}`);
+                        return {
+                            name: `${number}号文案`,
+                            value: number,
+                        };
+                    }
+                }),
+            );
+
+            await interaction.respond(options);
+        } catch (error) {
+            console.error(`自动补全处理错误: ${error}`);
+            // 返回空列表，避免交互失败
+            await interaction.respond([]);
+        }
+    },
 
     async execute(interaction, guildConfig) {
         // 需要版主或管理员权限
         if (!(await checkModeratorPermission(interaction, guildConfig))) {
-                return;
+            return;
         }
 
         try {
             const copywritingNumber = interaction.options.getInteger('编号');
             const filePath = path.join(process.cwd(), 'data', 'copywriting', `${copywritingNumber}.txt`);
 
-            // 读取文案内容
+            // 读取文案内容，明确指定UTF-8编码
             let content;
             try {
-                content = await fs.readFile(filePath, 'utf-8');
+                content = await fs.readFile(filePath, { encoding: 'utf-8' });
             } catch (error) {
                 await interaction.editReply({
                     content: `❌ 无法读取文案文件：${error.message}`,
@@ -90,7 +165,7 @@ export default {
                     // 按行分割文本
                     const lines = content.split('\n');
                     let currentMessage = '';
-                    
+
                     // 逐行构建消息，确保每条消息不超过2000字符
                     for (const line of lines) {
                         if (currentMessage.length + line.length + 1 > 2000) {
@@ -122,4 +197,4 @@ export default {
             await handleCommandError(interaction, error, '发送文案');
         }
     },
-}; 
+};

@@ -131,6 +131,18 @@ export default {
                         });
                     }
                 },
+                onTimeout: async interaction => {
+                    await interaction.editReply({
+                        embeds: [
+                            {
+                                color: 0x808080,
+                                title: '❌ 确认已超时',
+                                description: '暂停邀请操作已超时。如需继续请重新执行命令。',
+                            },
+                        ],
+                        components: [],
+                    });
+                },
                 onError: async error => {
                     await handleCommandError(interaction, error, '暂停邀请');
                 },

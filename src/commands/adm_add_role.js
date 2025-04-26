@@ -20,13 +20,20 @@ export default {
     data: new SlashCommandBuilder()
         .setName('批量转移身份组')
         .setDescription('将指定数量的成员从一个身份组转移到另一个身份组')
+        .addRoleOption(option => option.setName('源身份组').setDescription('要转移成员的来源身份组').setRequired(true))
+        .addRoleOption(option =>
+            option.setName('目标身份组').setDescription('要转移成员到的目标身份组').setRequired(true),
+        )
         .addIntegerOption(option =>
             option
                 .setName('数量')
-                .setDescription('要转移的成员数量 (10-1000)')
-                .setRequired(true)
+                .setDescription('要转移的成员数量 (10-300)')
+                .setRequired(false)
                 .setMinValue(10)
-                .setMaxValue(1000),
+                .setMaxValue(300),
+        )
+        .addBooleanOption(option =>
+            option.setName('移除源身份组').setDescription('是否移除成员的源身份组 (默认: 是)').setRequired(false),
         ),
 
     async execute(interaction, guildConfig) {
@@ -36,33 +43,28 @@ export default {
         }
 
         try {
-            // 根据服务器类型选择对应的身份组ID
-            const roleIds = guildConfig.serverType === 'Main server' ? MAIN_SERVER_ROLES : SUB_SERVER_ROLES;
+            // 获取命令参数
+            const sourceRole = interaction.options.getRole('源身份组');
+            const targetRole = interaction.options.getRole('目标身份组');
+            const requestedCount = interaction.options.getInteger('数量') || 200; // 默认200
+            const removeSourceRole = interaction.options.getBoolean('移除源身份组') ?? true; // 默认true
 
-            const requestedCount = interaction.options.getInteger('数量');
-            
-            // 获取目标身份组
-            const targetRole = await interaction.guild.roles.fetch(roleIds.TARGET_ROLE_ID);
-            const sourceRole = await interaction.guild.roles.fetch(roleIds.SOURCE_ROLE_ID);
-
-            if (!targetRole || !sourceRole) {
+            if (!sourceRole || !targetRole) {
                 await interaction.editReply({
-                    content: `❌ 无法找到指定的身份组，请检查配置\n服务器类型: ${guildConfig.serverType}`
+                    content: '❌ 无法找到指定的身份组，请重试',
                 });
                 return;
             }
 
             await interaction.editReply({
-                content: '⏳ 正在获取源身份组成员列表...'
+                content: '⏳ 正在获取源身份组成员列表...',
             });
 
             // 获取源身份组的所有成员
             const members = await interaction.guild.members.fetch();
             const eligibleMembers = members.filter(
                 member =>
-                    member.roles.cache.has(roleIds.SOURCE_ROLE_ID) &&
-                    !member.roles.cache.has(roleIds.TARGET_ROLE_ID) &&
-                    !member.user.bot,
+                    member.roles.cache.has(sourceRole.id) && !member.roles.cache.has(targetRole.id) && !member.user.bot,
             );
 
             // 按加入服务器时间排序（从早到晚）
@@ -72,7 +74,7 @@ export default {
 
             if (membersToProcess.length === 0) {
                 await interaction.editReply({
-                    content: '✅ 没有找到需要处理的成员'
+                    content: '✅ 没有找到需要处理的成员',
                 });
                 return;
             }
@@ -80,7 +82,7 @@ export default {
             // 计算实际处理数量
             const actualCount = Math.min(membersToProcess.length, requestedCount);
             await interaction.editReply({
-                content: `⏳ 开始处理 ${actualCount} 个成员...`
+                content: `⏳ 开始处理 ${actualCount} 个成员...`,
             });
             logTime(`开始 ${actualCount} 个成员的身份组转移操作，操作服务器: ${interaction.guild.name}`);
 
@@ -92,10 +94,16 @@ export default {
             // 串行处理每个成员
             for (const member of membersToProcess) {
                 try {
-                    // 先移除源身份组，再添加目标身份组
-                    await member.roles.remove(sourceRole, '缓冲区转移到已验证');
-                    await delay(600);
-                    await member.roles.add(targetRole, '缓冲区转移到已验证');
+                    const actionMessage = `从 ${sourceRole.name} 转移到 ${targetRole.name}`;
+
+                    // 根据参数决定是否移除源身份组
+                    if (removeSourceRole) {
+                        await member.roles.remove(sourceRole, actionMessage);
+                        await delay(600);
+                    }
+
+                    // 添加目标身份组
+                    await member.roles.add(targetRole, actionMessage);
                     successCount++;
                 } catch (error) {
                     logTime(`为成员 ${member.user.tag} (${member.id}) 转移身份组失败: ${error.message}`, true);
@@ -109,11 +117,11 @@ export default {
                 if (now - lastProgressUpdate > 1000) {
                     lastProgressUpdate = now;
                     await interaction.editReply({
-                        content: `⏳ 正在转移身份组... (${processedCount}/${actualCount})\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`
+                        content: `⏳ 正在转移身份组... (${processedCount}/${actualCount})\n✅ 成功: ${successCount}\n❌ 失败: ${failCount}`,
                     });
                 }
 
-                // 等待700ms再处理下一个成员
+                // 等待600ms再处理下一个成员
                 await delay(600);
             }
 
@@ -124,7 +132,7 @@ export default {
                     `📊 处理成员总数: ${actualCount}`,
                     `✅ 成功数量: ${successCount}`,
                     `❌ 失败数量: ${failCount}`,
-                ].join('\n')
+                ].join('\n'),
             });
 
             // 记录到日志频道
@@ -143,6 +151,7 @@ export default {
                                 `实际处理总数: ${actualCount}`,
                                 `成功数量: ${successCount}`,
                                 `失败数量: ${failCount}`,
+                                `是否移除源身份组: ${removeSourceRole ? '是' : '否'}`,
                             ].join('\n'),
                             timestamp: new Date(),
                             footer: { text: '自动化系统' },
@@ -152,12 +161,19 @@ export default {
             }
 
             // 记录操作完成的日志
-            logTime(`批量转移身份组完成 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +
-                   `执行者: ${interaction.user.tag}, 总数: ${actualCount}, 成功: ${successCount}, 失败: ${failCount}`);
+            logTime(
+                `批量转移身份组完成 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +
+                    `执行者: ${interaction.user.tag}, 总数: ${actualCount}, 成功: ${successCount}, 失败: ${failCount}`,
+            );
         } catch (error) {
-            logTime(`批量转移身份组命令执行失败 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +
-                   `错误: ${error.message}`, true);
-            await handleCommandError(interaction, error, '批量转移身份组');
+            logTime(
+                `批量转移身份组命令执行失败 - 服务器: ${interaction.guild.name} (${interaction.guild.id}), ` +
+                    `错误: ${error.message}`,
+                true,
+            );
+            await interaction.editReply({
+                content: `❌ 命令执行出错: ${error.message}`,
+            });
         }
     },
 };

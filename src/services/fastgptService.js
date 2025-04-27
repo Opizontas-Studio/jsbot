@@ -205,7 +205,7 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
         try {
             // 创建超时控制器
             const controller = new AbortController();
-            const timeoutMs = 90000; // 90秒超时
+            const timeoutMs = 100000; // 100秒超时
             const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
             // 启动定时器，每10秒更新一次进度
@@ -287,16 +287,21 @@ export async function sendToFastGPT(requestBody, guildConfig, interaction = null
                     const nextStepDesc = isLastChance ?
                         '' : // 如果是最后一个尝试，不提示下一步
                         ((index < totalCount - 1) ?
-                            `，正在切换到下一个端点...` :
-                            (lastSuccessEndpoint ? '，将尝试上次成功的端点...' : ''));
+                            `，10秒后将继续显示下一个端点的处理进度...` :
+                            (lastSuccessEndpoint ? '，10秒后将继续显示上次成功端点的处理进度...' : ''));
 
                     const errorEmbed = new EmbedBuilder()
                         .setTitle('请求失败')
-                        .setDescription(`⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType})${nextStepDesc}`)
+                        .setDescription(`⚠️ 端点 ${apiUrl.split('/').slice(0, 3).join('/')} 请求失败 (${errorType}): ${errorMessage}${nextStepDesc}`)
                         .setColor(0xf44336) // 红色
                         .setTimestamp();
 
                     await interaction.editReply({ embeds: [errorEmbed] });
+
+                    // 在失败后显示10秒错误原因
+                    if (index < totalCount - 1 || (lastSuccessEndpoint && !isLastChance)) {
+                        await new Promise(resolve => setTimeout(resolve, 10000));
+                    }
                 } catch (e) {
                     // 忽略更新失败的错误
                 }

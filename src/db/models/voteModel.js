@@ -109,7 +109,7 @@ class VoteModel {
         try {
             await dbManager.safeExecute(
                 'run',
-                `UPDATE votes 
+                `UPDATE votes
                 SET status = ?,
                     result = CASE WHEN ? IS NOT NULL THEN ? ELSE result END,
                     updatedAt = ?
@@ -158,7 +158,7 @@ class VoteModel {
             await dbManager.transaction(async () => {
                 await dbManager.safeExecute(
                     'run',
-                    `UPDATE votes 
+                    `UPDATE votes
                     SET ${votersField} = ?,
                         ${oppositeField} = ?,
                         updatedAt = ?
@@ -247,6 +247,61 @@ class VoteModel {
                 dbManager.clearCache(`vote_message_${vote.messageId}`);
             }
         });
+    }
+
+    /**
+     * 获取所有投票记录
+     * @param {boolean} activeOnly - 是否只获取进行中的投票
+     * @returns {Promise<Array>} 投票记录列表
+     */
+    static async getAllVotes(activeOnly = true) {
+        try {
+            const query = activeOnly
+                ? 'SELECT * FROM votes WHERE status = "in_progress" ORDER BY updatedAt DESC'
+                : 'SELECT * FROM votes ORDER BY updatedAt DESC';
+
+            const votes = await dbManager.safeExecute('all', query);
+            return votes ? votes.map(vote => this._parseVoteJSON(vote)) : [];
+        } catch (error) {
+            logTime(`获取所有投票记录失败: ${error.message}`, true);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取用户参与的投票记录
+     * @param {string} userId - 用户ID
+     * @param {boolean} includeHistory - 是否包含历史记录
+     * @returns {Promise<Array>} 投票记录列表
+     */
+    static async getUserVotes(userId, includeHistory = false) {
+        try {
+            // 包括：作为投票者、作为目标用户、作为发起人的记录
+            const statusClause = includeHistory ? '' : 'AND status = "in_progress"';
+
+            const query = `
+                SELECT * FROM votes
+                WHERE (redVoters LIKE ? OR blueVoters LIKE ?)  -- 用户作为投票者
+                   OR (details LIKE ? OR details LIKE ?)      -- 用户作为目标或发起人
+                ${statusClause}
+                ORDER BY createdAt DESC
+            `;
+
+            const targetPattern = `%"targetId":"${userId}"%`;  // 作为目标用户
+            const executorPattern = `%"executorId":"${userId}"%`;  // 作为发起人
+            const voterPattern = `%"${userId}"%`;  // 作为投票者
+
+            const votes = await dbManager.safeExecute(
+                'all',
+                query,
+                [voterPattern, voterPattern, targetPattern, executorPattern]
+            );
+
+            return votes ? votes.map(vote => this._parseVoteJSON(vote)) : [];
+        } catch (error) {
+            logTime(`获取用户投票记录失败: ${error.message}`, true);
+            throw error;
+        }
     }
 }
 

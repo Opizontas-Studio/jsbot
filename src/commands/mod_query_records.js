@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { VoteModel } from '../db/models/voteModel.js';
 import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
@@ -14,7 +15,11 @@ export default {
                 .setName('类型')
                 .setDescription('要查询的记录类型')
                 .setRequired(true)
-                .addChoices({ name: '处罚记录', value: 'punishment' }, { name: '流程记录', value: 'process' }),
+                .addChoices(
+                    { name: '处罚记录', value: 'punishment' },
+                    { name: '流程记录', value: 'process' },
+                    { name: '投票记录', value: 'vote' }
+                ),
         )
         .addUserOption(option => option.setName('用户').setDescription('筛选特定用户（可选）').setRequired(false)),
 
@@ -128,7 +133,7 @@ export default {
                 interaction.client.pageCache = interaction.client.pageCache || new Map();
                 interaction.client.pageCache.set(message.id, pages);
                 setTimeout(() => interaction.client.pageCache.delete(message.id), 5 * 60 * 1000);
-            } else {
+            } else if (type === 'process') {
                 // 查询流程记录
                 const processes = targetUser
                     ? await ProcessModel.getUserProcesses(targetUser.id, true) // 包含历史记录
@@ -145,11 +150,11 @@ export default {
                 // 获取主服务器配置
                 const mainGuildConfig = Array.from(interaction.client.guildManager.guilds.values())
                     .find(config => config.serverType === 'Main server' && config.courtSystem?.enabled);
-                
+
                 // 构建消息链接基础URL（如果可用）
                 const courtChannelId = mainGuildConfig?.courtSystem?.courtChannelId;
                 const mainGuildId = mainGuildConfig?.id;
-                const baseMessageUrl = courtChannelId && mainGuildId 
+                const baseMessageUrl = courtChannelId && mainGuildId
                     ? `https://discord.com/channels/${mainGuildId}/${courtChannelId}/`
                     : '';
 
@@ -219,6 +224,147 @@ export default {
                                     text: `第 ${pages.length + 1} 页 | 共 ${Math.ceil(
                                         processes.length / pageSize,
                                     )} 页 | 总计 ${processes.length} 条记录`,
+                                },
+                            },
+                        ],
+                    });
+                }
+
+                // 发送第一页
+                const addPaginationButtons = page => {
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('page_prev').setLabel('上一页').setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder().setCustomId('page_next').setLabel('下一页').setStyle(ButtonStyle.Primary),
+                    );
+                    return { ...page, components: [row] };
+                };
+
+                const message = await interaction.editReply(addPaginationButtons(pages[0]));
+
+                // 缓存页面数据（5分钟后自动清除）
+                interaction.client.pageCache = interaction.client.pageCache || new Map();
+                interaction.client.pageCache.set(message.id, pages);
+                setTimeout(() => interaction.client.pageCache.delete(message.id), 5 * 60 * 1000);
+            } else if (type === 'vote') {
+                // 查询投票记录
+                const votes = targetUser
+                    ? await VoteModel.getUserVotes(targetUser.id, true) // 包含历史记录
+                    : await VoteModel.getAllVotes(false); // 全部记录
+
+                if (!votes || votes.length === 0) {
+                    await interaction.editReply({
+                        content: targetUser
+                            ? `✅ 用户 ${targetUser.tag} 没有参与任何投票记录`
+                            : '✅ 数据库中没有投票记录',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 获取主服务器配置
+                const mainGuildConfig = Array.from(interaction.client.guildManager.guilds.values())
+                    .find(config => config.serverType === 'Main server' && config.courtSystem?.enabled);
+
+                // 构建消息链接和辩诉帖链接的基础URL
+                const debateChannelId = mainGuildConfig?.courtSystem?.debateChannelId;
+                const mainGuildId = mainGuildConfig?.id;
+
+                // 分页处理（每页10条记录）
+                const pages = [];
+                const pageSize = 10;
+                for (let i = 0; i < votes.length; i += pageSize) {
+                    const pageRecords = votes.slice(i, i + pageSize);
+                    const fields = await Promise.all(
+                        pageRecords.map(async (v, index) => {
+                            // 投票类型
+                            const typeText = {
+                                appeal: '处罚上诉',
+                                court_mute: '禁言申请',
+                                court_ban: '永封申请',
+                            };
+
+                            // 投票状态
+                            const statusText = {
+                                in_progress: '🟡 进行中',
+                                completed: '🟢 已完成',
+                            };
+
+                            // 投票结果
+                            const resultText = {
+                                red_win: '🔴 红方胜利',
+                                blue_win: '🔵 蓝方胜利',
+                                cancelled: '⚫ 已取消',
+                            };
+
+                            // 获取详情中的执行者和目标用户
+                            let executor = null;
+                            let target = null;
+
+                            if (v.details && v.details.executorId) {
+                                executor = await interaction.client.users.fetch(v.details.executorId).catch(() => null);
+                            }
+
+                            if (v.details && v.details.targetId) {
+                                target = await interaction.client.users.fetch(v.details.targetId).catch(() => null);
+                            }
+
+                            // 构建消息链接
+                            let messageLink = '';
+                            if (v.messageId && mainGuildId && debateChannelId) {
+                                messageLink = `https://discord.com/channels/${mainGuildId}/${v.threadId}/${v.messageId}`;
+                            }
+
+                            // 辩诉帖链接
+                            let threadLink = '';
+                            if (v.threadId && debateChannelId && mainGuildId) {
+                                threadLink = `https://discord.com/channels/${mainGuildId}/${debateChannelId}/${v.threadId}`;
+                            }
+
+                            // 确定投票类型显示文本
+                            const displayType = typeText[v.type] || '投票';
+
+                            // 基本信息
+                            const voteInfo = [
+                                `**红方诉求:** ${v.redSide}`,
+                                `**蓝方诉求:** ${v.blueSide}`,
+                                executor ? `**发起人:** <@${v.details.executorId}>` : null,
+                                target ? `**目标用户:** <@${v.details.targetId}>` : null,
+                                `**状态:** ${statusText[v.status] || v.status}`,
+                                v.status === 'completed' ? `**结果:** ${resultText[v.result] || '无结果'}` : null,
+                                `**红方票数:** ${v.redVoters.length}`,
+                                `**蓝方票数:** ${v.blueVoters.length}`,
+                                `**开始时间:** <t:${Math.floor(v.startTime / 1000)}:R>`,
+                                v.status === 'in_progress'
+                                    ? `**结束时间:** <t:${Math.floor(v.endTime / 1000)}:R>`
+                                    : `**完成于:** <t:${Math.floor(v.updatedAt / 1000)}:R>`,
+                                v.threadId ? `**辩诉帖:** <#${v.threadId}>` : null,
+                                messageLink ? `**投票消息:** [点击查看](${messageLink})` : null,
+                                `**投票ID:** ${v.id}`,
+                                v.processId ? `**关联流程ID:** ${v.processId}` : null,
+                            ].filter(Boolean).join('\n');
+
+                            return {
+                                name: `${statusText[v.status] || v.status} ${displayType} (#${i + index + 1})`,
+                                value: voteInfo,
+                                inline: false,
+                            };
+                        }),
+                    );
+
+                    pages.push({
+                        embeds: [
+                            {
+                                color: 0x5865f2, // Discord蓝
+                                title: '投票记录查询结果',
+                                description: targetUser
+                                    ? `用户 ${targetUser.tag} 参与的投票记录`
+                                    : '全库投票记录',
+                                fields,
+                                timestamp: new Date(),
+                                footer: {
+                                    text: `第 ${pages.length + 1} 页 | 共 ${Math.ceil(
+                                        votes.length / pageSize,
+                                    )} 页 | 总计 ${votes.length} 条记录`,
                                 },
                             },
                         ],

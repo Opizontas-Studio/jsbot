@@ -317,6 +317,27 @@ export const buttonHandlers = {
             return;
         }
 
+        // 检查用户是否已有活跃的流程
+        try {
+            const activeProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
+
+            // 检查是否有任何活跃流程
+            if (activeProcesses && activeProcesses.length > 0) {
+                await interaction.reply({
+                    content: '❌ 你已经有正在进行的议事流程，同时只能提交一个议案申请',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+        } catch (error) {
+            logTime(`检查用户活跃流程失败: ${error.message}`, true);
+            await interaction.reply({
+                content: '❌ 检查流程状态时出错，请稍后重试',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
         // 创建模态框
         const modal = new ModalBuilder().setCustomId('submit_debate_modal').setTitle('提交议事');
 

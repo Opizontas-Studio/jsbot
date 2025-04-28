@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { addRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -110,38 +111,22 @@ export const modalHandlers = {
                         const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
 
                         if (creatorSyncGroup) {
-                            const syncResults = [];
-                            // 遍历所有需要同步的服务器
-                            for (const [guildId, roleId] of Object.entries(creatorSyncGroup.roles)) {
-                                try {
-                                    const guild = await interaction.client.guilds.fetch(guildId);
-                                    const guildMember = await guild.members.fetch(interaction.user.id);
-                                    await guildMember.roles.add(roleId);
-                                    syncResults.push({
-                                        name: guild.name,
-                                        success: true,
-                                    });
-                                } catch (error) {
-                                    syncResults.push({
-                                        name: guildId,
-                                        success: false,
-                                        error: error.message,
-                                    });
-                                }
-                            }
-
-                            // 生成同步结果日志
-                            const successResults = syncResults.filter(r => r.success);
-                            const failedResults = syncResults.filter(r => !r.success);
+                            // 使用addRolesByGroups函数批量添加身份组
+                            const result = await addRolesByGroups(
+                                interaction.client,
+                                interaction.user.id,
+                                [creatorSyncGroup],
+                                '创作者身份组申请通过'
+                            );
 
                             // 只向用户显示成功的结果
-                            if (successResults.length > 0) {
+                            if (result.successfulServers.length > 0) {
                                 await interaction.editReply(
                                     `✅ 审核通过！已为您添加创作者身份组${
-                                        successResults.length > 1
-                                            ? `（已同步至：${successResults.map(r => r.name).join('、')}）`
+                                        result.successfulServers.length > 1
+                                            ? `（已同步至：${result.successfulServers.join('、')}）`
                                             : ''
-                                    }`,
+                                    }`
                                 );
                             } else {
                                 await interaction.editReply('❌ 添加身份组时出现错误，请联系管理员。');
@@ -153,9 +138,7 @@ export const modalHandlers = {
                             }
                             // 记录完整日志到后台
                             logTime(
-                                `用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${successResults
-                                    .map(r => r.name)
-                                    .join('、')}`,
+                                `用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${result.successfulServers.join('、')}`,
                             );
                         } else {
                             // 如果没有找到同步配置，只在当前服务器添加

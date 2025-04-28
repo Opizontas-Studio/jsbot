@@ -1,10 +1,8 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { revokeRolesByGroups } from '../services/roleApplication.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
+import { addRolesByGroups, revokeRolesByGroups } from '../services/roleApplication.js';
 import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
@@ -26,7 +24,7 @@ export default {
                     { name: '移除', value: 'remove' },
                 ),
         )
-        .addUserOption(option => 
+        .addUserOption(option =>
             option
                 .setName('用户')
                 .setDescription('目标用户')
@@ -71,17 +69,17 @@ export default {
             if (operation === 'remove') {
                 // 检查用户是否有该身份组
                 const targetMember = await interaction.guild.members.fetch(targetUser.id);
-                
+
                 // 检查目标用户是否有管理员身份组，只有当执行者是管理员（非紧急处理）时才限制
-                const targetHasAdminRole = targetMember.roles.cache.some(role => 
+                const targetHasAdminRole = targetMember.roles.cache.some(role =>
                     guildConfig.AdministratorRoleIds.includes(role.id)
                 );
-                
+
                 if (targetHasAdminRole && hasAdminRole && !hasEmergencyRole) {
                     replyEmbed
                         .setColor(0xff0000)
                         .setDescription('❌ 管理员无法移除其他管理员的身份组，请使用紧急处理权限');
-                    
+
                     await interaction.editReply({ embeds: [replyEmbed] });
                     return;
                 }
@@ -90,7 +88,7 @@ export default {
                     replyEmbed
                         .setColor(0xff9900)
                         .setDescription('❌ 用户没有该身份组，无需移除');
-                    
+
                     await interaction.editReply({ embeds: [replyEmbed] });
                     return;
                 }
@@ -153,64 +151,40 @@ export default {
                 }
             } else {
                 // 添加身份组
-                const successfulServers = [];
-                const failedServers = [];
+                // 读取身份组同步配置，查找是否有对应的同步组
+                const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+                let foundSyncGroup = roleSyncConfig.syncGroups.find(group =>
+                    Object.values(group.roles).includes(role.id)
+                );
 
-                await globalRequestQueue.add(async () => {
-                    // 读取身份组同步配置，查找是否有对应的同步组
-                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-                    let foundSyncGroup = roleSyncConfig.syncGroups.find(group => 
-                        Object.values(group.roles).includes(role.id)
-                    );
-
-                    // 获取所有配置的服务器
-                    const allGuilds = Array.from(interaction.client.guildManager.guilds.values());
-
-                    for (const guildData of allGuilds) {
-                        try {
-                            if (!guildData?.id) continue;
-
-                            const guild = await interaction.client.guilds.fetch(guildData.id);
-                            if (!guild) {
-                                failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
-                                continue;
-                            }
-
-                            const member = await guild.members.fetch(targetUser.id);
-                            if (!member) {
-                                logTime(`用户 ${targetUser.tag} 不在服务器 ${guild.name} 中`, true);
-                                continue;
-                            }
-
-                            // 确定需要添加的身份组ID
-                            let roleToAdd = role.id;
-                            if (foundSyncGroup) {
-                                roleToAdd = foundSyncGroup.roles[guild.id] || role.id;
-                            }
-
-                            // 检查用户是否已有该身份组
-                            if (member.roles.cache.has(roleToAdd)) {
-                                logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 已有身份组 ${roleToAdd}，跳过`);
-                                continue;
-                            }
-
-                            await member.roles.add(roleToAdd, `由管理员 ${interaction.user.tag} 添加`);
-                            successfulServers.push(guild.name);
-                            logTime(`已在服务器 ${guild.name} 为用户 ${member.user.tag} 添加身份组 ${roleToAdd}`);
-                        } catch (error) {
-                            logTime(`在服务器 ${guildData.id} 添加身份组失败: ${error.message}`, true);
-                            failedServers.push({ id: guildData.id, name: guildData.name || guildData.id });
-                        }
+                // 构造临时同步组
+                const tempSyncGroup = {
+                    name: role.name,
+                    roles: {
+                        [interaction.guild.id]: role.id
                     }
-                }, 3);
+                };
 
-                if (successfulServers.length > 0) {
+                // 如果找到了对应的同步组，使用该同步组的配置
+                if (foundSyncGroup) {
+                    tempSyncGroup.roles = foundSyncGroup.roles;
+                }
+
+                // 使用addRolesByGroups函数批量添加身份组
+                const result = await addRolesByGroups(
+                    interaction.client,
+                    targetUser.id,
+                    [tempSyncGroup],
+                    `由管理员 ${interaction.user.tag} 添加`
+                );
+
+                if (result.success) {
                     // 更新回复Embed
                     replyEmbed
                         .setDescription('✅ 身份组添加成功')
                         .addFields(
-                            { name: '成功服务器', value: successfulServers.join(', ') || '无' },
-                            { name: '失败服务器', value: failedServers.map(s => s.name).join(', ') || '无' }
+                            { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
+                            { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                         );
 
                     // 发送操作日志
@@ -222,8 +196,8 @@ export default {
                             { name: '执行者', value: `${interaction.user.tag}`, inline: true },
                             { name: '目标用户', value: `${targetUser.tag}`, inline: true },
                             { name: '身份组', value: `${role.name}`, inline: true },
-                            { name: '成功服务器', value: successfulServers.join(', ') || '无' },
-                            { name: '失败服务器', value: failedServers.map(s => s.name).join(', ') || '无' }
+                            { name: '成功服务器', value: result.successfulServers.join(', ') || '无' },
+                            { name: '失败服务器', value: result.failedServers.map(s => s.name).join(', ') || '无' }
                         );
 
                     const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
@@ -242,4 +216,4 @@ export default {
             await handleCommandError(interaction, error, '管理身份组');
         }
     },
-}; 
+};

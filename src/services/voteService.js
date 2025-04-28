@@ -1,10 +1,13 @@
 import { readFileSync } from 'fs';
+import { join } from 'path';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
 import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
-import { revokeRolesByGroups } from './roleApplication.js';
+import { addRolesByGroups, revokeRolesByGroups } from './roleApplication.js';
+
+const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 class VoteService {
     /**
@@ -217,6 +220,27 @@ class VoteService {
 
             // 在执行结果之前，先移除双方的辩诉通行身份组
             await this._removeDebateRolesFromBothParties(client, latestVote);
+
+            // 恢复已验证身份组
+            try {
+                // 读取身份组同步配置
+                const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+
+                // 找到已验证身份组的同步组
+                const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+                if (verifiedGroup) {
+                    // 为目标用户恢复已验证身份组
+                    await addRolesByGroups(
+                        client,
+                        details.targetId,
+                        [verifiedGroup],
+                        '投票结束，恢复已验证身份组'
+                    );
+                    logTime(`已为用户 ${details.targetId} 恢复已验证身份组`);
+                }
+            } catch (error) {
+                logTime(`恢复已验证身份组失败: ${error.message}`, true);
+            }
 
             // 判断结果
             let result, message;

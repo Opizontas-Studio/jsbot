@@ -269,87 +269,109 @@ export default {
                 const debateChannelId = mainGuildConfig?.courtSystem?.debateChannelId;
                 const mainGuildId = mainGuildConfig?.id;
 
+                // 如果筛选了特定用户，直接使用传入的targetUser，否则只缓存API查询唯一值
+                let userCache = new Map();
+
+                // 如果是查询特定用户
+                if (targetUser) {
+                    // 将目标用户添加到缓存
+                    userCache.set(targetUser.id, targetUser);
+                } else {
+                    // 只有查询全部记录时才需要获取其他用户信息
+                    // 收集所有需要获取的用户ID并去重
+                    const userIdsToFetch = new Set();
+                    for (const vote of votes) {
+                        // 只收集执行人和目标用户，不收集投票人(减少API调用)
+                        if (vote.details && vote.details.executorId) {
+                            userIdsToFetch.add(vote.details.executorId);
+                        }
+                        if (vote.details && vote.details.targetId) {
+                            userIdsToFetch.add(vote.details.targetId);
+                        }
+                    }
+
+                    // 一次性获取所有用户信息
+                    const fetchedUsers = await Promise.allSettled(
+                        Array.from(userIdsToFetch).map(id =>
+                            interaction.client.users.fetch(id)
+                                .then(user => [id, user])
+                                .catch(() => [id, null])
+                        )
+                    );
+
+                    // 将成功获取的用户存入缓存
+                    fetchedUsers.forEach(result => {
+                        if (result.status === 'fulfilled' && result.value[1]) {
+                            userCache.set(result.value[0], result.value[1]);
+                        }
+                    });
+                }
+
                 // 分页处理（每页10条记录）
                 const pages = [];
                 const pageSize = 10;
                 for (let i = 0; i < votes.length; i += pageSize) {
                     const pageRecords = votes.slice(i, i + pageSize);
-                    const fields = await Promise.all(
-                        pageRecords.map(async (v, index) => {
-                            // 投票类型
-                            const typeText = {
-                                appeal: '处罚上诉',
-                                court_mute: '禁言申请',
-                                court_ban: '永封申请',
-                            };
+                    const fields = pageRecords.map((v, index) => {
+                        // 投票类型
+                        const typeText = {
+                            appeal: '处罚上诉',
+                            court_mute: '禁言申请',
+                            court_ban: '永封申请',
+                        };
 
-                            // 投票状态
-                            const statusText = {
-                                in_progress: '🟡 进行中',
-                                completed: '🟢 已完成',
-                            };
+                        // 投票状态
+                        const statusText = {
+                            in_progress: '🟡 进行中',
+                            completed: '🟢 已完成',
+                        };
 
-                            // 投票结果
-                            const resultText = {
-                                red_win: '🔴 红方胜利',
-                                blue_win: '🔵 蓝方胜利',
-                                cancelled: '⚫ 已取消',
-                            };
+                        // 投票结果
+                        const resultText = {
+                            red_win: '🔴 红方胜利',
+                            blue_win: '🔵 蓝方胜利',
+                            cancelled: '⚫ 已取消',
+                        };
 
-                            // 获取详情中的执行者和目标用户
-                            let executor = null;
-                            let target = null;
+                        // 从缓存中获取执行者和目标用户信息
+                        const executorId = v.details?.executorId;
+                        const targetId = v.details?.targetId;
 
-                            if (v.details && v.details.executorId) {
-                                executor = await interaction.client.users.fetch(v.details.executorId).catch(() => null);
-                            }
+                        // 构建消息链接
+                        let messageLink = '';
+                        if (v.messageId && mainGuildId && v.threadId) {
+                            messageLink = `https://discord.com/channels/${mainGuildId}/${v.threadId}/${v.messageId}`;
+                        }
 
-                            if (v.details && v.details.targetId) {
-                                target = await interaction.client.users.fetch(v.details.targetId).catch(() => null);
-                            }
+                        // 确定投票类型显示文本
+                        const displayType = typeText[v.type] || '投票';
 
-                            // 构建消息链接
-                            let messageLink = '';
-                            if (v.messageId && mainGuildId && debateChannelId) {
-                                messageLink = `https://discord.com/channels/${mainGuildId}/${v.threadId}/${v.messageId}`;
-                            }
+                        // 基本信息 - 使用<@id>格式确保始终正确显示，同时在可能的情况下显示用户名
+                        const voteInfo = [
+                            `**红方诉求:** ${v.redSide}`,
+                            `**蓝方诉求:** ${v.blueSide}`,
+                            executorId ? `**发起人:** <@${executorId}>${userCache.has(executorId) && !targetUser ? ` (${userCache.get(executorId).tag})` : ''}` : null,
+                            targetId ? `**目标用户:** <@${targetId}>${userCache.has(targetId) && !targetUser ? ` (${userCache.get(targetId).tag})` : ''}` : null,
+                            `**状态:** ${statusText[v.status] || v.status}`,
+                            v.status === 'completed' ? `**结果:** ${resultText[v.result] || '无结果'}` : null,
+                            `**红方票数:** ${v.redVoters.length}`,
+                            `**蓝方票数:** ${v.blueVoters.length}`,
+                            `**开始时间:** <t:${Math.floor(v.startTime / 1000)}:R>`,
+                            v.status === 'in_progress'
+                                ? `**结束时间:** <t:${Math.floor(v.endTime / 1000)}:R>`
+                                : `**完成于:** <t:${Math.floor(v.updatedAt / 1000)}:R>`,
+                            v.threadId ? `**辩诉帖:** <#${v.threadId}>` : null,
+                            messageLink ? `**投票消息:** [点击查看](${messageLink})` : null,
+                            `**投票ID:** ${v.id}`,
+                            v.processId ? `**关联流程ID:** ${v.processId}` : null,
+                        ].filter(Boolean).join('\n');
 
-                            // 辩诉帖链接
-                            let threadLink = '';
-                            if (v.threadId && debateChannelId && mainGuildId) {
-                                threadLink = `https://discord.com/channels/${mainGuildId}/${debateChannelId}/${v.threadId}`;
-                            }
-
-                            // 确定投票类型显示文本
-                            const displayType = typeText[v.type] || '投票';
-
-                            // 基本信息
-                            const voteInfo = [
-                                `**红方诉求:** ${v.redSide}`,
-                                `**蓝方诉求:** ${v.blueSide}`,
-                                executor ? `**发起人:** <@${v.details.executorId}>` : null,
-                                target ? `**目标用户:** <@${v.details.targetId}>` : null,
-                                `**状态:** ${statusText[v.status] || v.status}`,
-                                v.status === 'completed' ? `**结果:** ${resultText[v.result] || '无结果'}` : null,
-                                `**红方票数:** ${v.redVoters.length}`,
-                                `**蓝方票数:** ${v.blueVoters.length}`,
-                                `**开始时间:** <t:${Math.floor(v.startTime / 1000)}:R>`,
-                                v.status === 'in_progress'
-                                    ? `**结束时间:** <t:${Math.floor(v.endTime / 1000)}:R>`
-                                    : `**完成于:** <t:${Math.floor(v.updatedAt / 1000)}:R>`,
-                                v.threadId ? `**辩诉帖:** <#${v.threadId}>` : null,
-                                messageLink ? `**投票消息:** [点击查看](${messageLink})` : null,
-                                `**投票ID:** ${v.id}`,
-                                v.processId ? `**关联流程ID:** ${v.processId}` : null,
-                            ].filter(Boolean).join('\n');
-
-                            return {
-                                name: `${statusText[v.status] || v.status} ${displayType} (#${i + index + 1})`,
-                                value: voteInfo,
-                                inline: false,
-                            };
-                        }),
-                    );
+                        return {
+                            name: `${statusText[v.status] || v.status} ${displayType} (#${i + index + 1})`,
+                            value: voteInfo,
+                            inline: false,
+                        };
+                    });
 
                     pages.push({
                         embeds: [

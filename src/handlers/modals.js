@@ -138,7 +138,7 @@ export const modalHandlers = {
                             }
                             // 记录完整日志到后台
                             logTime(
-                                `用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${result.successfulServers.join('、')}`,
+                                `[自动审核] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${result.successfulServers.join('、')}`,
                             );
                         } else {
                             // 如果没有找到同步配置，只在当前服务器添加

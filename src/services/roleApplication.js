@@ -121,7 +121,6 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 export const revokeRolesByGroups = async (client, userId, syncGroups, reason) => {
     const successfulServers = [];
     const failedServers = [];
-    const processedGuilds = new Map(); // 用于缓存已处理的服务器信息
 
     try {
         // 收集所有需要处理的服务器和对应的身份组
@@ -150,7 +149,7 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
                     // 获取成员信息
                     const member = await guild.members.fetch(userId);
                     if (!member) {
-                        logTime(`用户 ${userId} 不在服务器 ${guild.name} 中`, true);
+                        logTime(`[身份同步] 用户 ${userId} 不在服务器 ${guild.name} 中`);
                         continue;
                     }
 
@@ -160,14 +159,14 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
                     );
 
                     if (rolesToRemove.length === 0) {
-                        logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有需要移除的身份组`);
+                        logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 没有需要移除的身份组`);
                         continue;
                     }
 
                     // 一次性移除多个身份组
                     await member.roles.remove(rolesToRemove, reason);
                     successfulServers.push(guild.name);
-                    logTime(`已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的 ${rolesToRemove.length} 个身份组`);
+                    logTime(`[身份同步] 已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的 ${rolesToRemove.length} 个身份组`);
 
                     // 添加API请求延迟
                     await delay(500);
@@ -185,7 +184,7 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
             failedServers
         };
     } catch (error) {
-        logTime(`批量撤销身份组操作失败: ${error.message}`, true);
+        logTime(`[身份同步] 批量撤销身份组操作失败: ${error.message}`, true);
         return {
             success: false,
             successfulServers,
@@ -243,20 +242,20 @@ export const addRolesByGroups = async (client, userId, syncGroups, reason) => {
                     );
 
                     if (rolesToAdd.length === 0) {
-                        logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 已拥有所有需要添加的身份组`);
+                        logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 已拥有所有需要添加的身份组`);
                         continue;
                     }
 
                     // 一次性添加多个身份组
                     await member.roles.add(rolesToAdd, reason);
                     successfulServers.push(guild.name);
-                    logTime(`已在服务器 ${guild.name} 添加用户 ${member.user.tag} 的 ${rolesToAdd.length} 个身份组`);
+                    logTime(`[身份同步] 已在服务器 ${guild.name} 添加用户 ${member.user.tag} 的 ${rolesToAdd.length} 个身份组`);
 
                     // 添加API请求延迟
                     await delay(500);
 
                 } catch (error) {
-                    logTime(`在服务器 ${guildId} 添加身份组失败: ${error.message}`, true);
+                    logTime(`[身份同步] 在服务器 ${guildId} 添加身份组失败: ${error.message}`, true);
                     failedServers.push({ id: guildId, name: guildId });
                 }
             }
@@ -268,7 +267,7 @@ export const addRolesByGroups = async (client, userId, syncGroups, reason) => {
             failedServers
         };
     } catch (error) {
-        logTime(`批量添加身份组操作失败: ${error.message}`, true);
+        logTime(`[身份同步] 批量添加身份组操作失败: ${error.message}`, true);
         return {
             success: false,
             successfulServers,

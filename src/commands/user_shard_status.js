@@ -57,7 +57,7 @@ export default {
                 await channel.send({ embeds: [fastgptEmbed] });
 
                 logTime(
-                    `用户 ${interaction.user.tag} 查看了${dateStr ? dateStr + ' 的' : '今日'}系统状态和FastGPT统计`,
+                    `[系统查询] 用户 ${interaction.user.tag} 查看了${dateStr ? dateStr + ' 的' : '今日'}FastGPT统计`,
                 );
             } catch (statsError) {
                 // 如果统计处理失败，只记录错误，不影响主命令功能

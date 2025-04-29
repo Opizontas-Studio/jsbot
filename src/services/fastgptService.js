@@ -865,14 +865,44 @@ export function createFastGPTStatsEmbed(stats) {
     if (successRate < 70) rateEmoji = '🟡'; // 40-69%
     if (successRate < 40) rateEmoji = '🔴'; // 0-39%
 
+    // 计算UTC+8时间跨度
+    let utcPlus8TimeSpan = '';
+    try {
+        // 从stats.date解析日期（格式为YYYY-MM-DD）
+        const dateParts = stats.date.split('-');
+        if (dateParts.length === 3) {
+            const year = parseInt(dateParts[0]);
+            const month = parseInt(dateParts[1]) - 1; // 月份从0开始
+            const day = parseInt(dateParts[2]);
+
+            // 创建UTC日期对象（对应日志中的UTC+0）
+            const utcDate = new Date(Date.UTC(year, month, day));
+
+            // 创建UTC+8的起始和结束时间
+            const utcPlus8Start = new Date(utcDate);
+            utcPlus8Start.setHours(utcPlus8Start.getHours() + 8);
+
+            const utcPlus8End = new Date(utcDate);
+            utcPlus8End.setHours(utcPlus8End.getHours() + 32); // 加24小时(一天)再加8小时
+
+            // 格式化为易读形式：YYYY-MM-DD HH:MM
+            const formatDatetime = (date) => {
+                return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+            };
+
+            utcPlus8TimeSpan = `${formatDatetime(utcPlus8Start)} 至 ${formatDatetime(utcPlus8End)}`;
+        }
+    } catch (error) {
+        utcPlus8TimeSpan = '无法计算UTC+8时间';
+    }
+
     const embed = new EmbedBuilder()
         .setColor(successRate >= 70 ? 0x00cc66 : successRate >= 40 ? 0xffcc00 : 0xff3333)
         .setTitle('FastGPT 答疑统计')
-        .setDescription(`**📅 日期**: ${stats.date}`)
+        .setDescription(`**🕒 时间 (UTC+8)**: ${utcPlus8TimeSpan}`)
         .addFields({
-            name: '📊 请求总览',
+            name: `📝 总请求数: ${stats.totalRequests}`,
             value: [
-                `📝 总请求数: **${stats.totalRequests}**`,
                 `✅ 成功: **${stats.successRequests}**`,
                 `❌ 失败: **${stats.failedRequests}**`,
                 `${rateEmoji} 成功率: **${successRate}%**`,

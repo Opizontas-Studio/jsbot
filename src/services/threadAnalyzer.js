@@ -393,7 +393,7 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
  */
 export const cleanupInactiveThreads = async (client, guildConfig, guildId, threshold, activeThreads = null) => {
     const totalTimer = measureTime();
-    logTime(`开始清理服务器 ${guildId} 的不活跃子区`);
+    logTime(`[自动清理] 开始清理服务器 ${guildId} 的不活跃子区`);
 
     try {
         // 获取日志频道
@@ -418,10 +418,10 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
 
         // 输出清理结果日志
-        logTime(`清理统计: 总活跃子区数 ${statistics.totalThreads}, 已清理子区数 ${cleanupResult.statistics.archivedThreads}, 跳过置顶子区 ${cleanupResult.statistics.skippedPinnedThreads}, 清理阈值 ${threshold}`);
+        logTime(`[自动清理] 清理统计: 总活跃子区数 ${statistics.totalThreads}, 已清理子区数 ${cleanupResult.statistics.archivedThreads}, 跳过置顶子区 ${cleanupResult.statistics.skippedPinnedThreads}, 清理阈值 ${threshold}`);
 
         if (failedOperations.length > 0) {
-            logTime(`清理失败记录: ${failedOperations.length}个操作失败`, true);
+            logTime(`[自动清理] 清理失败记录: ${failedOperations.length}个操作失败`, true);
             failedOperations.slice(0, 5).forEach(fail => {
                 logTime(`  - ${fail.threadName}: ${fail.operation} (${fail.error})`, true);
             });
@@ -431,7 +431,7 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         }
 
         const executionTime = totalTimer();
-        logTime(`清理操作完成 - 清理了 ${cleanupResult.statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
+        logTime(`[自动清理] 清理操作完成 - 清理了 ${cleanupResult.statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
         return { statistics, failedOperations };
     } catch (error) {
         logTime(`服务器 ${guildId} 清理操作失败: ${error.message}`, true);

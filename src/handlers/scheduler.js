@@ -67,9 +67,9 @@ class ProcessScheduler {
             for (const process of processes) {
                 await this.scheduleProcess(process, client);
             }
-            logTime(`已加载并调度 ${processes.length} 个流程的到期处理`);
+            logTime(`[定时任务] 已加载并调度 ${processes.length} 个流程的到期处理`);
         } catch (error) {
-            logTime(`加载和调度流程失败: ${error.message}`, true);
+            logTime(`[定时任务] 加载和调度流程失败: ${error.message}`, true);
         }
     }
 
@@ -98,7 +98,7 @@ class ProcessScheduler {
                     // 检查流程状态
                     const currentProcess = await ProcessModel.getProcessById(process.id);
                     if (currentProcess && currentProcess.status === 'completed') {
-                        logTime(`流程 ${process.id} 已完成，跳过到期处理`);
+                        logTime(`[定时任务] 流程 ${process.id} 已完成，跳过到期处理`);
                         return;
                     }
                     await CourtService.handleProcessExpiry(process, client);
@@ -106,10 +106,10 @@ class ProcessScheduler {
                 });
 
                 this.jobs.set(process.id, job);
-                logTime(`已调度流程 ${process.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
+                logTime(`[定时任务] 已调度流程 ${process.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
             }
         } catch (error) {
-            logTime(`调度流程失败: ${error.message}`, true);
+            logTime(`[定时任务] 调度流程失败: ${error.message}`, true);
         }
     }
 
@@ -121,7 +121,7 @@ class ProcessScheduler {
         if (this.jobs.has(processId)) {
             this.jobs.get(processId).cancel();
             this.jobs.delete(processId);
-            logTime(`已取消流程 ${processId} 的定时器`);
+            logTime(`[定时任务] 已取消流程 ${processId} 的定时器`);
         }
     }
 
@@ -133,7 +133,7 @@ class ProcessScheduler {
             job.cancel();
         }
         this.jobs.clear();
-        logTime('已清理所有流程到期定时器');
+        logTime('[定时任务] 已清理所有流程到期定时器');
     }
 }
 
@@ -175,7 +175,7 @@ class PunishmentScheduler {
                 await this.schedulePunishment(punishment, client);
             }
         } catch (error) {
-            logTime(`加载和调度处罚失败: ${error.message}`, true);
+            logTime(`[定时任务] 加载和调度处罚失败: ${error.message}`, true);
         }
     }
 
@@ -197,11 +197,11 @@ class PunishmentScheduler {
                 const job = schedule.scheduleJob(expiryTime, async function() {
                     await PunishmentService.handleExpiry(client, punishment);
                 });
-                logTime(`已调度处罚 ${punishment.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
+                logTime(`[定时任务] 已调度处罚 ${punishment.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
                 this.jobs.set(punishment.id, job);
             }
         } catch (error) {
-            logTime(`调度处罚失败 [ID: ${punishment.id}]: ${error.message}`, true);
+            logTime(`[定时任务] 调度处罚失败 [ID: ${punishment.id}]: ${error.message}`, true);
             throw error;
         }
     }
@@ -215,7 +215,7 @@ class PunishmentScheduler {
         }
         this.timers.clear();
         this.jobs.clear();
-        logTime('已清理所有处罚到期定时器');
+        logTime('[定时任务] 已清理所有处罚到期定时器');
     }
 }
 
@@ -308,7 +308,7 @@ class VoteScheduler {
                 });
 
                 this.jobs.set(`public_${vote.id}`, publicJob);
-                logTime(`已设置投票 ${vote.id} 的公开定时器，将在 ${publicTime.toLocaleString()} 公开`);
+                logTime(`[定时任务] 已设置投票 ${vote.id} 的公开定时器，将在 ${publicTime.toLocaleString()} 公开`);
             }
 
             // 设置结束时间定时器
@@ -319,7 +319,7 @@ class VoteScheduler {
                         // 获取最新的投票状态，检查是否已经结束
                         const currentVote = await VoteModel.getVoteById(vote.id);
                         if (!currentVote || currentVote.status === 'completed') {
-                            logTime(`投票 ${vote.id} 已完成，跳过定时器结算`);
+                            logTime(`[定时任务] 投票 ${vote.id} 已完成，跳过定时器结算`);
                             return;
                         }
 
@@ -358,7 +358,7 @@ class VoteScheduler {
                 });
 
                 this.jobs.set(`end_${vote.id}`, endJob);
-                logTime(`已设置投票 ${vote.id} 的结束定时器，将在 ${endTime.toLocaleString()} 结束`);
+                logTime(`[定时任务] 已设置投票 ${vote.id} 的结束定时器，将在 ${endTime.toLocaleString()} 结束`);
             }
         } catch (error) {
             logTime(`调度投票失败 [ID: ${vote.id}]: ${error.message}`, true);
@@ -396,7 +396,7 @@ class VoteScheduler {
         }
         this.jobs.clear();
         this.votes.clear();
-        logTime('已清理所有投票定时器和状态');
+        logTime('[定时任务] 已清理所有投票定时器和状态');
     }
 }
 
@@ -422,7 +422,7 @@ class TaskScheduler {
     // 初始化任务调度器
     async initialize(client) {
         if (this.isInitialized) {
-            logTime('任务调度器已经初始化');
+            logTime('[定时任务] 任务调度器已经初始化');
             return;
         }
 
@@ -596,9 +596,9 @@ class TaskScheduler {
             task: async () => {
                 try {
                     await dbManager.backup();
-                    logTime('数据库备份完成');
+                    logTime('[定时任务] 数据库备份完成');
                 } catch (error) {
-                    logTime(`数据库备份失败: ${error.message}`, true);
+                    logTime(`[定时任务] 数据库备份失败: ${error.message}`, true);
                 }
             },
         });
@@ -618,9 +618,9 @@ class TaskScheduler {
                     await this.processScheduler.initialize(this.client);
                     await this.punishmentScheduler.initialize(this.client);
 
-                    logTime('所有流程和处罚定时器已重新加载完成');
+                    logTime('[定时任务] 所有流程和处罚定时器已重新加载完成');
                 } catch (error) {
-                    logTime(`重新加载定时器失败: ${error.message}`, true);
+                    logTime(`[定时任务] 重新加载定时器失败: ${error.message}`, true);
                 }
             },
         });
@@ -661,10 +661,10 @@ class TaskScheduler {
                         await executeThreadManagement(client, guildConfig, guildId, activeThreads);
                     }, 0);
 
-                    logTime(`完成服务器 ${guildId} 的子区管理任务，下次执行时间：${job.nextInvocation().toLocaleString()}`);
+                    logTime(`[定时任务] 完成服务器 ${guildId} 的子区管理任务，下次执行时间：${job.nextInvocation().toLocaleString()}`);
                 } catch (error) {
                     logTime(
-                        `服务器 ${guildId} 的定时任务执行失败: ${error.name}${
+                        `[定时任务] 服务器 ${guildId} 的定时任务执行失败: ${error.name}${
                             error.code ? ` (${error.code})` : ''
                         } - ${error.message}`,
                         true,
@@ -695,7 +695,7 @@ class TaskScheduler {
                     const messageId = guildConfig.monitor.messageId;
                     await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
                 } catch (error) {
-                    logTime(`监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                    logTime(`[定时任务] 监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
                 }
             });
 
@@ -708,9 +708,9 @@ class TaskScheduler {
                     const channelId = guildConfig.monitor.channelId;
                     const messageId = guildConfig.monitor.messageId;
                     await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
-                    logTime(`已为服务器 ${guildId} 创建监控任务，每分钟执行一次，下次执行时间：${job.nextInvocation().toLocaleString()}`);
+                    logTime(`[定时任务] 已为服务器 ${guildId} 创建监控任务，每分钟执行一次，下次执行时间：${job.nextInvocation().toLocaleString()}`);
                 } catch (error) {
-                    logTime(`初始监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                    logTime(`[定时任务] 初始监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
                 }
             })();
         }

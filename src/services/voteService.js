@@ -128,7 +128,7 @@ class VoteService {
         // 记录投票操作
         const hasVoted = updatedVote[`${choice}Voters`].includes(userId);
         logTime(
-            `投票操作 [ID: ${vote.id}] - 用户: ${userId} ${hasVoted ? '支持' : '取消支持'}${
+            `[投票操作] [ID: ${vote.id}] - 用户: ${userId} ${hasVoted ? '支持' : '取消支持'}${
                 choice === 'red' ? '红方' : '蓝方'
             }`,
         );
@@ -183,13 +183,13 @@ class VoteService {
                 .map(member =>
                     member.roles
                         .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
-                        .then(() => logTime(`已移除用户 ${member.user.tag} 的辩诉通行身份组`))
-                        .catch(error => logTime(`移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
+                        .then(() => logTime(`[投票系统] 已移除用户 ${member.user.tag} 的辩诉通行身份组`))
+                        .catch(error => logTime(`[投票系统] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
                 );
 
             await Promise.all(removeRolePromises);
         } catch (error) {
-            logTime(`移除辩诉通行身份组失败: ${error.message}`, true);
+            logTime(`[投票系统] 移除辩诉通行身份组失败: ${error.message}`, true);
         }
     }
 
@@ -236,10 +236,10 @@ class VoteService {
                         [verifiedGroup],
                         '投票结束，恢复已验证身份组'
                     );
-                    logTime(`已为用户 ${details.targetId} 恢复已验证身份组`);
+                    logTime(`[投票系统] 已为用户 ${details.targetId} 恢复已验证身份组`);
                 }
             } catch (error) {
-                logTime(`恢复已验证身份组失败: ${error.message}`, true);
+                logTime(`[投票系统] 恢复已验证身份组失败: ${error.message}`, true);
             }
 
             // 判断结果

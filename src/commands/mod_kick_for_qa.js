@@ -131,6 +131,24 @@ export default {
                     embeds: [notifyEmbed],
                     allowedMentions: { users: [targetUser.id] } // 只@ 被处罚的用户
                 });
+
+                // 向被处罚用户发送私信通知
+                try {
+                    const dmEmbed = new EmbedBuilder()
+                        .setTitle('答题处罚通知')
+                        .setDescription(`由于违规行为，您在服务器中的身份组已被移除，需要重新完成答题。`)
+                        .addFields(
+                            { name: '原因', value: reason },
+                            { name: '执行者', value: `${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag}` }
+                        )
+                        .setColor(0xff0000)
+                        .setTimestamp();
+
+                    await targetUser.send({ embeds: [dmEmbed] });
+                } catch (error) {
+                    logTime(`无法向 ${targetUser.tag} 发送答题处罚私信通知：${error.message}`, true);
+                }
+
                 logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, false);
             } else {
                 replyEmbed

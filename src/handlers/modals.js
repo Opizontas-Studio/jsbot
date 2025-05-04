@@ -273,7 +273,7 @@ export const modalHandlers = {
                 ],
                 timestamp: new Date(),
                 footer: {
-                    text: `处罚ID: ${punishment.id} | 再次点击支持可以撤销支持`,
+                    text: `再次点击支持可以撤销支持 | 处罚ID: ${punishment.id}`,
                 },
             };
 
@@ -319,6 +319,18 @@ export const modalHandlers = {
                 },
             });
 
+            // 更新消息以添加流程ID
+            await message.edit({
+                embeds: [
+                    {
+                        ...message.embeds[0].data,
+                        footer: {
+                            text: `再次点击支持可以撤销支持 | 处罚ID: ${punishment.id} | 流程ID: ${process.id}`,
+                        },
+                    },
+                ],
+            });
+
             // 记录上诉提交日志
             logTime(`用户 ${interaction.user.tag} 提交了对管理员 ${executor.tag} 的处罚上诉`);
 
@@ -338,7 +350,7 @@ export const modalHandlers = {
                         try {
                             const originalMessage = await dmChannel.messages.fetch(messageId);
                             if (originalMessage) {
-                                // 更新消息，添加撤回上诉按钮（而不是清空所有按钮）
+                                // 更新消息，添加撤回上诉按钮
                                 await originalMessage.edit({
                                     components: [
                                         {

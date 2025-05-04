@@ -190,7 +190,7 @@ export default {
                                 revokeRole ? `- 撤销身份组：${revokeRole.name}` : null,
                                 `- 理由：${reason}`,
                                 '',
-                                '请慎重考虑占用公共资源。如需撤销请使用 撤销 子命令。',
+                                '请慎重考虑占用公共资源。如需撤销请点击 撤回申请 按钮。',
                             ]
                                 .filter(Boolean)
                                 .join('\n'),
@@ -292,6 +292,18 @@ export default {
                                 },
                             });
 
+                            // 更新消息以添加流程ID
+                            await message.edit({
+                                embeds: [
+                                    {
+                                        ...message.embeds[0].data,
+                                        footer: {
+                                            text: `申请人：${interaction.user.tag} | 流程ID: ${process.id}`,
+                                        },
+                                    },
+                                ],
+                            });
+
                             // 调度流程到期处理
                             if (process) {
                                 await globalTaskScheduler
@@ -378,7 +390,7 @@ export default {
                                 `- ${keepMessages ? '保留' : '删除'}用户消息`,
                                 `- 理由：${reason}`,
                                 '',
-                                '请慎重考虑占用公共资源。如需撤销请使用 撤销 子命令。',
+                                '请慎重考虑占用公共资源。如需撤销请点击 撤回申请 按钮。',
                             ].join('\n'),
                             image: imageAttachment ? { url: imageAttachment.url } : undefined,
                         },
@@ -460,6 +472,18 @@ export default {
                                     keepMessages,
                                     imageUrl: imageAttachment?.url,
                                 },
+                            });
+
+                            // 更新消息以添加流程ID
+                            await message.edit({
+                                embeds: [
+                                    {
+                                        ...message.embeds[0].data,
+                                        footer: {
+                                            text: `申请人：${interaction.user.tag} | 流程ID: ${process.id}`,
+                                        },
+                                    },
+                                ],
                             });
 
                             // 调度流程到期处理

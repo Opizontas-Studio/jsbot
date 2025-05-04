@@ -84,7 +84,9 @@ export default {
                                               : `<t:${Math.floor((p.createdAt + p.duration) / 1000)}:R>`
                                       }`
                                     : `**禁言剩余时间:** <t:${Math.floor(p.updatedAt / 1000)}:R>`,
-                                p.status === 'revoked' ? `**撤销原因:** ${p.revokeReason || '无'}` : null,
+                                p.status === 'revoked' ? `**撤销原因:** ${p.statusReason || '无'}` : null,
+                                p.status === 'expired' ? `**终止原因:** ${p.statusReason || '无'}` : null,
+                                p.status === 'appealed' ? `**上诉原因:** ${p.statusReason || '无'}` : null,
                                 `**处罚ID:** ${p.id}`,
                             ]
                                 .filter(Boolean)

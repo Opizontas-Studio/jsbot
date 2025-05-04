@@ -189,6 +189,11 @@ class DatabaseManager {
                 type: 'TEXT',
                 default: 'NULL',
             },
+            {
+                name: 'statusReason',
+                type: 'TEXT',
+                default: 'NULL',
+            },
         ];
 
         // 安全地添加新列

@@ -87,7 +87,7 @@ class PunishmentModel {
 
         const now = Date.now();
         const query = `
-            SELECT * FROM punishments 
+            SELECT * FROM punishments
             WHERE userId = ?
             ${
                 !includeExpired
@@ -135,8 +135,8 @@ class PunishmentModel {
 
             await dbManager.safeExecute(
                 'run',
-                `UPDATE punishments 
-	            SET status = ?, reason = CASE WHEN ? IS NOT NULL THEN ? ELSE reason END,
+                `UPDATE punishments
+	            SET status = ?, statusReason = CASE WHEN ? IS NOT NULL THEN ? ELSE statusReason END,
 	            updatedAt = ?
 	            WHERE id = ?`,
                 [status, reason, reason, Date.now(), id],
@@ -167,7 +167,7 @@ class PunishmentModel {
         try {
             await dbManager.safeExecute(
                 'run',
-                `UPDATE punishments 
+                `UPDATE punishments
                 SET syncedServers = ?, updatedAt = ?
                 WHERE id = ?`,
                 [JSON.stringify(syncedServers), Date.now(), id],
@@ -209,7 +209,7 @@ class PunishmentModel {
     static async getAllPunishments(includeExpired = false) {
         try {
             const query = `
-                SELECT * FROM punishments 
+                SELECT * FROM punishments
                 ${!includeExpired ? `WHERE status = 'active'` : ''}
                 ORDER BY createdAt DESC
             `;
@@ -263,7 +263,7 @@ class PunishmentModel {
         try {
             await dbManager.safeExecute(
                 'run',
-                `UPDATE punishments 
+                `UPDATE punishments
                 SET notificationMessageId = ?, notificationGuildId = ?, updatedAt = ?
                 WHERE id = ?`,
                 [messageId, guildId, Date.now(), id]

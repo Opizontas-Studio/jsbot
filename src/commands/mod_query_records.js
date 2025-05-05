@@ -348,6 +348,10 @@ export default {
                         // 确定投票类型显示文本
                         const displayType = typeText[v.type] || '投票';
 
+                        // 检查是否已到公开票数时间
+                        const now = Date.now();
+                        const canShowVotes = v.status === 'completed' || now >= v.publicTime;
+
                         // 基本信息 - 使用<@id>格式确保始终正确显示，同时在可能的情况下显示用户名
                         const voteInfo = [
                             `**红方诉求:** ${v.redSide}`,
@@ -356,8 +360,10 @@ export default {
                             targetId ? `**目标用户:** <@${targetId}>${userCache.has(targetId) && !targetUser ? ` (${userCache.get(targetId).tag})` : ''}` : null,
                             `**状态:** ${statusText[v.status] || v.status}`,
                             v.status === 'completed' ? `**结果:** ${resultText[v.result] || '无结果'}` : null,
-                            `**红方票数:** ${v.redVoters.length}`,
-                            `**蓝方票数:** ${v.blueVoters.length}`,
+                            // 只有已完成的投票或者已到公开时间的进行中投票才显示票数
+                            canShowVotes ? `**红方票数:** ${v.redVoters.length}` : null,
+                            canShowVotes ? `**蓝方票数:** ${v.blueVoters.length}` : null,
+                            !canShowVotes && v.status === 'in_progress' ? `**票数将在 <t:${Math.floor(v.publicTime / 1000)}:R> 公开**` : null,
                             `**开始时间:** <t:${Math.floor(v.startTime / 1000)}:R>`,
                             v.status === 'in_progress'
                                 ? `**结束时间:** <t:${Math.floor(v.endTime / 1000)}:R>`

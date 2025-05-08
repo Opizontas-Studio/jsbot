@@ -2,8 +2,8 @@ import { Collection, Events } from 'discord.js';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { loadEvents } from '../../index.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
+import { loadEvents } from '../index.js';
 import { loadCommandFiles } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 

@@ -42,7 +42,7 @@ client.commands = new Collection();
 client.guildManager = new GuildManager();
 
 // 加载事件函数
-async function loadEvents() {
+export async function loadEvents(client) {
     const eventsPath = join(currentDir, 'events');
     const eventFiles = readdirSync(eventsPath).filter(file => file.endsWith('.js'));
     let loadedEvents = 0;
@@ -220,7 +220,7 @@ async function main() {
         }
 
         // 加载事件
-        await loadEvents();
+        await loadEvents(client);
 
         // 等待客户端完全就绪
         if (!client.isReady()) {

@@ -1,8 +1,10 @@
-import { Events } from 'discord.js';
+import { Collection, Events } from 'discord.js';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { loadEvents } from '../../index.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
+import { loadCommandFiles } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 添加配置文件加载
@@ -113,9 +115,31 @@ export default {
                             await client.login(config.token);
                             // 重新初始化所有功能
                             await initializeClient(client);
-                            logTime('Token重新连接并初始化成功');
+
+                            // 重新加载事件监听器
+                            logTime('尝试重新加载事件监听器...');
+                            await loadEvents(client);
+                            logTime('事件监听器重新加载完成。');
+
+                            // 重新加载命令
+                            logTime('尝试重新加载命令...');
+                            const commandsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'commands');
+                            const commandModules = await loadCommandFiles(commandsPath);
+                            client.commands = new Collection();
+                            for (const command of commandModules) {
+                                if (command.data && command.data.name) {
+                                    client.commands.set(command.data.name, command);
+                                } else {
+                                    const commandPath = command.filePath || '未知文件'; // helper.js中的loadCommandFiles会返回filePath
+                                    logTime(`警告: 在重连时加载命令 ${commandPath} 失败，缺少data.name属性。`, true);
+                                }
+                            }
+                            logTime(`命令重新加载完成，共加载 ${client.commands.size} 个命令。`);
+
+                            logTime('Token重新连接并初始化成功，事件和命令已重新加载');
                         } catch (error) {
-                            logTime(`Token重新连接失败: ${error.message}`, true);
+                            logTime(`Token重新连接或重新加载事件/命令失败: ${error.message}`, true);
+                            console.error('详细错误:', error);
                         }
                     }, 3000);
                 }

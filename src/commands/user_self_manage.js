@@ -686,13 +686,14 @@ export default {
                         return;
                     }
 
+                    const oldSlowMode = thread.rateLimitPerUser || 0;
                     const newSlowMode = parseInt(speed);
                     await thread.setRateLimitPerUser(newSlowMode);
                     await interaction.editReply({
                         content: '✅ 帖子慢速模式已更新',
                         flags: ['Ephemeral'],
                     });
-                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 更新了帖子 ${thread.name} 的慢速模式：${thread.rateLimitPerUser || 0}秒 -> ${newSlowMode}秒`);
+                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 更新了帖子 ${thread.name} 的慢速模式：${oldSlowMode}秒 -> ${newSlowMode}秒`);
                 } catch (error) {
                     await handleCommandError(interaction, error, '更新帖子慢速模式');
                 }

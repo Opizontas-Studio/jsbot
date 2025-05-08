@@ -62,7 +62,7 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('删除某用户全部消息')
-                .setDescription('删除某特定用户在当前帖子的所有消息并将其移出子区')
+                .setDescription('删除某特定用户在当前帖子的所有消息并将其移出子区（注意：如果帖子消息数量很多，此操作可能需要较长时间）')
                 .addUserOption(option =>
                     option
                         .setName('目标用户')
@@ -508,9 +508,8 @@ export default {
                                 `你确定要删除用户 **${targetUser.tag}** 在帖子 "${thread.name}" 中的所有消息吗？`,
                                 '',
                                 '**⚠️ 警告：**',
-                                '- 此操作将删除该用户的所有消息并将其移出子区',
-                                '- 此操作不可撤销',
-                                '- 如果帖子消息数量很多，此操作可能需要较长时间'
+                                '- 此操作不可撤销，将删除该用户的所有消息并将其移出子区。',
+                                '- 如果帖子消息数量很多，此操作可能需要较长时间，最大扫描上限为10000条。'
                             ].join('\n'),
                         },
                         onConfirm: async confirmation => {
@@ -521,11 +520,12 @@ export default {
                                 embeds: [],
                             });
 
-                            // 执行删除用户消息逻辑
+                            const MAX_MESSAGES_TO_SCAN = 15000; // 新增：定义最大扫描消息数量
                             let lastId = null;
                             let messagesProcessed = 0;
                             let deletedCount = 0;
                             let hasMoreMessages = true;
+                            let limitReached = false; // 新增：标记是否达到扫描上限
 
                             /**
                              * 更新操作进度
@@ -533,7 +533,9 @@ export default {
                              */
                             const updateProgress = async (status = '处理中') => {
                                 await interaction.editReply({
-                                    content: `⏳ ${status} ${targetUser.tag} 的消息...\n已扫描: ${messagesProcessed} 条\n已删除: ${deletedCount} 条`,
+                                    content: `⏳ ${status} ${targetUser.tag} 的消息...
+已扫描: ${messagesProcessed} 条 (上限 ${MAX_MESSAGES_TO_SCAN})
+已删除: ${deletedCount} 条`, // 修改：增加上限提示
                                     components: [],
                                     embeds: [],
                                 });
@@ -558,11 +560,18 @@ export default {
                                     messagesProcessed += messages.size;
                                     lastId = messages.last().id;
 
+                                    // 新增：检查是否达到扫描上限
+                                    if (messagesProcessed >= MAX_MESSAGES_TO_SCAN) {
+                                        hasMoreMessages = false; // 停止获取更多消息
+                                        limitReached = true;    // 标记已达到上限
+                                        logTime(`[自助管理] 帖子 ${thread.name} 中删除用户 ${targetUser.tag} 消息时达到 ${MAX_MESSAGES_TO_SCAN} 条扫描上限。已扫描 ${messagesProcessed} 条。`);
+                                    }
+
                                     // 更新获取消息后的进度
                                     await updateProgress('正在处理');
 
                                     // 添加延迟避免API限制
-                                    await delay(1000);
+                                    await delay(800);
 
                                     // 筛选并删除目标用户的消息
                                     const targetMessages = messages.filter(msg => msg.author.id === targetUser.id);
@@ -583,30 +592,40 @@ export default {
                                             logTime(`删除用户消息失败 (${message.id}): ${error.message}`, true);
                                         }
                                     }
+                                    // 新增：如果因为达到上限而停止，确保最后一次进度更新
+                                    if (limitReached && !hasMoreMessages) { // 确保只在循环即将结束时调用
+                                        await updateProgress('已达到扫描上限，正在完成当前批次删除');
+                                    }
                                 }
 
                                 // 尝试移除用户
                                 try {
                                     await thread.members.remove(targetUser.id);
 
-                                    // 更新最终结果
+                                    // 修改：根据是否达到上限更新最终结果
+                                    const finalMessage = limitReached
+                                        ? `✅ 已扫描 ${messagesProcessed} 条消息（达到上限）。已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息并将其移出子区。`
+                                        : `✅ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息并将其移出子区`;
                                     await interaction.editReply({
-                                        content: `✅ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息并将其移出子区`,
+                                        content: finalMessage,
                                         components: [],
                                         embeds: [],
                                     });
 
-                                    // 记录日志
-                                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息并将其移出子区`);
+                                    // 修改：更新日志记录
+                                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息并将其移出子区${limitReached ? ` (扫描达到 ${MAX_MESSAGES_TO_SCAN} 条上限，共扫描 ${messagesProcessed} 条)` : ''}`);
                                 } catch (error) {
-                                    // 更新结果，但报告移除成员失败
+                                    // 修改：根据是否达到上限更新结果，但报告移除成员失败
+                                    const finalMessage = limitReached
+                                        ? `⚠️ 已扫描 ${messagesProcessed} 条消息（达到上限）。已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`
+                                        : `⚠️ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`;
                                     await interaction.editReply({
-                                        content: `⚠️ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`,
+                                        content: finalMessage,
                                         components: [],
                                         embeds: [],
                                     });
 
-                                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`, true);
+                                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息，但移出子区失败: ${error.message}${limitReached ? ` (扫描达到 ${MAX_MESSAGES_TO_SCAN} 条上限，共扫描 ${messagesProcessed} 条)` : ''}`, true);
                                 }
                             } catch (error) {
                                 await handleCommandError(interaction, error, '删除用户全部消息');

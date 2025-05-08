@@ -1,6 +1,7 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { handleSingleThreadCleanup } from '../services/threadCleaner.js';
+import { delay } from '../utils/concurrency.js';
 import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -526,24 +527,26 @@ export default {
                             let deletedCount = 0;
                             let hasMoreMessages = true;
 
-                            // 创建进度更新函数
-                            const updateProgress = async () => {
+                            /**
+                             * 更新操作进度
+                             * @param {string} status - 当前状态
+                             */
+                            const updateProgress = async (status = '处理中') => {
                                 await interaction.editReply({
-                                    content: `⏳ 正在删除 ${targetUser.tag} 的消息...\n已扫描: ${messagesProcessed} 条\n已删除: ${deletedCount} 条`,
+                                    content: `⏳ ${status} ${targetUser.tag} 的消息...\n已扫描: ${messagesProcessed} 条\n已删除: ${deletedCount} 条`,
                                     components: [],
                                     embeds: [],
                                 });
                             };
 
-                            // 定期更新进度
-                            const progressInterval = setInterval(updateProgress, 5000);
-
                             try {
                                 while (hasMoreMessages) {
+                                    // 更新获取消息批次前的进度
+                                    await updateProgress('正在获取');
+
                                     // 获取消息批次
                                     const options = { limit: 100 };
                                     if (lastId) options.before = lastId;
-
                                     const messages = await thread.messages.fetch(options);
 
                                     if (messages.size === 0) {
@@ -551,10 +554,19 @@ export default {
                                         continue;
                                     }
 
-                                    // 筛选目标用户的消息
+                                    // 更新消息处理记录
+                                    messagesProcessed += messages.size;
+                                    lastId = messages.last().id;
+
+                                    // 更新获取消息后的进度
+                                    await updateProgress('正在处理');
+
+                                    // 添加延迟避免API限制
+                                    await delay(1000);
+
+                                    // 筛选并删除目标用户的消息
                                     const targetMessages = messages.filter(msg => msg.author.id === targetUser.id);
 
-                                    // 删除筛选出的消息
                                     for (const message of targetMessages.values()) {
                                         try {
                                             await message.delete();
@@ -562,25 +574,20 @@ export default {
 
                                             // 每删除10条消息更新一次进度
                                             if (deletedCount % 10 === 0) {
-                                                await updateProgress();
+                                                await updateProgress('正在删除');
                                             }
 
                                             // 添加延迟避免API限制
-                                            await new Promise(resolve => setTimeout(resolve, 1000));
+                                            await delay(1000);
                                         } catch (error) {
                                             logTime(`删除用户消息失败 (${message.id}): ${error.message}`, true);
                                         }
                                     }
-
-                                    messagesProcessed += messages.size;
-                                    lastId = messages.last().id;
                                 }
 
                                 // 尝试移除用户
                                 try {
                                     await thread.members.remove(targetUser.id);
-
-                                    clearInterval(progressInterval);
 
                                     // 更新最终结果
                                     await interaction.editReply({
@@ -592,8 +599,6 @@ export default {
                                     // 记录日志
                                     logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息并将其移出子区`);
                                 } catch (error) {
-                                    clearInterval(progressInterval);
-
                                     // 更新结果，但报告移除成员失败
                                     await interaction.editReply({
                                         content: `⚠️ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`,
@@ -604,7 +609,6 @@ export default {
                                     logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`, true);
                                 }
                             } catch (error) {
-                                clearInterval(progressInterval);
                                 await handleCommandError(interaction, error, '删除用户全部消息');
                             }
                         },

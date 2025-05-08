@@ -169,9 +169,9 @@ class RateLimitedBatchProcessor {
                 requests: [],
                 concurrency: 1,
             },
-            // 成员相关操作 - 2次/秒
+            // 成员相关操作 - 1次/秒
             members: {
-                maxRequests: 2,
+                maxRequests: 1,
                 windowMs: 1050, // 预留50ms延迟
                 requests: [],
                 concurrency: 1,

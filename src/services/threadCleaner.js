@@ -29,7 +29,7 @@ function getThreadCacheFilePath(threadId) {
 
 /**
  * 保存子区缓存信息
- * @param {string} threadId - 子区ID 
+ * @param {string} threadId - 子区ID
  * @param {Object} data - 缓存数据
  */
 async function saveThreadCache(threadId, data) {
@@ -153,12 +153,12 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         const cache = await loadThreadCache(thread.id);
         let cachedMessageIds = [];
         let activeUsers = new Map();
-        
+
         // 如果存在缓存，读取活跃用户数据
         if (cache) {
             logTime(`[${thread.name}] 使用缓存数据`);
             cachedMessageIds = cache.lastMessageIds || [];
-            
+
             // 恢复活跃用户数据
             if (cache.activeUsers) {
                 Object.entries(cache.activeUsers).forEach(([userId, count]) => {
@@ -166,7 +166,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                 });
             }
         }
-        
+
         // 获取所有消息以统计发言用户
         logTime(`[${thread.name}] 开始子区重整`);
         let lastId = null;
@@ -202,7 +202,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                             foundCached = true;
                         }
                     });
-                    
+
                     if (foundCached) {
                         logTime(`[${thread.name}] 检测到缓存的消息，停止扫描`);
                         reachedCachedMessages = true;
@@ -227,7 +227,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                 });
 
                 // 添加延迟避免API限制
-                await delay(600);
+                await delay(800);
             } catch (error) {
                 logTime(`获取消息批次失败: ${error.message}`, true);
                 throw error;
@@ -310,7 +310,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                 activeUsersObj[userId] = count;
             }
         });
-        
+
         await saveThreadCache(thread.id, {
             lastUpdateTime: Date.now(),
             lastMessageIds,

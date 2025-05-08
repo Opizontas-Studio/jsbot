@@ -1,4 +1,4 @@
-import { Collection, Events } from 'discord.js';
+import { ActivityType, Collection, Events } from 'discord.js';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -75,6 +75,15 @@ export default {
     once: true,
     async execute(client) {
         logTime(`已登录: ${client.user.tag}`);
+
+        // 设置客户端状态
+        client.user.setPresence({
+            activities: [{
+                name: 'Wait for your eternal presence.',
+                type: ActivityType.Custom,
+            }],
+            status: 'idle',
+        });
 
         const wsStateMonitor = await initializeClient(client);
 

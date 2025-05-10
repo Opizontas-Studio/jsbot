@@ -288,7 +288,7 @@ export const buttonHandlers = {
     // 提交议事按钮处理器
     start_debate: async interaction => {
         // 检查冷却时间
-        const cooldownLeft = checkCooldown('start_debate', interaction.user.id, 60000); // 1分钟冷却
+        const cooldownLeft = checkCooldown('start_debate', interaction.user.id);
         if (cooldownLeft) {
             await interaction.reply({
                 content: `❌ 请等待 ${cooldownLeft} 秒后再次提交`,
@@ -775,7 +775,7 @@ async function handleCourtSupport(interaction, type) {
 async function handleVoteButton(interaction, choice) {
     try {
         // 检查冷却时间
-        const cooldownLeft = checkCooldown('vote', interaction.user.id);
+        const cooldownLeft = checkCooldown('vote', interaction.user.id, 60000); // 1分钟冷却
         if (cooldownLeft) {
             return await interaction.editReply({
                 content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,

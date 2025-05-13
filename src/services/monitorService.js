@@ -251,7 +251,7 @@ class MonitorService {
             // 获取参议员角色ID
             const senatorRoleId = guildConfig.roleApplication?.senatorRoleId;
             if (!senatorRoleId) {
-                logTime(`服务器 ${guildId} 未配置参议员角色ID`, true);
+                logTime(`[监控服务] 服务器 ${guildId} 未配置参议员角色ID`, true);
                 return;
             }
 
@@ -261,13 +261,23 @@ class MonitorService {
                 throw new Error(`无法获取服务器 ${guildId}`);
             }
 
-            // 获取角色和成员数量
-            const role = await guild.roles.fetch(senatorRoleId);
+            // 获取角色
+            const roles = await guild.roles.fetch();
+            const role = roles.get(senatorRoleId);
             if (!role) {
                 throw new Error(`无法获取角色 ${senatorRoleId}`);
             }
 
-            const memberCount = role.members.size;
+            // 获取所有服务器成员
+            const members = await guild.members.fetch();
+
+            // 统计拥有议员身份组的成员数量
+            const memberCount = members.filter(
+                member => member.roles.cache.has(senatorRoleId) && !member.user.bot
+            ).size;
+
+            logTime(`[监控服务] 服务器 ${guildId} 议员人数: ${memberCount} (身份组: ${role.name})`);
+
             const channelName = `赛博议员: ${memberCount}`;
 
             // 获取分类频道

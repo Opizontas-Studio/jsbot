@@ -3,6 +3,7 @@ import { join } from 'path';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { checkCooldown } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { revokeRolesByGroups } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
@@ -694,7 +695,9 @@ class CourtService {
                                 content: threadContent,
                                 allowedMentions: { users: [process.targetId] }, // 允许 @ 提议者
                             },
-                            appliedTags: guildConfig.courtSystem.motionTagId ? [guildConfig.courtSystem.motionTagId] : [],
+                            appliedTags: guildConfig.courtSystem.motionTagId
+                                ? [guildConfig.courtSystem.motionTagId]
+                                : [],
                             reason: `创建议案`,
                         });
 
@@ -740,6 +743,117 @@ class CourtService {
         } catch (error) {
             logTime(`处理议事完成失败: ${error.message}`, true);
             return { error: '处理议事完成时出错，请稍后重试' };
+        }
+    }
+
+    /**
+     * 处理议事区支持按钮
+     * @param {ButtonInteraction} interaction - Discord按钮交互对象
+     * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate')
+     * @returns {Promise<void>}
+     */
+    static async handleSupport(interaction, type) {
+        try {
+            // 检查冷却时间
+            const cooldownLeft = checkCooldown('court_support', interaction.user.id);
+            if (cooldownLeft) {
+                return await interaction.editReply({
+                    content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
+                });
+            }
+
+            // 检查议事系统是否启用
+            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+            if (!guildConfig?.courtSystem?.enabled) {
+                return await interaction.editReply({
+                    content: '❌ 此服务器未启用议事系统',
+                });
+            }
+
+            // 检查是否为议员
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            if (!member.roles.cache.has(guildConfig.roleApplication?.senatorRoleId)) {
+                return await interaction.editReply({
+                    content: '❌ 只有议员可以参与议事投票',
+                });
+            }
+
+            // 解析按钮ID获取目标用户ID
+            const [, , targetId] = interaction.customId.split('_');
+
+            // 使用事务包装数据库操作
+            const result = await dbManager.transaction(async () => {
+                // 获取或创建议事流程
+                const { process, error } = await this.getOrCreateProcess(
+                    interaction.message,
+                    targetId,
+                    type,
+                    guildConfig,
+                );
+
+                if (error) {
+                    return { error };
+                }
+
+                // 使用CourtService添加支持者
+                const {
+                    process: updatedProcess,
+                    supportCount,
+                    replyContent,
+                } = await this.addSupporter(interaction.message.id, interaction.user.id);
+
+                return { updatedProcess, supportCount, replyContent };
+            });
+
+            if (result.error) {
+                return await interaction.editReply({
+                    content: `❌ ${result.error}`,
+                });
+            }
+
+            const { updatedProcess, supportCount, replyContent } = result;
+            let finalReplyContent = replyContent;
+
+            // 检查是否达到所需支持数量
+            if (supportCount === guildConfig.courtSystem.requiredSupports) {
+                try {
+                    const { debateThread, error: completeError } = await this.handleCourtComplete(
+                        updatedProcess,
+                        guildConfig,
+                        interaction.client,
+                    );
+
+                    if (completeError) {
+                        return await interaction.editReply({
+                            content: `❌ ${completeError}`,
+                        });
+                    }
+
+                    // 更新消息
+                    const message = await interaction.message.fetch();
+                    await this.updateCourtMessage(message, updatedProcess, { debateThread });
+                } catch (error) {
+                    logTime(`处理议事完成失败: ${error.message}`, true);
+                    return await interaction.editReply({
+                        content: '❌ 处理议事完成时出错，请稍后重试',
+                    });
+                }
+            } else {
+                // 更新消息
+                const message = await interaction.message.fetch();
+                await this.updateCourtMessage(message, updatedProcess);
+            }
+
+            // 发送最终确认消息
+            return await interaction.editReply({
+                content: finalReplyContent,
+            });
+        } catch (error) {
+            // 处理错误
+            logTime(`处理议事支持按钮出错: ${error.message}`, true);
+            await interaction.editReply({
+                content: '❌ 处理支持请求时出错，请稍后重试',
+            });
         }
     }
 }

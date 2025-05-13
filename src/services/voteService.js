@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
+import { checkCooldown } from '../handlers/buttons.js';
 import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
@@ -32,9 +33,7 @@ class VoteService {
             }
 
             const { type, targetId, executorId, details } = process;
-            const totalVoters = guildConfig.roleApplication?.senatorRoleId
-                ? await this._getSenatorsCount(client)
-                : 0;
+            const totalVoters = guildConfig.roleApplication?.senatorRoleId ? await this._getSenatorsCount(client) : 0;
 
             if (totalVoters === 0) {
                 throw new Error('无法获取议员总数或议员总数为0');
@@ -156,8 +155,9 @@ class VoteService {
     static async _removeDebateRolesFromBothParties(client, vote) {
         try {
             // 获取主服务器配置
-            const mainGuildConfig = Array.from(client.guildManager.guilds.values())
-                .find(config => config.serverType === 'Main server');
+            const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
+                config => config.serverType === 'Main server',
+            );
 
             if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.appealDebateRoleId) {
                 return;
@@ -184,7 +184,9 @@ class VoteService {
                     member.roles
                         .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
                         .then(() => logTime(`[投票系统] 已移除用户 ${member.user.tag} 的辩诉通行身份组`))
-                        .catch(error => logTime(`[投票系统] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
+                        .catch(error =>
+                            logTime(`[投票系统] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true),
+                        ),
                 );
 
             await Promise.all(removeRolePromises);
@@ -230,12 +232,7 @@ class VoteService {
                 const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
                 if (verifiedGroup) {
                     // 为目标用户恢复已验证身份组
-                    await addRolesByGroups(
-                        client,
-                        details.targetId,
-                        [verifiedGroup],
-                        '投票结束，恢复已验证身份组'
-                    );
+                    await addRolesByGroups(client, details.targetId, [verifiedGroup], '投票结束，恢复已验证身份组');
                     logTime(`[投票系统] 已为用户 ${details.targetId} 恢复已验证身份组`);
                 }
             } catch (error) {
@@ -273,8 +270,9 @@ class VoteService {
 
                     // 获取主服务器配置
                     const mainGuildConfig = client.guildManager.getGuildConfig(
-                        client.guildManager.getGuildIds()
-                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server')
+                        client.guildManager
+                            .getGuildIds()
+                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
                     );
 
                     if (!mainGuildConfig) {
@@ -294,8 +292,8 @@ class VoteService {
                         voteInfo: {
                             messageId: vote.messageId,
                             channelId: vote.threadId,
-                            guildId: mainGuildConfig.id
-                        }
+                            guildId: mainGuildConfig.id,
+                        },
                     };
 
                     // 执行新处罚
@@ -326,8 +324,9 @@ class VoteService {
                 if (result === 'red_win') {
                     // 获取主服务器配置
                     const mainGuildConfig = client.guildManager.getGuildConfig(
-                        client.guildManager.getGuildIds()
-                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server')
+                        client.guildManager
+                            .getGuildIds()
+                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
                     );
 
                     if (!mainGuildConfig) {
@@ -347,8 +346,8 @@ class VoteService {
                         voteInfo: {
                             messageId: vote.messageId,
                             channelId: vote.threadId,
-                            guildId: mainGuildConfig.id
-                        }
+                            guildId: mainGuildConfig.id,
+                        },
                     };
 
                     // 如果是禁言且需要撤销身份组
@@ -357,25 +356,27 @@ class VoteService {
                         // 构造临时同步组
                         const tempSyncGroup = {
                             name: '处罚撤销',
-                            roles: {}
+                            roles: {},
                         };
 
                         // 读取身份组同步配置，查找对应的同步组
                         const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
                         let foundSyncGroup = roleSyncConfig.syncGroups.find(group =>
-                            Object.values(group.roles).includes(details.revokeRoleId)
+                            Object.values(group.roles).includes(details.revokeRoleId),
                         );
 
                         // 如果找到同步组，使用其配置；否则只在当前服务器移除
-                        tempSyncGroup.roles = foundSyncGroup ? foundSyncGroup.roles : {
-                            [client.guildManager.getMainGuildId()]: details.revokeRoleId
-                        };
+                        tempSyncGroup.roles = foundSyncGroup
+                            ? foundSyncGroup.roles
+                            : {
+                                  [client.guildManager.getMainGuildId()]: details.revokeRoleId,
+                              };
 
                         roleRevokeResult = await revokeRolesByGroups(
                             client,
                             details.targetId,
                             [tempSyncGroup],
-                            `议会认定处罚通过，撤销身份组`
+                            `议会认定处罚通过，撤销身份组`,
                         );
                     }
 
@@ -573,8 +574,9 @@ class VoteService {
     static async _getSenatorsCount(client) {
         try {
             // 获取主服务器配置
-            const mainGuildConfig = Array.from(client.guildManager.guilds.values())
-                .find(config => config.serverType === 'Main server');
+            const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
+                config => config.serverType === 'Main server',
+            );
 
             if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.senatorRoleId) {
                 logTime('无法获取主服务器配置或议事系统未启用', true);
@@ -602,21 +604,123 @@ class VoteService {
 
             // 统计拥有议员身份组的成员数量
             const senatorsCount = members.filter(
-                member => member.roles.cache.has(mainGuildConfig.roleApplication?.senatorRoleId) && !member.user.bot
+                member => member.roles.cache.has(mainGuildConfig.roleApplication?.senatorRoleId) && !member.user.bot,
             ).size;
 
             // 记录实际议员数量日志
             logTime(
                 `议员总数(实际): ${senatorsCount} ` +
-                `(服务器: ${guild.name}, ` +
-                `身份组: ${role.name}, ` +
-                `身份组ID: ${role.id})`,
+                    `(服务器: ${guild.name}, ` +
+                    `身份组: ${role.name}, ` +
+                    `身份组ID: ${role.id})`,
             );
 
             return senatorsCount;
         } catch (error) {
             logTime(`获取议员总数失败: ${error.message}`, true);
             return 0;
+        }
+    }
+
+    /**
+     * 处理投票按钮交互
+     * @param {ButtonInteraction} interaction - Discord按钮交互对象
+     * @param {string} choice - 投票选择 ('red' | 'blue')
+     * @returns {Promise<void>}
+     */
+    static async handleVoteButton(interaction, choice) {
+        try {
+            // 检查冷却时间
+            const cooldownLeft = checkCooldown('vote', interaction.user.id, 60000); // 1分钟冷却
+            if (cooldownLeft) {
+                return await interaction.editReply({
+                    content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
+                });
+            }
+
+            // 获取服务器配置
+            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+            if (!guildConfig?.courtSystem?.enabled) {
+                return await interaction.editReply({
+                    content: '❌ 此服务器未启用议事系统',
+                });
+            }
+
+            // 检查是否为议员
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            if (!member.roles.cache.has(guildConfig.roleApplication?.senatorRoleId)) {
+                return await interaction.editReply({
+                    content: '❌ 只有议员可以参与投票',
+                });
+            }
+
+            // 获取投票ID
+            const voteId = parseInt(interaction.customId.split('_')[2]);
+
+            // 获取投票记录
+            const vote = await VoteModel.getVoteById(voteId);
+            if (!vote) {
+                return await interaction.editReply({
+                    content: '❌ 找不到相关投票',
+                });
+            }
+
+            // 处理投票
+            const {
+                vote: updatedVote,
+                message: replyContent,
+                shouldUpdateMessage,
+            } = await this.handleVote(vote, interaction.user.id, choice);
+
+            // 只有在应该更新消息时才更新
+            if (shouldUpdateMessage) {
+                await this.updateVoteMessage(interaction.message, updatedVote);
+            }
+
+            // 回复用户
+            await interaction.editReply({
+                content: replyContent,
+            });
+
+            // 检查是否需要执行结果
+            const now = Date.now();
+            if (now >= updatedVote.endTime && updatedVote.status === 'in_progress') {
+                try {
+                    // 再次检查投票状态，避免重复结算
+                    const currentVote = await VoteModel.getVoteById(updatedVote.id);
+                    if (currentVote.status !== 'in_progress') {
+                        logTime(`投票 ${updatedVote.id} 已被其他进程结算，跳过按钮结算`);
+                        return;
+                    }
+
+                    // 执行投票结果
+                    const { result, message: resultMessage } = await this.executeVoteResult(
+                        currentVote,
+                        interaction.client,
+                    );
+
+                    // 获取最新的投票状态
+                    const finalVote = await VoteModel.getVoteById(updatedVote.id);
+
+                    // 更新消息显示结果
+                    await this.updateVoteMessage(interaction.message, finalVote, {
+                        result,
+                        message: resultMessage,
+                    });
+                } catch (error) {
+                    logTime(`执行投票结果失败: ${error.message}`, true);
+                    await interaction.followUp({
+                        content: '❌ 处理投票结果时出错，请联系管理员',
+                        flags: ['Ephemeral'],
+                    });
+                }
+            }
+        } catch (error) {
+            // 处理错误
+            logTime(`处理投票按钮出错: ${error.message}`, true);
+            await interaction.editReply({
+                content: '❌ 处理投票请求时出错，请稍后重试',
+            });
         }
     }
 }

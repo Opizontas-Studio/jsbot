@@ -23,6 +23,7 @@ export default {
                     { name: '创作者申请', value: 'creator_application' },
                     { name: '身份组同步', value: 'role_sync' },
                     { name: '提交议案', value: 'debate_submission' },
+                    { name: '议员自助退出', value: 'senator_role_exit' },
                 ),
         )
         .addChannelOption(option =>
@@ -50,6 +51,8 @@ export default {
                 await createRoleSyncMessage(interaction, targetChannel);
             } else if (messageType === 'debate_submission') {
                 await createDebateSubmissionMessage(interaction, targetChannel, guildConfig);
+            } else if (messageType === 'senator_role_exit') {
+                await createSenatorExitMessage(interaction, targetChannel);
             }
         } catch (error) {
             await handleCommandError(interaction, error, '创建特殊消息');
@@ -180,5 +183,46 @@ async function createDebateSubmissionMessage(interaction, channel, guildConfig) 
     logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了议案提交入口`);
     await interaction.editReply({
         content: `✅ 已在 <#${channel.id}> 创建议案提交入口`,
+    });
+}
+
+/**
+ * 创建议员身份组自助退出消息
+ * @param {Interaction} interaction - 斜杠命令交互对象
+ * @param {Channel} channel - 目标频道
+ */
+async function createSenatorExitMessage(interaction, channel) {
+    // 创建退出按钮
+    const button = new ButtonBuilder()
+        .setCustomId('exit_senator_role')
+        .setLabel('退出议员身份组')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🚪');
+
+    const row = new ActionRowBuilder().addComponents(button);
+
+    // 创建嵌入消息
+    const embed = new EmbedBuilder()
+        .setTitle('🏛️ 议员身份组自助退出')
+        .setDescription(
+            [
+                '点击下方按钮，您可以自助退出所有服务器的赛博议员身份组。',
+                '',
+                '**注意事项：**',
+                '- 此操作将撤销您在所有类脑Discord服务器的赛博议员身份组',
+                '- 如需重新获取赛博议员身份组，请在原本申请帖子中呼叫管理员',
+            ].join('\n'),
+        )
+        .setColor(0xff6666);
+
+    // 发送消息
+    await channel.send({
+        embeds: [embed],
+        components: [row],
+    });
+
+    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了赛博议员身份组自助退出消息`);
+    await interaction.editReply({
+        content: `✅ 已在 <#${channel.id}> 创建赛博议员身份组自助退出消息`,
     });
 }

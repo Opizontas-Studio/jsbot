@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
+import { checkCooldown } from '../handlers/buttons.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
@@ -36,7 +37,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
             // 遍历每个同步组
             for (const syncGroup of roleSyncConfig.syncGroups) {
                 // 跳过"缓冲区"同步组
-                if (syncGroup.name === "缓冲区") continue;
+                if (syncGroup.name === '缓冲区') continue;
 
                 // 检查当前服务器是否有此同步组的配置
                 const currentGuildRoleId = syncGroup.roles[member.guild.id];
@@ -53,7 +54,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                             guildRolesMap.get(member.guild.id)?.add(currentGuildRoleId);
                             guildSyncGroups.get(member.guild.id)?.set(currentGuildRoleId, {
                                 name: syncGroup.name,
-                                sourceServer: sourceMember.guild.name
+                                sourceServer: sourceMember.guild.name,
                             });
                         }
                         break;
@@ -80,7 +81,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                             syncedRoles.push({
                                 name: syncInfo.name,
                                 sourceServer: syncInfo.sourceServer,
-                                targetServer: guildMember.guild.name
+                                targetServer: guildMember.guild.name,
                             });
                         }
                     }
@@ -95,9 +96,9 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 
         // 记录日志
         if (syncedRoles.length > 0) {
-            const syncSummary = syncedRoles.map(role =>
-                `${role.name}(${role.sourceServer}=>${role.targetServer})`
-            ).join('、');
+            const syncSummary = syncedRoles
+                .map(role => `${role.name}(${role.sourceServer}=>${role.targetServer})`)
+                .join('、');
             logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 同步结果：${syncSummary}`);
         } else {
             logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 无需同步任何身份组`);
@@ -154,9 +155,7 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
                     }
 
                     // 检查用户实际拥有的需要移除的身份组
-                    const rolesToRemove = Array.from(roleIds).filter(roleId =>
-                        member.roles.cache.has(roleId)
-                    );
+                    const rolesToRemove = Array.from(roleIds).filter(roleId => member.roles.cache.has(roleId));
 
                     if (rolesToRemove.length === 0) {
                         logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 没有需要移除的身份组`);
@@ -166,11 +165,12 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
                     // 一次性移除多个身份组
                     await member.roles.remove(rolesToRemove, reason);
                     successfulServers.push(guild.name);
-                    logTime(`[身份同步] 已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的 ${rolesToRemove.length} 个身份组`);
+                    logTime(
+                        `[身份同步] 已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的 ${rolesToRemove.length} 个身份组`,
+                    );
 
                     // 添加API请求延迟
                     await delay(500);
-
                 } catch (error) {
                     logTime(`在服务器 ${guildId} 移除身份组失败: ${error.message}`, true);
                     failedServers.push({ id: guildId, name: guildId });
@@ -181,14 +181,14 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
         return {
             success: successfulServers.length > 0,
             successfulServers,
-            failedServers
+            failedServers,
         };
     } catch (error) {
         logTime(`[身份同步] 批量撤销身份组操作失败: ${error.message}`, true);
         return {
             success: false,
             successfulServers,
-            failedServers
+            failedServers,
         };
     }
 };
@@ -237,9 +237,7 @@ export const addRolesByGroups = async (client, userId, syncGroups, reason) => {
                     }
 
                     // 检查用户未拥有的需要添加的身份组
-                    const rolesToAdd = Array.from(roleIds).filter(roleId =>
-                        !member.roles.cache.has(roleId)
-                    );
+                    const rolesToAdd = Array.from(roleIds).filter(roleId => !member.roles.cache.has(roleId));
 
                     if (rolesToAdd.length === 0) {
                         logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 已拥有所有需要添加的身份组`);
@@ -249,11 +247,12 @@ export const addRolesByGroups = async (client, userId, syncGroups, reason) => {
                     // 一次性添加多个身份组
                     await member.roles.add(rolesToAdd, reason);
                     successfulServers.push(guild.name);
-                    logTime(`[身份同步] 已在服务器 ${guild.name} 添加用户 ${member.user.tag} 的 ${rolesToAdd.length} 个身份组`);
+                    logTime(
+                        `[身份同步] 已在服务器 ${guild.name} 添加用户 ${member.user.tag} 的 ${rolesToAdd.length} 个身份组`,
+                    );
 
                     // 添加API请求延迟
                     await delay(500);
-
                 } catch (error) {
                     logTime(`[身份同步] 在服务器 ${guildId} 添加身份组失败: ${error.message}`, true);
                     failedServers.push({ id: guildId, name: guildId });
@@ -264,14 +263,131 @@ export const addRolesByGroups = async (client, userId, syncGroups, reason) => {
         return {
             success: successfulServers.length > 0,
             successfulServers,
-            failedServers
+            failedServers,
         };
     } catch (error) {
         logTime(`[身份同步] 批量添加身份组操作失败: ${error.message}`, true);
         return {
             success: false,
             successfulServers,
-            failedServers
+            failedServers,
         };
     }
 };
+
+/**
+ * 处理用户退出赛博议员身份组的请求
+ * @param {ButtonInteraction} interaction - Discord交互对象
+ * @param {Object} options - 配置选项
+ * @param {Function} options.handleConfirmationButton - 确认按钮处理函数
+ * @returns {Promise<void>}
+ */
+export async function exitSenatorRole(interaction, { handleConfirmationButton }) {
+    // 检查冷却时间
+    const cooldownLeft = checkCooldown('role_exit', interaction.user.id, 60000); // 1分钟冷却
+    if (cooldownLeft) {
+        await interaction.editReply({
+            content: `❌ 请等待 ${cooldownLeft} 秒后再次操作`,
+        });
+        return;
+    }
+
+    // 获取服务器配置
+    const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+    if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.senatorRoleId) {
+        await interaction.editReply({
+            content: '❌ 服务器未正确配置赛博议员身份组',
+        });
+        return;
+    }
+
+    // 检查用户是否有议员身份组
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!member.roles.cache.has(guildConfig.roleApplication.senatorRoleId)) {
+        await interaction.editReply({
+            content: '❌ 您没有赛博议员身份组，无需退出',
+        });
+        return;
+    }
+
+    // 从文件中读取身份组同步配置
+    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+
+    // 查找议员同步组
+    const senatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '赛博议员');
+
+    if (!senatorSyncGroup) {
+        await interaction.editReply({
+            content: '❌ 无法找到赛博议员身份组同步配置',
+        });
+        return;
+    }
+
+    // 创建确认按钮
+    const confirmEmbed = {
+        title: '⚠️ 确认退出赛博议员身份组',
+        description: ['您确定要退出所有社区服务器的赛博议员身份组吗？'].join('\n'),
+        color: 0xff0000,
+    };
+
+    // 创建确认按钮
+    await handleConfirmationButton({
+        interaction,
+        embed: confirmEmbed,
+        customId: `confirm_exit_senator_${interaction.user.id}`,
+        buttonLabel: '确认退出',
+        onConfirm: async confirmation => {
+            await confirmation.deferUpdate();
+
+            const result = await revokeRolesByGroups(
+                interaction.client,
+                interaction.user.id,
+                [senatorSyncGroup],
+                '用户自行退出',
+            );
+
+            // 根据结果决定显示的消息
+            if (result.success) {
+                logTime(
+                    `用户 ${interaction.user.tag} 成功退出了赛博议员身份组，已在 ${result.successfulServers.length} 个服务器移除权限`,
+                );
+
+                await confirmation.editReply({
+                    embeds: [
+                        {
+                            title: '✅ 已退出赛博议员身份组',
+                            description: `成功在以下服务器移除赛博议员身份组：\n${result.successfulServers.join('\n')}`,
+                            color: 0x00ff00,
+                        },
+                    ],
+                    components: [],
+                });
+            } else {
+                logTime(`用户 ${interaction.user.tag} 尝试退出赛博议员身份组失败`, true);
+
+                await confirmation.editReply({
+                    embeds: [
+                        {
+                            title: '❌ 退出赛博议员身份组失败',
+                            description: '操作过程中发生错误，请联系管理员',
+                            color: 0xff0000,
+                        },
+                    ],
+                    components: [],
+                });
+            }
+        },
+        onTimeout: async () => {
+            await interaction.editReply({
+                embeds: [
+                    {
+                        title: '❌ 操作已取消',
+                        description: '您取消了退出赛博议员身份组的操作',
+                        color: 0x808080,
+                    },
+                ],
+                components: [],
+            });
+        },
+    });
+}

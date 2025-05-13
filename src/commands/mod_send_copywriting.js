@@ -14,10 +14,13 @@ export default {
             option
                 .setName('编号')
                 .setDescription('文案编号(1-99)')
-                .setRequired(true)
+                .setRequired(false)
                 .setMinValue(1)
                 .setMaxValue(99)
                 .setAutocomplete(true),
+        )
+        .addAttachmentOption(option =>
+            option.setName('上传文件').setDescription('上传txt或md文件作为文案内容(最大30KB)').setRequired(false),
         ),
 
     // 处理自动补全请求
@@ -101,19 +104,73 @@ export default {
         }
 
         try {
+            const attachment = interaction.options.getAttachment('上传文件');
             const copywritingNumber = interaction.options.getInteger('编号');
-            const filePath = path.join(process.cwd(), 'data', 'copywriting', `${copywritingNumber}.txt`);
 
-            // 读取文案内容，明确指定UTF-8编码
-            let content;
-            try {
-                content = await fs.readFile(filePath, { encoding: 'utf-8' });
-            } catch (error) {
+            // 检查是否提供了至少一个参数
+            if (!attachment && !copywritingNumber) {
                 await interaction.editReply({
-                    content: `❌ 无法读取文案文件：${error.message}`,
+                    content: '❌ 请提供文案编号或上传文件',
                     flags: ['Ephemeral'],
                 });
                 return;
+            }
+
+            let content = '';
+            let contentSource = '';
+
+            // 优先处理上传文件
+            if (attachment) {
+                // 验证文件格式
+                const fileExtension = attachment.name.split('.').pop().toLowerCase();
+                if (!['txt', 'md'].includes(fileExtension)) {
+                    await interaction.editReply({
+                        content: '❌ 只支持 .txt 或 .md 格式的文件',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 验证文件大小 (30KB = 30 * 1024 = 30720 bytes)
+                if (attachment.size > 30720) {
+                    await interaction.editReply({
+                        content: '❌ 文件大小不能超过30KB',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 获取文件内容
+                try {
+                    const response = await fetch(attachment.url);
+                    if (!response.ok) {
+                        throw new Error(`获取文件失败: ${response.status} ${response.statusText}`);
+                    }
+                    content = await response.text();
+                    contentSource = `上传的文件: ${attachment.name}`;
+                } catch (error) {
+                    await interaction.editReply({
+                        content: `❌ 无法读取上传的文件: ${error.message}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+            }
+            // 如果没有上传文件或获取文件内容失败，则尝试使用文案编号
+            else if (copywritingNumber) {
+                const filePath = path.join(process.cwd(), 'data', 'copywriting', `${copywritingNumber}.txt`);
+
+                // 读取文案内容，明确指定UTF-8编码
+                try {
+                    content = await fs.readFile(filePath, { encoding: 'utf-8' });
+                    contentSource = `文案编号: ${copywritingNumber}`;
+                } catch (error) {
+                    await interaction.editReply({
+                        content: `❌ 无法读取文案文件：${error.message}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
             }
 
             if (!content.trim()) {
@@ -143,8 +200,8 @@ export default {
                             inline: false,
                         },
                         {
-                            name: '文案编号',
-                            value: `${copywritingNumber}`,
+                            name: '文案来源',
+                            value: contentSource,
                             inline: true,
                         },
                         {
@@ -187,7 +244,7 @@ export default {
                         components: [],
                         embeds: [],
                     });
-                    logTime(`文案发送完成 - 服务器: ${interaction.guild.name}, 文案编号: ${copywritingNumber}`);
+                    logTime(`文案发送完成 - 服务器: ${interaction.guild.name}, 来源: ${contentSource}`);
                 },
                 onError: async error => {
                     await handleCommandError(interaction, error, '发送文案');

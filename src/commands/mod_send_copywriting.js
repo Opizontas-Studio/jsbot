@@ -10,6 +10,12 @@ export default {
     data: new SlashCommandBuilder()
         .setName('发送文案')
         .setDescription('发送预设的文案内容')
+        .addChannelOption(option =>
+            option
+                .setName('频道')
+                .setDescription('要发送文案的目标频道')
+                .setRequired(true)
+        )
         .addIntegerOption(option =>
             option
                 .setName('编号')
@@ -104,10 +110,20 @@ export default {
         }
 
         try {
+            const targetChannel = interaction.options.getChannel('频道');
             const attachment = interaction.options.getAttachment('上传文件');
             const copywritingNumber = interaction.options.getInteger('编号');
 
-            // 检查是否提供了至少一个参数
+            // 检查频道类型是否支持发送消息
+            if (!targetChannel.isTextBased()) {
+                await interaction.editReply({
+                    content: '❌ 只能向文字频道发送文案',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+
+            // 检查是否提供了至少一个内容参数
             if (!attachment && !copywritingNumber) {
                 await interaction.editReply({
                     content: '❌ 请提供文案编号或上传文件',
@@ -226,8 +242,8 @@ export default {
                     // 逐行构建消息，确保每条消息不超过2000字符
                     for (const line of lines) {
                         if (currentMessage.length + line.length + 1 > 2000) {
-                            // 发送当前消息
-                            await interaction.channel.send(currentMessage);
+                            // 发送当前消息到指定频道
+                            await targetChannel.send(currentMessage);
                             currentMessage = line + '\n';
                         } else {
                             currentMessage += line + '\n';
@@ -236,15 +252,15 @@ export default {
 
                     // 发送最后一条消息（如果有）
                     if (currentMessage.trim()) {
-                        await interaction.channel.send(currentMessage);
+                        await targetChannel.send(currentMessage);
                     }
 
                     await interaction.editReply({
-                        content: '✅ 文案发送完成',
+                        content: `✅ 文案已发送至 <#${targetChannel.id}>`,
                         components: [],
                         embeds: [],
                     });
-                    logTime(`文案发送完成 - 服务器: ${interaction.guild.name}, 来源: ${contentSource}`);
+                    logTime(`文案发送完成 - 服务器: ${interaction.guild.name}, 目标频道: ${targetChannel.name}, 来源: ${contentSource}`);
                 },
                 onError: async error => {
                     await handleCommandError(interaction, error, '发送文案');

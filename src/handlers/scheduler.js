@@ -713,6 +713,35 @@ class TaskScheduler {
                     logTime(`[定时任务] 初始监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
                 }
             })();
+
+            // 检查是否开启议员监控
+            if (guildConfig.monitor?.roleMonitorCategoryId && guildConfig.roleApplication?.senatorRoleId) {
+                // 创建每15分钟执行一次的规则
+                const senatorRule = new schedule.RecurrenceRule();
+                senatorRule.minute = new schedule.Range(0, 59, 15); // 每小时的0, 15, 30, 45分钟执行
+                senatorRule.second = 30; // 错开时间，避免与其他任务冲突
+
+                const senatorJob = schedule.scheduleJob(senatorRule, async () => {
+                    try {
+                        await monitorService.monitorSenatorRole(client, guildId);
+                    } catch (error) {
+                        logTime(`[定时任务] 议员监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                    }
+                });
+
+                // 存储任务
+                this.jobs.set(`senator_monitor_${guildId}`, senatorJob);
+
+                // 立即执行一次
+                (async () => {
+                    try {
+                        await monitorService.monitorSenatorRole(client, guildId);
+                        logTime(`[定时任务] 已为服务器 ${guildId} 创建议员监控任务，每15分钟执行一次，下次执行时间：${senatorJob.nextInvocation().toLocaleString()}`);
+                    } catch (error) {
+                        logTime(`[定时任务] 初始议员监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
+                    }
+                })();
+            }
         }
     }
 

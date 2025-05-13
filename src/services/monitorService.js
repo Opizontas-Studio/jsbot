@@ -276,7 +276,7 @@ class MonitorService {
                 member => member.roles.cache.has(senatorRoleId) && !member.user.bot
             ).size;
 
-            logTime(`[监控服务] 服务器 ${guildId} 议员人数: ${memberCount} (身份组: ${role.name})`);
+            // logTime(`[监控服务] 服务器 ${guildId} 议员人数: ${memberCount} (身份组: ${role.name})`);
 
             const channelName = `赛博议员: ${memberCount}`;
 

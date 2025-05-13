@@ -683,6 +683,94 @@ export const buttonHandlers = {
             await handleInteractionError(interaction, error, 'appeal_button');
         }
     },
+
+    // 投稿AI新闻按钮处理器
+    submit_news: async interaction => {
+        try {
+            // 检查冷却时间
+            const cooldownLeft = checkCooldown('news_submission', interaction.user.id, 30000); // 30秒冷却
+            if (cooldownLeft) {
+                await interaction.reply({
+                    content: `❌ 请等待 ${cooldownLeft} 秒后再次投稿`,
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+
+            // 创建投稿表单
+            const modal = new ModalBuilder().setCustomId('news_submission_modal').setTitle('AI新闻投稿');
+
+            const titleInput = new TextInputBuilder()
+                .setCustomId('news_title')
+                .setLabel('新闻标题')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('请输入简短明了的新闻标题')
+                .setMinLength(5)
+                .setMaxLength(100)
+                .setRequired(true);
+
+            const contentInput = new TextInputBuilder()
+                .setCustomId('news_content')
+                .setLabel('新闻内容')
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder('请详细描述新闻内容，可以包含链接')
+                .setMinLength(10)
+                .setMaxLength(1500)
+                .setRequired(true);
+
+            const firstActionRow = new ActionRowBuilder().addComponents(titleInput);
+            const secondActionRow = new ActionRowBuilder().addComponents(contentInput);
+            modal.addComponents(firstActionRow, secondActionRow);
+
+            await interaction.showModal(modal);
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'submit_news_button');
+        }
+    },
+
+    // 投稿社区意见按钮处理器
+    submit_opinion: async interaction => {
+        try {
+            // 检查冷却时间
+            const cooldownLeft = checkCooldown('opinion_submission', interaction.user.id, 30000); // 30秒冷却
+            if (cooldownLeft) {
+                await interaction.reply({
+                    content: `❌ 请等待 ${cooldownLeft} 秒后再次提交`,
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+
+            // 创建意见表单
+            const modal = new ModalBuilder().setCustomId('opinion_submission_modal').setTitle('社区意见投稿');
+
+            const titleInput = new TextInputBuilder()
+                .setCustomId('opinion_title')
+                .setLabel('意见标题')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('请简短描述您的意见或建议主题')
+                .setMinLength(5)
+                .setMaxLength(100)
+                .setRequired(true);
+
+            const contentInput = new TextInputBuilder()
+                .setCustomId('opinion_content')
+                .setLabel('详细内容')
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder('请详细描述您的意见或建议')
+                .setMinLength(10)
+                .setMaxLength(1500)
+                .setRequired(true);
+
+            const firstActionRow = new ActionRowBuilder().addComponents(titleInput);
+            const secondActionRow = new ActionRowBuilder().addComponents(contentInput);
+            modal.addComponents(firstActionRow, secondActionRow);
+
+            await interaction.showModal(modal);
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'submit_opinion_button');
+        }
+    },
 };
 
 // 按钮处理配置对象
@@ -711,6 +799,8 @@ const BUTTON_CONFIG = {
         start_debate: buttonHandlers.start_debate,
         page_prev: buttonHandlers.page_prev,
         page_next: buttonHandlers.page_next,
+        submit_news: buttonHandlers.submit_news,
+        submit_opinion: buttonHandlers.submit_opinion,
     },
 };
 

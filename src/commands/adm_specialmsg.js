@@ -24,6 +24,7 @@ export default {
                     { name: '身份组同步', value: 'role_sync' },
                     { name: '提交议案', value: 'debate_submission' },
                     { name: '议员自助退出', value: 'senator_role_exit' },
+                    { name: '新闻和意见信箱', value: 'opinion_mailbox' },
                 ),
         )
         .addChannelOption(option =>
@@ -53,6 +54,8 @@ export default {
                 await createDebateSubmissionMessage(interaction, targetChannel, guildConfig);
             } else if (messageType === 'senator_role_exit') {
                 await createSenatorExitMessage(interaction, targetChannel);
+            } else if (messageType === 'opinion_mailbox') {
+                await createMailboxMessage(interaction, targetChannel, guildConfig);
             }
         } catch (error) {
             await handleCommandError(interaction, error, '创建特殊消息');
@@ -206,7 +209,7 @@ async function createSenatorExitMessage(interaction, channel) {
         .setTitle('🏛️ 议员身份组自助退出')
         .setDescription(
             [
-                '点击下方按钮，您可以自助退出两个社区的赛博议员身份组。',
+                '点击下方按钮，您可以自助退出两个社区的赛博议员身份组：',
                 '',
                 '**注意事项：**',
                 '- 如需重新获取赛博议员身份组，请在原本申请帖子中呼叫管理员',
@@ -223,5 +226,63 @@ async function createSenatorExitMessage(interaction, channel) {
     logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了赛博议员身份组自助退出消息`);
     await interaction.editReply({
         content: `✅ 已在 <#${channel.id}> 创建赛博议员身份组自助退出消息`,
+    });
+}
+
+/**
+ * 创建新闻和意见信箱消息
+ * @param {Interaction} interaction - 斜杠命令交互对象
+ * @param {Channel} channel - 目标频道
+ * @param {Object} guildConfig - 服务器配置
+ */
+async function createMailboxMessage(interaction, channel, guildConfig) {
+    // 检查是否配置了意见信箱频道
+    if (!guildConfig.opinionMailThreadId) {
+        await interaction.editReply({
+            content: '❌ 此服务器未配置意见信箱频道 (opinionMailThreadId)',
+        });
+        return;
+    }
+
+    // 创建投稿按钮
+    const newsButton = new ButtonBuilder()
+        .setCustomId('submit_news')
+        .setLabel('投稿AI新闻')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('📰');
+
+    const opinionButton = new ButtonBuilder()
+        .setCustomId('submit_opinion')
+        .setLabel('投稿社区意见')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('💬');
+
+    const row = new ActionRowBuilder().addComponents(newsButton, opinionButton);
+
+    // 创建嵌入消息
+    const embed = new EmbedBuilder()
+        .setTitle('📮 新闻和意见信箱')
+        .setDescription(
+            [
+                '点击下方按钮，您可以向社区投稿AI新闻或提交社区意见：',
+                '',
+                '**投稿要求：**',
+                '- 新闻投稿：分享值得关注的最新AI相关新闻',
+                '- 意见投稿：提出对社区的建议或反馈',
+                '',
+                '管理组会查看并尽快处理您的投稿。',
+            ].join('\n'),
+        )
+        .setColor(0x00aaff);
+
+    // 发送消息
+    await channel.send({
+        embeds: [embed],
+        components: [row],
+    });
+
+    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了新闻和意见信箱消息`);
+    await interaction.editReply({
+        content: `✅ 已在 <#${channel.id}> 创建新闻和意见信箱消息`,
     });
 }

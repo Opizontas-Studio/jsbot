@@ -116,7 +116,7 @@ export const modalHandlers = {
                                 interaction.client,
                                 interaction.user.id,
                                 [creatorSyncGroup],
-                                '创作者身份组申请通过'
+                                '创作者身份组申请通过',
                             );
 
                             // 只向用户显示成功的结果
@@ -126,7 +126,7 @@ export const modalHandlers = {
                                         result.successfulServers.length > 1
                                             ? `（已同步至：${result.successfulServers.join('、')}）`
                                             : ''
-                                    }`
+                                    }`,
                                 );
                             } else {
                                 await interaction.editReply('❌ 添加身份组时出现错误，请联系管理员。');
@@ -138,7 +138,9 @@ export const modalHandlers = {
                             }
                             // 记录完整日志到后台
                             logTime(
-                                `[自动审核] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${result.successfulServers.join('、')}`,
+                                `[自动审核] 用户 ${
+                                    interaction.user.tag
+                                } 获得了创作者身份组, 同步至: ${result.successfulServers.join('、')}`,
                             );
                         } else {
                             // 如果没有找到同步配置，只在当前服务器添加
@@ -530,6 +532,114 @@ export const modalHandlers = {
             logTime(`提交议事申请失败: ${error.message}`, true);
             await interaction.editReply({
                 content: '❌ 提交议事申请时出错，请稍后重试',
+            });
+        }
+    },
+
+    // AI新闻投稿模态框处理器
+    news_submission_modal: async interaction => {
+        try {
+            // 获取服务器配置
+            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+            if (!guildConfig?.opinionMailThreadId) {
+                await interaction.editReply({
+                    content: '❌ 此服务器未配置意见信箱频道',
+                });
+                return;
+            }
+
+            // 获取用户输入
+            const newsTitle = interaction.fields.getTextInputValue('news_title');
+            const newsContent = interaction.fields.getTextInputValue('news_content');
+
+            // 准备嵌入消息
+            const messageEmbed = {
+                color: 0x3498db, // 蓝色
+                title: `📰 新闻投稿：${newsTitle}`,
+                description: newsContent,
+                author: {
+                    name: interaction.user.tag,
+                    icon_url: interaction.user.displayAvatarURL(),
+                },
+                timestamp: new Date(),
+            };
+
+            // 获取目标频道并发送消息
+            try {
+                const targetChannel = await interaction.client.channels.fetch(guildConfig.opinionMailThreadId);
+                if (!targetChannel) {
+                    throw new Error('无法获取目标频道');
+                }
+
+                await targetChannel.send({ embeds: [messageEmbed] });
+
+                // 回复用户确认消息
+                await interaction.editReply({
+                    content: '✅ 新闻投稿已成功提交！',
+                });
+
+                logTime(`用户 ${interaction.user.tag} 提交了新闻投稿: "${newsTitle}"`);
+            } catch (error) {
+                throw new Error(`发送投稿时出错: ${error.message}`);
+            }
+        } catch (error) {
+            logTime(`处理新闻投稿失败: ${error.message}`, true);
+            await interaction.editReply({
+                content: '❌ 提交新闻时出错，请稍后重试',
+            });
+        }
+    },
+
+    // 社区意见投稿模态框处理器
+    opinion_submission_modal: async interaction => {
+        try {
+            // 获取服务器配置
+            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+            if (!guildConfig?.opinionMailThreadId) {
+                await interaction.editReply({
+                    content: '❌ 此服务器未配置意见信箱频道',
+                });
+                return;
+            }
+
+            // 获取用户输入
+            const opinionTitle = interaction.fields.getTextInputValue('opinion_title');
+            const opinionContent = interaction.fields.getTextInputValue('opinion_content');
+
+            // 准备嵌入消息
+            const messageEmbed = {
+                color: 0x2ecc71, // 绿色
+                title: `💬 社区意见：${opinionTitle}`,
+                description: opinionContent,
+                author: {
+                    name: interaction.user.tag,
+                    icon_url: interaction.user.displayAvatarURL(),
+                },
+                timestamp: new Date(),
+            };
+
+            // 获取目标频道并发送消息
+            try {
+                const targetChannel = await interaction.client.channels.fetch(guildConfig.opinionMailThreadId);
+                if (!targetChannel) {
+                    throw new Error('无法获取目标频道');
+                }
+
+                await targetChannel.send({ embeds: [messageEmbed] });
+
+                // 回复用户确认消息
+                await interaction.editReply({
+                    content: '✅ 社区意见已成功提交，感谢您的反馈！',
+                });
+
+                logTime(`用户 ${interaction.user.tag} 提交了社区意见: "${opinionTitle}"`);
+            } catch (error) {
+                throw new Error(`发送意见时出错: ${error.message}`);
+            }
+        } catch (error) {
+            logTime(`处理社区意见投稿失败: ${error.message}`, true);
+            await interaction.editReply({
+                content: '❌ 提交意见时出错，请稍后重试',
             });
         }
     },

@@ -33,6 +33,7 @@ export class GuildManager {
                 serverType: guildConfig.serverType || '', // string - 服务器类型，'Main server' 或 'Sub server'
                 moderationLogThreadId: guildConfig.moderationLogThreadId, // string - 管理日志频道ID
                 threadLogThreadId: guildConfig.threadLogThreadId, // string - 帖子操作日志频道ID
+                opinionMailThreadId: guildConfig.opinionMailThreadId, // string - 意见信箱和新闻投稿频道ID
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID
@@ -86,7 +87,10 @@ export class GuildManager {
                 } else {
                     serverConfig.fastgpt.endpoints.forEach((ep, index) => {
                         if (!ep.url || !ep.key) {
-                            logTime(`警告: 服务器 ${guildId} FastGPT endpoint #${index + 1} 配置不完整 (缺少 url 或 key)`, true);
+                            logTime(
+                                `警告: 服务器 ${guildId} FastGPT endpoint #${index + 1} 配置不完整 (缺少 url 或 key)`,
+                                true,
+                            );
                             // 你可以选择移除这个无效的endpoint或禁用整个功能
                         }
                     });
@@ -112,8 +116,9 @@ export class GuildManager {
                         // 如果没有为此域名设置名称，自动生成一个
                         if (!serverConfig.fastgpt.endpointNames[domainKey]) {
                             // 使用域名的第一部分作为默认名称
-                            const defaultName = url.hostname.split('.')[0].charAt(0).toUpperCase() +
-                                              url.hostname.split('.')[0].slice(1);
+                            const defaultName =
+                                url.hostname.split('.')[0].charAt(0).toUpperCase() +
+                                url.hostname.split('.')[0].slice(1);
                             serverConfig.fastgpt.endpointNames[domainKey] = `端点${index + 1} (${defaultName})`;
                         }
                     } catch (error) {
@@ -166,7 +171,7 @@ export class GuildManager {
             added,
             removed,
             updated,
-            total: this.guilds.size
+            total: this.guilds.size,
         };
     }
 

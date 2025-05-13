@@ -227,8 +227,7 @@ class VoteService {
             const { redVoters, blueVoters, details, type } = latestVote;
             const redCount = redVoters.length;
             const blueCount = blueVoters.length;
-            const threshold = 1;
-            // Math.ceil(20 + currentTotalVoters * 0.01); // 使用"20+1%议员人数"作为有效阈值
+            const threshold = Math.ceil(20 + currentTotalVoters * 0.01); // 使用"20+1%议员人数"作为有效阈值
 
             // 在执行结果之前，先移除双方的辩诉通行身份组
             await this._removeDebateRolesFromBothParties(client, latestVote);

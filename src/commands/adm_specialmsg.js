@@ -206,10 +206,9 @@ async function createSenatorExitMessage(interaction, channel) {
         .setTitle('🏛️ 议员身份组自助退出')
         .setDescription(
             [
-                '点击下方按钮，您可以自助退出所有服务器的赛博议员身份组。',
+                '点击下方按钮，您可以自助退出两个社区的赛博议员身份组。',
                 '',
                 '**注意事项：**',
-                '- 此操作将撤销您在所有类脑Discord服务器的赛博议员身份组',
                 '- 如需重新获取赛博议员身份组，请在原本申请帖子中呼叫管理员',
             ].join('\n'),
         )

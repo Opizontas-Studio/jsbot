@@ -102,32 +102,39 @@ async function waitForConfirmation(response, interaction, customId, onConfirm, o
             await onConfirm(confirmation);
         }
     } catch (error) {
-        if (onError) {
-            await onError(error);
-        } else if (
-            error.code === 'InteractionCollectorError' ||
-            error.message?.includes('Collector received no interactions before ending with reason: time')
-        ) {
-            // 处理超时等基础交互错误
-            logTime(`按钮确认超时: ${customId}`);
-            if (onTimeout) {
-                await onTimeout(interaction);
+        try {
+            // 优先处理超时错误
+            if (
+                error.code === 'InteractionCollectorError' ||
+                error.message?.includes('Collector received no interactions before ending with reason: time')
+            ) {
+                logTime(`按钮确认超时: ${customId}`);
+                if (onTimeout) {
+                    await onTimeout(interaction); // 调用 onTimeout 回调
+                } else {
+                    // 默认的超时处理，如果 onTimeout 未提供
+                    await interaction.editReply({
+                        embeds: [
+                            {
+                                color: 0x808080,
+                                title: '❌ 确认已超时',
+                                description: '操作已取消。如需继续请重新执行命令。',
+                            },
+                        ],
+                        components: [],
+                    }).catch(err => {
+                        logTime(`处理超时响应失败: ${err.message}`, true);
+                    });
+                }
+            } else if (onError) { // 如果不是超时错误，并且 onError 存在，则调用 onError
+                await onError(error);
             } else {
-                // 默认的超时处理
-                await interaction.editReply({
-                    embeds: [
-                        {
-                            color: 0x808080,
-                            title: '❌ 确认已超时',
-                            description: '操作已取消。如需继续请重新执行命令。',
-                        },
-                    ],
-                    components: [],
-                });
+                // 其他未处理的错误
+                logTime(`确认按钮处理错误: ${error.message}`, true);
             }
-        } else {
-            // 其他错误记录日志
-            logTime(`确认按钮处理错误: ${error.message}`, true);
+        } catch (handlerError) {
+            // 捕获处理错误时的异常，防止向上抛出
+            logTime(`处理确认按钮错误时出现异常: ${handlerError.message}`, true);
         }
     }
 }

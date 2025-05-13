@@ -220,7 +220,7 @@ class PunishmentModel {
                 ...p,
                 syncedServers: JSON.parse(p.syncedServers),
                 keepMessages: Boolean(p.keepMessages),
-                targetId: p.userId
+                targetId: p.userId,
             }));
         } catch (error) {
             logTime(`获取全库处罚记录失败: ${error.message}`, true);
@@ -266,7 +266,7 @@ class PunishmentModel {
                 `UPDATE punishments
                 SET notificationMessageId = ?, notificationGuildId = ?, updatedAt = ?
                 WHERE id = ?`,
-                [messageId, guildId, Date.now(), id]
+                [messageId, guildId, Date.now(), id],
             );
 
             // 清除相关缓存

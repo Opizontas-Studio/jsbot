@@ -53,12 +53,14 @@ class CourtService {
             default: {
                 // 处理以 court_ 开头的类型
                 if (process.type.startsWith('court_')) {
-                    const punishmentType = process.type === 'court_ban' ? '永封处罚' : '禁言处罚';
-                    const hasRoleRevoke = process.details?.revokeRoleId;
+                    const punishmentType =
+                        process.type === 'court_ban'
+                            ? '永封处罚'
+                            : process.type === 'court_impeach'
+                            ? '弹劾'
+                            : '禁言处罚';
 
-                    threadTitle = `对 ${target?.username || '未知用户'} 的${punishmentType}${
-                        hasRoleRevoke && process.type === 'court_mute' ? '及弹劾' : ''
-                    }申请`;
+                    threadTitle = `对 ${target?.username || '未知用户'} 的${punishmentType}申请`;
 
                     notifyContent = [
                         '处罚申请已创建，请双方当事人注意查看。',
@@ -98,26 +100,31 @@ class CourtService {
             embeds: [
                 {
                     color: 0x5865f2,
-                    title: '📊 辩诉投票',
+                    title: '📊 议会辩诉投票',
                     description: [
-                        `投票截止：<t:${Math.floor((Date.now() + guildConfig.courtSystem.voteDuration) / 1000)}:R>`,
+                        `⏳ 投票截止：<t:${Math.floor((Date.now() + guildConfig.courtSystem.voteDuration) / 1000)}:R>`,
+                        `━━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━━`,
                         '',
-                        '🔴 **红方诉求：**',
-                        process.type === 'appeal'
-                            ? `解除对 <@${target?.id}> 的处罚`
-                            : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`,
+                        `🔴 **红方诉求：** ${
+                            process.type === 'appeal'
+                                ? `解除对 <@${target?.id}> 的处罚`
+                                : process.type === 'court_impeach'
+                                ? `弹劾管理员 <@${target?.id}>`
+                                : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`
+                        }`,
                         '',
-                        '🔵 **蓝方诉求：**',
-                        process.type === 'appeal' ? '维持原判' : '驳回处罚申请',
+                        `🔵 **蓝方诉求：** ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,
                         '',
-                        '🔴▬▬▬▬▬|▬▬▬▬▬🔵',
+                        `━━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━━`,
                         '',
-                        `票数将在 <t:${Math.floor(
+                        '🔴 ⬛⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛⬛ 🔵',
+                        '',
+                        `🔒 票数将在 <t:${Math.floor(
                             (Date.now() + guildConfig.courtSystem.votePublicDelay) / 1000,
                         )}:R> 公开`,
                     ].join('\n'),
                     footer: {
-                        text: `发起人：${executor?.tag || '未知用户'}`,
+                        text: `再次点击同色支持可以撤销，点击另一色支持按钮换边`,
                     },
                     timestamp: new Date(),
                 },
@@ -130,12 +137,14 @@ class CourtService {
                             type: 2,
                             style: 4,
                             label: '支持红方',
+                            emoji: { name: '🔴' },
                             custom_id: `vote_red_pending`,
                         },
                         {
                             type: 2,
                             style: 1,
                             label: '支持蓝方',
+                            emoji: { name: '🔵' },
                             custom_id: `vote_blue_pending`,
                         },
                     ],
@@ -164,6 +173,8 @@ class CourtService {
             `投票详情 [ID: ${vote.id}] - 红方: ${
                 process.type === 'appeal'
                     ? `解除对 <@${target?.id}> 的处罚`
+                    : process.type === 'court_impeach'
+                    ? `弹劾管理员 <@${target?.id}>`
                     : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`
             }, 蓝方: ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,
         );
@@ -439,6 +450,7 @@ class CourtService {
                 {
                     court_mute: '禁言申请',
                     court_ban: '永封申请',
+                    court_impeach: '弹劾申请',
                     debate: '议案议事',
                     appeal: '处罚上诉',
                     vote: '投票',
@@ -512,7 +524,8 @@ class CourtService {
         try {
             switch (process.type) {
                 case 'court_mute':
-                case 'court_ban': {
+                case 'court_ban':
+                case 'court_impeach': {
                     // 创建辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);
 
@@ -555,14 +568,23 @@ class CourtService {
                         ]);
 
                         if (executor && target) {
-                            const notifyContent = [
-                                '✅ 有关您的处罚申请已获得足够议员支持，辩诉帖已创建：',
-                                `[点击查看辩诉帖](${debateThread.url})`,
-                                '注意：辩诉期间目标用户的已验证身份组将被暂时移除，请事后自行答题验证',
-                            ].join('\n');
+                            let notifyContent;
+                            if (process.type === 'court_impeach') {
+                                notifyContent = [
+                                    '✅ 有关您的弹劾管理员申请已获得足够议员支持，辩诉帖已创建：',
+                                    `[点击查看辩诉帖](${debateThread.url})`,
+                                    '注意：辩诉期间目标用户的已验证身份组将被暂时移除',
+                                ].join('\n');
+                            } else {
+                                notifyContent = [
+                                    '✅ 有关您的处罚申请已获得足够议员支持，辩诉帖已创建：',
+                                    `[点击查看辩诉帖](${debateThread.url})`,
+                                    '注意：辩诉期间目标用户的已验证身份组将被暂时移除',
+                                ].join('\n');
+                            }
 
-                            await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                            await target.send({ content: notifyContent, flags: ['Ephemeral'] });
+                            await executor.send({ content: notifyContent });
+                            await target.send({ content: notifyContent });
                         }
                     } catch (error) {
                         logTime(`发送通知失败: ${error.message}`, true);
@@ -749,7 +771,7 @@ class CourtService {
     /**
      * 处理议事区支持按钮
      * @param {ButtonInteraction} interaction - Discord按钮交互对象
-     * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate')
+     * @param {string} type - 议事类型 ('mute' | 'ban' | 'appeal' | 'debate' | 'impeach')
      * @returns {Promise<void>}
      */
     static async handleSupport(interaction, type) {

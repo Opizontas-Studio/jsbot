@@ -117,7 +117,8 @@ export const executePunishmentAction = async (guild, punishment) => {
                         }
                     }
                 } catch (error) {
-                    if (error.code === 10007) { // UNKNOWN_MEMBER
+                    if (error.code === 10007) {
+                        // UNKNOWN_MEMBER
                         logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`);
                         // 返回 true 因为这是预期的情况
                         return true;
@@ -149,16 +150,17 @@ export const executePunishmentAction = async (guild, punishment) => {
 export const sendModLogNotification = async (channel, punishment, executor, target) => {
     try {
         // 获取目标用户的头像URL
-        const targetAvatarURL = target.displayAvatarURL({
-            dynamic: true,
-            size: 64,
-        }) || target.defaultAvatarURL;
+        const targetAvatarURL =
+            target.displayAvatarURL({
+                dynamic: true,
+                size: 64,
+            }) || target.defaultAvatarURL;
 
         const embed = {
             color: 0xff0000,
             title: `${target.username} 已被${getPunishmentTypeText(punishment.type)}`,
             thumbnail: {
-                url: targetAvatarURL
+                url: targetAvatarURL,
             },
             fields: [
                 {
@@ -208,12 +210,12 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
         return {
             success: true,
             messageId: message.id,
-            guildId: channel.guild.id
+            guildId: channel.guild.id,
         };
     } catch (error) {
         logTime(`发送管理日志通知失败: ${error.message}`, true);
         return {
-            success: false
+            success: false,
         };
     }
 };
@@ -230,13 +232,14 @@ export const sendChannelNotification = async (channel, target, punishment) => {
         const executor = await channel.client.users.fetch(punishment.executorId);
 
         // 获取目标用户的头像URL
-        const targetAvatarURL = target.displayAvatarURL({
-            dynamic: true,
-            size: 64,
-        }) || target.defaultAvatarURL;
+        const targetAvatarURL =
+            target.displayAvatarURL({
+                dynamic: true,
+                size: 64,
+            }) || target.defaultAvatarURL;
 
         // 检查处罚时长是否小于48小时+1秒
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < (48 * 60 * 60 * 1000) + 1000;
+        const isShortPunishment = punishment.duration > 0 && punishment.duration < 48 * 60 * 60 * 1000 + 1000;
 
         // 检查处罚是否已过期
         const now = Date.now();
@@ -247,7 +250,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
             color: 0xff0000,
             title: `${getPunishmentTypeText(punishment.type)}处罚已执行`,
             thumbnail: {
-                url: targetAvatarURL
+                url: targetAvatarURL,
             },
             fields: [
                 {
@@ -257,9 +260,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
                 },
                 {
                     name: '处罚期限',
-                    value: punishment.duration > 0
-                        ? formatPunishmentDuration(punishment.duration)
-                        : '永久',
+                    value: punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久',
                     inline: true,
                 },
                 {
@@ -321,7 +322,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         const guildConfig = channel.client.guildManager.getGuildConfig(channel.guild.id);
 
         // 检查处罚时长是否小于48小时+1秒
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < (48 * 60 * 60 * 1000) + 1000;
+        const isShortPunishment = punishment.duration > 0 && punishment.duration < 48 * 60 * 60 * 1000 + 1000;
 
         // 检查处罚是否已过期
         const now = Date.now();
@@ -378,7 +379,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                                   style: 1,
                                   label: '提交上诉',
                                   custom_id: `appeal_${punishment.id}`,
-                                  emoji: '📝',
+                                  emoji: { name: '📝' },
                                   disabled: false,
                               },
                           ],

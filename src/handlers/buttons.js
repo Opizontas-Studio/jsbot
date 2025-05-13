@@ -782,6 +782,7 @@ const BUTTON_CONFIG = {
         support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
         support_appeal: { handler: interaction => CourtService.handleSupport(interaction, 'appeal') },
         support_debate: { handler: interaction => CourtService.handleSupport(interaction, 'debate') },
+        support_impeach: { handler: interaction => CourtService.handleSupport(interaction, 'impeach') },
         vote_red: { handler: interaction => VoteService.handleVoteButton(interaction, 'red') },
         vote_blue: { handler: interaction => VoteService.handleVoteButton(interaction, 'blue') },
         sync_roles: { handler: buttonHandlers.sync_roles },

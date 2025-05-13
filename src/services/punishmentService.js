@@ -28,6 +28,12 @@ class PunishmentService {
 
             // 2. 创建处罚记录
             const punishment = await PunishmentModel.createPunishment(data);
+
+            // 如果存在投票信息，手动合并到punishment对象中
+            if (data.voteInfo) {
+                punishment.voteInfo = data.voteInfo;
+            }
+
             // 记录基本信息
             logTime(
                 `处罚信息 - 处罚ID: ${punishment.id}, ` +
@@ -165,16 +171,23 @@ class PunishmentService {
             for (const guildData of allGuilds) {
                 try {
                     if (guildData.moderationLogThreadId) {
-                        const logChannel = await client.channels.fetch(guildData.moderationLogThreadId).catch(() => null);
+                        const logChannel = await client.channels
+                            .fetch(guildData.moderationLogThreadId)
+                            .catch(() => null);
                         if (logChannel) {
-                            const notificationResult = await sendModLogNotification(logChannel, punishment, executor, target);
+                            const notificationResult = await sendModLogNotification(
+                                logChannel,
+                                punishment,
+                                executor,
+                                target,
+                            );
                             if (notificationResult.success) {
                                 // 只保存执行处罚的服务器的通知消息
                                 if (guildData.id === executingGuildId) {
                                     await PunishmentModel.updateNotificationInfo(
                                         punishment.id,
                                         notificationResult.messageId,
-                                        notificationResult.guildId
+                                        notificationResult.guildId,
                                     );
                                 }
                                 const guildName = logChannel.guild?.name || '未知服务器';
@@ -251,10 +264,8 @@ class PunishmentService {
                 // 检查用户是否还有其他活跃的警告处罚
                 const userId = punishment.userId;
                 const otherActivePunishments = await PunishmentModel.getUserPunishments(userId, false);
-                const hasOtherActiveWarnings = otherActivePunishments.some(p =>
-                    p.id !== punishment.id &&
-                    p.warningDuration &&
-                    p.createdAt + p.warningDuration > now
+                const hasOtherActiveWarnings = otherActivePunishments.some(
+                    p => p.id !== punishment.id && p.warningDuration && p.createdAt + p.warningDuration > now,
                 );
 
                 // 只有在没有其他活跃警告处罚时才移除警告身份组

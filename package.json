@@ -1,6 +1,6 @@
 {
     "name": "jsbot",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "main": "src/index.js",
     "type": "module",
     "scripts": {
@@ -20,7 +20,7 @@
         "@discordjs/rest": "^2.4.2",
         "axios": "^1.6.7",
         "discord-api-types": "^0.37.117",
-        "discord.js": "^14.17.3",
+        "discord.js": "^14.19.3",
         "marked": "^9.1.5",
         "node-cron": "^3.0.3",
         "node-html-to-image": "^4.0.0",

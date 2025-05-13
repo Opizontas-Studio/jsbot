@@ -3,6 +3,7 @@ import { ProcessModel } from '../db/models/processModel.js';
 import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { handleCommandError, validateImageFile } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
@@ -27,12 +28,6 @@ export default {
                         .setDescription('处罚理由（至多1000字，可以带有消息链接等）')
                         .setRequired(true),
                 )
-                .addRoleOption(option =>
-                    option
-                        .setName('撤销身份组')
-                        .setDescription('要撤销的身份组（该用户必须有此身份组）')
-                        .setRequired(false),
-                )
                 .addStringOption(option =>
                     option
                         .setName('附加警告期')
@@ -54,6 +49,24 @@ export default {
                 .addStringOption(option => option.setName('理由').setDescription('处罚理由').setRequired(true))
                 .addBooleanOption(option =>
                     option.setName('保留消息').setDescription('是否保留用户的消息').setRequired(false),
+                )
+                .addAttachmentOption(option =>
+                    option
+                        .setName('证据图片')
+                        .setDescription('相关证据的图片文件 (支持jpg、jpeg、png、gif或webp格式)')
+                        .setRequired(false),
+                ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('弹劾')
+                .setDescription('申请弹劾管理员')
+                .addUserOption(option => option.setName('目标').setDescription('要弹劾的管理员').setRequired(true))
+                .addStringOption(option =>
+                    option
+                        .setName('理由')
+                        .setDescription('弹劾理由（至多1000字，可以带有消息链接等）')
+                        .setRequired(true),
                 )
                 .addAttachmentOption(option =>
                     option
@@ -86,7 +99,7 @@ export default {
         const subcommand = interaction.options.getSubcommand();
 
         try {
-            if (subcommand === '禁言' || subcommand === '永封') {
+            if (subcommand === '禁言' || subcommand === '永封' || subcommand === '弹劾') {
                 const target = interaction.options.getUser('目标');
                 const reason = interaction.options.getString('理由');
                 const imageAttachment = interaction.options.getAttachment('证据图片');
@@ -106,7 +119,6 @@ export default {
                 if (subcommand === '禁言') {
                     const muteTime = interaction.options.getString('禁言时间');
                     const warningTime = interaction.options.getString('附加警告期');
-                    const revokeRole = interaction.options.getRole('撤销身份组');
 
                     // 验证时间格式
                     const muteDuration = calculatePunishmentDuration(muteTime);
@@ -138,15 +150,14 @@ export default {
                         return;
                     }
 
-                    // 检查撤销身份组
-                    if (revokeRole) {
-                        if (!member.roles.cache.has(revokeRole.id)) {
-                            await interaction.editReply({
-                                content: `❌ 目标用户 ${target.tag} 并没有 ${revokeRole.name} 身份组`,
-                                flags: ['Ephemeral'],
-                            });
-                            return;
-                        }
+                    // 获取目标用户的GuildMember对象
+                    const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
+                    if (targetMember.permissions.has(PermissionFlagsBits.Administrator)) {
+                        await interaction.editReply({
+                            content: '❌ 无法对管理员执行处罚',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
                     }
 
                     let warningDuration = null;
@@ -178,7 +189,7 @@ export default {
                         buttonLabel: '确认提交',
                         embed: {
                             color: 0xff9900,
-                            title: revokeRole ? '禁言处罚及身份组撤销申请' : '禁言处罚申请',
+                            title: '禁言处罚申请',
                             description: [
                                 `你确定要向议事区提交对 ${target.tag} 的处罚申请吗？`,
                                 '',
@@ -187,7 +198,6 @@ export default {
                                 `- 目标：${target.tag} (${target.id})`,
                                 `- 时长：${formatPunishmentDuration(muteDuration)}`,
                                 warningTime ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}` : null,
-                                revokeRole ? `- 撤销身份组：${revokeRole.name}` : null,
                                 `- 理由：${reason}`,
                                 '',
                                 '请慎重考虑占用公共资源。如需撤销请点击 撤回申请 按钮。',
@@ -213,7 +223,7 @@ export default {
                                 embeds: [
                                     {
                                         color: 0xff9900,
-                                        title: revokeRole ? '禁言处罚及身份组撤销申请' : '禁言处罚申请',
+                                        title: '禁言处罚申请',
                                         description: `议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
                                         fields: [
                                             {
@@ -230,13 +240,6 @@ export default {
                                                 ? {
                                                       name: '附加警告期',
                                                       value: formatPunishmentDuration(warningDuration),
-                                                      inline: true,
-                                                  }
-                                                : null,
-                                            revokeRole
-                                                ? {
-                                                      name: '撤销身份组',
-                                                      value: revokeRole.name,
                                                       inline: true,
                                                   }
                                                 : null,
@@ -262,14 +265,14 @@ export default {
                                                 style: 3,
                                                 label: '支持',
                                                 custom_id: `support_mute_${target.id}_${interaction.user.id}`,
-                                                emoji: '👍',
+                                                emoji: { name: '👍' },
                                             },
                                             {
                                                 type: 2,
                                                 style: 4,
                                                 label: '撤回申请',
                                                 custom_id: `revoke_process_${interaction.user.id}_court_mute`,
-                                                emoji: '↩️',
+                                                emoji: { name: '↩️' },
                                             },
                                         ],
                                     },
@@ -287,7 +290,6 @@ export default {
                                     embed: message.embeds[0].toJSON(),
                                     muteTime,
                                     warningTime,
-                                    revokeRoleId: revokeRole?.id,
                                     imageUrl: imageAttachment?.url,
                                 },
                             });
@@ -325,7 +327,6 @@ export default {
                                             warningTime
                                                 ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}`
                                                 : null,
-                                            revokeRole ? `- 撤销身份组：${revokeRole.name}` : null,
                                             `- 处罚理由：${reason}`,
                                             '',
                                             `👉 [点击查看议事区](${courtChannel.url})`,
@@ -365,7 +366,7 @@ export default {
                     const imageAttachment = interaction.options.getAttachment('证据图片');
 
                     // 检查目标用户是否为管理员
-                    const member = await interaction.guild.members.fetch(target.id);
+                    const member = await interaction.guild.members.fetch(target.id).catch(() => null);
                     if (member.permissions.has(PermissionFlagsBits.Administrator)) {
                         await interaction.editReply({
                             content: '❌ 无法对管理员执行处罚',
@@ -446,14 +447,14 @@ export default {
                                                 style: 3,
                                                 label: '支持',
                                                 custom_id: `support_ban_${target.id}_${interaction.user.id}`,
-                                                emoji: '👍',
+                                                emoji: { name: '👍' },
                                             },
                                             {
                                                 type: 2,
                                                 style: 4,
                                                 label: '撤回申请',
                                                 custom_id: `revoke_process_${interaction.user.id}_court_ban`,
-                                                emoji: '↩️',
+                                                emoji: { name: '↩️' },
                                             },
                                         ],
                                     },
@@ -527,6 +528,208 @@ export default {
                                         color: 0x808080,
                                         title: '❌ 确认已超时',
                                         description: '永封处罚申请操作已超时。如需继续请重新执行命令。',
+                                    },
+                                ],
+                                components: [],
+                            });
+                        },
+                        onError: async error => {
+                            await handleCommandError(interaction, error, '申请上庭');
+                        },
+                    });
+                } else if (subcommand === '弹劾') {
+                    const imageAttachment = interaction.options.getAttachment('证据图片');
+
+                    // 读取身份组同步配置
+                    try {
+                        const fs = await import('fs');
+                        const path = await import('path');
+                        const roleSyncConfigPath = path.join(process.cwd(), 'data', 'roleSyncConfig.json');
+                        const roleSyncConfig = JSON.parse(fs.readFileSync(roleSyncConfigPath, 'utf8'));
+
+                        // 找到管理组和答疑组身份组
+                        const adminGroup = roleSyncConfig.syncGroups.find(group => group.name === '管理组');
+                        const qaGroup = roleSyncConfig.syncGroups.find(group => group.name === '答疑组');
+
+                        if (!adminGroup) {
+                            await interaction.editReply({
+                                content: '❌ 无法找到管理组身份组配置',
+                                flags: ['Ephemeral'],
+                            });
+                            return;
+                        }
+
+                        // 检查目标用户是否有管理组或答疑组身份组
+                        const adminRoleId = adminGroup.roles[interaction.guildId];
+                        const qaRoleId = qaGroup.roles[interaction.guildId];
+
+                        // 获取目标用户的GuildMember对象
+                        const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
+                        const hasAdminRole = adminRoleId && targetMember.roles.cache.has(adminRoleId);
+                        const hasQaRole = qaRoleId && targetMember.roles.cache.has(qaRoleId);
+
+                        if (!hasAdminRole && !hasQaRole) {
+                            await interaction.editReply({
+                                content: '❌ 只能弹劾拥有管理组或答疑组身份组的用户',
+                                flags: ['Ephemeral'],
+                            });
+                            return;
+                        }
+                    } catch (error) {
+                        logTime('加载身份组配置失败:', true);
+                        await interaction.editReply({
+                            content: '❌ 加载身份组配置失败',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    await handleConfirmationButton({
+                        interaction,
+                        customId: 'confirm_court_impeach',
+                        buttonLabel: '确认提交',
+                        embed: {
+                            color: 0xff0000,
+                            title: '⚖️ 议事区申请确认',
+                            description: [
+                                `你确定要向议事区提交对 ${target.tag} 的弹劾申请吗？`,
+                                '',
+                                '**弹劾详情：**',
+                                '- 类型：弹劾管理员',
+                                `- 目标：${target.tag} (${target.id})`,
+                                `- 理由：${reason}`,
+                                '',
+                                '请慎重考虑占用公共资源。如需撤销请点击 撤回申请 按钮。',
+                            ].join('\n'),
+                            image: imageAttachment ? { url: imageAttachment.url } : undefined,
+                        },
+                        onConfirm: async confirmation => {
+                            // 更新交互消息
+                            await confirmation.deferUpdate();
+
+                            // 获取议事区频道
+                            const courtChannel = await interaction.guild.channels.fetch(
+                                guildConfig.courtSystem.courtChannelId,
+                            );
+
+                            // 计算过期时间
+                            const expireTime = new Date(Date.now() + guildConfig.courtSystem.appealDuration);
+
+                            // 发送议事申请消息
+                            const message = await courtChannel.send({
+                                embeds: [
+                                    {
+                                        color: 0xff0000,
+                                        title: '弹劾管理员申请',
+                                        description: `议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
+                                        fields: [
+                                            {
+                                                name: '弹劾对象',
+                                                value: `<@${target.id}>`,
+                                                inline: true,
+                                            },
+                                            {
+                                                name: '弹劾理由',
+                                                value: reason,
+                                                inline: false,
+                                            },
+                                        ],
+                                        timestamp: new Date(),
+                                        footer: {
+                                            text: `申请人：${interaction.user.tag}`,
+                                        },
+                                        image: imageAttachment ? { url: imageAttachment.url } : undefined,
+                                    },
+                                ],
+                                components: [
+                                    {
+                                        type: 1,
+                                        components: [
+                                            {
+                                                type: 2,
+                                                style: 3,
+                                                label: '支持',
+                                                custom_id: `support_impeach_${target.id}_${interaction.user.id}`,
+                                                emoji: { name: '👍' },
+                                            },
+                                            {
+                                                type: 2,
+                                                style: 4,
+                                                label: '撤回申请',
+                                                custom_id: `revoke_process_${interaction.user.id}_court_impeach`,
+                                                emoji: { name: '↩️' },
+                                            },
+                                        ],
+                                    },
+                                ],
+                            });
+
+                            // 创建新的议事流程
+                            const process = await ProcessModel.createCourtProcess({
+                                type: 'court_impeach',
+                                targetId: target.id,
+                                executorId: interaction.user.id,
+                                messageId: message.id,
+                                expireAt: expireTime.getTime(),
+                                details: {
+                                    embed: message.embeds[0].toJSON(),
+                                    reason,
+                                    imageUrl: imageAttachment?.url,
+                                },
+                            });
+
+                            // 更新消息以添加流程ID
+                            await message.edit({
+                                embeds: [
+                                    {
+                                        ...message.embeds[0].data,
+                                        footer: {
+                                            text: `申请人：${interaction.user.tag} | 流程ID: ${process.id}`,
+                                        },
+                                    },
+                                ],
+                            });
+
+                            // 调度流程到期处理
+                            if (process) {
+                                await globalTaskScheduler
+                                    .getProcessScheduler()
+                                    .scheduleProcess(process, interaction.client);
+                            }
+
+                            // 发送通知到当前频道
+                            await interaction.channel.send({
+                                embeds: [
+                                    {
+                                        color: 0x00ff00,
+                                        title: '议事申请已创建',
+                                        description: [
+                                            `<@${interaction.user.id}> 已创建对 <@${target.id}> 的弹劾管理员申请`,
+                                            '',
+                                            '**申请详情：**',
+                                            `- 弹劾理由：${reason}`,
+                                            '',
+                                            `👉 [点击查看议事区](${courtChannel.url})`,
+                                        ].join('\n'),
+                                        timestamp: new Date(),
+                                    },
+                                ],
+                            });
+
+                            await interaction.editReply({
+                                content: '✅ 处罚申请已提交到议事区',
+                                components: [],
+                                embeds: [],
+                                flags: ['Ephemeral'],
+                            });
+                        },
+                        onTimeout: async interaction => {
+                            await interaction.editReply({
+                                embeds: [
+                                    {
+                                        color: 0x808080,
+                                        title: '❌ 确认已超时',
+                                        description: '弹劾管理员申请操作已超时。如需继续请重新执行命令。',
                                     },
                                 ],
                                 components: [],

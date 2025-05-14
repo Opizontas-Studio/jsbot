@@ -124,7 +124,7 @@ class CourtService {
                         )}:R> 公开`,
                     ].join('\n'),
                     footer: {
-                        text: `再次点击同色支持可以撤销，点击另一色支持按钮换边`,
+                        text: `点击另一色支持按钮可以换边`,
                     },
                     timestamp: new Date(),
                 },

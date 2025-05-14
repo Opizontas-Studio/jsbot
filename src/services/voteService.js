@@ -130,19 +130,39 @@ class VoteService {
             throw new Error('此投票已结束');
         }
 
+        // 确定选择字段和对方字段
+        const votersField = choice === 'red' ? 'redVoters' : 'blueVoters';
+        const oppositeField = choice === 'red' ? 'blueVoters' : 'redVoters';
+
+        // 检查用户是否已经投过同色票
+        const hasVoted = vote[votersField].includes(userId);
+
+        // 如果已经投票支持此方，返回提示而不执行投票操作
+        if (hasVoted) {
+            return {
+                vote,
+                message: `✅ 您已投票过支持${choice === 'red' ? '红方' : '蓝方'}诉求`,
+                shouldUpdateMessage: false,
+            };
+        }
+
+        // 如果未投过此方但投过对方，则从对方移除并添加到此方
+        const oppositeVoted = vote[oppositeField].includes(userId);
+
         // 执行投票
         const updatedVote = await VoteModel.addVoter(vote.id, userId, choice);
 
         // 记录投票操作
-        const hasVoted = updatedVote[`${choice}Voters`].includes(userId);
         logTime(
-            `[投票操作] [ID: ${vote.id}] - 用户: ${userId} ${hasVoted ? '支持' : '取消支持'}${
+            `[投票操作] [ID: ${vote.id}] - 用户: ${userId} ${oppositeVoted ? '切换至' : '支持'}${
                 choice === 'red' ? '红方' : '蓝方'
             }`,
         );
 
         // 生成回复消息
-        const message = this._generateVoteMessage(updatedVote, userId, choice);
+        const message = oppositeVoted
+            ? `✅ 你已切换到支持${choice === 'red' ? '红方' : '蓝方'}诉求`
+            : `✅ 你已支持${choice === 'red' ? '红方' : '蓝方'}诉求`;
 
         // 只有在到达公开时间后才更新消息显示票数
         const now = Date.now();
@@ -155,20 +175,195 @@ class VoteService {
     }
 
     /**
-     * 移除双方的辩诉通行身份组
+     * 生成进度条
+     * @private
+     * @param {number} redCount - 红方票数
+     * @param {number} blueCount - 蓝方票数
+     * @param {boolean} canShowCount - 是否显示总票数
+     * @returns {string} 进度条文本
+     */
+    static _generateProgressBar(redCount, blueCount, canShowCount) {
+        const total = redCount + blueCount;
+        if (total === 0) return '🔴 ⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛ 🔵';
+
+        const length = 12; // 12个方格
+        const redLength = Math.round((redCount / total) * length);
+        const blueLength = length - redLength;
+
+        const redBar = redLength > 0 ? '🟥'.repeat(redLength) : '';
+        const blueBar = blueLength > 0 ? '🟦'.repeat(blueLength) : '';
+
+        const progressBar = `🔴 ${redBar}${redLength < length ? '⚖️' : ''}${blueBar} 🔵`;
+
+        if (!canShowCount) return progressBar;
+
+        const redPercent = total > 0 ? ((redCount / total) * 100).toFixed(1) : '0.0';
+        const bluePercent = total > 0 ? ((blueCount / total) * 100).toFixed(1) : '0.0';
+
+        return [
+            progressBar,
+            `⚔️ **红方：** ${redCount} 票 (${redPercent}%)`,
+            `🛡️ **蓝方：** ${blueCount} 票 (${bluePercent}%)`,
+        ].join('\n');
+    }
+
+    /**
+     * 获取议员总数
      * @private
      * @param {Object} client - Discord客户端
-     * @param {Object} vote - 投票记录
-     * @returns {Promise<void>}
+     * @returns {Promise<number>} 议员总数
      */
-    static async _removeDebateRolesFromBothParties(client, vote) {
+    static async _getSenatorsCount(client) {
         try {
             // 获取主服务器配置
             const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
                 config => config.serverType === 'Main server',
             );
 
-            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.appealDebateRoleId) {
+            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.senatorRoleId) {
+                logTime('无法获取主服务器配置或议事系统未启用', true);
+                return 0;
+            }
+
+            // 获取主服务器的Guild对象
+            const guild = await client.guilds.fetch(mainGuildConfig.id);
+            if (!guild) {
+                logTime(`无法获取服务器: ${mainGuildConfig.id}`, true);
+                return 0;
+            }
+
+            // 获取最新的身份组信息
+            const roles = await guild.roles.fetch();
+            const role = roles.get(mainGuildConfig.roleApplication?.senatorRoleId);
+
+            if (!role) {
+                logTime(`无法获取议员身份组: ${mainGuildConfig.roleApplication?.senatorRoleId}`, true);
+                return 0;
+            }
+
+            // 获取所有服务器成员
+            const members = await guild.members.fetch();
+
+            // 统计拥有议员身份组的成员数量
+            const senatorsCount = members.filter(
+                member => member.roles.cache.has(mainGuildConfig.roleApplication?.senatorRoleId) && !member.user.bot,
+            ).size;
+
+            // 记录实际议员数量日志
+            logTime(
+                `议员总数(实际): ${senatorsCount} ` +
+                    `(服务器: ${guild.name}, ` +
+                    `身份组: ${role.name}, ` +
+                    `身份组ID: ${role.id})`,
+            );
+
+            return senatorsCount;
+        } catch (error) {
+            logTime(`获取议员总数失败: ${error.message}`, true);
+            return 0;
+        }
+    }
+
+    /**
+     * 发送投票结果通知给相关用户
+     * @private
+     * @param {Object} client - Discord客户端
+     * @param {string} executorId - 申请人ID
+     * @param {string} targetId - 目标用户ID
+     * @param {string} message - 通知消息
+     * @returns {Promise<void>}
+     */
+    static async _sendVoteResultNotification(client, executorId, targetId, message) {
+        try {
+            const [executor, target] = await Promise.all([
+                client.users.fetch(executorId).catch(() => null),
+                client.users.fetch(targetId).catch(() => null),
+            ]);
+
+            if (executor) await executor.send({ content: message, flags: ['Ephemeral'] });
+            if (target) await target.send({ content: message, flags: ['Ephemeral'] });
+        } catch (error) {
+            logTime(`发送投票结果通知失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 更新投票消息UI
+     * @param {Object} message - Discord消息对象
+     * @param {Object} vote - 投票记录
+     * @param {Object} options - 更新选项
+     * @returns {Promise<void>}
+     */
+    static async updateVoteMessage(message, vote, options = {}) {
+        try {
+            const { redVoters, blueVoters, redSide, blueSide, publicTime, endTime, status } = vote;
+            const now = Date.now();
+            const canShowCount = now >= publicTime;
+
+            const description = [
+                `${status === 'completed' ? '⏰ 投票已结束' : `⏳ 投票截止：<t:${Math.floor(endTime / 1000)}:R>`}`,
+                `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
+                '',
+                '🔴 **红方诉求：** ' + redSide,
+                '',
+                '🔵 **蓝方诉求：** ' + blueSide,
+                '',
+                `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
+                '',
+                this._generateProgressBar(redVoters.length, blueVoters.length, canShowCount),
+                '',
+                canShowCount
+                    ? `👥 **总投票人数：** ${redVoters.length + blueVoters.length}`
+                    : `🔒 票数将在 <t:${Math.floor(publicTime / 1000)}:R> 公开`,
+            ].join('\n');
+
+            // 构建嵌入消息
+            const embed = {
+                color: status === 'completed' ? (options.result === 'red_win' ? 0xff0000 : 0x0000ff) : 0x5865f2,
+                title: '📊 议会辩诉投票',
+                description: description,
+                timestamp: new Date(),
+                footer: {
+                    text: status === 'completed' ? '投票已结束，请查看结果' : '点击另一色支持按钮可以换边',
+                },
+            };
+
+            // 如果投票已结束，添加结果
+            if (status === 'completed' && options.message) {
+                embed.description += '\n\n' + ['**🏛️ 投票结果：**', options.message].join('\n');
+            }
+
+            // 更新消息
+            await message.edit({
+                embeds: [embed],
+                components: status === 'completed' ? [] : message.components,
+            });
+
+            // 只在定时器触发时记录日志，避免重复记录
+            if (canShowCount && !options.result && options.isSchedulerUpdate) {
+                logTime(`投票公开 [ID: ${vote.id}] - 当前票数 红方: ${redVoters.length}, 蓝方: ${blueVoters.length}`);
+            }
+        } catch (error) {
+            logTime(`更新投票消息失败: ${error.message}`, true);
+            throw error;
+        }
+    }
+
+    /**
+     * 处理投票结束后的身份组管理
+     * @private
+     * @param {Object} client - Discord客户端
+     * @param {Object} vote - 投票记录
+     * @returns {Promise<void>}
+     */
+    static async _handleRolesAfterVote(client, vote) {
+        try {
+            // 获取主服务器配置
+            const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
+                config => config.serverType === 'Main server',
+            );
+
+            if (!mainGuildConfig?.courtSystem?.enabled) {
                 return;
             }
 
@@ -186,379 +381,384 @@ class VoteService {
                 mainGuild.members.fetch(targetId).catch(() => null),
             ]);
 
-            // 为双方移除辩诉通行身份组
-            const removeRolePromises = [executorMember, targetMember]
-                .filter(member => member) // 过滤掉不存在的成员
-                .map(member =>
-                    member.roles
-                        .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
-                        .then(() => logTime(`[投票系统] 已移除用户 ${member.user.tag} 的辩诉通行身份组`))
-                        .catch(error =>
-                            logTime(`[投票系统] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true),
-                        ),
-                );
+            // 1. 移除辩诉通行身份组
+            if (mainGuildConfig.roleApplication?.appealDebateRoleId) {
+                // 为双方移除辩诉通行身份组
+                const removeRolePromises = [executorMember, targetMember]
+                    .filter(member => member) // 过滤掉不存在的成员
+                    .map(member =>
+                        member.roles
+                            .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
+                            .then(() => logTime(`[投票系统] 已移除用户 ${member.user.tag} 的辩诉通行身份组`))
+                            .catch(error =>
+                                logTime(
+                                    `[投票系统] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`,
+                                    true,
+                                ),
+                            ),
+                    );
 
-            await Promise.all(removeRolePromises);
-        } catch (error) {
-            logTime(`[投票系统] 移除辩诉通行身份组失败: ${error.message}`, true);
-        }
-    }
-
-    /**
-     * 检查并执行投票结果
-     * @param {Object} vote - 投票记录
-     * @param {Object} client - Discord客户端
-     * @returns {Promise<{result: string, message: string}>} 执行结果和提示消息
-     */
-    static async executeVoteResult(vote, client) {
-        try {
-            // 获取最新的投票数据，避免使用可能过期的数据
-            const latestVote = await VoteModel.getVoteById(vote.id);
-            if (!latestVote) {
-                throw new Error('无法获取投票数据');
+                await Promise.all(removeRolePromises);
             }
 
-            // 获取当前实时的议员总数
-            const currentTotalVoters = await this._getSenatorsCount(client);
-            if (currentTotalVoters === 0) {
-                throw new Error('无法获取当前议员总数');
-            }
-
-            const { redVoters, blueVoters, details, type } = latestVote;
-            const redCount = redVoters.length;
-            const blueCount = blueVoters.length;
-            const threshold = Math.ceil(20 + currentTotalVoters * 0.01); // 使用"20+1%议员人数"作为有效阈值
-
-            // 在执行结果之前，先移除双方的辩诉通行身份组
-            await this._removeDebateRolesFromBothParties(client, latestVote);
-
-            // 恢复已验证身份组
+            // 2. 恢复已验证身份组
             try {
                 // 读取身份组同步配置
                 const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
 
                 // 找到已验证身份组的同步组
                 const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
-                if (verifiedGroup) {
+                if (verifiedGroup && targetMember) {
                     // 为目标用户恢复已验证身份组
-                    await addRolesByGroups(client, details.targetId, [verifiedGroup], '投票结束，恢复已验证身份组');
-                    logTime(`[投票系统] 已为用户 ${details.targetId} 恢复已验证身份组`);
+                    await addRolesByGroups(client, targetId, [verifiedGroup], '投票结束，恢复已验证身份组');
+                    logTime(`[投票系统] 已为用户 ${targetId} 恢复已验证身份组`);
                 }
             } catch (error) {
                 logTime(`[投票系统] 恢复已验证身份组失败: ${error.message}`, true);
             }
+        } catch (error) {
+            logTime(`[投票系统] 处理投票后身份组管理失败: ${error.message}`, true);
+        }
+    }
 
-            // 判断结果
-            let result, message;
-            if (redCount + blueCount < threshold) {
-                result = 'blue_win';
-                message = `投票人数未达到${threshold}票，执行蓝方诉求`;
-            } else if (redCount === blueCount) {
-                result = 'blue_win';
-                message = '投票持平，执行蓝方诉求';
-            } else {
-                result = redCount > blueCount ? 'red_win' : 'blue_win';
-                message = `${result === 'red_win' ? '红方' : '蓝方'}获胜`;
+    /**
+     * 处理上诉类型投票结果
+     * @private
+     * @param {Object} vote - 投票记录
+     * @param {string} result - 投票结果 (red_win/blue_win)
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<string>} 执行结果消息
+     */
+    static async _handleAppealVoteResult(vote, result, client) {
+        const { details } = vote;
+        let message = '';
+
+        if (result === 'red_win') {
+            // 红方胜利，无需额外处理，因为处罚在辩诉阶段已经被解除
+            message = '，处罚已解除';
+        } else {
+            // 蓝方胜利，重新部署处罚
+            const { punishmentId, punishmentType, originalReason, originalDuration, originalWarningDuration } = details;
+
+            // 获取原处罚记录以获取执行者ID
+            const originalPunishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
+            if (!originalPunishment) {
+                throw new Error('无法获取原处罚记录');
             }
 
-            // 执行结果
-            if (type === 'appeal') {
-                if (result === 'red_win') {
-                    // 红方胜利，无需额外处理，因为处罚在辩诉阶段已经被解除
-                    message += '，处罚已解除';
-                } else {
-                    // 蓝方胜利，重新部署处罚
-                    const { punishmentId, punishmentType, originalReason, originalDuration, originalWarningDuration } =
-                        details;
-
-                    // 获取原处罚记录以获取执行者ID
-                    const originalPunishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-                    if (!originalPunishment) {
-                        throw new Error('无法获取原处罚记录');
-                    }
-
-                    // 获取主服务器配置
-                    const mainGuildConfig = client.guildManager.getGuildConfig(
-                        client.guildManager
-                            .getGuildIds()
-                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
-                    );
-
-                    if (!mainGuildConfig) {
-                        throw new Error('无法获取主服务器配置');
-                    }
-
-                    // 构建新的处罚数据
-                    const newPunishmentData = {
-                        userId: details.targetId,
-                        type: punishmentType,
-                        reason: `上诉驳回，恢复原处罚 - ${originalReason}`,
-                        duration: originalDuration,
-                        executorId: originalPunishment.executorId,
-                        warningDuration: originalWarningDuration || 0,
-                        processId: latestVote.processId,
-                        noAppeal: true, // 禁止再次上诉
-                        voteInfo: {
-                            messageId: vote.messageId,
-                            channelId: vote.threadId,
-                            guildId: mainGuildConfig.id,
-                        },
-                    };
-
-                    // 执行新处罚
-                    const { success: punishSuccess, message: punishMessage } =
-                        await PunishmentService.executePunishment(client, newPunishmentData);
-
-                    if (punishSuccess) {
-                        message += '，上诉驳回，原处罚已恢复';
-
-                        // 发送通知
-                        try {
-                            const [executor, target] = await Promise.all([
-                                client.users.fetch(details.executorId),
-                                client.users.fetch(details.targetId),
-                            ]);
-
-                            const notifyContent = '❌ 有关您的上诉未通过，原处罚已恢复。';
-                            if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                            if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
-                        } catch (error) {
-                            logTime(`发送上诉结果通知失败: ${error.message}`, true);
-                        }
-                    } else {
-                        message += `，但处罚恢复失败: ${punishMessage}`;
-                    }
-                }
-            } else if (type.startsWith('court_')) {
-                if (result === 'red_win') {
-                    // 获取主服务器配置
-                    const mainGuildConfig = client.guildManager.getGuildConfig(
-                        client.guildManager
-                            .getGuildIds()
-                            .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
-                    );
-
-                    if (!mainGuildConfig) {
-                        throw new Error('无法获取主服务器配置');
-                    }
-
-                    // 弹劾类型的特殊处理
-                    if (type === 'court_impeach') {
-                        try {
-                            // 读取身份组同步配置
-                            const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-
-                            // 过滤掉需要保留的身份组
-                            const excludedGroupNames = ['创作者', '赛博议员', '已验证', '缓冲区'];
-                            const groupsToRevoke = roleSyncConfig.syncGroups.filter(
-                                group => !excludedGroupNames.includes(group.name),
-                            );
-
-                            // 移除身份组
-                            const roleRevokeResult = await revokeRolesByGroups(
-                                client,
-                                details.targetId,
-                                groupsToRevoke,
-                                `议会认定弹劾通过，撤销管理身份组`,
-                            );
-
-                            // 获取弹劾执行者和目标用户
-                            const [executor, target] = await Promise.all([
-                                client.users.fetch(details.executorId).catch(() => null),
-                                client.users.fetch(details.targetId).catch(() => null),
-                            ]);
-
-                            // 发送管理日志
-                            const allGuilds = Array.from(client.guildManager.guilds.values());
-                            const notificationResults = [];
-
-                            for (const guildData of allGuilds) {
-                                try {
-                                    if (guildData.moderationLogThreadId) {
-                                        const logChannel = await client.channels
-                                            .fetch(guildData.moderationLogThreadId)
-                                            .catch(() => null);
-                                        if (logChannel && executor && target) {
-                                            // 创建管理日志内容
-                                            const targetAvatarURL =
-                                                target.displayAvatarURL({
-                                                    dynamic: true,
-                                                    size: 64,
-                                                }) || target.defaultAvatarURL;
-
-                                            const embed = {
-                                                color: 0xff0000,
-                                                title: `${target.username} 被议会弹劾`,
-                                                thumbnail: {
-                                                    url: targetAvatarURL,
-                                                },
-                                                fields: [
-                                                    {
-                                                        name: '弹劾对象',
-                                                        value: `<@${target.id}>`,
-                                                        inline: true,
-                                                    },
-                                                    {
-                                                        name: '申请人',
-                                                        value: `<@${executor.id}>`,
-                                                        inline: true,
-                                                    },
-                                                    {
-                                                        name: '弹劾理由',
-                                                        value: details.reason || '未提供原因',
-                                                    },
-                                                ],
-                                                timestamp: new Date(),
-                                                footer: { text: `流程ID: ${latestVote.processId}` },
-                                            };
-
-                                            // 添加投票信息
-                                            const voteLink = `https://discord.com/channels/${mainGuildConfig.id}/${vote.threadId}/${vote.messageId}`;
-                                            embed.fields.push({
-                                                name: '议会投票',
-                                                value: `[点击查看投票结果](${voteLink})`,
-                                                inline: true,
-                                            });
-
-                                            await logChannel.send({ embeds: [embed] });
-                                            notificationResults.push(
-                                                `服务器 ${logChannel.guild?.name || '未知服务器'} 的管理日志`,
-                                            );
-                                        }
-                                    }
-                                } catch (error) {
-                                    logTime(
-                                        `发送弹劾管理日志通知失败 (服务器ID: ${guildData.id}): ${error.message}`,
-                                        true,
-                                    );
-                                }
-                            }
-
-                            message += '，弹劾已执行';
-
-                            // 如果有身份组撤销结果，添加到消息中
-                            if (roleRevokeResult) {
-                                logTime(
-                                    `弹劾结果通知: ${
-                                        roleRevokeResult.failedServers.length > 0 ? '部分' : '全部'
-                                    }服务器身份组撤销成功`,
-                                );
-                            }
-
-                            // 发送通知给当事人
-                            try {
-                                if (executor) {
-                                    await executor.send({
-                                        content:
-                                            '✅ 有关您的弹劾申请投票已通过并执行。目标用户的所有管理员身份组已被撤销',
-                                    });
-                                }
-
-                                if (target) {
-                                    await target.send({
-                                        content: '⚠️ 您已被议会弹劾，您的所有管理员身份组已被撤销',
-                                    });
-                                }
-                            } catch (error) {
-                                logTime(`发送弹劾结果通知失败: ${error.message}`, true);
-                            }
-                        } catch (error) {
-                            logTime(`执行弹劾操作失败: ${error.message}`, true);
-                            message += `，但弹劾执行失败: ${error.message}`;
-                        }
-                    } else {
-                        const punishmentDetails = {
-                            userId: details.targetId,
-                            type: type === 'court_ban' ? 'ban' : 'mute',
-                            reason: `议会认定处罚通过`,
-                            duration: calculatePunishmentDuration(details.muteTime),
-                            executorId: details.executorId,
-                            processId: latestVote.processId,
-                            warningDuration: details.warningTime ? calculatePunishmentDuration(details.warningTime) : 0,
-                            keepMessages: details.keepMessages ?? true,
-                            noAppeal: true,
-                            voteInfo: {
-                                messageId: vote.messageId,
-                                channelId: vote.threadId,
-                                guildId: mainGuildConfig.id,
-                            },
-                        };
-
-                        // 执行处罚
-                        const { success, message: punishMessage } = await PunishmentService.executePunishment(
-                            client,
-                            punishmentDetails,
-                        );
-
-                        if (success) {
-                            message += '，处罚已执行';
-
-                            // 发送通知
-                            try {
-                                const [executor, target] = await Promise.all([
-                                    client.users.fetch(details.executorId),
-                                    client.users.fetch(details.targetId),
-                                ]);
-
-                                const notifyContent = '✅ 有关您的议事处罚投票已通过并执行。';
-                                if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                                if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
-                            } catch (error) {
-                                logTime(`发送投票结果通知失败: ${error.message}`, true);
-                            }
-                        } else {
-                            message += `，但处罚执行失败: ${punishMessage}`;
-                        }
-                    }
-                } else {
-                    message += '，处罚申请已驳回';
-
-                    // 发送简单通知
-                    try {
-                        const [executor, target] = await Promise.all([
-                            client.users.fetch(details.executorId),
-                            client.users.fetch(details.targetId),
-                        ]);
-
-                        // 根据类型发送不同的通知内容
-                        let notifyContent;
-                        if (type === 'court_impeach') {
-                            notifyContent = '❌ 有关您的弹劾申请投票未通过，申请已驳回。';
-                        } else {
-                            notifyContent = '❌ 有关您的议事处罚投票未通过，申请已驳回。';
-                        }
-
-                        if (executor) await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                        if (target) await target.send({ content: notifyContent, flags: ['Ephemeral'] });
-                    } catch (error) {
-                        logTime(`发送投票结果通知失败: ${error.message}`, true);
-                    }
-                }
-            }
-
-            // 使用当前议员总数
-            logTime(
-                `投票结束 [ID: ${latestVote.id}] - ` +
-                    `结果: ${result}, ` +
-                    `当前总议员: ${currentTotalVoters}, 有效阈值: ${threshold}票` +
-                    `红方: ${redCount}票, ` +
-                    `蓝方: ${blueCount}票`,
+            // 获取主服务器配置
+            const mainGuildConfig = client.guildManager.getGuildConfig(
+                client.guildManager
+                    .getGuildIds()
+                    .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
             );
-            logTime(`投票详情 [ID: ${latestVote.id}] - ${message}`);
 
-            // 完成后更新状态
-            await VoteModel.updateStatus(latestVote.id, 'completed', { result });
+            if (!mainGuildConfig) {
+                throw new Error('无法获取主服务器配置');
+            }
 
-            // 发送投票结果嵌入消息到辩诉贴
+            // 构建新的处罚数据
+            const newPunishmentData = {
+                userId: details.targetId,
+                type: punishmentType,
+                reason: `上诉驳回，恢复原处罚 - ${originalReason}`,
+                duration: originalDuration,
+                executorId: originalPunishment.executorId,
+                warningDuration: originalWarningDuration || 0,
+                processId: vote.processId,
+                noAppeal: true, // 禁止再次上诉
+                voteInfo: {
+                    messageId: vote.messageId,
+                    channelId: vote.threadId,
+                    guildId: mainGuildConfig.id,
+                },
+            };
+
+            // 执行新处罚
+            const { success: punishSuccess, message: punishMessage } = await PunishmentService.executePunishment(
+                client,
+                newPunishmentData,
+            );
+
+            if (punishSuccess) {
+                message = '，上诉驳回，原处罚已恢复';
+
+                // 发送通知
+                await this._sendVoteResultNotification(
+                    client,
+                    details.executorId,
+                    details.targetId,
+                    '❌ 有关您的上诉未通过，原处罚已恢复。',
+                );
+            } else {
+                message = `，但处罚恢复失败: ${punishMessage}`;
+            }
+        }
+
+        return message;
+    }
+
+    /**
+     * 处理弹劾类型投票结果
+     * @private
+     * @param {Object} vote - 投票记录
+     * @param {string} result - 投票结果 (red_win/blue_win)
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<string>} 执行结果消息
+     */
+    static async _handleImpeachmentVoteResult(vote, result, client) {
+        const { details } = vote;
+        let message = '';
+
+        if (result === 'red_win') {
             try {
-                // 获取辩诉贴
-                const thread = await client.channels.fetch(latestVote.threadId).catch(() => null);
-                if (thread) {
-                    // 构建嵌入消息
-                    const resultColor = result === 'red_win' ? 0xff0000 : 0x0000ff;
+                // 获取主服务器配置
+                const mainGuildConfig = client.guildManager.getGuildConfig(
+                    client.guildManager
+                        .getGuildIds()
+                        .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
+                );
 
-                    // 根据投票结果获取表情
-                    const resultEmoji = result === 'red_win' ? '🔴' : '🔵';
+                // 读取身份组同步配置
+                const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+
+                // 过滤掉需要保留的身份组
+                const excludedGroupNames = ['创作者', '赛博议员', '已验证', '缓冲区'];
+                const groupsToRevoke = roleSyncConfig.syncGroups.filter(
+                    group => !excludedGroupNames.includes(group.name),
+                );
+
+                // 移除身份组
+                const roleRevokeResult = await revokeRolesByGroups(
+                    client,
+                    details.targetId,
+                    groupsToRevoke,
+                    `议会认定弹劾通过，撤销管理身份组`,
+                );
+
+                // 获取弹劾执行者和目标用户
+                const [executor, target] = await Promise.all([
+                    client.users.fetch(details.executorId).catch(() => null),
+                    client.users.fetch(details.targetId).catch(() => null),
+                ]);
+
+                // 发送管理日志
+                const allGuilds = Array.from(client.guildManager.guilds.values());
+                const notificationResults = [];
+
+                for (const guildData of allGuilds) {
+                    try {
+                        if (guildData.moderationLogThreadId) {
+                            const logChannel = await client.channels
+                                .fetch(guildData.moderationLogThreadId)
+                                .catch(() => null);
+                            if (logChannel && executor && target) {
+                                // 创建管理日志内容
+                                const targetAvatarURL =
+                                    target.displayAvatarURL({
+                                        dynamic: true,
+                                        size: 64,
+                                    }) || target.defaultAvatarURL;
+
+                                const embed = {
+                                    color: 0xff0000,
+                                    title: `${target.username} 被议会弹劾`,
+                                    thumbnail: {
+                                        url: targetAvatarURL,
+                                    },
+                                    fields: [
+                                        {
+                                            name: '弹劾对象',
+                                            value: `<@${target.id}>`,
+                                            inline: true,
+                                        },
+                                        {
+                                            name: '申请人',
+                                            value: `<@${executor.id}>`,
+                                            inline: true,
+                                        },
+                                        {
+                                            name: '弹劾理由',
+                                            value: details.reason || '未提供原因',
+                                        },
+                                    ],
+                                    timestamp: new Date(),
+                                    footer: { text: `流程ID: ${vote.processId}` },
+                                };
+
+                                // 添加投票信息
+                                const voteLink = `https://discord.com/channels/${mainGuildConfig.id}/${vote.threadId}/${vote.messageId}`;
+                                embed.fields.push({
+                                    name: '议会投票',
+                                    value: `[点击查看投票结果](${voteLink})`,
+                                    inline: true,
+                                });
+
+                                await logChannel.send({ embeds: [embed] });
+                                notificationResults.push(`服务器 ${logChannel.guild?.name || '未知服务器'} 的管理日志`);
+                            }
+                        }
+                    } catch (error) {
+                        logTime(`发送弹劾管理日志通知失败 (服务器ID: ${guildData.id}): ${error.message}`, true);
+                    }
+                }
+
+                message = '，弹劾已执行';
+
+                // 如果有身份组撤销结果，添加到消息中
+                if (roleRevokeResult) {
+                    logTime(
+                        `弹劾结果通知: ${
+                            roleRevokeResult.failedServers.length > 0 ? '部分' : '全部'
+                        }服务器身份组撤销成功`,
+                    );
+                }
+
+                // 发送通知给当事人
+                await this._sendVoteResultNotification(
+                    client,
+                    details.executorId,
+                    details.targetId,
+                    details.executorId === details.targetId
+                        ? '✅ 有关您的弹劾申请投票已通过并执行。目标用户的所有管理员身份组已被撤销'
+                        : '⚠️ 您已被议会弹劾，您的所有管理员身份组已被撤销',
+                );
+            } catch (error) {
+                logTime(`执行弹劾操作失败: ${error.message}`, true);
+                message = `，但弹劾执行失败: ${error.message}`;
+            }
+        } else {
+            message = '，处罚申请已驳回';
+
+            // 发送通知
+            await this._sendVoteResultNotification(
+                client,
+                details.executorId,
+                details.targetId,
+                '❌ 有关您的弹劾申请投票未通过，申请已驳回。',
+            );
+        }
+
+        return message;
+    }
+
+    /**
+     * 处理处罚类型投票结果（禁言或封禁）
+     * @private
+     * @param {Object} vote - 投票记录
+     * @param {string} result - 投票结果 (red_win/blue_win)
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<string>} 执行结果消息
+     */
+    static async _handlePunishmentVoteResult(vote, result, client) {
+        const { details, type } = vote;
+        let message = '';
+
+        if (result.startsWith('red_win')) {
+            // 获取主服务器配置
+            const mainGuildConfig = client.guildManager.getGuildConfig(
+                client.guildManager
+                    .getGuildIds()
+                    .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
+            );
+
+            // 根据结果类型决定处罚内容
+            let punishmentType = type === 'court_ban' ? 'ban' : 'mute';
+            let duration = calculatePunishmentDuration(details.muteTime);
+            let warningDuration = details.warningTime ? calculatePunishmentDuration(details.warningTime) : 0;
+            let reasonPrefix = '议会认定处罚通过';
+
+            // 对于永封投票的部分通过情况
+            if (result === 'red_win_partial' && type === 'court_ban') {
+                punishmentType = 'mute'; // 改为禁言
+                duration = 7 * 24 * 60 * 60 * 1000; // 7天 (毫秒)
+                warningDuration = 90 * 24 * 60 * 60 * 1000; // 90天 (毫秒)
+                reasonPrefix = '议会认定部分处罚通过';
+            }
+
+            const punishmentDetails = {
+                userId: details.targetId,
+                type: punishmentType,
+                reason: `${reasonPrefix}`,
+                duration: duration,
+                executorId: details.executorId,
+                processId: vote.processId,
+                warningDuration: warningDuration,
+                keepMessages: details.keepMessages ?? true,
+                noAppeal: true,
+                voteInfo: {
+                    messageId: vote.messageId,
+                    channelId: vote.threadId,
+                    guildId: mainGuildConfig.id,
+                },
+            };
+
+            // 执行处罚
+            const { success, message: punishMessage } = await PunishmentService.executePunishment(
+                client,
+                punishmentDetails,
+            );
+
+            if (success) {
+                // 为永封投票的部分通过添加特定消息
+                if (result === 'red_win_partial' && type === 'court_ban') {
+                    message = '，支持率低于60%，执行7天禁言+90天警告';
+                } else {
+                    message = '，处罚已执行';
+                }
+
+                // 发送通知
+                const notifyContent =
+                    result === 'red_win_partial' && type === 'court_ban'
+                        ? '✅ 有关您的议事处罚投票已部分通过，执行7天禁言+90天警告。'
+                        : '✅ 有关您的议事处罚投票已通过并执行。';
+
+                await this._sendVoteResultNotification(client, details.executorId, details.targetId, notifyContent);
+            } else {
+                message = `，但处罚执行失败: ${punishMessage}`;
+            }
+        } else {
+            message = '，处罚申请已驳回';
+
+            // 发送通知
+            await this._sendVoteResultNotification(
+                client,
+                details.executorId,
+                details.targetId,
+                '❌ 有关您的上庭申请投票未通过，申请已驳回。',
+            );
+        }
+
+        return message;
+    }
+
+    /**
+     * 发送投票结果嵌入消息到辩诉贴并锁定
+     * @private
+     * @param {Object} vote - 投票记录
+     * @param {string} result - 投票结果 (red_win/blue_win)
+     * @param {string} resultMessage - 结果消息
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<void>}
+     */
+    static async _sendVoteResultEmbed(vote, result, resultMessage, client) {
+        try {
+            // 获取辩诉贴
+            const thread = await client.channels.fetch(vote.threadId).catch(() => null);
+            if (!thread) {
+                logTime(`无法获取辩诉贴 ${vote.threadId}，无法发送结果和锁定`, true);
+                return;
+            }
+
+            // 构建嵌入消息
+            const resultColor = result === 'red_win' ? 0xff0000 : 0x0000ff;
+
+            // 根据投票结果获取表情
+            const resultEmoji = result === 'red_win' ? '🔴' : '🔵';
+
+            // 获取投票数
+            const redCount = vote.redVoters.length;
+            const blueCount = vote.blueVoters.length;
 
                     const resultEmbed = {
                         color: resultColor,
@@ -583,38 +783,24 @@ class VoteService {
                         timestamp: new Date(),
                     };
 
-                    // 发送结果消息
-                    await thread.send({ embeds: [resultEmbed] });
+            // 发送结果消息
+            await thread.send({ embeds: [resultEmbed] });
 
-                    // 锁定辩诉贴
-                    await thread.setLocked(true, '议会辩诉已结束');
-
-                    logTime(`辩诉贴 ${latestVote.threadId} 已锁定，投票结果已发送`);
-                } else {
-                    logTime(`无法获取辩诉贴 ${latestVote.threadId}，无法发送结果和锁定`, true);
-                }
-            } catch (error) {
-                logTime(`发送投票结果到辩诉贴并锁定失败: ${error.message}`, true);
-                // 不抛出错误，避免影响主流程
-            }
-
-            return { result, message };
+            // 锁定辩诉贴
+            await thread.setLocked(true, '议会辩诉已结束');
         } catch (error) {
-            // 如果执行失败，恢复状态
-            await VoteModel.updateStatus(vote.id, 'in_progress');
-            logTime(`执行投票结果失败: ${error.message}`, true);
-            throw error;
+            logTime(`发送投票结果到辩诉贴并锁定失败: ${error.message}`, true);
+            // 不抛出错误，避免影响主流程
         }
     }
 
     /**
-     * 更新投票消息UI
-     * @param {Object} message - Discord消息对象
+     * 检查并执行投票结果
      * @param {Object} vote - 投票记录
-     * @param {Object} options - 更新选项
-     * @returns {Promise<void>}
+     * @param {Object} client - Discord客户端
+     * @returns {Promise<{result: string, message: string}>} 执行结果和提示消息
      */
-    static async updateVoteMessage(message, vote, options = {}) {
+    static async executeVoteResult(vote, client) {
         try {
             const { redVoters, blueVoters, redSide, blueSide, publicTime, endTime, status } = vote;
             const now = Date.now();
@@ -745,35 +931,43 @@ class VoteService {
                 return 0;
             }
 
-            // 获取最新的身份组信息
-            const roles = await guild.roles.fetch();
-            const role = roles.get(mainGuildConfig.roleApplication?.senatorRoleId);
+            // 处理器映射表
+            const resultHandlers = {
+                appeal: this._handleAppealVoteResult,
+                court_impeach: this._handleImpeachmentVoteResult,
+                court_ban: this._handlePunishmentVoteResult,
+                court_mute: this._handlePunishmentVoteResult,
+            };
 
-            if (!role) {
-                logTime(`无法获取议员身份组: ${mainGuildConfig.roleApplication?.senatorRoleId}`, true);
-                return 0;
-            }
+            // 根据投票类型选择对应的处理器
+            const handler = resultHandlers[type];
+            let resultMessage = await handler.call(this, latestVote, result, client);
 
-            // 获取所有服务器成员
-            const members = await guild.members.fetch();
+            // 构建完整结果消息
+            message += resultMessage;
 
-            // 统计拥有议员身份组的成员数量
-            const senatorsCount = members.filter(
-                member => member.roles.cache.has(mainGuildConfig.roleApplication?.senatorRoleId) && !member.user.bot,
-            ).size;
-
-            // 记录实际议员数量日志
+            // 记录日志
             logTime(
-                `议员总数(实际): ${senatorsCount} ` +
-                    `(服务器: ${guild.name}, ` +
-                    `身份组: ${role.name}, ` +
-                    `身份组ID: ${role.id})`,
+                `投票结束 [ID: ${latestVote.id}] - ` +
+                    `结果: ${result}, ` +
+                    `当前总议员: ${currentTotalVoters}, 有效阈值: ${threshold}票` +
+                    `红方: ${redCount}票, ` +
+                    `蓝方: ${blueCount}票` +
+                    (type === 'court_ban' ? `, 红方支持率: ${(redSupportRate * 100).toFixed(2)}%` : ''),
             );
 
-            return senatorsCount;
+            // 完成后更新状态
+            await VoteModel.updateStatus(latestVote.id, 'completed', { result });
+
+            // 发送投票结果嵌入消息到辩诉贴
+            await this._sendVoteResultEmbed(latestVote, result, message, client);
+
+            return { result, message };
         } catch (error) {
-            logTime(`获取议员总数失败: ${error.message}`, true);
-            return 0;
+            // 如果执行失败，恢复状态
+            await VoteModel.updateStatus(vote.id, 'in_progress');
+            logTime(`执行投票结果失败: ${error.message}`, true);
+            throw error;
         }
     }
 

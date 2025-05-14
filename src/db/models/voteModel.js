@@ -147,12 +147,17 @@ class VoteModel {
             const currentVoters = vote[votersField];
             const oppositeVoters = vote[oppositeField];
 
-            // 如果已经投过同一选项，则移除
-            const hasVoted = currentVoters.includes(userId);
-            let updatedVoters = hasVoted ? currentVoters.filter(id => id !== userId) : [...currentVoters, userId];
+            // 检查用户是否已经在此方投票
+            if (currentVoters.includes(userId)) {
+                // 用户已经在此方投票，直接返回当前投票状态
+                return vote;
+            }
 
-            // 如果在对方列表中，也要移除
+            // 如果用户在对方列表中，则从对方移除
             const updatedOppositeVoters = oppositeVoters.filter(id => id !== userId);
+
+            // 添加到当前选择
+            const updatedVoters = [...currentVoters, userId];
 
             // 使用 dbManager.transaction 方法
             await dbManager.transaction(async () => {
@@ -287,15 +292,16 @@ class VoteModel {
                 ORDER BY createdAt DESC
             `;
 
-            const targetPattern = `%"targetId":"${userId}"%`;  // 作为目标用户
-            const executorPattern = `%"executorId":"${userId}"%`;  // 作为发起人
-            const voterPattern = `%"${userId}"%`;  // 作为投票者
+            const targetPattern = `%"targetId":"${userId}"%`; // 作为目标用户
+            const executorPattern = `%"executorId":"${userId}"%`; // 作为发起人
+            const voterPattern = `%"${userId}"%`; // 作为投票者
 
-            const votes = await dbManager.safeExecute(
-                'all',
-                query,
-                [voterPattern, voterPattern, targetPattern, executorPattern]
-            );
+            const votes = await dbManager.safeExecute('all', query, [
+                voterPattern,
+                voterPattern,
+                targetPattern,
+                executorPattern,
+            ]);
 
             return votes ? votes.map(vote => this._parseVoteJSON(vote)) : [];
         } catch (error) {

@@ -568,23 +568,57 @@ class CourtService {
                         ]);
 
                         if (executor && target) {
-                            let notifyContent;
-                            if (process.type === 'court_impeach') {
-                                notifyContent = [
-                                    '✅ 有关您的弹劾管理员申请已获得足够议员支持，辩诉帖已创建：',
-                                    `[点击查看辩诉帖](${debateThread.url})`,
-                                    '注意：辩诉期间目标用户的已验证身份组将被暂时移除',
-                                ].join('\n');
-                            } else {
-                                notifyContent = [
-                                    '✅ 有关您的处罚申请已获得足够议员支持，辩诉帖已创建：',
-                                    `[点击查看辩诉帖](${debateThread.url})`,
-                                    '注意：辩诉期间目标用户的已验证身份组将被暂时移除',
-                                ].join('\n');
-                            }
+                            // 确定处罚类型文本
+                            const punishmentTypeText = {
+                                court_mute: '禁言',
+                                court_ban: '永封',
+                                court_impeach: '弹劾',
+                            }[process.type] || '处罚';
 
-                            await executor.send({ content: notifyContent });
-                            await target.send({ content: notifyContent });
+                            // 申请人的通知
+                            const executorEmbed = {
+                                color: 0x5865f2,
+                                title: `✅ ${punishmentTypeText}申请已获支持`,
+                                description: `您对 ${target.username} 的${punishmentTypeText}申请已获得足够议员支持`,
+                                fields: [
+                                    {
+                                        name: '辩诉帖链接',
+                                        value: `[点击查看辩诉帖](${debateThread.url})`,
+                                    },
+                                    {
+                                        name: '注意事项',
+                                        value: '1. 辩诉期间被告的已验证身份组将被暂时移除\n2. 每位参与者最多发送5条消息，间隔1分钟',
+                                    },
+                                ],
+                                timestamp: new Date(),
+                                footer: {
+                                    text: '创作者议会通知',
+                                },
+                            };
+
+                            // 被告的通知
+                            const targetEmbed = {
+                                color: 0xff5555,
+                                title: `⚠️ 收到${punishmentTypeText}申请`,
+                                description: `有人对您发起了${punishmentTypeText}申请，并已获得足够议员支持`,
+                                fields: [
+                                    {
+                                        name: '辩诉帖链接',
+                                        value: `[点击查看辩诉帖](${debateThread.url})`,
+                                    },
+                                    {
+                                        name: '注意事项',
+                                        value: '1. 辩诉期间您的已验证身份组将被暂时移除\n2. 每位参与者最多发送5条消息，间隔1分钟\n3. 您在24小时内可以在辩诉帖中进行申辩',
+                                    },
+                                ],
+                                timestamp: new Date(),
+                                footer: {
+                                    text: '创作者议会通知',
+                                },
+                            };
+
+                            await executor.send({ embeds: [executorEmbed] });
+                            await target.send({ embeds: [targetEmbed] });
                         }
                     } catch (error) {
                         logTime(`发送通知失败: ${error.message}`, true);
@@ -664,15 +698,58 @@ class CourtService {
                     try {
                         const executor = await client.users.fetch(punishment.executorId).catch(() => null);
                         if (executor && target) {
-                            const notifyContent = [
-                                '✅ 有关您的上诉申请已获得足够议员支持。',
-                                isPunishmentExpired ? '- 另外，处罚已过期' : '- 上诉期间处罚限制已解除',
-                                '- 已为您添加辩诉通行身份组，且上诉人的已验证身份组将被暂时移除，请事后自行答题验证',
-                                `辩诉帖已创建：${debateThread.url}`,
-                            ].join('\n');
+                            // 上诉人的通知
+                            const targetEmbed = {
+                                color: 0x00ff00,
+                                title: '✅ 上诉申请已获支持',
+                                description: `您的上诉申请已获得足够议员支持`,
+                                fields: [
+                                    {
+                                        name: '处罚状态',
+                                        value: isPunishmentExpired ? '处罚已过期' : '上诉期间处罚限制已解除',
+                                    },
+                                    {
+                                        name: '辩诉帖链接',
+                                        value: `[点击查看辩诉帖](${debateThread.url})`,
+                                    },
+                                    {
+                                        name: '注意事项',
+                                        value: '1. 您的已验证身份组将被暂时移除，上诉结束恢复\n2. 每位参与者最多发送5条消息，间隔1分钟',
+                                    },
+                                ],
+                                timestamp: new Date(),
+                                footer: {
+                                    text: '创作者议会通知',
+                                },
+                            };
 
-                            await executor.send({ content: notifyContent, flags: ['Ephemeral'] });
-                            await target.send({ content: notifyContent, flags: ['Ephemeral'] });
+                            // 原处罚执行人的通知
+                            const executorEmbed = {
+                                color: 0xffaa00,
+                                title: `⚠️ 处罚上诉通知`,
+                                description: `${target.username} 对您执行的处罚提出的上诉已获得足够议员支持`,
+                                fields: [
+                                    {
+                                        name: '处罚状态',
+                                        value: isPunishmentExpired ? '原处罚已过期' : '上诉期间处罚限制已临时解除',
+                                    },
+                                    {
+                                        name: '辩诉帖链接',
+                                        value: `[点击查看辩诉帖](${debateThread.url})`,
+                                    },
+                                    {
+                                        name: '注意事项',
+                                        value: '1. 上诉人的已验证身份组将被暂时移除\n2. 每位参与者最多发送5条消息，间隔1分钟',
+                                    },
+                                ],
+                                timestamp: new Date(),
+                                footer: {
+                                    text: '创作者议会通知',
+                                },
+                            };
+
+                            await target.send({ embeds: [targetEmbed] });
+                            await executor.send({ embeds: [executorEmbed] });
                         }
                     } catch (error) {
                         logTime(`发送通知失败: ${error.message}`, true);
@@ -731,7 +808,7 @@ class CourtService {
                                     {
                                         color: 0x00ff00,
                                         title: '✅ 提案成功',
-                                        description: `您的提案"${title}"已获得足够支持，已创建帖子以供进一步讨论。`,
+                                        description: `您的提案"${title}"已通过预审核，已创建帖子以供进一步讨论。`,
                                         fields: [
                                             {
                                                 name: '帖子链接',
@@ -739,6 +816,9 @@ class CourtService {
                                             },
                                         ],
                                         timestamp: new Date(),
+                                        footer: {
+                                            text: '创作者议会通知',
+                                        },
                                     },
                                 ],
                             });

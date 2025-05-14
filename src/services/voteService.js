@@ -267,18 +267,35 @@ class VoteService {
      * @param {Object} client - Discord客户端
      * @param {string} executorId - 申请人ID
      * @param {string} targetId - 目标用户ID
-     * @param {string} message - 通知消息
+     * @param {Object} options - 通知选项
+     * @param {Object} options.executorEmbed - 发给执行者的嵌入消息
+     * @param {Object} options.targetEmbed - 发给目标用户的嵌入消息
      * @returns {Promise<void>}
      */
-    static async _sendVoteResultNotification(client, executorId, targetId, message) {
+    static async _sendVoteResultNotification(client, executorId, targetId, { executorEmbed, targetEmbed }) {
         try {
             const [executor, target] = await Promise.all([
                 client.users.fetch(executorId).catch(() => null),
                 client.users.fetch(targetId).catch(() => null),
             ]);
 
-            if (executor) await executor.send({ content: message, flags: ['Ephemeral'] });
-            if (target) await target.send({ content: message, flags: ['Ephemeral'] });
+            // 为嵌入消息添加统一的页脚和时间戳
+            const commonFields = {
+                timestamp: new Date(),
+                footer: { text: "创作者议会通知" }
+            };
+
+            if (executor && executorEmbed) {
+                await executor.send({
+                    embeds: [{ ...executorEmbed, ...commonFields }]
+                });
+            }
+
+            if (target && targetEmbed && executorId !== targetId) {
+                await target.send({
+                    embeds: [{ ...targetEmbed, ...commonFields }]
+                });
+            }
         } catch (error) {
             logTime(`发送投票结果通知失败: ${error.message}`, true);
         }
@@ -433,6 +450,37 @@ class VoteService {
         if (result === 'red_win') {
             // 红方胜利，无需额外处理，因为处罚在辩诉阶段已经被解除
             message = '，处罚已解除';
+
+            // 发送通知
+            await this._sendVoteResultNotification(
+                client,
+                details.executorId,
+                details.targetId,
+                {
+                    executorEmbed: {
+                        color: 0xff5555,
+                        title: "⚠️ 处罚已撤销",
+                        description: "您执行的处罚已被议会撤销",
+                        fields: [
+                            {
+                                name: "撤销原因",
+                                value: "上诉已通过议会投票"
+                            }
+                        ]
+                    },
+                    targetEmbed: {
+                        color: 0x00ff00,
+                        title: "✅ 上诉成功",
+                        description: "您的上诉申请已获得议会支持",
+                        fields: [
+                            {
+                                name: "上诉结果",
+                                value: "处罚已解除"
+                            }
+                        ]
+                    }
+                }
+            );
         } else {
             // 蓝方胜利，重新部署处罚
             const { punishmentId, punishmentType, originalReason, originalDuration, originalWarningDuration } = details;
@@ -485,7 +533,30 @@ class VoteService {
                     client,
                     details.executorId,
                     details.targetId,
-                    '❌ 有关您的上诉未通过，原处罚已恢复。',
+                    {
+                        executorEmbed: {
+                            color: 0x00ff00,
+                            title: "✅ 处罚已维持",
+                            description: "您执行的处罚维持有效",
+                            fields: [
+                                {
+                                    name: "维持原因",
+                                    value: "上诉未通过议会投票"
+                                }
+                            ]
+                        },
+                        targetEmbed: {
+                            color: 0xff5555,
+                            title: "❌ 上诉失败",
+                            description: "您的上诉申请未获得议会支持",
+                            fields: [
+                                {
+                                    name: "上诉结果",
+                                    value: "原处罚已恢复"
+                                }
+                            ]
+                        }
+                    }
                 );
             } else {
                 message = `，但处罚恢复失败: ${punishMessage}`;
@@ -616,9 +687,30 @@ class VoteService {
                     client,
                     details.executorId,
                     details.targetId,
-                    details.executorId === details.targetId
-                        ? '✅ 有关您的弹劾申请投票已通过并执行。目标用户的所有管理员身份组已被撤销'
-                        : '⚠️ 您已被议会弹劾，您的所有管理员身份组已被撤销',
+                    {
+                        executorEmbed: {
+                            color: 0x00ff00,
+                            title: "✅ 弹劾成功",
+                            description: "您发起的弹劾投票已通过并执行",
+                            fields: [
+                                {
+                                    name: "执行结果",
+                                    value: "目标用户的所有管理员身份组已被撤销"
+                                }
+                            ]
+                        },
+                        targetEmbed: {
+                            color: 0xff5555,
+                            title: "⚠️ 弹劾通知",
+                            description: "您已被议会弹劾",
+                            fields: [
+                                {
+                                    name: "弹劾结果",
+                                    value: "您的所有管理员身份组已被撤销"
+                                }
+                            ]
+                        }
+                    }
                 );
             } catch (error) {
                 logTime(`执行弹劾操作失败: ${error.message}`, true);
@@ -632,7 +724,30 @@ class VoteService {
                 client,
                 details.executorId,
                 details.targetId,
-                '❌ 有关您的弹劾申请投票未通过，申请已驳回。',
+                {
+                    executorEmbed: {
+                        color: 0xff5555,
+                        title: "❌ 弹劾失败",
+                        description: "您发起的弹劾投票未通过",
+                        fields: [
+                            {
+                                name: "驳回原因",
+                                value: "未获得足够议员支持"
+                            }
+                        ]
+                    },
+                    targetEmbed: {
+                        color: 0x00ff00,
+                        title: "✅ 弹劾已驳回",
+                        description: "针对您的弹劾申请已被议会驳回",
+                        fields: [
+                            {
+                                name: "驳回结果",
+                                value: "您的管理员身份组将被保留"
+                            }
+                        ]
+                    }
+                }
             );
         }
 
@@ -704,13 +819,42 @@ class VoteService {
                     message = '，处罚已执行';
                 }
 
-                // 发送通知
-                const notifyContent =
-                    result === 'red_win_partial' && type === 'court_ban'
-                        ? '✅ 有关您的议事处罚投票已部分通过，执行7天禁言+90天警告。'
-                        : '✅ 有关您的议事处罚投票已通过并执行。';
+                // 确定处罚类型文本
+                const punishmentTypeText = punishmentType === 'ban' ? '永封' : '禁言';
+                const resultText = result === 'red_win_partial' ?
+                    `支持率在50%-60%之间，执行7天禁言+90天警告` :
+                    `处罚已执行：${punishmentTypeText}`;
 
-                await this._sendVoteResultNotification(client, details.executorId, details.targetId, notifyContent);
+                // 发送通知
+                await this._sendVoteResultNotification(
+                    client,
+                    details.executorId,
+                    details.targetId,
+                    {
+                        executorEmbed: {
+                            color: 0x00ff00,
+                            title: "✅ 处罚申请已执行",
+                            description: "您发起的处罚申请已获得议会支持",
+                            fields: [
+                                {
+                                    name: "执行结果",
+                                    value: resultText
+                                }
+                            ]
+                        },
+                        targetEmbed: {
+                            color: 0xff5555,
+                            title: "⚠️ 处罚通知",
+                            description: "议会已通过对您的处罚申请",
+                            fields: [
+                                {
+                                    name: "处罚结果",
+                                    value: resultText
+                                }
+                            ]
+                        }
+                    }
+                );
             } else {
                 message = `，但处罚执行失败: ${punishMessage}`;
             }
@@ -722,7 +866,30 @@ class VoteService {
                 client,
                 details.executorId,
                 details.targetId,
-                '❌ 有关您的上庭申请投票未通过，申请已驳回。',
+                {
+                    executorEmbed: {
+                        color: 0xff5555,
+                        title: "❌ 处罚申请未通过",
+                        description: "您发起的处罚申请未获得议会支持",
+                        fields: [
+                            {
+                                name: "驳回原因",
+                                value: "未获得足够议员支持"
+                            }
+                        ]
+                    },
+                    targetEmbed: {
+                        color: 0x00ff00,
+                        title: "✅ 处罚申请已驳回",
+                        description: "针对您的处罚申请已被议会驳回",
+                        fields: [
+                            {
+                                name: "驳回结果",
+                                value: "您不会受到相关处罚"
+                            }
+                        ]
+                    }
+                }
             );
         }
 

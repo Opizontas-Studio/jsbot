@@ -130,48 +130,45 @@ class VoteService {
             throw new Error('此投票已结束');
         }
 
-        // 确定选择字段和对方字段
-        const votersField = choice === 'red' ? 'redVoters' : 'blueVoters';
-        const oppositeField = choice === 'red' ? 'blueVoters' : 'redVoters';
+        // 获取原始状态用于后续比较
+        const originalVote = { ...vote };
+        const oppositeChoice = choice === 'red' ? 'blue' : 'red';
+        const wasInOpposite = originalVote[`${oppositeChoice}Voters`].includes(userId);
+        const wasInCurrent = originalVote[`${choice}Voters`].includes(userId);
 
-        // 检查用户是否已经投过同色票
-        const hasVoted = vote[votersField].includes(userId);
-
-        // 如果已经投票支持此方，返回提示而不执行投票操作
-        if (hasVoted) {
-            return {
-                vote,
-                message: `✅ 您已投票过支持${choice === 'red' ? '红方' : '蓝方'}诉求`,
-                shouldUpdateMessage: false,
-            };
-        }
-
-        // 如果未投过此方但投过对方，则从对方移除并添加到此方
-        const oppositeVoted = vote[oppositeField].includes(userId);
-
-        // 执行投票
+        // 执行数据库操作 - 如果已经投给同方，addVoter会直接返回原状态
         const updatedVote = await VoteModel.addVoter(vote.id, userId, choice);
 
-        // 记录投票操作
-        logTime(
-            `[投票操作] [ID: ${vote.id}] - 用户: ${userId} ${oppositeVoted ? '切换至' : '支持'}${
+        // 生成回复消息和日志
+        let message, logMessage;
+
+        if (wasInCurrent) {
+            // 已经投给同方的情况
+            message = `ℹ️ 你已经支持过${choice === 'red' ? '红方' : '蓝方'}诉求`;
+        } else if (wasInOpposite) {
+            // 从另一方换到当前方
+            message = `✅ 你已将支持从${oppositeChoice === 'red' ? '红方' : '蓝方'}换到${
                 choice === 'red' ? '红方' : '蓝方'
-            }`,
-        );
-
-        // 生成回复消息
-        const message = oppositeVoted
-            ? `✅ 你已切换到支持${choice === 'red' ? '红方' : '蓝方'}诉求`
-            : `✅ 你已支持${choice === 'red' ? '红方' : '蓝方'}诉求`;
-
-        // 只有在到达公开时间后才更新消息显示票数
-        const now = Date.now();
-        if (now >= updatedVote.publicTime) {
-            // 如果已到公开时间，返回更新消息的标记
-            return { vote: updatedVote, message, shouldUpdateMessage: true };
+            }诉求`;
+            logMessage = `[投票操作] [ID: ${vote.id}] - 用户: ${userId} 从${
+                oppositeChoice === 'red' ? '红方' : '蓝方'
+            }换到${choice === 'red' ? '红方' : '蓝方'}`;
+        } else {
+            // 新投票
+            message = `✅ 你已支持${choice === 'red' ? '红方' : '蓝方'}诉求`;
+            logMessage = `[投票操作] [ID: ${vote.id}] - 用户: ${userId} 支持${choice === 'red' ? '红方' : '蓝方'}`;
         }
 
-        return { vote: updatedVote, message, shouldUpdateMessage: false };
+        // 记录日志（仅在有实际变化时）
+        if (logMessage) {
+            logTime(logMessage);
+        }
+
+        // 只有在到达公开时间后才更新消息显示票数，且只有在有变化时才更新
+        const now = Date.now();
+        const shouldUpdateMessage = now >= updatedVote.publicTime && !wasInCurrent;
+
+        return { vote: updatedVote, message, shouldUpdateMessage };
     }
 
     /**
@@ -760,28 +757,28 @@ class VoteService {
             const redCount = vote.redVoters.length;
             const blueCount = vote.blueVoters.length;
 
-                    const resultEmbed = {
-                        color: resultColor,
-                        title: `📜 议会辩诉决议 ${latestVote.id} 号`,
-                        description: [
-                            `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
-                            ``,
-                            `⚔️ **红方票数：** ${redCount} 票`,
-                            `🛡️ **蓝方票数：** ${blueCount} 票`,
-                            `👥 **支持率：** ${((redCount / (redCount + blueCount)) * 100).toFixed(2)}% / ${(
-                                (blueCount / (redCount + blueCount)) *
-                                100
-                            ).toFixed(2)}%`,
-                            ``,
-                            `${resultEmoji} **最终裁决：** ${message}`,
-                            ``,
-                            `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
-                        ].join('\n'),
-                        footer: {
-                            text: '此结果由议会表决产生，具有最终效力',
-                        },
-                        timestamp: new Date(),
-                    };
+            const resultEmbed = {
+                color: resultColor,
+                title: `📜 议会辩诉决议 ${vote.id} 号`,
+                description: [
+                    `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
+                    ``,
+                    `⚔️ **红方票数：** ${redCount} 票`,
+                    `🛡️ **蓝方票数：** ${blueCount} 票`,
+                    `👥 **支持率：** ${((redCount / (redCount + blueCount)) * 100).toFixed(2)}% / ${(
+                        (blueCount / (redCount + blueCount)) *
+                        100
+                    ).toFixed(2)}%`,
+                    ``,
+                    `${resultEmoji} **最终裁决：** ${resultMessage}`,
+                    ``,
+                    `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
+                ].join('\n'),
+                footer: {
+                    text: '此结果由议会表决产生，具有最终效力',
+                },
+                timestamp: new Date(),
+            };
 
             // 发送结果消息
             await thread.send({ embeds: [resultEmbed] });
@@ -802,133 +799,55 @@ class VoteService {
      */
     static async executeVoteResult(vote, client) {
         try {
-            const { redVoters, blueVoters, redSide, blueSide, publicTime, endTime, status } = vote;
-            const now = Date.now();
-            const canShowCount = now >= publicTime;
-
-            const description = [
-                `${status === 'completed' ? '⏰ 投票已结束' : `⏳ 投票截止：<t:${Math.floor(endTime / 1000)}:R>`}`,
-                `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
-                '',
-                '🔴 **红方诉求：** ' + redSide,
-                '',
-                '🔵 **蓝方诉求：** ' + blueSide,
-                '',
-                `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
-                '',
-                this._generateProgressBar(redVoters.length, blueVoters.length, canShowCount),
-                '',
-                canShowCount
-                    ? `👥 **总投票人数：** ${redVoters.length + blueVoters.length}`
-                    : `🔒 票数将在 <t:${Math.floor(publicTime / 1000)}:R> 公开`,
-            ].join('\n');
-
-            // 构建嵌入消息
-            const embed = {
-                color: status === 'completed' ? (options.result === 'red_win' ? 0xff0000 : 0x0000ff) : 0x5865f2,
-                title: '📊 议会辩诉投票',
-                description: description,
-                timestamp: new Date(),
-                footer: {
-                    text:
-                        status === 'completed'
-                            ? '投票已结束，请查看结果'
-                            : '再次点击同色支持可以撤销，点击另一色支持按钮换边',
-                },
-            };
-
-            // 如果投票已结束，添加结果
-            if (status === 'completed' && options.message) {
-                embed.description += '\n\n' + ['**🏛️ 投票结果：**', options.message].join('\n');
+            // 获取最新的投票数据
+            const latestVote = await VoteModel.getVoteById(vote.id);
+            if (!latestVote) {
+                throw new Error('无法获取投票数据');
             }
 
-            // 更新消息
-            await message.edit({
-                embeds: [embed],
-                components: status === 'completed' ? [] : message.components,
-            });
-
-            // 只在定时器触发时记录日志，避免重复记录
-            if (canShowCount && !options.result && options.isSchedulerUpdate) {
-                logTime(`投票公开 [ID: ${vote.id}] - 当前票数 红方: ${redVoters.length}, 蓝方: ${blueVoters.length}`);
-            }
-        } catch (error) {
-            logTime(`更新投票消息失败: ${error.message}`, true);
-            throw error;
-        }
-    }
-
-    /**
-     * 生成进度条
-     * @private
-     * @param {number} redCount - 红方票数
-     * @param {number} blueCount - 蓝方票数
-     * @param {boolean} canShowCount - 是否显示总票数
-     * @returns {string} 进度条文本
-     */
-    static _generateProgressBar(redCount, blueCount, canShowCount) {
-        const total = redCount + blueCount;
-        if (total === 0) return '🔴 ⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛ 🔵';
-
-        const length = 12; // 12个方格
-        const redLength = Math.round((redCount / total) * length);
-        const blueLength = length - redLength;
-
-        const redBar = redLength > 0 ? '🟥'.repeat(redLength) : '';
-        const blueBar = blueLength > 0 ? '🟦'.repeat(blueLength) : '';
-
-        const progressBar = `🔴 ${redBar}${redLength < length ? '⚖️' : ''}${blueBar} 🔵`;
-
-        if (!canShowCount) return progressBar;
-
-        const redPercent = total > 0 ? ((redCount / total) * 100).toFixed(1) : '0.0';
-        const bluePercent = total > 0 ? ((blueCount / total) * 100).toFixed(1) : '0.0';
-
-        return [
-            progressBar,
-            `⚔️ **红方：** ${redCount} 票 (${redPercent}%)`,
-            `🛡️ **蓝方：** ${blueCount} 票 (${bluePercent}%)`,
-        ].join('\n');
-    }
-
-    /**
-     * 生成投票提示消息
-     * @private
-     * @param {Object} vote - 投票记录
-     * @param {string} userId - 投票用户ID
-     * @param {string} choice - 投票选择
-     * @returns {string} 提示消息
-     */
-    static _generateVoteMessage(vote, userId, choice) {
-        const hasVoted = vote[`${choice}Voters`].includes(userId);
-        return hasVoted
-            ? `✅ 你已支持${choice === 'red' ? '红方' : '蓝方'}诉求`
-            : `✅ 你已取消对${choice === 'red' ? '红方' : '蓝方'}诉求的支持`;
-    }
-
-    /**
-     * 获取议员总数
-     * @private
-     * @param {Object} client - Discord客户端
-     * @returns {Promise<number>} 议员总数
-     */
-    static async _getSenatorsCount(client) {
-        try {
-            // 获取主服务器配置
-            const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
-                config => config.serverType === 'Main server',
-            );
-
-            if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.senatorRoleId) {
-                logTime('无法获取主服务器配置或议事系统未启用', true);
-                return 0;
+            // 获取当前实时的议员总数
+            const currentTotalVoters = await this._getSenatorsCount(client);
+            if (currentTotalVoters === 0) {
+                throw new Error('无法获取当前议员总数');
             }
 
-            // 获取主服务器的Guild对象
-            const guild = await client.guilds.fetch(mainGuildConfig.id);
-            if (!guild) {
-                logTime(`无法获取服务器: ${mainGuildConfig.id}`, true);
-                return 0;
+            const { redVoters, blueVoters, type } = latestVote;
+            const redCount = redVoters.length;
+            const blueCount = blueVoters.length;
+            const threshold = Math.ceil(20 + currentTotalVoters * 0.01); // 使用"20+1%议员人数"作为有效阈值
+            const total = redCount + blueCount;
+            const redSupportRate = total > 0 ? redCount / total : 0;
+
+            // 处理投票后的身份组管理
+            await this._handleRolesAfterVote(client, latestVote);
+
+            // 判断结果
+            let result, message;
+
+            if (redCount + blueCount < threshold) {
+                result = 'blue_win';
+                message = `投票人数未达到${threshold}票，执行蓝方诉求`;
+            } else if (redCount === blueCount) {
+                result = 'blue_win';
+                message = '投票持平，执行蓝方诉求';
+            } else {
+                // 永封投票使用阶段判定逻辑
+                if (type === 'court_ban') {
+                    if (redSupportRate >= 0.6) {
+                        result = 'red_win';
+                        message = '红方获胜，支持率达到60%以上，执行永封';
+                    } else if (redSupportRate > 0.5) {
+                        result = 'red_win_partial';
+                        message = '红方获胜，支持率在50%-60%之间，执行7天禁言+90天警告';
+                    } else {
+                        result = 'blue_win';
+                        message = '红方支持率不足50%，执行蓝方诉求';
+                    }
+                } else {
+                    // 其他类型投票保持原有逻辑
+                    result = redCount > blueCount ? 'red_win' : 'blue_win';
+                    message = `${result === 'red_win' ? '红方' : '蓝方'}获胜`;
+                }
             }
 
             // 处理器映射表

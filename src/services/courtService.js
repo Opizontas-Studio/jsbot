@@ -103,7 +103,7 @@ class CourtService {
                     title: '📊 议会辩诉投票',
                     description: [
                         `⏳ 投票截止：<t:${Math.floor((Date.now() + guildConfig.courtSystem.voteDuration) / 1000)}:R>`,
-                        `━━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━━`,
+                        `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
                         '',
                         `🔴 **红方诉求：** ${
                             process.type === 'appeal'
@@ -115,9 +115,9 @@ class CourtService {
                         '',
                         `🔵 **蓝方诉求：** ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,
                         '',
-                        `━━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━━`,
+                        `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━━`,
                         '',
-                        '🔴 ⬛⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛⬛ 🔵',
+                        '🔴 ⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛ 🔵',
                         '',
                         `🔒 票数将在 <t:${Math.floor(
                             (Date.now() + guildConfig.courtSystem.votePublicDelay) / 1000,

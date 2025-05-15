@@ -66,6 +66,21 @@ class DatabaseManager {
             await this._createTables();
             await this._updateTables();
 
+            // 验证外键约束是否启用
+            const foreignKeysEnabled = await this.safeExecute('get', 'PRAGMA foreign_keys');
+            if (!foreignKeysEnabled || foreignKeysEnabled.foreign_keys !== 1) {
+                logTime('警告: 外键约束未启用，重新启用中...', true);
+                await this.db.exec('PRAGMA foreign_keys = ON');
+
+                // 再次验证
+                const recheck = await this.safeExecute('get', 'PRAGMA foreign_keys');
+                if (!recheck || recheck.foreign_keys !== 1) {
+                    throw new Error('无法启用外键约束，这可能导致数据一致性问题');
+                } else {
+                    logTime('外键约束已成功启用');
+                }
+            }
+
             logTime('数据库初始化完成');
         } catch (error) {
             this.db = undefined;
@@ -95,7 +110,8 @@ class DatabaseManager {
 	            createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
 	            updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
 	            notificationMessageId TEXT DEFAULT NULL,
-	            notificationGuildId TEXT DEFAULT NULL
+	            notificationGuildId TEXT DEFAULT NULL,
+                statusReason TEXT DEFAULT NULL
 	        )
 	    `);
 
@@ -173,6 +189,9 @@ class DatabaseManager {
     async _updateTables() {
         assertIsDatabase(this.db);
 
+        // 确保外键约束已启用
+        await this.db.exec('PRAGMA foreign_keys = ON');
+
         // 检查并添加新列
         const columns = await this.db.all(`PRAGMA table_info(punishments)`);
         const columnNames = columns.map(col => col.name);
@@ -207,131 +226,39 @@ class DatabaseManager {
             }
         }
 
-        // 更新processes表的type约束 - 使用临时表重建的方式
+        // 检查投票表索引是否存在
+        const indexCheck = await this.db.get("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_votes_process'");
+
+        if (!indexCheck) {
+            // 创建缺失的索引
+            await this.db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_votes_process ON votes(processId);
+                CREATE INDEX IF NOT EXISTS idx_votes_message ON votes(messageId);
+                CREATE INDEX IF NOT EXISTS idx_votes_thread ON votes(threadId);
+                CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
+                CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
+            `);
+            logTime('已添加缺失的投票表索引');
+        }
+
+        // 验证外键的完整性
         try {
-            await this.transaction(async db => {
-                // 检查processes表中是否需要更新type约束
-                const processTableInfo = await db.get(
-                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='processes'",
-                );
-                if (processTableInfo && !processTableInfo.sql.includes('court_impeach')) {
-                    logTime('更新processes表type约束...');
+            const foreignKeyIssues = await this.db.all('PRAGMA foreign_key_check');
+            if (foreignKeyIssues && foreignKeyIssues.length > 0) {
+                logTime(`检测到外键完整性问题: ${foreignKeyIssues.length}条违规记录`, true);
 
-                    // 1. 重命名旧表
-                    await db.exec('ALTER TABLE processes RENAME TO processes_old');
-
-                    // 2. 创建新表结构
-                    await db.exec(`
-                        CREATE TABLE processes (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            type TEXT NOT NULL CHECK(
-                                type IN ('appeal', 'vote', 'debate', 'court_mute', 'court_ban', 'court_impeach')
-                            ),
-                            targetId TEXT NOT NULL,
-                            executorId TEXT NOT NULL,
-                            messageId TEXT UNIQUE NOT NULL,
-                            statusMessageId TEXT,
-                            debateThreadId TEXT,
-                            status TEXT NOT NULL DEFAULT 'pending'
-                                CHECK(status IN ('pending', 'in_progress', 'completed', 'rejected', 'cancelled')),
-                            expireAt INTEGER NOT NULL,
-                            details TEXT DEFAULT '{}',
-                            supporters TEXT DEFAULT '[]',
-                            result TEXT CHECK(result IN ('approved', 'rejected', 'cancelled', NULL)),
-                            reason TEXT DEFAULT '',
-                            createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-                            updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
-                        )
-                    `);
-
-                    // 3. 复制旧数据到新表
-                    await db.exec(`
-                        INSERT INTO processes
-                        SELECT id, type, targetId, executorId, messageId, statusMessageId, debateThreadId,
-                               status, expireAt, details, supporters, result, reason, createdAt, updatedAt
-                        FROM processes_old
-                    `);
-
-                    // 4. 删除旧表
-                    await db.exec('DROP TABLE processes_old');
-
-                    // 5. 重建索引
-                    await db.exec(`
-                        CREATE INDEX IF NOT EXISTS idx_processes_target ON processes(targetId);
-                        CREATE INDEX IF NOT EXISTS idx_processes_message ON processes(messageId);
-                        CREATE INDEX IF NOT EXISTS idx_processes_status_message ON processes(statusMessageId);
-                        CREATE INDEX IF NOT EXISTS idx_processes_debate ON processes(debateThreadId);
-                        CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(status, expireAt);
-                        CREATE INDEX IF NOT EXISTS idx_processes_type ON processes(type);
-                    `);
-
-                    logTime('processes表type约束更新完成');
-                }
-
-                // 检查votes表中是否需要更新type约束
-                const votesTableInfo = await db.get(
-                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='votes'",
-                );
-                if (votesTableInfo && !votesTableInfo.sql.includes('court_impeach')) {
-                    logTime('更新votes表type约束...');
-
-                    // 1. 重命名旧表
-                    await db.exec('ALTER TABLE votes RENAME TO votes_old');
-
-                    // 2. 创建新表结构
-                    await db.exec(`
-                        CREATE TABLE votes (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            processId INTEGER NOT NULL,
-                            type TEXT NOT NULL CHECK(
-                                type IN ('appeal', 'court_mute', 'court_ban', 'court_impeach')
-                            ),
-                            redSide TEXT NOT NULL,
-                            blueSide TEXT NOT NULL,
-                            redVoters TEXT DEFAULT '[]',
-                            blueVoters TEXT DEFAULT '[]',
-                            totalVoters INTEGER NOT NULL,
-                            startTime INTEGER NOT NULL,
-                            endTime INTEGER NOT NULL,
-                            publicTime INTEGER NOT NULL,
-                            status TEXT NOT NULL DEFAULT 'in_progress'
-                                CHECK(status IN ('in_progress', 'completed')),
-                            result TEXT CHECK(result IN ('red_win', 'blue_win', 'cancelled', NULL)),
-                            messageId TEXT NOT NULL,
-                            threadId TEXT NOT NULL,
-                            details TEXT DEFAULT '{}',
-                            createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-                            updatedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-                            FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
-                        )
-                    `);
-
-                    // 3. 复制旧数据到新表
-                    await db.exec(`
-                        INSERT INTO votes
-                        SELECT id, processId, type, redSide, blueSide, redVoters, blueVoters, totalVoters,
-                               startTime, endTime, publicTime, status, result, messageId, threadId,
-                               details, createdAt, updatedAt
-                        FROM votes_old
-                    `);
-
-                    // 4. 删除旧表
-                    await db.exec('DROP TABLE votes_old');
-
-                    // 5. 重建索引
-                    await db.exec(`
-                        CREATE INDEX IF NOT EXISTS idx_votes_process ON votes(processId);
-                        CREATE INDEX IF NOT EXISTS idx_votes_message ON votes(messageId);
-                        CREATE INDEX IF NOT EXISTS idx_votes_thread ON votes(threadId);
-                        CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
-                        CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
-                    `);
-
-                    logTime('votes表type约束更新完成');
-                }
-            });
+                // 删除有问题的投票记录
+                await this.transaction(async db => {
+                    for (const issue of foreignKeyIssues) {
+                        if (issue.table === 'votes') {
+                            await db.exec(`DELETE FROM votes WHERE rowid = ${issue.rowid}`);
+                            logTime(`已删除无效的投票记录: rowid=${issue.rowid}`);
+                        }
+                    }
+                });
+            }
         } catch (error) {
-            logTime(`更新表约束失败: ${error.message}`, true);
+            logTime(`外键检查失败: ${error.message}`, true);
         }
     }
 
@@ -363,6 +290,9 @@ class DatabaseManager {
         if (!this.db) {
             throw new Error('数据库未连接');
         }
+
+        // 确保外键约束已启用
+        await this.db.exec('PRAGMA foreign_keys = ON');
 
         await this.safeExecute('run', 'BEGIN TRANSACTION');
         try {

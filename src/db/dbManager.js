@@ -275,6 +275,14 @@ class DatabaseManager {
         }
 
         try {
+            // 确保每次操作前外键约束都是启用的
+            if ((operation === 'run' || operation === 'exec') &&
+                (query.toUpperCase().includes('INSERT') ||
+                 query.toUpperCase().includes('DELETE') ||
+                 query.toUpperCase().includes('UPDATE'))) {
+                await this.db.exec('PRAGMA foreign_keys = ON');
+            }
+
             return await this.db[operation](query, params);
         } catch (error) {
             throw error;

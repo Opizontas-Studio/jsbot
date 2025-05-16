@@ -144,6 +144,9 @@ export default {
                     const muteTime = interaction.options.getString('禁言时间');
                     const warningTime = interaction.options.getString('附加警告期');
 
+                    // 计算禁言时长
+                    const muteDuration = calculatePunishmentDuration(muteTime);
+
                     // 如果附加警告期不是"无"，则处理警告期
                     let warningDuration = null;
                     if (warningTime && warningTime !== '无') {

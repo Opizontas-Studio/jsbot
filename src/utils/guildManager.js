@@ -17,11 +17,11 @@ export class GuildManager {
             const automationConfig = guildConfig.automation || {};
 
             // 验证必要的配置字段
-            if (!guildConfig.moderationLogThreadId) {
-                logTime(`警告: 服务器 ${guildId} 缺少 moderationLogThreadId 配置`, true);
+            if (!guildConfig.serverType) {
+                logTime(`警告: 服务器 ${guildId} 缺少 serverType 配置`, true);
             }
-            if (!guildConfig.threadLogThreadId) {
-                logTime(`警告: 服务器 ${guildId} 缺少 threadLogThreadId 配置`, true);
+            if (!guildConfig.AdministratorRoleIds) {
+                logTime(`警告: 服务器 ${guildId} 缺少 AdministratorRoleIds 配置`, true);
             }
             if (!guildConfig.ModeratorRoleIds || guildConfig.ModeratorRoleIds.length === 0) {
                 logTime(`警告: 服务器 ${guildId} 缺少 ModeratorRoleIds 配置`, true);

@@ -9,6 +9,19 @@ import { logTime } from '../utils/logger.js';
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 /**
+ * 读取身份组同步配置
+ * @returns {Object} 身份组同步配置对象
+ */
+export const getRoleSyncConfig = () => {
+    try {
+        return JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+    } catch (error) {
+        logTime(`[身份同步] 读取身份组同步配置失败: ${error.message}`, true);
+        throw error;
+    }
+};
+
+/**
  * 同步用户的身份组
  * @param {GuildMember} member - Discord服务器成员对象
  * @param {boolean} [isAutoSync=false] - 是否为自动同步（加入服务器时）
@@ -17,7 +30,7 @@ const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 export const syncMemberRoles = async (member, isAutoSync = false) => {
     try {
         // 读取身份组同步配置
-        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+        const roleSyncConfig = getRoleSyncConfig();
         const syncedRoles = [];
         const guildRolesMap = new Map(); // Map<guildId, Set<roleId>>
         const guildSyncGroups = new Map(); // Map<guildId, Map<roleId, {name, sourceServer}>>
@@ -91,7 +104,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                     // 添加API请求延迟
                     await delay(500);
                 } catch (error) {
-                    logTime(`同步用户 ${member.user.tag} 在服务器 ${guildId} 的身份组失败: ${error.message}`, true);
+                    logTime(`[身份同步] 同步用户 ${member.user.tag} 在服务器 ${guildId} 的身份组失败: ${error.message}`, true);
                 }
             }
         }, 2);
@@ -108,22 +121,24 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 
         return { syncedRoles };
     } catch (error) {
-        logTime(`处理用户 ${member.user.tag} 的身份组同步时发生错误: ${error.message}`, true);
+        logTime(`[身份同步] 处理用户 ${member.user.tag} 的身份组同步时发生错误: ${error.message}`, true);
         throw error;
     }
 };
 
 /**
- * 批量撤销用户的多个同步组身份组
+ * 批量处理用户的多个同步组身份组（添加或移除）
  * @param {Object} client - Discord客户端
  * @param {string} userId - 目标用户ID
- * @param {Array<Object>} syncGroups - 要撤销的同步组配置数组
- * @param {string} reason - 撤销原因
+ * @param {Array<Object>} syncGroups - 要处理的同步组配置数组
+ * @param {string} reason - 操作原因
+ * @param {boolean} isRemove - 是否为移除操作，否则为添加操作
  * @returns {Promise<{success: boolean, successfulServers: string[], failedServers: Array<{id: string, name: string}>}>}
  */
-export const revokeRolesByGroups = async (client, userId, syncGroups, reason) => {
+export const manageRolesByGroups = async (client, userId, syncGroups, reason, isRemove = false) => {
     const successfulServers = [];
     const failedServers = [];
+    const operation = isRemove ? '移除' : '添加';
 
     try {
         // 收集所有需要处理的服务器和对应的身份组
@@ -156,25 +171,32 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
                         continue;
                     }
 
-                    // 检查用户实际拥有的需要移除的身份组
-                    const rolesToRemove = Array.from(roleIds).filter(roleId => member.roles.cache.has(roleId));
+                    // 检查用户的身份组状态，确定需要操作的身份组
+                    const rolesToProcess = Array.from(roleIds).filter(roleId =>
+                        isRemove ? member.roles.cache.has(roleId) : !member.roles.cache.has(roleId)
+                    );
 
-                    if (rolesToRemove.length === 0) {
-                        logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 没有需要移除的身份组`);
+                    if (rolesToProcess.length === 0) {
+                        logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 没有需要${operation}的身份组`);
                         continue;
                     }
 
-                    // 一次性移除多个身份组
-                    await member.roles.remove(rolesToRemove, reason);
+                    // 执行角色操作
+                    if (isRemove) {
+                        await member.roles.remove(rolesToProcess, reason);
+                    } else {
+                        await member.roles.add(rolesToProcess, reason);
+                    }
+
                     successfulServers.push(guild.name);
                     logTime(
-                        `[身份同步] 已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的 ${rolesToRemove.length} 个身份组`,
+                        `[身份同步] 已在服务器 ${guild.name} ${operation}用户 ${member.user.tag} 的 ${rolesToProcess.length} 个身份组`,
                     );
 
                     // 添加API请求延迟
                     await delay(500);
                 } catch (error) {
-                    logTime(`在服务器 ${guildId} 移除身份组失败: ${error.message}`, true);
+                    logTime(`[身份同步] 在服务器 ${guildId} ${operation}身份组失败: ${error.message}`, true);
                     failedServers.push({ id: guildId, name: guildId });
                 }
             }
@@ -186,7 +208,7 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
             failedServers,
         };
     } catch (error) {
-        logTime(`[身份同步] 批量撤销身份组操作失败: ${error.message}`, true);
+        logTime(`[身份同步] 批量${operation}身份组操作失败: ${error.message}`, true);
         return {
             success: false,
             successfulServers,
@@ -196,84 +218,130 @@ export const revokeRolesByGroups = async (client, userId, syncGroups, reason) =>
 };
 
 /**
- * 批量添加用户的多个同步组身份组
+ * 设置辩诉参与者身份组（添加辩诉通行权限并移除已验证身份组）
  * @param {Object} client - Discord客户端
- * @param {string} userId - 目标用户ID
- * @param {Array<Object>} syncGroups - 要添加的同步组配置数组
- * @param {string} reason - 添加原因
- * @returns {Promise<{success: boolean, successfulServers: string[], failedServers: Array<{id: string, name: string}>}>}
+ * @param {Object} guildConfig - 服务器配置
+ * @param {string} executorId - 执行者ID
+ * @param {string} targetId - 目标用户ID
+ * @param {string} reason - 操作原因
+ * @returns {Promise<void>}
  */
-export const addRolesByGroups = async (client, userId, syncGroups, reason) => {
-    const successfulServers = [];
-    const failedServers = [];
-
+export const setupDebateParticipantRoles = async (client, guildConfig, executorId, targetId, reason) => {
     try {
-        // 收集所有需要处理的服务器和对应的身份组
-        const guildRolesMap = new Map(); // Map<guildId, Set<roleId>>
-
-        for (const syncGroup of syncGroups) {
-            for (const [guildId, roleId] of Object.entries(syncGroup.roles)) {
-                if (!guildRolesMap.has(guildId)) {
-                    guildRolesMap.set(guildId, new Set());
-                }
-                guildRolesMap.get(guildId).add(roleId);
-            }
+        const mainGuild = await client.guilds.fetch(guildConfig.id).catch(() => null);
+        if (!mainGuild || !guildConfig.roleApplication?.appealDebateRoleId) {
+            return;
         }
 
-        // 批量处理每个服务器
-        await globalRequestQueue.add(async () => {
-            for (const [guildId, roleIds] of guildRolesMap) {
-                try {
-                    // 获取服务器信息
-                    const guild = await client.guilds.fetch(guildId);
-                    if (!guild) {
-                        failedServers.push({ id: guildId, name: guildId });
-                        continue;
-                    }
+        // 1. 获取双方成员对象
+        const [executorMember, targetMember] = await Promise.all([
+            mainGuild.members.fetch(executorId).catch(() => null),
+            mainGuild.members.fetch(targetId).catch(() => null),
+        ]);
 
-                    // 获取成员信息
-                    const member = await guild.members.fetch(userId);
-                    if (!member) {
-                        logTime(`用户 ${userId} 不在服务器 ${guild.name} 中`, true);
-                        continue;
-                    }
+        // 2. 为双方添加辩诉通行身份组
+        const addRolePromises = [executorMember, targetMember]
+            .filter(member => member) // 过滤掉不存在的成员
+            .map(member =>
+                member.roles
+                    .add(guildConfig.roleApplication?.appealDebateRoleId, reason)
+                    .then(() => logTime(`[身份同步] 已添加用户 ${member.user.tag} 的辩诉通行身份组`))
+                    .catch(error => logTime(`[身份同步] 添加辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
+            );
 
-                    // 检查用户未拥有的需要添加的身份组
-                    const rolesToAdd = Array.from(roleIds).filter(roleId => !member.roles.cache.has(roleId));
+        await Promise.all(addRolePromises);
 
-                    if (rolesToAdd.length === 0) {
-                        logTime(`[身份同步] 用户 ${member.user.tag} 在服务器 ${guild.name} 已拥有所有需要添加的身份组`);
-                        continue;
-                    }
+        // 3. 获取已验证身份组的同步组
+        const roleSyncConfig = getRoleSyncConfig();
+        const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
 
-                    // 一次性添加多个身份组
-                    await member.roles.add(rolesToAdd, reason);
-                    successfulServers.push(guild.name);
-                    logTime(
-                        `[身份同步] 已在服务器 ${guild.name} 添加用户 ${member.user.tag} 的 ${rolesToAdd.length} 个身份组`,
-                    );
-
-                    // 添加API请求延迟
-                    await delay(500);
-                } catch (error) {
-                    logTime(`[身份同步] 在服务器 ${guildId} 添加身份组失败: ${error.message}`, true);
-                    failedServers.push({ id: guildId, name: guildId });
-                }
-            }
-        }, 2); // 优先级2，较低优先级
-
-        return {
-            success: successfulServers.length > 0,
-            successfulServers,
-            failedServers,
-        };
+        if (verifiedGroup) {
+            // 4. 移除目标用户的已验证身份组
+            await manageRolesByGroups(
+                client,
+                targetId,
+                [verifiedGroup],
+                `${reason}期间暂时移除已验证身份组`,
+                true // 移除操作
+            );
+        }
     } catch (error) {
-        logTime(`[身份同步] 批量添加身份组操作失败: ${error.message}`, true);
-        return {
-            success: false,
-            successfulServers,
-            failedServers,
-        };
+        logTime(`[身份同步] 设置辩诉参与者身份组失败: ${error.message}`, true);
+        throw error;
+    }
+};
+
+/**
+ * 处理投票结束后的辩诉相关身份组管理
+ * @param {Object} client - Discord客户端
+ * @param {string} executorId - 执行者ID
+ * @param {string} targetId - 目标用户ID
+ * @returns {Promise<void>}
+ */
+export const handleDebateRolesAfterVote = async (client, executorId, targetId) => {
+    try {
+        // 获取主服务器配置
+        const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
+            config => config.serverType === 'Main server',
+        );
+
+        if (!mainGuildConfig?.courtSystem?.enabled) {
+            return;
+        }
+
+        const mainGuild = await client.guilds.fetch(mainGuildConfig.id).catch(() => null);
+        if (!mainGuild) {
+            return;
+        }
+
+        // 获取双方成员对象
+        const [executorMember, targetMember] = await Promise.all([
+            mainGuild.members.fetch(executorId).catch(() => null),
+            mainGuild.members.fetch(targetId).catch(() => null),
+        ]);
+
+        // 1. 移除辩诉通行身份组
+        if (mainGuildConfig.roleApplication?.appealDebateRoleId) {
+            // 为双方移除辩诉通行身份组
+            const removeRolePromises = [executorMember, targetMember]
+                .filter(member => member) // 过滤掉不存在的成员
+                .map(member =>
+                    member.roles
+                        .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
+                        .then(() => logTime(`[身份同步] 已移除用户 ${member.user.tag} 的辩诉通行身份组`))
+                        .catch(error =>
+                            logTime(
+                                `[身份同步] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`,
+                                true,
+                            ),
+                        ),
+                );
+
+            await Promise.all(removeRolePromises);
+        }
+
+        // 2. 恢复已验证身份组
+        try {
+            // 获取已验证身份组的同步组
+            const roleSyncConfig = getRoleSyncConfig();
+            const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+
+            if (verifiedGroup && targetMember) {
+                // 为目标用户恢复已验证身份组
+                await manageRolesByGroups(
+                    client,
+                    targetId,
+                    [verifiedGroup],
+                    '投票结束，恢复已验证身份组',
+                    false // 添加操作
+                );
+                logTime(`[身份同步] 已为用户 ${targetId} 恢复已验证身份组`);
+            }
+        } catch (error) {
+            logTime(`[身份同步] 恢复已验证身份组失败: ${error.message}`, true);
+        }
+    } catch (error) {
+        logTime(`[身份同步] 处理投票后身份组管理失败: ${error.message}`, true);
     }
 };
 
@@ -310,8 +378,8 @@ export async function exitSenatorRole(interaction) {
             return;
         }
 
-        // 从文件中读取身份组同步配置
-        const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
+        // 获取身份组同步配置
+        const roleSyncConfig = getRoleSyncConfig();
 
         // 查找议员同步组
         const senatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '赛博议员');
@@ -339,17 +407,18 @@ export async function exitSenatorRole(interaction) {
             onConfirm: async confirmation => {
                 await confirmation.deferUpdate();
 
-                const result = await revokeRolesByGroups(
+                const result = await manageRolesByGroups(
                     interaction.client,
                     interaction.user.id,
                     [senatorSyncGroup],
                     '用户自行退出',
+                    true // 移除操作
                 );
 
                 // 根据结果决定显示的消息
                 if (result.success) {
                     logTime(
-                        `用户 ${interaction.user.tag} 成功退出了赛博议员身份组，已在 ${result.successfulServers.length} 个服务器移除权限`,
+                        `[身份同步] 用户 ${interaction.user.tag} 成功退出了赛博议员身份组，已在 ${result.successfulServers.length} 个服务器移除权限`,
                     );
 
                     await confirmation.editReply({
@@ -363,7 +432,7 @@ export async function exitSenatorRole(interaction) {
                         components: [],
                     });
                 } else {
-                    logTime(`用户 ${interaction.user.tag} 尝试退出赛博议员身份组失败`, true);
+                    logTime(`[身份同步] 用户 ${interaction.user.tag} 尝试退出赛博议员身份组失败`, true);
 
                     await confirmation.editReply({
                         embeds: [
@@ -391,7 +460,7 @@ export async function exitSenatorRole(interaction) {
             },
         });
     } catch (error) {
-        logTime(`处理用户退出赛博议员身份组时发生错误: ${error.message}`, true);
+        logTime(`[身份同步] 处理用户退出赛博议员身份组时发生错误: ${error.message}`, true);
         await handleInteractionError(interaction, error);
     }
 }

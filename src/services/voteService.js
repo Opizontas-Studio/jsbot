@@ -6,7 +6,7 @@ import { checkCooldown } from '../handlers/buttons.js';
 import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
-import { addRolesByGroups, revokeRolesByGroups } from './roleApplication.js';
+import { handleDebateRolesAfterVote, manageRolesByGroups } from './roleApplication.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
@@ -107,6 +107,22 @@ class VoteService {
                 startTime: now,
                 endTime: now + voteDuration,
             });
+
+            // 获取目标用户和执行者信息用于日志
+            const [target, executor] = await Promise.all([
+                client.users.fetch(targetId).catch(() => null),
+                client.users.fetch(executorId).catch(() => null),
+            ]);
+
+            // 投票创建日志
+            logTime(
+                `创建投票 [ID: ${result.id}] - 类型: ${process.type}, 目标: ${target?.tag || '未知用户'}, 发起人: ${
+                    executor?.tag || '未知用户'
+                }, 结束: ${voteDuration / 1000}秒后`,
+            );
+            logTime(
+                `投票详情 [ID: ${result.id}] - 红方: ${redSide}, 蓝方: ${blueSide}`,
+            );
 
             return result;
         } catch (error) {
@@ -247,10 +263,7 @@ class VoteService {
 
             // 记录实际议员数量日志
             logTime(
-                `议员总数(实际): ${senatorsCount} ` +
-                    `(服务器: ${guild.name}, ` +
-                    `身份组: ${role.name}, ` +
-                    `身份组ID: ${role.id})`,
+                `议员总数(实际): ${senatorsCount}, (服务器: ${guild.name}, 身份组: ${role.name}, 身份组ID: ${role.id})`,
             );
 
             return senatorsCount;
@@ -366,64 +379,9 @@ class VoteService {
      */
     static async _handleRolesAfterVote(client, vote) {
         try {
-            // 获取主服务器配置
-            const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
-                config => config.serverType === 'Main server',
-            );
-
-            if (!mainGuildConfig?.courtSystem?.enabled) {
-                return;
-            }
-
-            const mainGuild = await client.guilds.fetch(mainGuildConfig.id).catch(() => null);
-            if (!mainGuild) {
-                return;
-            }
-
             // 从投票详情中获取双方ID
             const { targetId, executorId } = vote.details;
-
-            // 获取双方成员对象
-            const [executorMember, targetMember] = await Promise.all([
-                mainGuild.members.fetch(executorId).catch(() => null),
-                mainGuild.members.fetch(targetId).catch(() => null),
-            ]);
-
-            // 1. 移除辩诉通行身份组
-            if (mainGuildConfig.roleApplication?.appealDebateRoleId) {
-                // 为双方移除辩诉通行身份组
-                const removeRolePromises = [executorMember, targetMember]
-                    .filter(member => member) // 过滤掉不存在的成员
-                    .map(member =>
-                        member.roles
-                            .remove(mainGuildConfig.roleApplication?.appealDebateRoleId, '投票结束，移除辩诉通行身份组')
-                            .then(() => logTime(`[投票系统] 已移除用户 ${member.user.tag} 的辩诉通行身份组`))
-                            .catch(error =>
-                                logTime(
-                                    `[投票系统] 移除辩诉通行身份组失败 (${member.user.tag}): ${error.message}`,
-                                    true,
-                                ),
-                            ),
-                    );
-
-                await Promise.all(removeRolePromises);
-            }
-
-            // 2. 恢复已验证身份组
-            try {
-                // 读取身份组同步配置
-                const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-
-                // 找到已验证身份组的同步组
-                const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
-                if (verifiedGroup && targetMember) {
-                    // 为目标用户恢复已验证身份组
-                    await addRolesByGroups(client, targetId, [verifiedGroup], '投票结束，恢复已验证身份组');
-                    logTime(`[投票系统] 已为用户 ${targetId} 恢复已验证身份组`);
-                }
-            } catch (error) {
-                logTime(`[投票系统] 恢复已验证身份组失败: ${error.message}`, true);
-            }
+            await handleDebateRolesAfterVote(client, executorId, targetId);
         } catch (error) {
             logTime(`[投票系统] 处理投票后身份组管理失败: ${error.message}`, true);
         }
@@ -591,11 +549,12 @@ class VoteService {
                 );
 
                 // 移除身份组
-                const roleRevokeResult = await revokeRolesByGroups(
+                const roleRevokeResult = await manageRolesByGroups(
                     client,
                     details.targetId,
                     groupsToRevoke,
                     `议会认定弹劾通过，撤销管理身份组`,
+                    true // 设置为移除操作
                 );
 
                 // 获取弹劾执行者和目标用户

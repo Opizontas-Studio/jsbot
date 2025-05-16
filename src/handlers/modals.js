@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
-import { addRolesByGroups } from '../services/roleApplication.js';
+import { manageRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -171,12 +171,13 @@ export const modalHandlers = {
                         const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
 
                         if (creatorSyncGroup) {
-                            // 使用addRolesByGroups函数批量添加身份组
-                            const result = await addRolesByGroups(
+                            // 使用manageRolesByGroups函数批量添加身份组
+                            const result = await manageRolesByGroups(
                                 interaction.client,
                                 interaction.user.id,
                                 [creatorSyncGroup],
                                 '创作者身份组申请通过',
+                                false // 设置为添加操作
                             );
 
                             // 只向用户显示成功的结果

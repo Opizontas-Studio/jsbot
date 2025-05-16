@@ -1,7 +1,7 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { addRolesByGroups, revokeRolesByGroups } from '../services/roleApplication.js';
+import { manageRolesByGroups } from '../services/roleApplication.js';
 import { handleCommandError } from '../utils/helper.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
@@ -96,11 +96,12 @@ export default {
                 }
 
                 // 移除身份组
-                const result = await revokeRolesByGroups(
+                const result = await manageRolesByGroups(
                     interaction.client,
                     targetUser.id,
                     [tempSyncGroup],
                     `由管理员 ${interaction.user.tag} 移除`,
+                    true // 设置为移除操作
                 );
 
                 if (result.success) {
@@ -153,12 +154,13 @@ export default {
                     tempSyncGroup.roles = foundSyncGroup.roles;
                 }
 
-                // 使用addRolesByGroups函数批量添加身份组
-                const result = await addRolesByGroups(
+                // 使用manageRolesByGroups函数批量添加身份组
+                const result = await manageRolesByGroups(
                     interaction.client,
                     targetUser.id,
                     [tempSyncGroup],
                     `由管理员 ${interaction.user.tag} 添加`,
+                    false // 设置为添加操作
                 );
 
                 if (result.success) {

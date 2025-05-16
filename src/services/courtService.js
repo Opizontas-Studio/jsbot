@@ -1,17 +1,12 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { checkCooldown } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { revokeRolesByGroups } from '../services/roleApplication.js';
+import { setupDebateParticipantRoles } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
 import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 import { VoteService } from './voteService.js';
-
-// 配置文件路径
-const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 class CourtService {
     /**
@@ -159,27 +154,6 @@ class CourtService {
                 threadId: debateThread.id,
             },
             client,
-        );
-
-        // 投票创建日志
-        logTime(
-            `创建投票 [ID: ${vote.id}] - 类型: ${process.type}, 目标: ${target?.tag || '未知用户'}, 发起人: ${
-                executor?.tag || '未知用户'
-            }`,
-        );
-        logTime(
-            `投票详情 [ID: ${vote.id}] - 红方: ${
-                process.type === 'appeal'
-                    ? `解除对 <@${target?.id}> 的处罚`
-                    : process.type === 'court_impeach'
-                    ? `弹劾管理员 <@${target?.id}>`
-                    : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`
-            }, 蓝方: ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,
-        );
-        logTime(
-            `投票时间 [ID: ${vote.id}] - 结束: ${
-                guildConfig.courtSystem.voteDuration / 1000
-            }秒后`,
         );
 
         // 更新投票按钮的custom_id
@@ -477,41 +451,6 @@ class CourtService {
     }
 
     /**
-     * 为双方调整辩诉身份组
-     * @private
-     * @param {Object} client - Discord客户端
-     * @param {Object} guildConfig - 服务器配置
-     * @param {string} executorId - 执行者ID
-     * @param {string} targetId - 目标用户ID
-     * @param {string} reason - 添加身份组的原因
-     * @returns {Promise<void>}
-     */
-    static async _addDebateRolesToBothParties(client, guildConfig, executorId, targetId, reason) {
-        const mainGuild = await client.guilds.fetch(guildConfig.id).catch(() => null);
-        if (!mainGuild || !guildConfig.roleApplication?.appealDebateRoleId) {
-            return;
-        }
-
-        // 获取双方成员对象
-        const [executorMember, targetMember] = await Promise.all([
-            mainGuild.members.fetch(executorId).catch(() => null),
-            mainGuild.members.fetch(targetId).catch(() => null),
-        ]);
-
-        // 为双方添加辩诉通行身份组
-        const addRolePromises = [executorMember, targetMember]
-            .filter(member => member) // 过滤掉不存在的成员
-            .map(member =>
-                member.roles
-                    .add(guildConfig.roleApplication?.appealDebateRoleId, reason)
-                    .then(() => logTime(`已添加用户 ${member.user.tag} 的辩诉通行身份组`))
-                    .catch(error => logTime(`添加辩诉通行身份组失败 (${member.user.tag}): ${error.message}`, true)),
-            );
-
-        await Promise.all(addRolePromises);
-    }
-
-    /**
      * 处理议事完成
      * @param {Object} process - 流程记录
      * @param {Object} guildConfig - 服务器配置
@@ -527,29 +466,14 @@ class CourtService {
                     // 创建辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);
 
-                    // 添加辩诉通行身份组
-                    await this._addDebateRolesToBothParties(
+                    // 设置辩诉参与者身份组
+                    await setupDebateParticipantRoles(
                         client,
                         guildConfig,
                         process.executorId,
                         process.targetId,
-                        '处罚申请辩诉通行',
+                        '处罚申请辩诉通行'
                     );
-
-                    // 读取身份组同步配置
-                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-
-                    // 找到已验证身份组的同步组
-                    const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
-                    if (verifiedGroup) {
-                        // 移除目标用户的已验证身份组
-                        await revokeRolesByGroups(
-                            client,
-                            process.targetId,
-                            [verifiedGroup],
-                            '处罚申请辩诉期间暂时移除已验证身份组',
-                        );
-                    }
 
                     // 更新流程状态为completed
                     await ProcessModel.updateStatus(process.id, 'completed', {
@@ -658,29 +582,14 @@ class CourtService {
                         await revokePunishmentInGuilds(client, punishment, target, '上诉申请通过', { isAppeal: true });
                     }
 
-                    // 添加辩诉通行身份组
-                    await this._addDebateRolesToBothParties(
+                    // 设置辩诉参与者身份组
+                    await setupDebateParticipantRoles(
                         client,
                         guildConfig,
                         punishment.executorId,
                         process.targetId,
-                        '上诉申请通过',
+                        '上诉申请通过'
                     );
-
-                    // 读取身份组同步配置
-                    const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
-
-                    // 找到已验证身份组的同步组
-                    const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
-                    if (verifiedGroup) {
-                        // 移除目标用户的已验证身份组
-                        await revokeRolesByGroups(
-                            client,
-                            process.targetId,
-                            [verifiedGroup],
-                            '上诉辩诉期间暂时移除已验证身份组',
-                        );
-                    }
 
                     // 创建辩诉帖
                     const debateThread = await this.createDebateThread(process, guildConfig, client);

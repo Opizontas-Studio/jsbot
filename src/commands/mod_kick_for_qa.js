@@ -1,7 +1,7 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { revokeRolesByGroups } from '../services/roleApplication.js';
+import { manageRolesByGroups } from '../services/roleApplication.js';
 import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -79,11 +79,12 @@ export default {
             }
 
             // 使用批量处理函数
-            const result = await revokeRolesByGroups(
+            const result = await manageRolesByGroups(
                 interaction.client,
                 targetUser.id,
                 targetGroups,
-                `由${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 执行答题处罚`
+                `由${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 执行答题处罚`,
+                true // 设置为移除操作
             );
 
             // 创建回复用的Embed

@@ -1,7 +1,7 @@
 import { ChannelType, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { addRolesByGroups } from '../services/roleApplication.js';
+import { manageRolesByGroups } from '../services/roleApplication.js';
 import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -212,16 +212,17 @@ export default {
                     const senatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '赛博议员');
                     const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
 
-                    // 使用addRolesByGroups函数同时添加两个同步组
+                    // 使用manageRolesByGroups函数同时添加两个同步组
                     const syncGroups = [];
                     if (senatorSyncGroup) syncGroups.push(senatorSyncGroup);
                     if (creatorSyncGroup) syncGroups.push(creatorSyncGroup);
 
-                    const result = await addRolesByGroups(
+                    const result = await manageRolesByGroups(
                         interaction.client,
                         applicant.id,
                         syncGroups,
-                        '议员快速审核通过'
+                        '议员快速审核通过',
+                        false // 设置为添加操作
                     );
 
                     // 添加同步结果到embed

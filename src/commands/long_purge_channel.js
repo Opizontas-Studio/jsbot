@@ -246,6 +246,9 @@ export default {
                                             }),
                                         });
                                     }
+
+                                    // 增加800毫秒延迟
+                                    await delay(800);
                                 } catch (error) {
                                     logTime(`删除旧消息失败: ${error.message}`, true);
                                 }

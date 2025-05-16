@@ -8,8 +8,8 @@ export default {
     cooldown: 10,
     ephemeral: true,
     data: new SlashCommandBuilder()
-        .setName('频道完全清理')
-        .setDescription('清理指定范围内的所有消息')
+        .setName('批量删除消息')
+        .setDescription('批量删除指定范围内的消息')
         .addStringOption(option =>
             option
                 .setName('起点消息id')
@@ -72,10 +72,55 @@ export default {
                 }
             }
 
-            // 估算消息数量（基于消息ID的差值）
-            const estimatedCount = endMessageId
-                ? Math.floor((BigInt(endMessageId) - BigInt(startMessageId)) / BigInt(1000)) + 1
-                : '未知（将清理至频道末尾）';
+            // 估算消息数量（通过获取一批消息来更准确地估算）
+            let estimatedCount = '未知（将清理至频道末尾）';
+            try {
+                // 从起点消息获取一批消息，先确保将起点消息加入计算
+                const options = {
+                    limit: 100,
+                };
+
+                // 如果有终点ID，则使用before参数获取从起点到终点之间的消息
+                if (endMessageId) {
+                    options.before = endMessageId;
+                }
+
+                // 获取批次消息
+                const sampleBatch = await channel.messages.fetch(options);
+
+                // 过滤出起点之后（包括起点）的消息
+                const relevantMessages = sampleBatch.filter(
+                    msg => BigInt(msg.id) >= BigInt(startMessageId) &&
+                          (!endMessageId || BigInt(msg.id) < BigInt(endMessageId))
+                );
+
+                if (endMessageId) {
+                    // 如果指定了终点消息ID
+                    if (relevantMessages.size > 0) {
+                        // 返回实际消息数量
+                        estimatedCount = String(relevantMessages.size);
+                    } else if (sampleBatch.size >= 100) {
+                        // 如果没有相关消息但获取了满100条，可能是因为消息间隔过大
+                        estimatedCount = '超过100条';
+                    } else {
+                        // 如果没有消息且未获取满100条
+                        estimatedCount = '0';
+                    }
+                } else {
+                    // 如果没有指定终点消息ID
+                    if (relevantMessages.size >= 100 || sampleBatch.size >= 100) {
+                        estimatedCount = '至少100条';
+                    } else {
+                        estimatedCount = String(relevantMessages.size);
+                    }
+                }
+            } catch (error) {
+                logTime(`估算消息数量失败: ${error.message}`, true);
+                // 发生错误时，使用原来的估算方法作为备选
+                if (endMessageId) {
+                    estimatedCount = String(((BigInt(endMessageId) - BigInt(startMessageId)) / BigInt(1000))) + ' (估计)';
+                }
+            }
 
             await handleConfirmationButton({
                 interaction,

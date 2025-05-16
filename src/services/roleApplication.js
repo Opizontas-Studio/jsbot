@@ -51,8 +51,8 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
 
             // 遍历每个同步组
             for (const syncGroup of roleSyncConfig.syncGroups) {
-                // 跳过"缓冲区"同步组
-                if (syncGroup.name === '缓冲区') continue;
+                // 跳过"缓冲区"和"被警告者"同步组
+                if (syncGroup.name === '缓冲区' || syncGroup.name === '被警告者') continue;
 
                 // 检查当前服务器是否有此同步组的配置
                 const currentGuildRoleId = syncGroup.roles[member.guild.id];

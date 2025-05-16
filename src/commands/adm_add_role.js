@@ -6,6 +6,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 30,
+    ephemeral: false,
     data: new SlashCommandBuilder()
         .setName('批量转移身份组')
         .setDescription('将指定数量的成员从一个身份组转移到另一个身份组')

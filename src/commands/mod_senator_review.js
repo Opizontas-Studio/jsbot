@@ -9,6 +9,7 @@ const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder().setName('议员快速审核').setDescription('快速审核议员申请帖'),
 
     async execute(interaction, guildConfig) {

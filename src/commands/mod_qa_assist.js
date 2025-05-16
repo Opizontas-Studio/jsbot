@@ -32,6 +32,7 @@ function createStatusEmbed(title, description, color = 0x3498db) {
 
 export default {
     cooldown: 10,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('答疑')
         .setDescription('使用AI助手回答用户问题')

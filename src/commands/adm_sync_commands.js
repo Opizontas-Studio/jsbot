@@ -6,6 +6,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 60,
+    ephemeral: true,
     data: new SlashCommandBuilder().setName('同步指令').setDescription('检查并同步当前服务器的Discord指令'),
 
     async execute(interaction, guildConfig) {

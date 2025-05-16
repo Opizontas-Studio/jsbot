@@ -7,6 +7,7 @@ const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '13367
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('撤销议事')
         .setDescription('紧急撤销指定的议事流程')

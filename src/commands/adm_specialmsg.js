@@ -11,6 +11,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('创建特殊消息')
         .setDescription('创建特殊功能消息（如创作者申请、身份组同步）')

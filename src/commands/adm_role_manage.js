@@ -11,6 +11,7 @@ const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '13367
 
 export default {
     cooldown: 3,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('管理身份组')
         .setDescription('添加或移除用户的身份组')

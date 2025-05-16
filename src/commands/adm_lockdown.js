@@ -5,6 +5,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('暂停邀请')
         .setDescription('管理服务器的邀请功能')

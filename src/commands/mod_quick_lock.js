@@ -3,6 +3,7 @@ import { checkModeratorPermission, handleCommandError, lockAndArchiveThread } fr
 
 export default {
     cooldown: 10,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('一键锁定关贴')
         .setDescription('锁定并归档当前论坛帖子')

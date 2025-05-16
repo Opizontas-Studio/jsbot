@@ -5,6 +5,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 3,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('答疑系统状态')
         .setDescription('查看当前答疑系统运行状态')

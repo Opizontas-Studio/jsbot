@@ -6,6 +6,7 @@ import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('处罚')
         .setDescription('对用户执行处罚')

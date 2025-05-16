@@ -6,6 +6,7 @@ import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('撤销处罚')
         .setDescription('根据数据库情况，撤销指定的处罚')

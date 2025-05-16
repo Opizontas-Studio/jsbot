@@ -6,6 +6,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 10,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('频道完全清理')
         .setDescription('清理指定范围内的所有消息')

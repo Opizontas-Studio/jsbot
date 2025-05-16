@@ -7,6 +7,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('发送文案')
         .setDescription('发送预设的文案内容')

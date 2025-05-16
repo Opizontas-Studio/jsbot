@@ -4,7 +4,7 @@ import { handleCommandError } from '../utils/helper.js';
 export default {
     // 设置命令冷却时间为10秒
     cooldown: 10,
-
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('回顶')
         .setDescription('创建一个回到顶部的按钮'),
@@ -35,4 +35,4 @@ export default {
             await handleCommandError(interaction, error, '回顶');
         }
     },
-}; 
+};

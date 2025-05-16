@@ -7,6 +7,7 @@ import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('查询记录')
         .setDescription('查询数据库记录')

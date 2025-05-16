@@ -9,6 +9,7 @@ import { logTime } from '../utils/logger.js';
  */
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('管理频道')
         .setDescription('频道管理相关命令')

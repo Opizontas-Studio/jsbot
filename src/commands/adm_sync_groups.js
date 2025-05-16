@@ -9,6 +9,7 @@ const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '13367
 
 export default {
     cooldown: 10,
+    ephemeral: false,
     data: new SlashCommandBuilder()
         .setName('同步身份组同步组')
         .setDescription('同步不同服务器间的同步组成员')

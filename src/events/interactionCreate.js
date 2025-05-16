@@ -79,11 +79,19 @@ export default {
 
         // 处理斜杠命令
         if (interaction.isChatInputCommand()) {
-            // 对于批量转移身份组命令，不使用Ephemeral
-            if (interaction.commandName === '批量转移身份组') {
-                await interaction.deferReply();
-            } else {
+            const command = interaction.client.commands.get(interaction.commandName);
+            if (!command) {
+                logTime(`未找到命令 ${interaction.commandName}`, true);
+                return;
+            }
+
+            // 根据命令的ephemeral属性决定是否使用Ephemeral模式
+            const useEphemeral = command.ephemeral !== false;
+
+            if (useEphemeral) {
                 await interaction.deferReply({ flags: ['Ephemeral'] });
+            } else {
+                await interaction.deferReply();
             }
 
             try {
@@ -93,12 +101,6 @@ export default {
                         content: '此服务器尚未配置，无法使用命令。',
                         flags: ['Ephemeral'],
                     });
-                }
-
-                const command = interaction.client.commands.get(interaction.commandName);
-                if (!command) {
-                    logTime(`未找到命令 ${interaction.commandName}`, true);
-                    return;
                 }
 
                 // 处理命令冷却时间

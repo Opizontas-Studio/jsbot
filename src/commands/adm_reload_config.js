@@ -6,6 +6,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 30,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('重载配置')
         .setDescription('热重载config.json配置，无需重启机器人'),

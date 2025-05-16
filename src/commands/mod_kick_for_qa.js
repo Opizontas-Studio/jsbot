@@ -9,6 +9,7 @@ const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('答题处罚')
         .setDescription('移除用户在所有服务器的缓冲区和已验证身份组')

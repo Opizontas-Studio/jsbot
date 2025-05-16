@@ -8,6 +8,7 @@ import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/
 
 export default {
     cooldown: 120,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('申请上庭')
         .setDescription('向议事区提交处罚申请，交议事流程处理')

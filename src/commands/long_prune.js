@@ -11,6 +11,7 @@ import { logTime } from '../utils/logger.js';
  */
 export default {
     cooldown: 30,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('清理子区不活跃用户')
         .setDescription('清理子区中的不活跃用户')

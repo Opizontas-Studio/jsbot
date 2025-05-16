@@ -14,10 +14,8 @@ const COLORS = {
 };
 
 export default {
-    // 设置命令冷却时间为10秒
     cooldown: 10,
-
-    // 定义命令
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('发送通知')
         .setDescription('在当前频道发送一个通知控件，冷却60秒，请谨慎使用')

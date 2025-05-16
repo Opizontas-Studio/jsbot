@@ -7,6 +7,7 @@ import { logTime } from '../utils/logger.js';
 
 export default {
     cooldown: 5,
+    ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('自助管理')
         .setDescription('管理你自己的帖子，命令在当前帖子生效')

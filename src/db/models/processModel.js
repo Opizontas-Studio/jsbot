@@ -214,7 +214,7 @@ class ProcessModel {
      * @param {string} data.type - 流程类型 (court_mute/court_ban/debate)
      * @param {string} data.targetId - 目标用户ID
      * @param {string} data.executorId - 执行者ID
-     * @param {string} data.messageId - 议事消息ID
+     * @param {string} [data.messageId] - 议事消息ID (可选，如果为空会使用临时占位符)
      * @param {number} data.expireAt - 流程到期时间戳
      * @param {Object} data.details - 处罚详情
      * @param {string} [data.statusMessageId] - 状态消息ID（仅debate类型使用）
@@ -229,6 +229,9 @@ class ProcessModel {
                 executorId,
             };
 
+            // 使用临时占位符代替null，确保满足NOT NULL约束
+            const tempMessageId = messageId || `temp_${type}_${Date.now()}_${targetId.slice(-5)}`;
+
             const result = await dbManager.safeExecute(
                 'run',
                 `
@@ -242,7 +245,7 @@ class ProcessModel {
                     type,
                     targetId,
                     executorId,
-                    messageId || null,
+                    tempMessageId,
                     expireAt,
                     JSON.stringify(enrichedDetails),
                     statusMessageId,
@@ -250,7 +253,7 @@ class ProcessModel {
             );
 
             // 清除相关缓存
-            this._clearRelatedCache(targetId, executorId, result.lastID, messageId);
+            this._clearRelatedCache(targetId, executorId, result.lastID, tempMessageId);
 
             return this.getProcessById(result.lastID);
         } catch (error) {

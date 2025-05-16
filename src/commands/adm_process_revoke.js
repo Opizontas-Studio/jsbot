@@ -5,19 +5,14 @@ import { handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 // 使用已有的紧急处理身份组ID
-const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705'];
+const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '1336734406609473720'];
 
 export default {
     cooldown: 5,
     data: new SlashCommandBuilder()
         .setName('撤销议事')
         .setDescription('紧急撤销指定的议事流程')
-        .addStringOption(option =>
-            option
-                .setName('流程id')
-                .setDescription('要撤销的议事流程ID')
-                .setRequired(true)
-        ),
+        .addStringOption(option => option.setName('流程id').setDescription('要撤销的议事流程ID').setRequired(true)),
 
     async execute(interaction) {
         try {
@@ -28,7 +23,7 @@ export default {
             if (!hasEmergencyRole) {
                 await interaction.editReply({
                     content: '❌ 你没有权限执行此命令',
-                    flags: ['Ephemeral']
+                    flags: ['Ephemeral'],
                 });
                 return;
             }
@@ -40,7 +35,7 @@ export default {
             if (!process) {
                 await interaction.editReply({
                     content: '❌ 找不到指定的议事流程',
-                    flags: ['Ephemeral']
+                    flags: ['Ephemeral'],
                 });
                 return;
             }
@@ -49,7 +44,7 @@ export default {
             if (process.status === 'completed' || process.status === 'cancelled') {
                 await interaction.editReply({
                     content: '❌ 该议事流程已结束，无需撤销',
-                    flags: ['Ephemeral']
+                    flags: ['Ephemeral'],
                 });
                 return;
             }
@@ -66,7 +61,7 @@ export default {
                     logTime('主服务器未启用议事系统', true);
                     await interaction.editReply({
                         content: '❌ 主服务器未正确配置议事系统',
-                        flags: ['Ephemeral']
+                        flags: ['Ephemeral'],
                     });
                     return;
                 }
@@ -93,11 +88,10 @@ export default {
 
             await interaction.editReply({
                 content: '✅ 议事流程已成功撤销',
-                flags: ['Ephemeral']
+                flags: ['Ephemeral'],
             });
-
         } catch (error) {
             await handleCommandError(interaction, error, '撤销议事');
         }
     },
-}; 
+};

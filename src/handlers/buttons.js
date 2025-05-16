@@ -13,7 +13,6 @@ import { VoteService } from '../services/voteService.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { checkAppealEligibility } from '../utils/punishmentHelper.js';
-import { globalTaskScheduler } from './scheduler.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -38,28 +37,6 @@ export function checkCooldown(type, userId, duration = 10000) {
     cooldowns.set(cooldownKey, now + duration);
     setTimeout(() => cooldowns.delete(cooldownKey), duration);
     return null;
-}
-
-/**
- * 移除上诉按钮辅助函数
- * @param {User} user - Discord用户对象
- * @param {string} messageId - 消息ID
- */
-async function removeAppealButton(user, messageId) {
-    if (!messageId) return;
-
-    try {
-        const dmChannel = await user.createDM();
-        if (dmChannel) {
-            const originalMessage = await dmChannel.messages.fetch(messageId).catch(() => null);
-            if (originalMessage) {
-                await originalMessage.edit({ components: [] });
-                logTime(`已移除上诉按钮: ${messageId}`);
-            }
-        }
-    } catch (error) {
-        logTime(`移除上诉按钮失败: ${error.message}`, true);
-    }
 }
 
 /**
@@ -338,46 +315,17 @@ export const buttonHandlers = {
                 return;
             }
 
-            // 获取流程记录
-            const process = await ProcessModel.getProcessByMessageId(message.id);
-            if (!process) {
-                await interaction.editReply({
-                    content: '❌ 找不到相关流程记录',
-                });
-                return;
-            }
-
-            // 检查流程状态
-            if (process.status === 'completed' || process.status === 'cancelled') {
-                await interaction.editReply({
-                    content: '❌ 该流程已结束，无法撤销',
-                });
-                return;
-            }
-
-            // 尝试删除流程消息
-            try {
-                await message.delete();
-                logTime(`流程消息已被删除: ${message.id}, 类型: ${process.type}`);
-            } catch (error) {
-                logTime(`删除流程消息失败: ${error.message}`, true);
-                // 继续执行，不影响主流程
-            }
-
-            // 更新流程状态
-            await ProcessModel.updateStatus(process.id, 'cancelled', {
-                result: 'cancelled',
-                reason: `由申请人 ${interaction.user.tag} 撤销`,
+            // 使用CourtService撤销流程
+            const result = await CourtService.revokeProcess({
+                messageId: message.id,
+                revokedBy: interaction.user,
+                isAdmin: false,
+                client: interaction.client,
+                user: interaction.user
             });
 
-            // 取消计时器
-            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
-
-            // 记录操作日志
-            logTime(`${process.type} 流程 ${process.id} 已被申请人 ${interaction.user.tag} 撤销`);
-
             await interaction.editReply({
-                content: '✅ 申请已成功撤销，相关消息已删除',
+                content: result.success ? result.message : `❌ ${result.message}`,
             });
         } catch (error) {
             await handleInteractionError(interaction, error, 'revoke_process');
@@ -390,68 +338,18 @@ export const buttonHandlers = {
             // 解析按钮ID获取提交者ID、流程ID和原始消息ID
             const [, , submitterId, processId, originalMessageId] = interaction.customId.split('_');
 
-            // 获取流程记录
-            const process = await ProcessModel.getProcessById(parseInt(processId));
-            if (!process) {
-                await interaction.editReply({
-                    content: '❌ 找不到相关上诉流程记录',
-                });
-                return;
-            }
-
-            // 检查流程状态
-            if (process.status === 'completed' || process.status === 'cancelled') {
-                await interaction.editReply({
-                    content: '❌ 该上诉已结束，无法撤销',
-                });
-
-                // 更新原始消息，移除撤回按钮
-                await removeAppealButton(interaction.user, originalMessageId);
-                return;
-            }
-
-            // 尝试删除议事区消息
-            if (process.messageId) {
-                const mainGuildConfig = interaction.client.guildManager
-                    .getGuildIds()
-                    .map(id => interaction.client.guildManager.getGuildConfig(id))
-                    .find(config => config?.serverType === 'Main server');
-
-                const courtChannelId = mainGuildConfig?.courtSystem?.courtChannelId;
-
-                if (courtChannelId) {
-                    try {
-                        const courtChannel = await interaction.client.channels.fetch(courtChannelId);
-                        if (courtChannel) {
-                            const courtMessage = await courtChannel.messages.fetch(process.messageId).catch(() => null);
-                            if (courtMessage) {
-                                await courtMessage.delete();
-                            }
-                        }
-                    } catch (error) {
-                        logTime(`删除上诉议事消息失败: ${error.message}`, true);
-                        // 继续执行，不影响主流程
-                    }
-                }
-            }
-
-            // 更新流程状态
-            await ProcessModel.updateStatus(process.id, 'cancelled', {
-                result: 'cancelled',
-                reason: `由申请人 ${interaction.user.tag} 撤销上诉`,
+            // 使用CourtService撤销流程
+            const result = await CourtService.revokeProcess({
+                processId: processId,
+                revokedBy: interaction.user,
+                isAdmin: false,
+                originalMessageId: originalMessageId,
+                client: interaction.client,
+                user: interaction.user
             });
 
-            // 取消计时器
-            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
-
-            // 更新原始消息，移除撤回按钮
-            await removeAppealButton(interaction.user, originalMessageId);
-
-            // 记录操作日志
-            logTime(`上诉流程 ${process.id} 已被申请人 ${interaction.user.tag} 撤销`);
-
             await interaction.editReply({
-                content: '✅ 上诉申请已成功撤销',
+                content: result.success ? result.message : `❌ ${result.message}`,
             });
         } catch (error) {
             await handleInteractionError(interaction, error, 'revoke_appeal');
@@ -478,7 +376,7 @@ export const buttonHandlers = {
                 punishment,
             } = await checkAppealEligibility(interaction.user.id, punishmentId);
             if (!isEligible) {
-                await removeAppealButton(interaction.user, interaction.message.id);
+                await CourtService.removeAppealButton(interaction.user, interaction.message.id);
                 await interaction.reply({
                     content: `❌ ${eligibilityError}`,
                     flags: ['Ephemeral'],

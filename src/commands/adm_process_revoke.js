@@ -1,8 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { ProcessModel } from '../db/models/processModel.js';
-import { globalTaskScheduler } from '../handlers/scheduler.js';
+import CourtService from '../services/courtService.js';
 import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
 
 // 使用已有的紧急处理身份组ID
 const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '1336734406609473720'];
@@ -30,64 +28,16 @@ export default {
 
             const processId = interaction.options.getString('流程id');
 
-            // 获取流程记录
-            const process = await ProcessModel.getProcessById(parseInt(processId));
-            if (!process) {
-                await interaction.editReply({
-                    content: '❌ 找不到指定的议事流程',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 检查流程状态
-            if (process.status === 'completed' || process.status === 'cancelled') {
-                await interaction.editReply({
-                    content: '❌ 该议事流程已结束，无需撤销',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 尝试删除原议事消息
-            try {
-                // 获取主服务器配置
-                const mainGuildConfig = interaction.client.guildManager
-                    .getGuildIds()
-                    .map(id => interaction.client.guildManager.getGuildConfig(id))
-                    .find(config => config?.serverType === 'Main server');
-
-                if (!mainGuildConfig?.courtSystem?.enabled) {
-                    logTime('主服务器未启用议事系统', true);
-                    await interaction.editReply({
-                        content: '❌ 主服务器未正确配置议事系统',
-                        flags: ['Ephemeral'],
-                    });
-                    return;
-                }
-
-                const channel = await interaction.client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
-                const message = await channel.messages.fetch(process.messageId);
-                await message.delete();
-            } catch (error) {
-                logTime(`删除议事消息失败 [流程ID: ${processId}]: ${error.message}`, true);
-                // 继续执行，因为消息可能已被删除
-            }
-
-            // 更新流程状态
-            await ProcessModel.updateStatus(process.id, 'cancelled', {
-                result: 'cancelled',
-                reason: `由 ${interaction.user.tag} 紧急撤销`,
+            // 使用CourtService撤销流程
+            const result = await CourtService.revokeProcess({
+                processId: processId,
+                revokedBy: interaction.user,
+                isAdmin: true,
+                client: interaction.client,
             });
 
-            // 取消计时器
-            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
-
-            // 记录操作日志
-            logTime(`议事流程 ${processId} 已被 ${interaction.user.tag} 紧急撤销`);
-
             await interaction.editReply({
-                content: '✅ 议事流程已成功撤销',
+                content: result.success ? result.message : `❌ ${result.message}`,
                 flags: ['Ephemeral'],
             });
         } catch (error) {

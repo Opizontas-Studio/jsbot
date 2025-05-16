@@ -956,6 +956,133 @@ class CourtService {
             });
         }
     }
+
+    /**
+     * 撤销流程通用方法
+     * @param {Object} options - 撤销选项
+     * @param {string|number} options.processId - 流程ID
+     * @param {string} [options.messageId] - 消息ID
+     * @param {Object} options.revokedBy - 撤销操作执行人
+     * @param {boolean} [options.isAdmin=false] - 是否为管理员操作
+     * @param {string} [options.originalMessageId] - 上诉原始消息ID
+     * @param {Object} options.client - Discord客户端
+     * @param {Object} [options.user] - 用户对象（用于上诉撤销）
+     * @returns {Promise<{success: boolean, message: string}>} 操作结果
+     */
+    static async revokeProcess(options) {
+        const {
+            processId,
+            messageId,
+            revokedBy,
+            isAdmin = false,
+            originalMessageId,
+            client,
+            user
+        } = options;
+
+        try {
+            // 获取流程记录
+            const process = messageId
+                ? await ProcessModel.getProcessByMessageId(messageId)
+                : await ProcessModel.getProcessById(parseInt(processId));
+
+            if (!process) {
+                return { success: false, message: '找不到相关流程记录' };
+            }
+
+            // 检查流程状态
+            if (process.status === 'completed' || process.status === 'cancelled') {
+                const message = process.type === 'appeal'
+                    ? '该上诉已结束，无法撤销'
+                    : '该流程已结束，无法撤销';
+
+                // 如果是上诉，移除上诉按钮
+                if (process.type === 'appeal' && originalMessageId && user) {
+                    await this.removeAppealButton(user, originalMessageId);
+                }
+
+                return { success: false, message };
+            }
+
+            // 尝试删除原议事消息
+            if (process.messageId) {
+                try {
+                    // 获取主服务器配置
+                    const mainGuildConfig = client.guildManager
+                        .getGuildIds()
+                        .map(id => client.guildManager.getGuildConfig(id))
+                        .find(config => config?.serverType === 'Main server');
+
+                    if (mainGuildConfig?.courtSystem?.courtChannelId) {
+                        const channel = await client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
+                        const message = await channel.messages.fetch(process.messageId);
+                        await message.delete();
+                    }
+                } catch (error) {
+                    logTime(`删除流程消息失败: ${error.message}`, true);
+                    // 继续执行，不影响主流程
+                }
+            }
+
+            // 更新流程状态
+            const reason = isAdmin
+                ? `由 ${revokedBy.tag} 紧急撤销`
+                : process.type === 'appeal'
+                    ? `由申请人 ${revokedBy.tag} 撤销上诉`
+                    : `由申请人 ${revokedBy.tag} 撤销`;
+
+            await ProcessModel.updateStatus(process.id, 'cancelled', {
+                result: 'cancelled',
+                reason,
+            });
+
+            // 取消计时器
+            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
+
+            // 处理上诉特殊逻辑
+            if (process.type === 'appeal' && originalMessageId && user) {
+                await this.removeAppealButton(user, originalMessageId);
+            }
+
+            // 记录操作日志
+            const logMessage = isAdmin
+                ? `议事流程 ${process.id} 已被 ${revokedBy.tag} 紧急撤销`
+                : `${process.type} 流程 ${process.id} 已被申请人 ${revokedBy.tag} 撤销`;
+            logTime(logMessage);
+
+            // 返回成功消息
+            const successMessage = process.type === 'appeal'
+                ? '✅ 上诉申请已成功撤销'
+                : '✅ 申请已成功撤销，相关消息已删除';
+
+            return { success: true, message: successMessage };
+        } catch (error) {
+            logTime(`撤销流程失败: ${error.message}`, true);
+            return { success: false, message: '撤销流程时出错，请稍后重试' };
+        }
+    }
+
+    /**
+     * 移除上诉按钮辅助函数
+     * @param {User} user - Discord用户对象
+     * @param {string} messageId - 消息ID
+     */
+    static async removeAppealButton(user, messageId) {
+        if (!messageId) return;
+
+        try {
+            const dmChannel = await user.createDM();
+            if (dmChannel) {
+                const originalMessage = await dmChannel.messages.fetch(messageId).catch(() => null);
+                if (originalMessage) {
+                    await originalMessage.edit({ components: [] });
+                    logTime(`已移除上诉按钮: ${messageId}`);
+                }
+            }
+        } catch (error) {
+            logTime(`移除上诉按钮失败: ${error.message}`, true);
+        }
+    }
 }
 
 export default CourtService;

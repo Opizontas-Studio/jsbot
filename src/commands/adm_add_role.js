@@ -4,18 +4,6 @@ import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
-// 硬编码身份组ID - 主服务器
-const MAIN_SERVER_ROLES = {
-    TARGET_ROLE_ID: '1335363403870502912', // 已验证
-    SOURCE_ROLE_ID: '1338193342889984123', // 缓冲区
-};
-
-// 硬编码身份组ID - 子服务器
-const SUB_SERVER_ROLES = {
-    TARGET_ROLE_ID: '1337007077264064512', // 已验证
-    SOURCE_ROLE_ID: '1338097075593678912', // 缓冲区
-};
-
 export default {
     cooldown: 30,
     data: new SlashCommandBuilder()

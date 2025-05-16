@@ -14,25 +14,49 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('禁言')
-                .setDescription('申请禁言及弹劾处罚（可弹劾管理员，禁言最大14天）')
+                .setDescription('申请对目标执行禁言（可附带警告期）')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option =>
                     option
                         .setName('禁言时间')
-                        .setDescription('禁言时长 (最短2天，例如: 3d5h，即3天5小时)')
-                        .setRequired(true),
+                        .setDescription('禁言时长（2到14天）')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: '2天', value: '2d' },
+                            { name: '3天', value: '3d' },
+                            { name: '4天', value: '4d' },
+                            { name: '5天', value: '5d' },
+                            { name: '6天', value: '6d' },
+                            { name: '7天', value: '7d' },
+                            { name: '8天', value: '8d' },
+                            { name: '9天', value: '9d' },
+                            { name: '10天', value: '10d' },
+                            { name: '11天', value: '11d' },
+                            { name: '12天', value: '12d' },
+                            { name: '13天', value: '13d' },
+                            { name: '14天', value: '14d' }
+                        ),
                 )
                 .addStringOption(option =>
                     option
                         .setName('理由')
-                        .setDescription('处罚理由（至多1000字，可以带有消息链接等）')
+                        .setDescription('详细的理由（至多1000字，可以带有消息链接等）')
                         .setRequired(true),
                 )
                 .addStringOption(option =>
                     option
                         .setName('附加警告期')
-                        .setDescription('附加警告时长 (最短15天，格式如: 30d，即30天)')
-                        .setRequired(false),
+                        .setDescription('附加警告时长')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: '无', value: '无' },
+                            { name: '15天', value: '15d' },
+                            { name: '1个月', value: '30d' },
+                            { name: '45天', value: '45d' },
+                            { name: '2个月', value: '60d' },
+                            { name: '75天', value: '75d' },
+                            { name: '3个月', value: '90d' }
+                        ),
                 )
                 .addAttachmentOption(option =>
                     option
@@ -44,7 +68,7 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('永封')
-                .setDescription('申请永久封禁')
+                .setDescription('申请永久封禁目标用户')
                 .addUserOption(option => option.setName('目标').setDescription('要处罚的用户').setRequired(true))
                 .addStringOption(option => option.setName('理由').setDescription('处罚理由').setRequired(true))
                 .addBooleanOption(option =>
@@ -120,66 +144,10 @@ export default {
                     const muteTime = interaction.options.getString('禁言时间');
                     const warningTime = interaction.options.getString('附加警告期');
 
-                    // 验证时间格式
-                    const muteDuration = calculatePunishmentDuration(muteTime);
-                    if (muteDuration === -1) {
-                        await interaction.editReply({
-                            content: '❌ 无效的禁言时长格式',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    // 检查禁言时长是否至少2天
-                    const minMuteDuration = 2 * 24 * 60 * 60 * 1000; // 2天的毫秒数
-                    if (muteDuration < minMuteDuration) {
-                        await interaction.editReply({
-                            content: '❌ 禁言时长不能少于2天',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    // 检查禁言时长是否超过14天
-                    const maxMuteDuration = 14 * 24 * 60 * 60 * 1000; // 14天的毫秒数
-                    if (muteDuration > maxMuteDuration) {
-                        await interaction.editReply({
-                            content: '❌ 禁言时长不能超过14天',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    // 获取目标用户的GuildMember对象
-                    const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
-                    if (targetMember.permissions.has(PermissionFlagsBits.Administrator)) {
-                        await interaction.editReply({
-                            content: '❌ 无法对管理员执行处罚',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
+                    // 如果附加警告期不是"无"，则处理警告期
                     let warningDuration = null;
-                    if (warningTime) {
+                    if (warningTime && warningTime !== '无') {
                         warningDuration = calculatePunishmentDuration(warningTime);
-                        if (warningDuration === -1) {
-                            await interaction.editReply({
-                                content: '❌ 无效的警告时长格式',
-                                flags: ['Ephemeral'],
-                            });
-                            return;
-                        }
-
-                        // 检查警告期是否至少15天
-                        const minWarningDuration = 15 * 24 * 60 * 60 * 1000; // 15天的毫秒数
-                        if (warningDuration < minWarningDuration) {
-                            await interaction.editReply({
-                                content: '❌ 附加警告期不能少于15天',
-                                flags: ['Ephemeral'],
-                            });
-                            return;
-                        }
                     }
 
                     // 创建确认消息
@@ -197,7 +165,7 @@ export default {
                                 '- 类型：禁言',
                                 `- 目标：${target.tag} (${target.id})`,
                                 `- 时长：${formatPunishmentDuration(muteDuration)}`,
-                                warningTime ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}` : null,
+                                warningTime && warningTime !== '无' ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}` : null,
                                 `- 理由：${reason}`,
                                 '',
                                 '请慎重考虑占用公共资源。如需撤销请点击 撤回申请 按钮。',
@@ -236,13 +204,11 @@ export default {
                                                 value: formatPunishmentDuration(muteDuration),
                                                 inline: true,
                                             },
-                                            warningTime
-                                                ? {
-                                                      name: '附加警告期',
-                                                      value: formatPunishmentDuration(warningDuration),
-                                                      inline: true,
-                                                  }
-                                                : null,
+                                            warningTime && warningTime !== '无' ? {
+                                                name: '附加警告期',
+                                                value: formatPunishmentDuration(warningDuration),
+                                                inline: true,
+                                            } : null,
                                             {
                                                 name: '处罚理由',
                                                 value: reason,
@@ -289,7 +255,7 @@ export default {
                                 details: {
                                     embed: message.embeds[0].toJSON(),
                                     muteTime,
-                                    warningTime,
+                                    warningTime: warningTime !== '无' ? warningTime : undefined,
                                     imageUrl: imageAttachment?.url,
                                 },
                             });
@@ -324,10 +290,8 @@ export default {
                                             '',
                                             '**申请详情：**',
                                             `- 禁言时长：${formatPunishmentDuration(muteDuration)}`,
-                                            warningTime
-                                                ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}`
-                                                : null,
-                                            `- 处罚理由：${reason}`,
+                                            warningTime && warningTime !== '无' ? `- 附加警告期：${formatPunishmentDuration(warningDuration)}` : null,
+                                            `- 申请理由：${reason}`,
                                             '',
                                             `👉 [点击查看议事区](${courtChannel.url})`,
                                         ]
@@ -389,7 +353,7 @@ export default {
                                 '- 类型：永久封禁',
                                 `- 目标：${target.tag} (${target.id})`,
                                 `- ${keepMessages ? '保留' : '删除'}用户消息`,
-                                `- 理由：${reason}`,
+                                `- 申请理由：${reason}`,
                                 '',
                                 '请慎重考虑占用公共资源。如需撤销请点击 撤回申请 按钮。',
                             ].join('\n'),

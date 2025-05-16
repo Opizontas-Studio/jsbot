@@ -15,7 +15,6 @@ class VoteModel {
      * @param {Object} data.details - 执行详情
      * @param {number} data.startTime - 开始时间
      * @param {number} data.endTime - 结束时间
-     * @param {number} data.publicTime - 公开时间
      * @returns {Promise<Object>} 创建的投票记录
      */
     static async createVote(data) {
@@ -38,7 +37,7 @@ class VoteModel {
                     data.totalVoters,
                     data.startTime,
                     data.endTime,
-                    data.publicTime,
+                    data.endTime,
                     data.messageId,
                     data.threadId,
                     JSON.stringify(data.details),

@@ -119,9 +119,7 @@ class CourtService {
                         '',
                         '🔴 ⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛ 🔵',
                         '',
-                        `🔒 票数将在 <t:${Math.floor(
-                            (Date.now() + guildConfig.courtSystem.votePublicDelay) / 1000,
-                        )}:R> 公开`,
+                        `🔒 投票将保持匿名直至投票结束`,
                     ].join('\n'),
                     footer: {
                         text: `点击另一色支持按钮可以换边`,
@@ -179,7 +177,7 @@ class CourtService {
             }, 蓝方: ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,
         );
         logTime(
-            `投票时间 [ID: ${vote.id}] - 公开: ${guildConfig.courtSystem.votePublicDelay / 1000}秒后, 结束: ${
+            `投票时间 [ID: ${vote.id}] - 结束: ${
                 guildConfig.courtSystem.voteDuration / 1000
             }秒后`,
         );

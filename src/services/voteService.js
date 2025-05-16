@@ -28,7 +28,7 @@ class VoteService {
                 throw new Error('此服务器未启用议事系统');
             }
 
-            if (!guildConfig.courtSystem.votePublicDelay || !guildConfig.courtSystem.voteDuration) {
+            if (!guildConfig.courtSystem.voteDuration) {
                 throw new Error('投票时间配置无效');
             }
 
@@ -93,7 +93,6 @@ class VoteService {
             }
 
             const now = Date.now();
-            const publicDelay = guildConfig.courtSystem.votePublicDelay;
             const voteDuration = guildConfig.courtSystem.voteDuration;
 
             const result = await VoteModel.createVote({
@@ -107,7 +106,6 @@ class VoteService {
                 details: voteDetails,
                 startTime: now,
                 endTime: now + voteDuration,
-                publicTime: now + publicDelay,
             });
 
             return result;
@@ -164,9 +162,8 @@ class VoteService {
             logTime(logMessage);
         }
 
-        // 只有在到达公开时间后才更新消息显示票数，且只有在有变化时才更新
-        const now = Date.now();
-        const shouldUpdateMessage = now >= updatedVote.publicTime && !wasInCurrent;
+        // 匿名投票 - 只有在投票结束时才更新消息显示票数
+        const shouldUpdateMessage = updatedVote.status === 'completed' && !wasInCurrent;
 
         return { vote: updatedVote, message, shouldUpdateMessage };
     }
@@ -176,10 +173,14 @@ class VoteService {
      * @private
      * @param {number} redCount - 红方票数
      * @param {number} blueCount - 蓝方票数
-     * @param {boolean} canShowCount - 是否显示总票数
+     * @param {boolean} showVotes - 是否显示票数
      * @returns {string} 进度条文本
      */
-    static _generateProgressBar(redCount, blueCount, canShowCount) {
+    static _generateProgressBar(redCount, blueCount, showVotes) {
+        if (!showVotes) {
+            return '🔴 ⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛ 🔵';
+        }
+
         const total = redCount + blueCount;
         if (total === 0) return '🔴 ⬛⬛⬛⬛⬛⬛ ⚖️ ⬛⬛⬛⬛⬛⬛ 🔵';
 
@@ -191,8 +192,6 @@ class VoteService {
         const blueBar = blueLength > 0 ? '🟦'.repeat(blueLength) : '';
 
         const progressBar = `🔴 ${redBar}${redLength < length ? '⚖️' : ''}${blueBar} 🔵`;
-
-        if (!canShowCount) return progressBar;
 
         const redPercent = total > 0 ? ((redCount / total) * 100).toFixed(1) : '0.0';
         const bluePercent = total > 0 ? ((blueCount / total) * 100).toFixed(1) : '0.0';
@@ -310,9 +309,9 @@ class VoteService {
      */
     static async updateVoteMessage(message, vote, options = {}) {
         try {
-            const { redVoters, blueVoters, redSide, blueSide, publicTime, endTime, status } = vote;
-            const now = Date.now();
-            const canShowCount = now >= publicTime;
+            const { redVoters, blueVoters, redSide, blueSide, endTime, status } = vote;
+            // 只有在投票结束后才显示票数
+            const showVotes = status === 'completed';
 
             const description = [
                 `${status === 'completed' ? '⏰ 投票已结束' : `⏳ 投票截止：<t:${Math.floor(endTime / 1000)}:R>`}`,
@@ -324,11 +323,11 @@ class VoteService {
                 '',
                 `━━━━━━━━━━━━━━━━⊰❖⊱━━━━━━━━━━━━━━━━`,
                 '',
-                this._generateProgressBar(redVoters.length, blueVoters.length, canShowCount),
+                this._generateProgressBar(redVoters.length, blueVoters.length, showVotes),
                 '',
-                canShowCount
+                showVotes
                     ? `👥 **总投票人数：** ${redVoters.length + blueVoters.length}`
-                    : `🔒 票数将在 <t:${Math.floor(publicTime / 1000)}:R> 公开`,
+                    : `🔒 投票将保持匿名直至投票结束`,
             ].join('\n');
 
             // 构建嵌入消息
@@ -352,11 +351,6 @@ class VoteService {
                 embeds: [embed],
                 components: status === 'completed' ? [] : message.components,
             });
-
-            // 只在定时器触发时记录日志，避免重复记录
-            if (canShowCount && !options.result && options.isSchedulerUpdate) {
-                logTime(`投票公开 [ID: ${vote.id}] - 当前票数 红方: ${redVoters.length}, 蓝方: ${blueVoters.length}`);
-            }
         } catch (error) {
             logTime(`更新投票消息失败: ${error.message}`, true);
             throw error;

@@ -67,8 +67,7 @@ export class GuildManager {
                     requiredSupports: 20,
                     debateTagId: null,
                     motionTagId: null,
-                    votePublicDelay: 30000, // 默认30秒后公开
-                    voteDuration: 60000, // 默认1分钟后结束
+                    voteDuration: 86400000, // 默认1天后结束
                 },
                 monitor: {
                     enabled: guildConfig.monitor?.enabled || false,

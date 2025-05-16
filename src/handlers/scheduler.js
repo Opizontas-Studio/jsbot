@@ -239,8 +239,8 @@ class VoteScheduler {
                 'all',
                 `SELECT * FROM votes
                 WHERE status = 'in_progress'
-                AND (publicTime > ? OR endTime > ?)`,
-                [Date.now(), Date.now()],
+                AND endTime > ?`,
+                [Date.now()],
             );
 
             for (const vote of votes) {
@@ -276,40 +276,6 @@ class VoteScheduler {
 
             // 清除已存在的定时器
             this.clearVoteTimers(vote.id);
-
-            // 设置公开时间定时器
-            if (now < parsedVote.publicTime) {
-                const publicTime = new Date(parsedVote.publicTime);
-                const publicJob = schedule.scheduleJob(publicTime, async () => {
-                    try {
-                        const channel = await client.channels.fetch(parsedVote.threadId);
-                        if (!channel) {
-                            logTime(`无法获取频道 [ID: ${parsedVote.threadId}]`, true);
-                            return;
-                        }
-
-                        const message = await channel.messages.fetch(parsedVote.messageId);
-                        if (!message) {
-                            logTime(`无法获取消息 [ID: ${parsedVote.messageId}]`, true);
-                            return;
-                        }
-
-                        // 获取最新的投票状态
-                        const currentVote = await VoteModel.getVoteById(vote.id);
-                        if (!currentVote) {
-                            logTime(`无法获取投票 [ID: ${vote.id}]`, true);
-                            return;
-                        }
-
-                        await VoteService.updateVoteMessage(message, currentVote, { isSchedulerUpdate: true });
-                    } catch (error) {
-                        logTime(`处理投票公开失败 [ID: ${vote.id}]: ${error.message}`, true);
-                    }
-                });
-
-                this.jobs.set(`public_${vote.id}`, publicJob);
-                logTime(`[定时任务] 已设置投票 ${vote.id} 的公开定时器，将在 ${publicTime.toLocaleString()} 公开`);
-            }
 
             // 设置结束时间定时器
             if (now < parsedVote.endTime) {

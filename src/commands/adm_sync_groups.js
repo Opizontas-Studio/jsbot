@@ -47,8 +47,6 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
-            await interaction.deferReply();
-
             // 检查用户权限（紧急处理级别）
             const hasEmergencyRole = EMERGENCY_ROLE_IDS.some(roleId =>
                 interaction.member.roles.cache.has(roleId)

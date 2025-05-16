@@ -33,6 +33,7 @@ class ProcessModel {
      * @param {string} [options.result] - 流程结果
      * @param {string} [options.reason] - 状态更新原因
      * @param {string} [options.debateThreadId] - 辩诉帖ID
+     * @param {string} [options.messageId] - 消息ID
      * @returns {Promise<Object>} 更新后的流程记录
      */
     static async updateStatus(id, status, options = {}) {
@@ -44,18 +45,19 @@ class ProcessModel {
         try {
             await dbManager.safeExecute(
                 'run',
-                `UPDATE processes 
-                SET status = ?, 
+                `UPDATE processes
+                SET status = ?,
                     result = CASE WHEN ? IS NOT NULL THEN ? ELSE result END,
                     reason = CASE WHEN ? IS NOT NULL THEN ? ELSE reason END,
-                    details = CASE 
-                        WHEN ? IS NOT NULL THEN 
+                    messageId = CASE WHEN ? IS NOT NULL THEN ? ELSE messageId END,
+                    details = CASE
+                        WHEN ? IS NOT NULL THEN
                             json_set(
-                                COALESCE(details, '{}'), 
-                                '$.debateThreadId', 
+                                COALESCE(details, '{}'),
+                                '$.debateThreadId',
                                 ?
                             )
-                        ELSE details 
+                        ELSE details
                     END,
                     updatedAt = ?
                 WHERE id = ?`,
@@ -65,6 +67,8 @@ class ProcessModel {
                     options.result,
                     options.reason,
                     options.reason,
+                    options.messageId,
+                    options.messageId,
                     options.debateThreadId,
                     options.debateThreadId,
                     Date.now(),
@@ -73,7 +77,7 @@ class ProcessModel {
             );
 
             // 使用修改后的清除缓存函数
-            this._clearRelatedCache(process.targetId, process.executorId, id, process.messageId);
+            this._clearRelatedCache(process.targetId, process.executorId, id, options.messageId || process.messageId);
 
             return this.getProcessById(id);
         } catch (error) {
@@ -120,7 +124,7 @@ class ProcessModel {
         try {
             const expiredProcesses = await dbManager.safeExecute(
                 'all',
-                `SELECT * FROM processes 
+                `SELECT * FROM processes
 	            WHERE status IN ('pending', 'in_progress')
 	            AND expireAt <= ?`,
                 [now],
@@ -150,7 +154,7 @@ class ProcessModel {
         try {
             const now = Date.now();
             const query = `
-	            SELECT * FROM processes 
+	            SELECT * FROM processes
 	            WHERE (targetId = ? OR executorId = ?)
 	            ${
                     !includeCompleted
@@ -184,7 +188,7 @@ class ProcessModel {
     static async getAllProcesses(includeCompleted = false) {
         try {
             const query = `
-	            SELECT * FROM processes 
+	            SELECT * FROM processes
 	            ${
                     !includeCompleted
                         ? `
@@ -234,7 +238,15 @@ class ProcessModel {
 	                details, supporters, statusMessageId
 	            ) VALUES (?, ?, ?, ?, ?, 'pending', ?, '[]', ?)
 	        `,
-                [type, targetId, executorId, messageId, expireAt, JSON.stringify(enrichedDetails), statusMessageId],
+                [
+                    type,
+                    targetId,
+                    executorId,
+                    messageId || null,
+                    expireAt,
+                    JSON.stringify(enrichedDetails),
+                    statusMessageId,
+                ],
             );
 
             // 清除相关缓存

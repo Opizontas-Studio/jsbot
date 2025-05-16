@@ -7,10 +7,70 @@ import { addRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { checkAppealEligibility, checkPunishmentStatus, formatPunishmentDuration } from '../utils/punishmentHelper.js';
+import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 import { globalTaskScheduler } from './scheduler.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
+
+/**
+ * 统一处理投稿提交
+ * @param {ModalSubmitInteraction} interaction - Discord模态框提交交互对象
+ * @param {string} type - 投稿类型（news或opinion）
+ * @param {string} titlePrefix - 标题前缀
+ * @param {number} color - 嵌入消息颜色
+ */
+const handleSubmission = async (interaction, type, titlePrefix, color) => {
+    try {
+        // 获取服务器配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig?.opinionMailThreadId) {
+            await interaction.editReply({
+                content: '❌ 此服务器未配置意见信箱频道',
+            });
+            return;
+        }
+
+        // 获取用户输入
+        const title = interaction.fields.getTextInputValue(`${type}_title`);
+        const content = interaction.fields.getTextInputValue(`${type}_content`);
+
+        // 创建嵌入消息
+        const messageEmbed = {
+            color: color,
+            title: `${titlePrefix}${title}`,
+            description: content,
+            author: {
+                name: interaction.user.tag,
+                icon_url: interaction.user.displayAvatarURL(),
+            },
+            timestamp: new Date(),
+        };
+
+        // 获取目标频道并发送消息
+        try {
+            const targetChannel = await interaction.client.channels.fetch(guildConfig.opinionMailThreadId);
+            if (!targetChannel) {
+                throw new Error('无法获取目标频道');
+            }
+
+            await targetChannel.send({ embeds: [messageEmbed] });
+
+            // 回复用户确认消息
+            await interaction.editReply({
+                content: `✅ ${type === 'news' ? '新闻投稿' : '社区意见'}已成功提交！`,
+            });
+
+            logTime(`用户 ${interaction.user.tag} 提交了${type === 'news' ? '新闻投稿' : '社区意见'}: "${title}"`);
+        } catch (error) {
+            throw new Error(`发送投稿时出错: ${error.message}`);
+        }
+    } catch (error) {
+        logTime(`处理${type === 'news' ? '新闻投稿' : '社区意见'}失败: ${error.message}`, true);
+        await interaction.editReply({
+            content: `❌ 提交${type === 'news' ? '新闻' : '意见'}时出错，请稍后重试`,
+        });
+    }
+};
 
 /**
  * 模态框处理器映射
@@ -200,28 +260,8 @@ export const modalHandlers = {
                 return;
             }
 
-            // 获取处罚记录
+            // 获取处罚记录 - 在buttons.js的appeal处理器中已经完成了检查
             const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-
-            // 检查处罚状态
-            const { isValid, error: statusError } = checkPunishmentStatus(punishment);
-            if (!isValid) {
-                await interaction.reply({
-                    content: `❌ ${statusError}`,
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 检查上诉资格
-            const { isEligible, error: eligibilityError } = await checkAppealEligibility(interaction.user.id);
-            if (!isEligible) {
-                await interaction.reply({
-                    content: `❌ ${eligibilityError}`,
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
 
             // 获取上诉内容
             const appealContent = interaction.fields.getTextInputValue('appeal_content');
@@ -242,55 +282,69 @@ export const modalHandlers = {
             // 计算过期时间
             const expireTime = new Date(Date.now() + mainGuildConfig.courtSystem.appealDuration);
 
-            // 准备议事消息
-            const messageEmbed = {
-                color: 0x5865f2,
-                title: '处罚上诉申请',
-                description: [
-                    `<@${interaction.user.id}> 上诉，议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
-                    '',
-                    '**上诉理由：**',
-                    appealContent,
-                ].join('\n'),
-                fields: [
-                    {
-                        name: '处罚执行者',
-                        value: `<@${executor.id}>`,
-                        inline: true,
-                    },
-                    {
-                        name: '处罚详情',
-                        value: `${
-                            punishment.type === 'ban'
-                                ? '永久封禁'
-                                : `禁言 ${formatPunishmentDuration(punishment.duration)}`
-                        }`,
-                        inline: true,
-                    },
-                    {
-                        name: '原处罚理由',
-                        value: punishment.reason,
-                        inline: false,
-                    },
-                ],
-                timestamp: new Date(),
-                footer: {
-                    text: `再次点击支持可以撤销支持 | 处罚ID: ${punishment.id}`,
+            // 先创建上诉流程（不含messageId）
+            const process = await ProcessModel.createCourtProcess({
+                type: 'appeal',
+                targetId: interaction.user.id, // 上诉人（被处罚者）
+                executorId: executor.id, // 处罚执行者
+                expireAt: expireTime.getTime(),
+                details: {
+                    punishmentId: punishmentId,
+                    appealContent: appealContent,
                 },
-            };
+            });
 
-            // 获取原处罚服务器的配置
+            // 构建描述文本
+            let descriptionText = [
+                `<@${interaction.user.id}> 上诉，议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
+                '',
+                '**上诉理由：**',
+                appealContent,
+            ].join('\n');
+
+            // 添加原处罚通知链接（如果有）
             const punishmentGuildConfig = interaction.client.guildManager.getGuildConfig(
                 punishment.notificationGuildId,
             );
             if (punishment.notificationMessageId && punishmentGuildConfig?.moderationLogThreadId) {
                 const notificationLink = `https://discord.com/channels/${punishment.notificationGuildId}/${punishmentGuildConfig.moderationLogThreadId}/${punishment.notificationMessageId}`;
-                messageEmbed.description += `\n\n**原处罚通知：**\n[点击查看](${notificationLink})`;
+                descriptionText += `\n\n**原处罚通知：**\n[点击查看](${notificationLink})`;
             }
 
-            // 发送议事消息
+            // 直接发送完整消息
             const message = await courtChannel.send({
-                embeds: [messageEmbed],
+                embeds: [
+                    {
+                        color: 0x5865f2,
+                        title: '处罚上诉申请',
+                        description: descriptionText,
+                        fields: [
+                            {
+                                name: '处罚执行者',
+                                value: `<@${executor.id}>`,
+                                inline: true,
+                            },
+                            {
+                                name: '处罚详情',
+                                value: `${
+                                    punishment.type === 'ban'
+                                        ? '永久封禁'
+                                        : `禁言 ${formatPunishmentDuration(punishment.duration)}`
+                                }`,
+                                inline: true,
+                            },
+                            {
+                                name: '原处罚理由',
+                                value: punishment.reason,
+                                inline: false,
+                            },
+                        ],
+                        timestamp: new Date(),
+                        footer: {
+                            text: `再次点击支持可以撤销支持 | 处罚ID: ${punishment.id} | 流程ID: ${process.id}`,
+                        },
+                    },
+                ],
                 components: [
                     {
                         type: 1,
@@ -307,39 +361,17 @@ export const modalHandlers = {
                 ],
             });
 
-            // 创建新的议事流程
-            const process = await ProcessModel.createCourtProcess({
-                type: 'appeal',
-                targetId: interaction.user.id, // 上诉人（被处罚者）
-                executorId: executor.id, // 处罚执行者
+            // 一次性更新流程记录
+            await ProcessModel.updateStatus(process.id, 'pending', {
                 messageId: message.id,
-                expireAt: expireTime.getTime(),
                 details: {
+                    ...process.details,
                     embed: message.embeds[0].toJSON(),
-                    punishmentId: punishmentId,
-                    appealContent: appealContent,
                 },
-            });
-
-            // 更新消息以添加流程ID
-            await message.edit({
-                embeds: [
-                    {
-                        ...message.embeds[0].data,
-                        footer: {
-                            text: `再次点击支持可以撤销支持 | 处罚ID: ${punishment.id} | 流程ID: ${process.id}`,
-                        },
-                    },
-                ],
             });
 
             // 记录上诉提交日志
             logTime(`用户 ${interaction.user.tag} 提交了对管理员 ${executor.tag} 的处罚上诉`);
-
-            // 调度流程到期处理
-            if (process) {
-                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
-            }
 
             // 获取并更新原始上诉按钮消息
             try {
@@ -352,7 +384,6 @@ export const modalHandlers = {
                         try {
                             const originalMessage = await dmChannel.messages.fetch(messageId);
                             if (originalMessage) {
-                                // 更新消息，添加撤回上诉按钮
                                 await originalMessage.edit({
                                     components: [
                                         {
@@ -380,6 +411,9 @@ export const modalHandlers = {
                 logTime(`更新原始上诉消息失败: ${error.message}`, true);
                 // 继续执行，不影响主流程
             }
+
+            // 调度流程到期处理
+            await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
 
             // 发送确认消息
             await interaction.editReply({
@@ -431,40 +465,55 @@ export const modalHandlers = {
             // 计算过期时间
             const expireTime = new Date(Date.now() + guildConfig.courtSystem.summitDuration);
 
-            // 准备议事消息
-            const messageEmbed = {
-                color: 0x5865f2,
-                title: title,
-                description: `提案人：<@${interaction.user.id}>\n\n议事截止：<t:${Math.floor(
-                    expireTime.getTime() / 1000,
-                )}:R>`,
-                fields: [
+            // 先创建议事流程（不含messageId）
+            const process = await ProcessModel.createCourtProcess({
+                type: 'debate',
+                targetId: interaction.user.id,
+                executorId: interaction.user.id,
+                // 暂不设置messageId
+                expireAt: expireTime.getTime(),
+                details: {
+                    title: title,
+                    reason: reason,
+                    motion: motion,
+                    implementation: implementation,
+                    voteTime: voteTime,
+                },
+            });
+
+            // 发送包含完整信息的议事消息
+            const message = await courtChannel.send({
+                embeds: [
                     {
-                        name: '📝 原因',
-                        value: reason,
-                    },
-                    {
-                        name: '📋 动议',
-                        value: motion,
-                    },
-                    {
-                        name: '🔧 执行方案',
-                        value: implementation,
-                    },
-                    {
-                        name: '🕰️ 投票时间',
-                        value: voteTime,
+                        color: 0x5865f2,
+                        title: title,
+                        description: `提案人：<@${interaction.user.id}>\n\n议事截止：<t:${Math.floor(
+                            expireTime.getTime() / 1000,
+                        )}:R>`,
+                        fields: [
+                            {
+                                name: '📝 原因',
+                                value: reason,
+                            },
+                            {
+                                name: '📋 动议',
+                                value: motion,
+                            },
+                            {
+                                name: '🔧 执行方案',
+                                value: implementation,
+                            },
+                            {
+                                name: '🕰️ 投票时间',
+                                value: voteTime,
+                            },
+                        ],
+                        timestamp: new Date(),
+                        footer: {
+                            text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持 | 流程ID: ${process.id}`,
+                        },
                     },
                 ],
-                timestamp: new Date(),
-                footer: {
-                    text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持`,
-                },
-            };
-
-            // 发送议事消息
-            const message = await courtChannel.send({
-                embeds: [messageEmbed],
                 components: [
                     {
                         type: 1,
@@ -488,39 +537,17 @@ export const modalHandlers = {
                 ],
             });
 
-            // 创建议事流程
-            const process = await ProcessModel.createCourtProcess({
-                type: 'debate',
-                targetId: interaction.user.id,
-                executorId: interaction.user.id,
+            // 一次性更新流程记录
+            await ProcessModel.updateStatus(process.id, 'pending', {
                 messageId: message.id,
-                expireAt: expireTime.getTime(),
                 details: {
+                    ...process.details,
                     embed: message.embeds[0].toJSON(),
-                    title: title,
-                    reason: reason,
-                    motion: motion,
-                    implementation: implementation,
-                    voteTime: voteTime,
                 },
             });
 
-            // 更新消息以添加流程ID
-            await message.edit({
-                embeds: [
-                    {
-                        ...message.embeds[0].data,
-                        footer: {
-                            text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持 | 流程ID: ${process.id}`,
-                        },
-                    },
-                ],
-            });
-
             // 调度流程到期处理
-            if (process) {
-                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
-            }
+            await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
 
             // 发送确认消息
             await interaction.editReply({
@@ -538,110 +565,12 @@ export const modalHandlers = {
 
     // AI新闻投稿模态框处理器
     news_submission_modal: async interaction => {
-        try {
-            // 获取服务器配置
-            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-            if (!guildConfig?.opinionMailThreadId) {
-                await interaction.editReply({
-                    content: '❌ 此服务器未配置意见信箱频道',
-                });
-                return;
-            }
-
-            // 获取用户输入
-            const newsTitle = interaction.fields.getTextInputValue('news_title');
-            const newsContent = interaction.fields.getTextInputValue('news_content');
-
-            // 准备嵌入消息
-            const messageEmbed = {
-                color: 0x3498db, // 蓝色
-                title: `📰 新闻投稿：${newsTitle}`,
-                description: newsContent,
-                author: {
-                    name: interaction.user.tag,
-                    icon_url: interaction.user.displayAvatarURL(),
-                },
-                timestamp: new Date(),
-            };
-
-            // 获取目标频道并发送消息
-            try {
-                const targetChannel = await interaction.client.channels.fetch(guildConfig.opinionMailThreadId);
-                if (!targetChannel) {
-                    throw new Error('无法获取目标频道');
-                }
-
-                await targetChannel.send({ embeds: [messageEmbed] });
-
-                // 回复用户确认消息
-                await interaction.editReply({
-                    content: '✅ 新闻投稿已成功提交！',
-                });
-
-                logTime(`用户 ${interaction.user.tag} 提交了新闻投稿: "${newsTitle}"`);
-            } catch (error) {
-                throw new Error(`发送投稿时出错: ${error.message}`);
-            }
-        } catch (error) {
-            logTime(`处理新闻投稿失败: ${error.message}`, true);
-            await interaction.editReply({
-                content: '❌ 提交新闻时出错，请稍后重试',
-            });
-        }
+        await handleSubmission(interaction, 'news', '📰 新闻投稿：', 0x3498db); // 蓝色
     },
 
     // 社区意见投稿模态框处理器
     opinion_submission_modal: async interaction => {
-        try {
-            // 获取服务器配置
-            const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-            if (!guildConfig?.opinionMailThreadId) {
-                await interaction.editReply({
-                    content: '❌ 此服务器未配置意见信箱频道',
-                });
-                return;
-            }
-
-            // 获取用户输入
-            const opinionTitle = interaction.fields.getTextInputValue('opinion_title');
-            const opinionContent = interaction.fields.getTextInputValue('opinion_content');
-
-            // 准备嵌入消息
-            const messageEmbed = {
-                color: 0x2ecc71, // 绿色
-                title: `💬 社区意见：${opinionTitle}`,
-                description: opinionContent,
-                author: {
-                    name: interaction.user.tag,
-                    icon_url: interaction.user.displayAvatarURL(),
-                },
-                timestamp: new Date(),
-            };
-
-            // 获取目标频道并发送消息
-            try {
-                const targetChannel = await interaction.client.channels.fetch(guildConfig.opinionMailThreadId);
-                if (!targetChannel) {
-                    throw new Error('无法获取目标频道');
-                }
-
-                await targetChannel.send({ embeds: [messageEmbed] });
-
-                // 回复用户确认消息
-                await interaction.editReply({
-                    content: '✅ 社区意见已成功提交，感谢您的反馈！',
-                });
-
-                logTime(`用户 ${interaction.user.tag} 提交了社区意见: "${opinionTitle}"`);
-            } catch (error) {
-                throw new Error(`发送意见时出错: ${error.message}`);
-            }
-        } catch (error) {
-            logTime(`处理社区意见投稿失败: ${error.message}`, true);
-            await interaction.editReply({
-                content: '❌ 提交意见时出错，请稍后重试',
-            });
-        }
+        await handleSubmission(interaction, 'opinion', '💬 社区意见：', 0x2ecc71); // 绿色
     },
 };
 

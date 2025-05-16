@@ -558,7 +558,7 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
  * @param {number} punishmentId - 处罚ID
  * @returns {Promise<{isEligible: boolean, error: string|null, punishment: Object|null}>}
  */
-export const checkAppealEligibility = async userId => {
+export const checkAppealEligibility = async (userId, punishmentId) => {
     try {
         // 检查是否已有活跃的上诉流程
         const userProcesses = await ProcessModel.getUserProcesses(userId, false);
@@ -568,6 +568,18 @@ export const checkAppealEligibility = async userId => {
 
         if (hasActiveAppeal) {
             return { isEligible: false, error: '你已有正在进行的上诉', punishment: null };
+        }
+
+        // 检查处罚记录是否存在且有效
+        if (punishmentId) {
+            const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
+            const { isValid, error: statusError } = checkPunishmentStatus(punishment);
+
+            if (!isValid) {
+                return { isEligible: false, error: statusError, punishment: null };
+            }
+
+            return { isEligible: true, error: null, punishment };
         }
 
         return { isEligible: true, error: null, punishment: null };

@@ -1,6 +1,6 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { handleConfirmationButton } from '../handlers/buttons.js';
 import PunishmentService from '../services/punishmentService.js';
+import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { checkAndHandlePermission, checkModeratorPermission, handleCommandError } from '../utils/helper.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 
@@ -56,7 +56,7 @@ export default {
             let isAdmin = false;
             try {
                 const member = await interaction.guild.members.fetch(target.id);
-                isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) || 
+                isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) ||
                          member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
             } catch (error) {
                 // 如果用户不在服务器中，则跳过管理员检查
@@ -64,7 +64,7 @@ export default {
                     throw error; // 如果是其他错误，则继续抛出
                 }
             }
-            
+
             if (isAdmin) {
                 await interaction.editReply({
                     content: '❌ 无法对管理员执行处罚',
@@ -114,7 +114,7 @@ export default {
                         };
 
                         const result = await PunishmentService.executePunishment(
-                            interaction.client, 
+                            interaction.client,
                             banData,
                             interaction.guildId
                         );
@@ -192,7 +192,7 @@ export default {
 
                 // 执行处罚
                 const result = await PunishmentService.executePunishment(
-                    interaction.client, 
+                    interaction.client,
                     muteData,
                     interaction.guildId
                 );

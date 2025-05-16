@@ -1,6 +1,6 @@
 import { Collection, SlashCommandBuilder } from 'discord.js';
-import { handleConfirmationButton } from '../handlers/buttons.js';
 import { delay, generateProgressReport, globalBatchProcessor } from '../utils/concurrency.js';
+import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -72,7 +72,7 @@ export default {
             }
 
             // 估算消息数量（基于消息ID的差值）
-            const estimatedCount = endMessageId 
+            const estimatedCount = endMessageId
                 ? Math.floor((BigInt(endMessageId) - BigInt(startMessageId)) / BigInt(1000)) + 1
                 : '未知（将清理至频道末尾）';
 
@@ -121,12 +121,12 @@ export default {
                         if (batch.size === 0) break;
 
                         // 找到起点消息或更早的消息时停止
-                        const reachedStart = Array.from(batch.values()).some(msg => 
+                        const reachedStart = Array.from(batch.values()).some(msg =>
                             BigInt(msg.id) <= BigInt(startMessageId)
                         );
 
                         // 过滤出需要删除的消息（在起点之后的消息）
-                        const batchToDelete = batch.filter(msg => 
+                        const batchToDelete = batch.filter(msg =>
                             BigInt(msg.id) >= BigInt(startMessageId)
                         );
 

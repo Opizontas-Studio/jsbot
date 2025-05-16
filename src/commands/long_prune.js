@@ -1,6 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { cleanThreadMembers, handleSingleThreadCleanup } from '../services/threadCleaner.js';
 import { generateProgressReport, globalBatchProcessor } from '../utils/concurrency.js';
+import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -163,82 +164,80 @@ async function handleAllThreads(interaction, guildConfig) {
         ).join('\n');
 
         // 使用确认按钮让管理员确认是否执行清理
-        await import('../handlers/buttons.js').then(async ({ handleConfirmationButton }) => {
-            await handleConfirmationButton({
-                interaction,
-                customId: 'confirm_clean_all_threads',
-                buttonLabel: '确认清理',
-                embed: {
-                    color: 0xff9900,
-                    title: '🔍 子区清理确认',
-                    description: [
-                        `共发现 ${threadsToClean.length} 个需要清理的子区:`,
-                        '',
-                        threadsInfo,
-                        '',
-                        `⚠️ **警告**: 此操作将从上述子区移除不活跃成员。`,
-                        `清理阈值: ${threshold}人`,
-                        `总计清理人数: ${threadsToClean.reduce((sum, { memberCount }) => sum + (memberCount - threshold), 0)}人`,
-                    ].join('\n'),
-                    footer: { text: '请确认是否执行清理操作' }
-                },
-                onConfirm: async confirmation => {
-                    await confirmation.update({
-                        content: '⏳ 已确认，开始执行清理操作...',
-                        components: [],
-                        embeds: [],
-                        flags: ['Ephemeral'],
-                    });
+        await handleConfirmationButton({
+            interaction,
+            customId: 'confirm_clean_all_threads',
+            buttonLabel: '确认清理',
+            embed: {
+                color: 0xff9900,
+                title: '🔍 子区清理确认',
+                description: [
+                    `共发现 ${threadsToClean.length} 个需要清理的子区:`,
+                    '',
+                    threadsInfo,
+                    '',
+                    `⚠️ **警告**: 此操作将从上述子区移除不活跃成员。`,
+                    `清理阈值: ${threshold}人`,
+                    `总计清理人数: ${threadsToClean.reduce((sum, { memberCount }) => sum + (memberCount - threshold), 0)}人`,
+                ].join('\n'),
+                footer: { text: '请确认是否执行清理操作' }
+            },
+            onConfirm: async confirmation => {
+                await confirmation.update({
+                    content: '⏳ 已确认，开始执行清理操作...',
+                    components: [],
+                    embeds: [],
+                    flags: ['Ephemeral'],
+                });
 
-                    // 处理结果存储
-                    const cleanupResults = [];
+                // 处理结果存储
+                const cleanupResults = [];
 
-                    // 使用批处理器处理子区清理
-                    const cleanupBatchResults = await globalBatchProcessor.processBatch(
-                        threadsToClean,
-                        async ({ thread }) => {
-                            await interaction.editReply({
-                                content: generateProgressReport(cleanupResults.length + 1, threadsToClean.length, {
-                                    prefix: '正在处理子区清理',
-                                    suffix: `- ${thread.name}`,
-                                    progressChar: '🔄',
-                                }),
-                                flags: ['Ephemeral'],
-                            });
+                // 使用批处理器处理子区清理
+                const cleanupBatchResults = await globalBatchProcessor.processBatch(
+                    threadsToClean,
+                    async ({ thread }) => {
+                        await interaction.editReply({
+                            content: generateProgressReport(cleanupResults.length + 1, threadsToClean.length, {
+                                prefix: '正在处理子区清理',
+                                suffix: `- ${thread.name}`,
+                                progressChar: '🔄',
+                            }),
+                            flags: ['Ephemeral'],
+                        });
 
-                            return await cleanThreadMembers(thread, threshold, { sendThreadReport: true }, progress => {
-                                if (progress.type === 'message_scan' && progress.messagesProcessed % 1000 === 0) {
-                                    logTime(`[${thread.name}] 已处理 ${progress.messagesProcessed} 条消息`);
-                                } else if (progress.type === 'member_remove' && progress.batchCount % 5 === 0) {
-                                    logTime(`[${thread.name}] 已移除 ${progress.removedCount}/${progress.totalToRemove} 个成员`);
-                                }
-                            });
-                        },
-                        async (progress, processed, total) => {
-                            if (processed % 5 === 0) {
-                                logTime(`已完成 ${processed}/${total} 个子区的清理`);
+                        return await cleanThreadMembers(thread, threshold, { sendThreadReport: true }, progress => {
+                            if (progress.type === 'message_scan' && progress.messagesProcessed % 1000 === 0) {
+                                logTime(`[${thread.name}] 已处理 ${progress.messagesProcessed} 条消息`);
+                            } else if (progress.type === 'member_remove' && progress.batchCount % 5 === 0) {
+                                logTime(`[${thread.name}] 已移除 ${progress.removedCount}/${progress.totalToRemove} 个成员`);
                             }
-                        },
-                        'memberRemove', // 使用较小批次处理子区清理
-                    );
+                        });
+                    },
+                    async (progress, processed, total) => {
+                        if (processed % 5 === 0) {
+                            logTime(`已完成 ${processed}/${total} 个子区的清理`);
+                        }
+                    },
+                    'memberRemove', // 使用较小批次处理子区清理
+                );
 
-                    cleanupResults.push(...cleanupBatchResults.filter(result => result.status === 'completed'));
+                cleanupResults.push(...cleanupBatchResults.filter(result => result.status === 'completed'));
 
-                    // 发送总结报告
-                    await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);
-                },
-                onTimeout: async () => {
-                    await interaction.editReply({
-                        content: '⏱️ 确认超时，操作已取消',
-                        components: [],
-                        embeds: [],
-                        flags: ['Ephemeral'],
-                    });
-                },
-                onError: async error => {
-                    await handleCommandError(interaction, error, '全服清理确认');
-                },
-            });
+                // 发送总结报告
+                await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);
+            },
+            onTimeout: async () => {
+                await interaction.editReply({
+                    content: '⏱️ 确认超时，操作已取消',
+                    components: [],
+                    embeds: [],
+                    flags: ['Ephemeral'],
+                });
+            },
+            onError: async error => {
+                await handleCommandError(interaction, error, '全服清理确认');
+            },
         });
     } catch (error) {
         await handleCommandError(interaction, error, '全服清理');

@@ -1,7 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
-import { handleConfirmationButton } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
+import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { handleCommandError, validateImageFile } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration, formatPunishmentDuration } from '../utils/punishmentHelper.js';

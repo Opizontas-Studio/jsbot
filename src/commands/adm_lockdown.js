@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleConfirmationButton } from '../handlers/buttons.js';
+import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { checkAndHandlePermission, handleCommandError, sendModerationLog } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 

@@ -1,5 +1,5 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { handleConfirmationButton } from '../handlers/buttons.js';
+import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import {
     checkModeratorPermission,
     handleCommandError,
@@ -126,7 +126,7 @@ export default {
 
                             // 记录日志
                             logTime(`管理员 ${userTag} 删除了帖子 ${threadName}，原因: ${reason}`);
-                            
+
                             // 尝试发送成功消息
                             try {
                                 await confirmation.editReply({
@@ -221,7 +221,6 @@ export default {
                 });
             }
 
-            // 使用 editReply 而不是 reply
             await interaction.editReply({
                 content: `✅ 已成功${actionDesc}帖子 "${thread.name}"`,
             });

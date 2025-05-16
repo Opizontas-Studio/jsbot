@@ -69,7 +69,7 @@ class DatabaseManager {
             // 验证外键约束是否启用
             const foreignKeysEnabled = await this.safeExecute('get', 'PRAGMA foreign_keys');
             if (!foreignKeysEnabled || foreignKeysEnabled.foreign_keys !== 1) {
-                logTime('警告: 外键约束未启用，重新启用中...', true);
+                logTime('[数据库] 警告: 外键约束未启用，重新启用中...', true);
                 await this.db.exec('PRAGMA foreign_keys = ON');
 
                 // 再次验证
@@ -77,14 +77,14 @@ class DatabaseManager {
                 if (!recheck || recheck.foreign_keys !== 1) {
                     throw new Error('无法启用外键约束，这可能导致数据一致性问题');
                 } else {
-                    logTime('外键约束已成功启用');
+                    logTime('[数据库] 外键约束已成功启用');
                 }
             }
 
-            logTime('数据库初始化完成');
+            logTime('[数据库] 初始化完成');
         } catch (error) {
             this.db = undefined;
-            logTime(`数据库连接失败: ${error.message}`, true);
+            logTime(`[数据库] 连接失败: ${error.message}`, true);
             console.error('数据库连接错误详情:', error);
             throw error;
         }
@@ -222,7 +222,7 @@ class DatabaseManager {
                     `ALTER TABLE punishments
                     ADD COLUMN ${column.name} ${column.type} DEFAULT ${column.default}`,
                 );
-                logTime(`已添加数据库列: ${column.name}`);
+                logTime(`[数据库] 已添加数据库列: ${column.name}`);
             }
         }
 
@@ -238,21 +238,21 @@ class DatabaseManager {
                 CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
                 CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
             `);
-            logTime('已添加缺失的投票表索引');
+            logTime('[数据库] 已添加缺失的投票表索引');
         }
 
         // 验证外键的完整性
         try {
             const foreignKeyIssues = await this.db.all('PRAGMA foreign_key_check');
             if (foreignKeyIssues && foreignKeyIssues.length > 0) {
-                logTime(`检测到外键完整性问题: ${foreignKeyIssues.length}条违规记录`, true);
+                logTime(`[数据库] 检测到外键完整性问题: ${foreignKeyIssues.length}条违规记录`, true);
 
                 // 删除有问题的投票记录
                 await this.transaction(async db => {
                     for (const issue of foreignKeyIssues) {
                         if (issue.table === 'votes') {
                             await db.exec(`DELETE FROM votes WHERE rowid = ${issue.rowid}`);
-                            logTime(`已删除无效的投票记录: rowid=${issue.rowid}`);
+                            logTime(`[数据库] 已删除无效的投票记录: rowid=${issue.rowid}`);
                         }
                     }
                 });
@@ -271,7 +271,7 @@ class DatabaseManager {
      */
     async safeExecute(operation, query, params = []) {
         if (!this.db) {
-            throw new Error('数据库未连接');
+            throw new Error('[数据库] 数据库未连接');
         }
 
         try {
@@ -296,7 +296,7 @@ class DatabaseManager {
      */
     async transaction(callback) {
         if (!this.db) {
-            throw new Error('数据库未连接');
+            throw new Error('[数据库] 数据库未连接');
         }
 
         // 确保外键约束已启用
@@ -349,7 +349,7 @@ class DatabaseManager {
         if (key) {
             this.cache.delete(key);
         } else {
-            logTime('清除所有缓存');
+            logTime('[数据库] 清除所有缓存');
             this.cache.clear();
         }
     }
@@ -379,9 +379,9 @@ class DatabaseManager {
             // 复制数据库文件
             copyFileSync(path.join('data', 'database.sqlite'), backupPath);
 
-            logTime(`数据库已备份到: ${backupPath}`);
+            logTime(`[数据库] 已备份到: ${backupPath}`);
         } catch (error) {
-            logTime(`数据库备份失败: ${error.message}`, true);
+            logTime(`[数据库] 备份失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -399,9 +399,9 @@ class DatabaseManager {
             this.db = undefined;
             // 修改清除缓存的方法
             this.cache.clear();
-            logTime('数据库连接已关闭');
+            logTime('[数据库] 数据库连接已关闭');
         } catch (error) {
-            logTime(`关闭数据库连接时出错: ${error.message}`, true);
+            logTime(`[数据库] 关闭数据库连接时出错: ${error.message}`, true);
             throw error;
         }
     }

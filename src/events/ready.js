@@ -74,7 +74,7 @@ export default {
     name: Events.ClientReady,
     once: true,
     async execute(client) {
-        logTime(`已登录: ${client.user.tag}`);
+        logTime(`[系统启动] 已登录: ${client.user.tag}`);
 
         // 设置客户端状态
         client.user.setPresence({
@@ -91,7 +91,7 @@ export default {
         client.rest
             .on('rateLimited', rateLimitData => {
                 logTime(
-                    `速率超限: • 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${
+                    `[网关超限] 路由: ${rateLimitData.route} - 方法: ${rateLimitData.method} - 剩余: ${
                         rateLimitData.timeToReset
                     }ms - 全局: ${rateLimitData.global ? '是' : '否'} - 限制: ${rateLimitData.limit || '未知'}`,
                     true,
@@ -100,16 +100,15 @@ export default {
             .on('response', (request, response) => {
                 if (response.status === 429) {
                     logTime(
-                        `API受限: • 路由: ${request.route} - 方法: ${request.method} - 状态: ${
+                        `[API受限] 路由: ${request.route} - 方法: ${request.method} - 状态: ${
                             response.status
-                        } - 重试延迟: ${response.headers.get('retry-after')}ms`,
-                        true,
+                        } - 重试延迟: ${response.headers.get('retry-after')}ms`
                     );
                 }
 
                 // token失效检测
                 if (response.status === 401) {
-                    logTime('Token已失效，尝试重新连接...', true);
+                    logTime('[系统重启] Token已失效，尝试重新连接...', true);
 
                     // 清理现有的监听器和定时器
                     client.removeAllListeners();
@@ -126,12 +125,9 @@ export default {
                             await initializeClient(client);
 
                             // 重新加载事件监听器
-                            logTime('尝试重新加载事件监听器...');
                             await loadEvents(client);
-                            logTime('事件监听器重新加载完成。');
 
                             // 重新加载命令
-                            logTime('尝试重新加载命令...');
                             const commandsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'commands');
                             const commandModules = await loadCommandFiles(commandsPath);
                             client.commands = new Collection();
@@ -140,14 +136,12 @@ export default {
                                     client.commands.set(command.data.name, command);
                                 } else {
                                     const commandPath = command.filePath || '未知文件'; // helper.js中的loadCommandFiles会返回filePath
-                                    logTime(`警告: 在重连时加载命令 ${commandPath} 失败，缺少data.name属性。`, true);
+                                    logTime(`[系统重启] 警告: 在重连时加载命令 ${commandPath} 失败，缺少data.name属性。`, true);
                                 }
                             }
-                            logTime(`命令重新加载完成，共加载 ${client.commands.size} 个命令。`);
-
-                            logTime('Token重新连接并初始化成功，事件和命令已重新加载');
+                            logTime('[系统重启] Token重新连接并初始化成功，事件和命令已重新加载');
                         } catch (error) {
-                            logTime(`Token重新连接或重新加载事件/命令失败: ${error.message}`, true);
+                            logTime(`[系统重启] Token重新连接或重新加载事件/命令失败: ${error.message}`, true);
                             console.error('详细错误:', error);
                         }
                     }, 3000);

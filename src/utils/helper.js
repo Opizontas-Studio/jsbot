@@ -375,10 +375,10 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
                 console.error(error.stack);
             }
         }
-        logTime(`命令加载完成，成功 ${commands.size} 个，失败 ${errorCount} 个`);
+        logTime(`[系统启动] 命令加载完成，成功 ${commands.size} 个，失败 ${errorCount} 个`);
         return commands;
     } catch (error) {
-        logTime('❌ 读取命令目录失败:', true);
+        logTime('[系统启动] 读取命令目录失败:', true);
         console.error(error.stack);
         return new Map();
     }

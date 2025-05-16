@@ -137,7 +137,7 @@ export class GuildManager {
                 features.push(`已启用清理(阈值:${serverConfig.automation.threshold})`);
             }
 
-            logTime(`已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
+            logTime(`[系统启动] 已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
         }
     }
 

@@ -59,7 +59,7 @@ export async function loadEvents(client) {
 
             for (const evt of eventList) {
                 if (!evt || !evt.name || !evt.execute) {
-                    logTime(`警告: ${file} 中的事件格式无效`, true);
+                    logTime(`[系统启动]警告: ${file} 中的事件格式无效`, true);
                     continue;
                 }
 
@@ -71,11 +71,11 @@ export async function loadEvents(client) {
                 loadedEvents++;
             }
         } catch (error) {
-            logTime(`加载事件文件 ${file} 失败:`, true);
+            logTime(`[系统启动] 加载事件文件 ${file} 失败:`, true);
             console.error(error.stack);
         }
     }
-    logTime(`已加载 ${loadedEvents} 个事件处理器`);
+    logTime(`[系统启动] 已加载 ${loadedEvents} 个事件处理器`);
 }
 
 // 进程错误处理
@@ -135,7 +135,7 @@ const deployCommands = async (client, commands, config) => {
 
 // 优雅关闭函数
 const gracefulShutdown = async (client, signal) => {
-    logTime(`收到${signal}信号，正在关闭`);
+    logTime(`[优雅关闭] 收到${signal}信号，正在关闭`);
 
     try {
         // 停止所有定时任务
@@ -150,13 +150,6 @@ const gracefulShutdown = async (client, signal) => {
 
         // 关闭数据库连接
         if (dbManager && dbManager.getConnectionStatus()) {
-            // 在关闭前执行一次备份
-            try {
-                await dbManager.backup();
-            } catch (error) {
-                logTime('关闭前备份失败: ' + error.message, true);
-            }
-
             await dbManager.disconnect();
         }
 
@@ -165,9 +158,7 @@ const gracefulShutdown = async (client, signal) => {
 
         // 移除所有事件监听器并销毁客户端连接
         if (client.isReady()) {
-            // 先移除所有事件监听器，避免断开连接事件触发重连尝试
             client.removeAllListeners();
-            // 清理WebSocket监控器的定时器
             if (client.wsStateMonitor && client.wsStateMonitor.heartbeatInterval) {
                 clearInterval(client.wsStateMonitor.heartbeatInterval);
             }
@@ -175,7 +166,7 @@ const gracefulShutdown = async (client, signal) => {
         }
         process.exit(0);
     } catch (error) {
-        logTime('退出过程中发生错误:', true);
+        logTime('[优雅关闭] 退出过程中发生错误:', true);
         console.error(error);
         process.exit(1);
     }
@@ -195,8 +186,7 @@ async function main() {
         // 版本信息
         const versionInfo = getVersionInfo();
         if (versionInfo) {
-            logTime(`GateKeeper in Odysseia ${versionInfo.version} (${versionInfo.commitHash})`);
-            logTime(`提交时间: ${versionInfo.commitDate}`);
+            logTime(`[系统启动] GateKeeper in Odysseia ${versionInfo.version} (${versionInfo.commitHash}) 提交时间: ${versionInfo.commitDate}`);
         }
 
         // 初始化进程事件调度器
@@ -206,7 +196,7 @@ async function main() {
         try {
             await dbManager.connect();
         } catch (error) {
-            logTime('数据库初始化失败，无法继续运行:', true);
+            logTime('[数据库] 初始化失败，无法继续运行:', true);
             console.error('错误详情:', error);
             if (error.details) {
                 console.error('额外信息:', error.details);
@@ -221,7 +211,7 @@ async function main() {
         try {
             await client.login(config.token);
         } catch (error) {
-            logTime(`登录失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error.message}`, true);
+            logTime(`[系统启动] 登录失败: ${error instanceof DiscordAPIError ? handleDiscordError(error) : error.message}`, true);
             process.exit(1);
         }
 
@@ -245,7 +235,7 @@ async function main() {
         // 加载命令到客户端集合中
         client.commands = new Collection(commands);
     } catch (error) {
-        logTime('启动过程中发生错误:', true);
+        logTime('[系统启动] 启动过程中发生错误:', true);
         console.error(error);
 
         // 发生错误时也正确断开数据库

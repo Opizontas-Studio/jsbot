@@ -140,7 +140,7 @@ export class RequestQueue {
         clearInterval(this.healthCheckInterval);
 
         if (this.queue.length > 0) {
-            logTime(`强制清理 ${this.queue.length} 个队列任务`);
+            logTime(`[请求队列] 强制清理 ${this.queue.length} 个队列任务`);
             for (const item of this.queue) {
                 item.reject(new Error('队列被强制清理'));
             }
@@ -150,7 +150,6 @@ export class RequestQueue {
         this.currentProcessing = 0;
         this.stats.failed += this.currentProcessing;
         this.lastProcessTime = Date.now();
-        logTime('请求队列已强制清理');
     }
 }
 

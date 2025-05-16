@@ -726,7 +726,7 @@ class TaskScheduler {
         this.voteScheduler.cleanup();
 
         if (taskCount > 0) {
-            logTime(`已停止 ${taskCount} 个定时任务`);
+            logTime(`[定时任务] 已停止 ${taskCount} 个定时任务`);
         }
         this.jobs.clear();
         this.tasks.clear();

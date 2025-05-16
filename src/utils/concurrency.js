@@ -176,6 +176,13 @@ class RateLimitedBatchProcessor {
                 requests: [],
                 concurrency: 1,
             },
+            // 删除相关操作 - 5次/5秒
+            deletion: {
+                maxRequests: 5,
+                windowMs: 4800, // 压缩200ms加速
+                requests: [],
+                concurrency: 1,
+            },
             // 其他操作 - 40次/秒
             default: {
                 maxRequests: 40,

@@ -448,7 +448,7 @@ class TaskScheduler {
         // 构建任务信息日志
         const nextInvocation = job.nextInvocation();
         const taskInfo = [
-            `每日定时任务: ${taskId}`,
+            `[定时任务] ${taskId}`,
             `执行时间: 每天${hour}:${minute.toString().padStart(2, '0')}`,
             `下次执行: ${nextInvocation.toLocaleString()}`
         ];

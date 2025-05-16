@@ -163,8 +163,14 @@ const gracefulShutdown = async (client, signal) => {
         // 等待一小段时间
         await delay(1000);
 
-        // 销毁客户端连接
+        // 移除所有事件监听器并销毁客户端连接
         if (client.isReady()) {
+            // 先移除所有事件监听器，避免断开连接事件触发重连尝试
+            client.removeAllListeners();
+            // 清理WebSocket监控器的定时器
+            if (client.wsStateMonitor && client.wsStateMonitor.heartbeatInterval) {
+                clearInterval(client.wsStateMonitor.heartbeatInterval);
+            }
             await client.destroy();
         }
         process.exit(0);

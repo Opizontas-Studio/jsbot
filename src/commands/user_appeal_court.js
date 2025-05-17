@@ -121,6 +121,25 @@ export default {
             return;
         }
 
+        // 检查用户是否已有活跃的流程
+        try {
+            const activeProcesses = await ProcessModel.getUserProcesses(interaction.user.id, false);
+            if (activeProcesses && activeProcesses.length > 0) {
+                await interaction.editReply({
+                    content: '❌ 你已经有正在进行的议事流程，同时只能提交一个申请',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+        } catch (error) {
+            logTime(`检查用户活跃流程失败: ${error.message}`, true);
+            await interaction.editReply({
+                content: '❌ 检查流程状态时出错，请稍后重试',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
         const subcommand = interaction.options.getSubcommand();
 
         try {
@@ -128,6 +147,35 @@ export default {
                 const target = interaction.options.getUser('目标');
                 const reason = interaction.options.getString('理由');
                 const imageAttachment = interaction.options.getAttachment('证据图片');
+
+                // 检查目标用户是否正在参与辩诉
+                const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
+                if (targetMember && targetMember.roles.cache.has(guildConfig.roleApplication?.appealDebateRoleId)) {
+                    await interaction.editReply({
+                        content: '❌ 目标用户正在参与辩诉，无法对其提交新的申请',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 检查目标用户是否已有活跃的流程
+                try {
+                    const targetActiveProcesses = await ProcessModel.getUserProcesses(target.id, false);
+                    if (targetActiveProcesses && targetActiveProcesses.length > 0) {
+                        await interaction.editReply({
+                            content: '❌ 目标用户已有正在进行的议事流程，无法对其提交新的申请',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+                } catch (error) {
+                    logTime(`检查目标用户活跃流程失败: ${error.message}`, true);
+                    await interaction.editReply({
+                        content: '❌ 检查流程状态时出错，请稍后重试',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
 
                 // 在获取图片附件后立即验证
                 if (imageAttachment) {

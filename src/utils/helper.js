@@ -358,12 +358,13 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
                 const command = await import(fileUrl);
 
                 if (!command.default?.data?.name || !command.default.execute) {
+                    logTime(`❌ 加载命令文件 ${file} 失败: 缺少必要的data.name或execute属性`);
                     errorCount++;
                     continue;
                 }
 
                 if (commands.has(command.default.data.name)) {
-                    logTime(`⚠️ 重复命令名称 "${command.default.data.name}"`);
+                    logTime(`⚠️ 重复命令名称 "${command.default.data.name}" 在文件 ${file}`);
                     errorCount++;
                     continue;
                 }

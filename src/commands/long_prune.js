@@ -11,7 +11,7 @@ import { logTime } from '../utils/logger.js';
  */
 export default {
     cooldown: 30,
-    ephemeral: true,
+    ephemeral: false,
     data: new SlashCommandBuilder()
         .setName('清理子区不活跃用户')
         .setDescription('清理子区中的不活跃用户')
@@ -128,7 +128,6 @@ async function handleAllThreads(interaction, guildConfig) {
                     lastProgressUpdate = now;
                     await interaction.editReply({
                         content: `⏳ 正在检查子区人数... (${processedCount}/${threads.size})`,
-                        flags: ['Ephemeral'],
                     });
                 }
 
@@ -153,7 +152,6 @@ async function handleAllThreads(interaction, guildConfig) {
                     `📊 已检查: ${threads.size} 个子区`,
                     `⏭️ 已跳过: ${skippedCount} 个子区(人数未超限)`,
                 ].join('\n'),
-                flags: ['Ephemeral'],
             });
             return;
         }
@@ -188,7 +186,6 @@ async function handleAllThreads(interaction, guildConfig) {
                     content: '⏳ 已确认，开始执行清理操作...',
                     components: [],
                     embeds: [],
-                    flags: ['Ephemeral'],
                 });
 
                 // 处理结果存储
@@ -204,7 +201,6 @@ async function handleAllThreads(interaction, guildConfig) {
                                 suffix: `- ${thread.name}`,
                                 progressChar: '🔄',
                             }),
-                            flags: ['Ephemeral'],
                         });
 
                         return await cleanThreadMembers(thread, threshold, { sendThreadReport: true }, progress => {
@@ -233,7 +229,6 @@ async function handleAllThreads(interaction, guildConfig) {
                     content: '⏱️ 确认超时，操作已取消',
                     components: [],
                     embeds: [],
-                    flags: ['Ephemeral'],
                 });
             },
             onError: async error => {

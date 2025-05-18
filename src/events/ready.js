@@ -131,12 +131,13 @@ export default {
                             const commandsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'commands');
                             const commandModules = await loadCommandFiles(commandsPath);
                             client.commands = new Collection();
-                            for (const command of commandModules) {
-                                if (command.data && command.data.name) {
+
+                            // 将Map转为数组进行遍历，每项包含[name, command]
+                            for (const [name, command] of commandModules.entries()) {
+                                if (command && command.data && command.data.name) {
                                     client.commands.set(command.data.name, command);
                                 } else {
-                                    const commandPath = command.filePath || '未知文件'; // helper.js中的loadCommandFiles会返回filePath
-                                    logTime(`[系统重启] 警告: 在重连时加载命令 ${commandPath} 失败，缺少data.name属性。`, true);
+                                    logTime(`[系统重启] 警告: 在重连时加载命令 ${name || '未知命令'} 失败，缺少data.name属性。`, true);
                                 }
                             }
                             logTime('[系统重启] Token重新连接并初始化成功，事件和命令已重新加载');

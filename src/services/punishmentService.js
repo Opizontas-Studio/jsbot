@@ -66,12 +66,27 @@ class PunishmentService {
                 }
             }
 
-            // 4. 遍历所有服务器执行处罚
+            // 4. 获取执行处罚的服务器配置
+            const executingGuildConfig = client.guildManager.getGuildConfig(executingGuildId);
+            if (!executingGuildConfig) {
+                throw new Error(`无法获取服务器 ${executingGuildId} 的配置`);
+            }
+
+            // 5. 确定要执行处罚的服务器列表
+            let guildsToProcess = [];
+            if (executingGuildConfig.serverType === 'Main server') {
+                // 如果是主服务器，只处理主服务器
+                guildsToProcess = [executingGuildConfig];
+            } else {
+                // 如果是子服务器，处理所有服务器
+                guildsToProcess = Array.from(client.guildManager.guilds.values());
+            }
+
+            // 6. 遍历服务器执行处罚
             const successfulServers = [];
             const failedServers = [];
-            const allGuilds = Array.from(client.guildManager.guilds.values());
 
-            for (const guildData of allGuilds) {
+            for (const guildData of guildsToProcess) {
                 try {
                     if (!guildData || !guildData.id) {
                         logTime('跳过无效的服务器配置', true);
@@ -101,7 +116,6 @@ class PunishmentService {
                             id: guild.id,
                             name: guild.name,
                         });
-                        // 失败的话，这部分日志由executePunishmentAction函数输出
                     }
                 } catch (error) {
                     failedServers.push({
@@ -123,7 +137,7 @@ class PunishmentService {
                 };
             }
 
-            // 5. 更新同步状态
+            // 7. 更新同步状态
             if (successfulServers.length > 0) {
                 const syncedServerIds = successfulServers.map(s => s.id);
                 await PunishmentModel.updateSyncStatus(punishment.id, syncedServerIds);
@@ -144,11 +158,10 @@ class PunishmentService {
                     await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
                 } catch (error) {
                     logTime(`设置处罚到期定时器失败: ${error.message}`, true);
-                    // 不抛出错误，继续执行
                 }
             }
 
-            // 6. 发送通知
+            // 8. 发送通知
             const notificationResults = [];
 
             // 如果有指定频道，先发送频道通知
@@ -167,8 +180,12 @@ class PunishmentService {
                 }
             }
 
-            // 发送管理日志
-            for (const guildData of allGuilds) {
+            // 发送管理日志 - 根据服务器类型决定发送范围
+            const guildsToSendLog = executingGuildConfig.serverType === 'Main server'
+                ? [executingGuildConfig]  // 主服务器只发送到主服务器
+                : Array.from(client.guildManager.guilds.values());  // 子服务器发送到所有服务器
+
+            for (const guildData of guildsToSendLog) {
                 try {
                     if (guildData.moderationLogThreadId) {
                         const logChannel = await client.channels
@@ -222,7 +239,7 @@ class PunishmentService {
                 logTime('通知发送情况 - 无通知发送成功', true);
             }
 
-            // 6. 返回执行结果
+            // 9. 返回执行结果
             return {
                 success: true,
                 message: [

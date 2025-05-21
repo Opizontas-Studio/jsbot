@@ -330,7 +330,7 @@ class CourtService {
     static async handleProcessExpiry(process, client) {
         try {
             // Early return 检查
-            if (!process.type.startsWith('court_') && !process.type.startsWith('appeal') && process.type !== 'debate') {
+            if (!process.type.startsWith('court_') && process.type !== 'debate') {
                 return;
             }
 

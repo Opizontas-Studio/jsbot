@@ -321,8 +321,8 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         const executor = await channel.client.users.fetch(punishment.executorId);
         const guildConfig = channel.client.guildManager.getGuildConfig(channel.guild.id);
 
-        // 检查处罚时长是否小于48小时+1秒
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < 48 * 60 * 60 * 1000 + 1000;
+        // 检查禁言时长是否小于3天+1秒
+        const isShortPunishment = punishment.duration > 0 && punishment.duration < 3 * 24 * 60 * 60 * 1000 + 1000;
 
         // 检查处罚是否已过期
         const now = Date.now();
@@ -330,7 +330,6 @@ export const sendAppealNotification = async (channel, target, punishment) => {
 
         // 从配置中获取上诉参数
         const appealDuration = guildConfig?.courtSystem?.appealDuration || 259200000; // 默认3天
-        const requiredSupports = guildConfig?.courtSystem?.requiredSupports || 20; // 默认20人
         const appealDurationDays = Math.floor(appealDuration / (24 * 60 * 60 * 1000));
 
         // 私信通知的 embed
@@ -348,14 +347,13 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                 `• 处罚理由：${punishment.reason || '未提供原因'}`,
                 '',
                 isShortPunishment
-                    ? '⚠️ 由于处罚时长小于议事周期，不予受理上诉申请。'
+                    ? '⚠️ 由于处罚时长过短，不予受理上诉申请。'
                     : isPunishmentExpired
                     ? '⚠️ 处罚已到期，无需上诉。'
                     : [
                           '**上诉说明**',
                           `- 点击下方按钮开始上诉流程，周期${appealDurationDays}天`,
                           '- 请在控件中提交详细的上诉文章',
-                          `- 需至少${requiredSupports}位议员匿名赞同才能进入辩诉流程`,
                           '- 请注意查看私信消息，了解上诉进展',
                       ].join('\n'),
             ]

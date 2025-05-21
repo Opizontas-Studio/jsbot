@@ -297,7 +297,7 @@ export const modalHandlers = {
 
             // 构建描述文本
             let descriptionText = [
-                `<@${interaction.user.id}> 上诉，议事截止：<t:${Math.floor(expireTime.getTime() / 1000)}:R>`,
+                `<@${interaction.user.id}> 上诉`,
                 '',
                 '**上诉理由：**',
                 appealContent,
@@ -342,24 +342,10 @@ export const modalHandlers = {
                         ],
                         timestamp: new Date(),
                         footer: {
-                            text: `再次点击支持可以撤销支持 | 处罚ID: ${punishment.id} | 流程ID: ${process.id}`,
+                            text: `处罚ID: ${punishment.id} | 流程ID: ${process.id}`,
                         },
                     },
-                ],
-                components: [
-                    {
-                        type: 1,
-                        components: [
-                            {
-                                type: 2,
-                                style: 3,
-                                label: '支持',
-                                custom_id: `support_appeal_${interaction.user.id}_${executor.id}`,
-                                emoji: { name: '👍' },
-                            },
-                        ],
-                    },
-                ],
+                ]
             });
 
             // 一次性更新流程记录

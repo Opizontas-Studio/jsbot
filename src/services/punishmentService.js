@@ -66,90 +66,48 @@ class PunishmentService {
                 }
             }
 
-            // 4. 获取执行处罚的服务器配置
-            const executingGuildConfig = client.guildManager.getGuildConfig(executingGuildId);
-            if (!executingGuildConfig) {
-                throw new Error(`无法获取服务器 ${executingGuildId} 的配置`);
-            }
-
-            // 5. 确定要执行处罚的服务器列表
-            let guildsToProcess = [];
-            if (executingGuildConfig.serverType === 'Main server') {
-                // 如果是主服务器，只处理主服务器
-                guildsToProcess = [executingGuildConfig];
-            } else {
-                // 如果是子服务器，处理所有服务器
-                guildsToProcess = Array.from(client.guildManager.guilds.values());
-            }
-
-            // 6. 遍历服务器执行处罚
-            const successfulServers = [];
-            const failedServers = [];
-
-            for (const guildData of guildsToProcess) {
-                try {
-                    if (!guildData || !guildData.id) {
-                        logTime('跳过无效的服务器配置', true);
-                        continue;
-                    }
-
-                    const guild = await client.guilds.fetch(guildData.id).catch(() => null);
-                    if (!guild) {
-                        logTime(`无法获取服务器 ${guildData.id}`, true);
-                        failedServers.push({
-                            id: guildData.id,
-                            name: guildData.name || guildData.id,
-                        });
-                        continue;
-                    }
-
-                    // 执行处罚
-                    const success = await executePunishmentAction(guild, punishment);
-                    if (success) {
-                        successfulServers.push({
-                            id: guild.id,
-                            name: guild.name,
-                        });
-                        logTime(`在服务器 ${guild.name} 执行处罚成功`);
-                    } else {
-                        failedServers.push({
-                            id: guild.id,
-                            name: guild.name,
-                        });
-                    }
-                } catch (error) {
-                    failedServers.push({
-                        id: guildData.id,
-                        name: guildData.name || guildData.id,
-                    });
-                    logTime(`在服务器 ${guildData.id} 执行处罚时发生错误: ${error.message}`, true);
-                }
-            }
-
-            // 如果所有服务器都执行失败
-            if (successfulServers.length === 0) {
+            // 4. 在指定服务器执行处罚
+            const guildData = client.guildManager.getGuildConfig(executingGuildId);
+            if (!guildData) {
                 // 删除处罚记录
                 await PunishmentModel.deletePunishment(punishment.id);
-                logTime(`所有服务器处罚执行失败，已删除处罚记录 ${punishment.id}`);
+                logTime(`指定的服务器 ${executingGuildId} 配置不存在，已删除处罚记录 ${punishment.id}`);
                 return {
                     success: false,
-                    message: '❌ 处罚执行失败：无法在任何服务器执行处罚',
+                    message: '❌ 处罚执行失败：指定的服务器配置不存在',
                 };
             }
 
-            // 7. 更新同步状态
-            if (successfulServers.length > 0) {
-                const syncedServerIds = successfulServers.map(s => s.id);
-                await PunishmentModel.updateSyncStatus(punishment.id, syncedServerIds);
+            const guild = await client.guilds.fetch(executingGuildId).catch(() => null);
+            if (!guild) {
+                // 删除处罚记录
+                await PunishmentModel.deletePunishment(punishment.id);
+                logTime(`无法获取服务器 ${executingGuildId}，已删除处罚记录 ${punishment.id}`);
+                return {
+                    success: false,
+                    message: '❌ 处罚执行失败：无法获取指定的服务器',
+                };
+            }
 
-                // 如果是永封且已同步到所有服务器，则标记为过期
-                if (punishment.type === 'ban') {
-                    const allGuildIds = client.guildManager.getGuildIds();
-                    if (allGuildIds.every(guildId => syncedServerIds.includes(guildId))) {
-                        await PunishmentModel.updateStatus(punishment.id, 'expired', '已在所有服务器执行永封');
-                        logTime(`永封处罚 ${punishment.id} 已在所有服务器执行完毕，标记为过期`);
-                    }
-                }
+            // 执行处罚
+            const success = await executePunishmentAction(guild, punishment);
+            if (!success) {
+                // 删除处罚记录
+                await PunishmentModel.deletePunishment(punishment.id);
+                logTime(`在服务器 ${guild.name} 执行处罚失败，已删除处罚记录 ${punishment.id}`);
+                return {
+                    success: false,
+                    message: `❌ 处罚执行失败：在服务器 ${guild.name} 执行处罚失败`,
+                };
+            }
+
+            // 5. 更新同步状态
+            await PunishmentModel.updateSyncStatus(punishment.id, [executingGuildId]);
+
+            // 如果是永封，标记为过期
+            if (punishment.type === 'ban') {
+                await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行永封');
+                logTime(`永封处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
             }
 
             // 设置处罚到期定时器
@@ -158,21 +116,21 @@ class PunishmentService {
                     await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
                 } catch (error) {
                     logTime(`设置处罚到期定时器失败: ${error.message}`, true);
+                    // 不抛出错误，继续执行
                 }
             }
 
-            // 8. 发送通知
+            // 6. 发送通知
             const notificationResults = [];
 
-            // 如果有指定频道，先发送频道通知
+            // 如果有指定频道，发送频道通知
             if (data.channelId) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
-                    if (channel) {
+                    if (channel && channel.guild.id === executingGuildId) {
                         const success = await sendChannelNotification(channel, target, punishment);
                         if (success) {
-                            const guildName = channel.guild?.name || '未知服务器';
-                            notificationResults.push(`服务器 ${guildName} 的频道通知`);
+                            notificationResults.push(`服务器 ${guild.name} 的频道通知`);
                         }
                     }
                 } catch (error) {
@@ -180,40 +138,23 @@ class PunishmentService {
                 }
             }
 
-            // 发送管理日志 - 根据服务器类型决定发送范围
-            const guildsToSendLog = executingGuildConfig.serverType === 'Main server'
-                ? [executingGuildConfig]  // 主服务器只发送到主服务器
-                : Array.from(client.guildManager.guilds.values());  // 子服务器发送到所有服务器
-
-            for (const guildData of guildsToSendLog) {
+            // 发送管理日志
+            if (guildData.moderationLogThreadId) {
                 try {
-                    if (guildData.moderationLogThreadId) {
-                        const logChannel = await client.channels
-                            .fetch(guildData.moderationLogThreadId)
-                            .catch(() => null);
-                        if (logChannel) {
-                            const notificationResult = await sendModLogNotification(
-                                logChannel,
-                                punishment,
-                                executor,
-                                target,
+                    const logChannel = await client.channels.fetch(guildData.moderationLogThreadId).catch(() => null);
+                    if (logChannel) {
+                        const notificationResult = await sendModLogNotification(logChannel, punishment, executor, target);
+                        if (notificationResult.success) {
+                            await PunishmentModel.updateNotificationInfo(
+                                punishment.id,
+                                notificationResult.messageId,
+                                notificationResult.guildId,
                             );
-                            if (notificationResult.success) {
-                                // 只保存执行处罚的服务器的通知消息
-                                if (guildData.id === executingGuildId) {
-                                    await PunishmentModel.updateNotificationInfo(
-                                        punishment.id,
-                                        notificationResult.messageId,
-                                        notificationResult.guildId,
-                                    );
-                                }
-                                const guildName = logChannel.guild?.name || '未知服务器';
-                                notificationResults.push(`服务器 ${guildName} 的管理日志`);
-                            }
+                            notificationResults.push(`服务器 ${guild.name} 的管理日志`);
                         }
                     }
                 } catch (error) {
-                    logTime(`发送管理日志通知失败 (服务器ID: ${guildData.id}): ${error.message}`, true);
+                    logTime(`发送管理日志通知失败: ${error.message}`, true);
                 }
             }
 
@@ -221,11 +162,10 @@ class PunishmentService {
             if (punishment.type === 'mute' && data.channelId && !data.noAppeal) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
-                    if (channel) {
+                    if (channel && channel.guild.id === executingGuildId) {
                         const success = await sendAppealNotification(channel, target, punishment);
                         if (success) {
-                            const guildName = channel.guild?.name || '未知服务器';
-                            notificationResults.push(`服务器 ${guildName} 的上诉通知`);
+                            notificationResults.push(`服务器 ${guild.name} 的上诉通知`);
                         }
                     }
                 } catch (error) {
@@ -239,18 +179,10 @@ class PunishmentService {
                 logTime('通知发送情况 - 无通知发送成功', true);
             }
 
-            // 9. 返回执行结果
+            // 7. 返回执行结果
             return {
                 success: true,
-                message: [
-                    '✅ 处罚执行结果：',
-                    `成功服务器: ${
-                        successfulServers.length > 0 ? successfulServers.map(s => s.name).join(', ') : '无'
-                    }`,
-                    failedServers.length > 0 ? `失败服务器: ${failedServers.map(s => s.name).join(', ')}` : null,
-                ]
-                    .filter(Boolean)
-                    .join('\n'),
+                message: `✅ 处罚已在服务器 ${guild.name} 执行成功`,
             };
         } catch (error) {
             logTime(`执行处罚失败: ${error.message}`, true);

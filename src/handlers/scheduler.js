@@ -605,15 +605,12 @@ class TaskScheduler {
         managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
 
-            // 创建每2小时执行一次的规则
-            // 将服务器的执行时间错开，每个服务器的分钟偏移量为index * 10
+            // 创建每30分钟执行一次的规则
+            // 将服务器的执行时间错开，每个服务器的分钟偏移量为index * 5
             const rule = new schedule.RecurrenceRule();
-            // 设置分钟为当前服务器的偏移量
-            const offsetMinute = (index * 10) % 60;
-            rule.minute = offsetMinute;
-            // 如果需要跨小时，则设置小时为偶数+偏移
-            const hourOffset = Math.floor((index * 10) / 60) % 2;
-            rule.hour = new schedule.Range(0, 23, 2, hourOffset);
+            // 设置分钟为当前服务器的偏移量，每30分钟执行一次
+            const offsetMinute = (index * 5) % 30;
+            rule.minute = [offsetMinute, (offsetMinute + 30) % 60];
 
             // 为该服务器创建定时任务
             const job = schedule.scheduleJob(rule, async () => {

@@ -9,7 +9,7 @@ import { checkAndHandlePermission, handleCommandError, measureTime } from '../ut
  */
 export default {
     cooldown: 30,
-    ephemeral: true,
+    ephemeral: false,
     data: new SlashCommandBuilder()
         .setName('清理活跃贴')
         .setDescription('清理不活跃的子区')
@@ -46,7 +46,6 @@ export default {
                         `📊 当前活跃子区数 (${currentThreadCount}) 已经小于或等于目标阈值 (${threshold})`,
                         `⏱️ 检查用时: ${executionTime}秒`,
                     ].join('\n'),
-                    flags: ['Ephemeral'],
                 });
                 return;
             }
@@ -70,7 +69,6 @@ export default {
                     suffix: `目标: ${threshold}个活跃子区`,
                     progressChar: '📦',
                 }),
-                flags: ['Ephemeral'],
             });
 
             const executionTime = executionTimer();
@@ -86,7 +84,6 @@ export default {
 
             await interaction.editReply({
                 content: replyContent,
-                flags: ['Ephemeral'],
             });
         } catch (error) {
             await handleCommandError(interaction, error, '清理子区');

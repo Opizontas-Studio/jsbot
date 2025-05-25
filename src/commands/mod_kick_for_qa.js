@@ -63,22 +63,6 @@ export default {
                 return;
             }
 
-            // QAer操作额外检查目标是否具有创作者身份组
-            if (isQAerOperation) {
-                // 获取目标用户在当前服务器的成员信息
-                const targetMember = await interaction.guild.members.fetch(targetUser.id);
-
-                // 检查目标用户是否具有创作者身份组
-                const creatorGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
-                if (creatorGroup) {
-                    const creatorRoleId = creatorGroup.roles[interaction.guild.id];
-                    if (creatorRoleId && targetMember.roles.cache.has(creatorRoleId)) {
-                        await interaction.editReply('❌ 目标用户为创作者，无法对其直接操作，请联系管理员');
-                        return;
-                    }
-                }
-            }
-
             // 使用批量处理函数
             const result = await manageRolesByGroups(
                 interaction.client,

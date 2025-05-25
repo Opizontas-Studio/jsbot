@@ -1,7 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import PunishmentService from '../services/punishmentService.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { checkAndHandlePermission, checkModeratorPermission, handleCommandError } from '../utils/helper.js';
+import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 
 export default {
@@ -40,6 +40,9 @@ export default {
             const target = interaction.options.getUser('用户');
             const reason = interaction.options.getString('原因');
 
+            // 声明权限相关变量
+            let isQAerOnly = false;
+
             // 根据子命令检查不同的权限
             if (subcommand === '永封') {
                 // 永封需要管理员权限
@@ -47,10 +50,27 @@ export default {
                     return;
                 }
             } else if (subcommand === '禁言') {
-                // 禁言需要版主或管理员权限
-                if (!(await checkModeratorPermission(interaction, guildConfig))) {
+                // 检查基本权限（管理员、版主或QAer）
+                const hasAdminRole = interaction.member.roles.cache.some(role =>
+                    guildConfig.AdministratorRoleIds.includes(role.id),
+                );
+                const hasModRole = interaction.member.roles.cache.some(role =>
+                    guildConfig.ModeratorRoleIds.includes(role.id),
+                );
+                const hasQAerRole = interaction.member.roles.cache.some(role =>
+                    role.id === guildConfig.roleApplication?.QAerRoleId,
+                );
+
+                if (!hasAdminRole && !hasModRole && !hasQAerRole) {
+                    await interaction.editReply({
+                        content: '你没有权限执行此操作。需要具有管理员、版主或答疑员身份组。',
+                        flags: ['Ephemeral'],
+                    });
                     return;
                 }
+
+                // 对于仅有QAer权限的用户，需要进行额外检查
+                isQAerOnly = !hasAdminRole && !hasModRole && hasQAerRole;
             }
 
             // 检查目标用户是否为管理员
@@ -150,6 +170,18 @@ export default {
                         flags: ['Ephemeral'],
                     });
                     return;
+                }
+
+                // 对于QAer身份组，限制禁言时长不能超过1天
+                if (isQAerOnly) {
+                    const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+                    if (muteDuration > ONE_DAY_IN_MS) {
+                        await interaction.editReply({
+                            content: '❌ 答疑员身份组只能执行1天及以内的禁言',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
                 }
 
                 // 如果提供了警告时长，验证格式和时长

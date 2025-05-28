@@ -6,8 +6,11 @@ export default {
     name: Events.MessageReactionAdd,
     async execute(reaction, user) {
         try {
+
             // 忽略机器人的反应
-            if (user.bot) return;
+            if (user.bot) {
+                return;
+            }
 
             // 确保消息已完全加载
             if (reaction.partial) {
@@ -34,6 +37,7 @@ export default {
 
         } catch (error) {
             logTime(`[反应监控] 处理消息反应时出错: ${error.message}`, true);
+            console.error('[反应监控] 错误堆栈:', error);
         }
     },
 };

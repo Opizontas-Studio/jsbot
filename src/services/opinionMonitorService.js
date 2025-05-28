@@ -73,8 +73,12 @@ export function addQualifiedUser(userId, suggestionInfo) {
  */
 export async function handleOpinionReaction(reaction, user, client) {
     try {
-        // 检查是否是白勾表情
-        if (reaction.emoji.name !== '✅') {
+        // 检查是否是白勾表情（支持Unicode和自定义表情）
+        const isCheckMark = reaction.emoji.name === '✅' ||
+                           reaction.emoji.name === 'white_check_mark' ||
+                           (reaction.emoji.id && reaction.emoji.name === 'white_check_mark');
+
+        if (!isCheckMark) {
             return;
         }
 
@@ -92,6 +96,15 @@ export async function handleOpinionReaction(reaction, user, client) {
         }
 
         const embed = message.embeds[0];
+        logTime(`[意见监控] 消息embed标题: ${embed.title}`);
+
+        // 检查是否是社区意见投稿或新闻投稿（通过标题前缀判断）
+        const isSuggestion = embed.title && embed.title.startsWith('💬 社区意见：');
+        const isNews = embed.title && embed.title.startsWith('📰 新闻投稿：');
+
+        if (!isSuggestion && !isNews) {
+            return;
+        }
 
         // 获取原始投稿者ID（从author字段获取）
         if (!embed.author || !embed.author.name) {
@@ -119,22 +132,42 @@ export async function handleOpinionReaction(reaction, user, client) {
         }
 
         // 检查反应数量是否达到阈值（至少1个✅反应）
-        const checkMarkReaction = reaction.emoji.name === '✅' ? reaction : null;
-        if (!checkMarkReaction || checkMarkReaction.count < 1) {
+        if (!reaction || reaction.count < 1) {
             return;
+        }
+
+        // 检查消息是否已经被处理过（通过footer判断）
+        if (embed.footer && embed.footer.text === '✅ 审定有效，可申请志愿者身份组') {
+            return; // 已经处理过，忽略后续的✅反应
         }
 
         // 记录用户到合格建议列表
         const suggestionInfo = {
             messageId: message.id,
             timestamp: Date.now(),
-            title: embed.title.replace('💬 社区意见：', '').trim(),
-            reactionCount: checkMarkReaction.count
+            title: embed.title.replace(isSuggestion ? '💬 社区意见：' : '📰 新闻投稿：', '').trim(),
+            reactionCount: reaction.count,
+            type: isSuggestion ? 'suggestion' : 'news'
         };
 
         addQualifiedUser(authorId, suggestionInfo);
 
-        logTime(`[意见监控] 用户 ${authorTag}(${authorId}) 的建议 "${suggestionInfo.title}" 获得了 ${suggestionInfo.reactionCount} 个认可反应`);
+        // 更新消息的footer，标记为已审定有效
+        try {
+            const updatedEmbed = {
+                ...embed.data,
+                footer: {
+                    text: '✅ 审定有效，可申请志愿者身份组'
+                }
+            };
+
+            await message.edit({ embeds: [updatedEmbed] });
+            logTime(`[意见监控] 已更新消息footer: ${message.id}`);
+        } catch (error) {
+            logTime(`[意见监控] 更新消息footer失败: ${error.message}`, true);
+        }
+
+        logTime(`[意见监控] 用户 ${authorTag}(${authorId}) 的${isSuggestion ? '建议' : '新闻'} "${suggestionInfo.title}" 获得了 ${suggestionInfo.reactionCount} 个认可反应`);
 
     } catch (error) {
         logTime(`[意见监控] 处理意见反应时出错: ${error.message}`, true);

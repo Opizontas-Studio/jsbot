@@ -13,6 +13,7 @@ import {
     exitSenatorRole,
     exitVolunteerRole,
     syncMemberRoles,
+    updateOpinionRecord,
     validateVolunteerApplication
 } from '../services/roleApplication.js';
 import { VoteService } from '../services/voteService.js';
@@ -506,6 +507,98 @@ export const buttonHandlers = {
             await handleInteractionError(interaction, error, 'submit_opinion_button');
         }
     },
+
+    // 批准投稿按钮处理器
+    approve_submission: async interaction => {
+        try {
+            // 解析按钮ID获取用户ID和投稿类型
+            const [, , userId, submissionType] = interaction.customId.split('_');
+
+            // 从embed中提取投稿信息
+            const originalEmbed = interaction.message.embeds[0];
+            let submissionData = null;
+
+            if (originalEmbed) {
+                // 提取标题（去掉前缀）
+                let title = originalEmbed.title || '未记录标题';
+                if (title.startsWith('📰 新闻投稿：')) {
+                    title = title.replace('📰 新闻投稿：', '').trim();
+                } else if (title.startsWith('💬 社区意见：')) {
+                    title = title.replace('💬 社区意见：', '').trim();
+                }
+
+                // 提取内容
+                const content = originalEmbed.description || '未记录内容';
+
+                submissionData = {
+                    title: title,
+                    content: content
+                };
+            }
+
+            // 更新意见记录
+            const result = await updateOpinionRecord(userId, submissionType, true, submissionData);
+
+            if (result.success) {
+                // 更新消息的embed
+                const updatedEmbed = {
+                    ...originalEmbed.toJSON(),
+                    footer: {
+                        text: '审定有效，可申请志愿者身份组'
+                    }
+                };
+
+                // 移除按钮并更新消息
+                await interaction.message.edit({
+                    embeds: [updatedEmbed],
+                    components: []
+                });
+
+                await interaction.editReply({
+                    content: `✅ 已将该${submissionType === 'news' ? '新闻投稿' : '社区意见'}标记为合理`,
+                });
+
+                logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 的${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionData?.title || '未知标题'}"`);
+            } else {
+                await interaction.editReply({
+                    content: `❌ ${result.message}`,
+                });
+            }
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'approve_submission');
+        }
+    },
+
+    // 拒绝投稿按钮处理器
+    reject_submission: async interaction => {
+        try {
+            // 解析按钮ID获取用户ID和投稿类型
+            const [, , userId, submissionType] = interaction.customId.split('_');
+
+            // 更新消息的embed
+            const originalEmbed = interaction.message.embeds[0];
+            const updatedEmbed = {
+                ...originalEmbed.toJSON(),
+                footer: {
+                    text: '审定无效'
+                }
+            };
+
+            // 移除按钮并更新消息
+            await interaction.message.edit({
+                embeds: [updatedEmbed],
+                components: []
+            });
+
+            await interaction.editReply({
+                content: `✅ 已将该${submissionType === 'news' ? '新闻投稿' : '社区意见'}标记为不合理`,
+            });
+
+            logTime(`管理员 ${interaction.user.tag} 拒绝了用户 ${userId} 的${submissionType === 'news' ? '新闻投稿' : '社区意见'}`);
+        } catch (error) {
+            await handleInteractionError(interaction, error, 'reject_submission');
+        }
+    },
 };
 
 // 按钮处理配置对象
@@ -513,6 +606,10 @@ const BUTTON_CONFIG = {
     // 需要defer的按钮
     deferButtons: {
         exit_senator_role: { handler: buttonHandlers.exit_senator_role },
+        apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role },
+        exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role },
+        approve_submission: { handler: buttonHandlers.approve_submission },
+        reject_submission: { handler: buttonHandlers.reject_submission },
         support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute') },
         support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
         support_appeal: { handler: interaction => CourtService.handleSupport(interaction, 'appeal') },
@@ -532,8 +629,6 @@ const BUTTON_CONFIG = {
             return buttonHandlers.appeal(interaction, punishmentId);
         },
         apply_creator_role: buttonHandlers.apply_creator_role,
-        apply_volunteer_role: buttonHandlers.apply_volunteer_role,
-        exit_volunteer_role: buttonHandlers.exit_volunteer_role,
         start_debate: buttonHandlers.start_debate,
         page_prev: buttonHandlers.page_prev,
         page_next: buttonHandlers.page_next,

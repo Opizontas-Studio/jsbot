@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
 import { checkCooldown } from '../handlers/buttons.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
@@ -7,6 +7,7 @@ import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
+const opinionRecordsPath = join(process.cwd(), 'data', 'opinionRecords.json');
 
 /**
  * 读取身份组同步配置
@@ -500,25 +501,18 @@ export async function validateVolunteerApplication(member, guildConfig) {
             };
         }
 
-        // 4. 如果不是创作者，检查是否至少有已验证身份组
-        const roleSyncConfig = getRoleSyncConfig();
-        const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+        // 4. 检查是否有有效的投稿记录
+        const hasValidSubmission = hasValidSubmissionRecord(member.user.id);
 
-        if (verifiedGroup) {
-            const verifiedRoleId = verifiedGroup.roles[member.guild.id];
-            if (verifiedRoleId && member.roles.cache.has(verifiedRoleId)) {
-                // 检查是否有合理建议记录
-                if (hasQualifiedSuggestion(member.user.id)) {
-                    return {
-                        isValid: true,
-                    };
-                }
-            }
+        if (hasValidSubmission) {
+            return {
+                isValid: true,
+            };
         }
 
         return {
             isValid: false,
-            reason: '申请志愿者身份组需要满足以下条件之一：1) 拥有创作者身份组 2) 拥有已验证身份组且在意见信箱中提出过获得✅反应的合理建议、新闻',
+            reason: '获得志愿者身份组需要满足以下条件之一：1) 拥有创作者身份组 2) 在意见信箱中提出过被审定为合理的建议',
         };
     } catch (error) {
         logTime(`[身份同步] 验证志愿者申请条件时发生错误: ${error.message}`, true);
@@ -535,8 +529,6 @@ export async function validateVolunteerApplication(member, guildConfig) {
  */
 export async function applyVolunteerRole(interaction) {
     try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 
@@ -563,7 +555,7 @@ export async function applyVolunteerRole(interaction) {
         // 根据结果决定显示的消息
         if (result.success) {
             logTime(
-                `[身份同步] 用户 ${interaction.user.tag} 成功申请了志愿者身份组，已在 ${result.successfulServers.length} 个服务器获得权限`,
+                `[身份同步] 用户 ${interaction.user.tag} 成功申请了志愿者身份组`,
             );
 
             await interaction.editReply({
@@ -595,8 +587,6 @@ export async function applyVolunteerRole(interaction) {
  */
 export async function exitVolunteerRole(interaction) {
     try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
         // 检查冷却时间
         const cooldownLeft = checkCooldown('volunteer_exit', interaction.user.id, 60000); // 1分钟冷却
         if (cooldownLeft) {
@@ -640,7 +630,7 @@ export async function exitVolunteerRole(interaction) {
         // 创建确认按钮
         const confirmEmbed = {
             title: '⚠️ 确认退出志愿者身份组',
-            description: ['您确定要退出所有社区服务器的志愿者身份组吗？'].join('\n'),
+            description: ['您确定要退出社区服务器的志愿者身份组吗？'].join('\n'),
             color: 0xff0000,
         };
 
@@ -664,7 +654,7 @@ export async function exitVolunteerRole(interaction) {
                 // 根据结果决定显示的消息
                 if (result.success) {
                     logTime(
-                        `[身份同步] 用户 ${interaction.user.tag} 成功退出了志愿者身份组，已在 ${result.successfulServers.length} 个服务器移除权限`,
+                        `[身份同步] 用户 ${interaction.user.tag} 成功退出了志愿者身份组`,
                     );
 
                     await confirmation.editReply({
@@ -708,5 +698,110 @@ export async function exitVolunteerRole(interaction) {
     } catch (error) {
         logTime(`[身份同步] 处理用户退出志愿者身份组时发生错误: ${error.message}`, true);
         await handleInteractionError(interaction, error);
+    }
+}
+
+/**
+ * 读取意见记录配置
+ * @returns {Object} 意见记录配置对象
+ */
+export const getOpinionRecords = () => {
+    try {
+        return JSON.parse(readFileSync(opinionRecordsPath, 'utf8'));
+    } catch (error) {
+        logTime(`[意见记录] 读取意见记录配置失败: ${error.message}`, true);
+        // 如果文件不存在，返回默认结构
+        return {
+            validSubmissions: []
+        };
+    }
+};
+
+/**
+ * 写入意见记录配置
+ * @param {Object} records - 意见记录对象
+ */
+export const saveOpinionRecords = (records) => {
+    try {
+        writeFileSync(opinionRecordsPath, JSON.stringify(records, null, 4), 'utf8');
+    } catch (error) {
+        logTime(`[意见记录] 保存意见记录配置失败: ${error.message}`, true);
+        throw error;
+    }
+};
+
+/**
+ * 更新意见记录
+ * @param {string} userId - 用户ID
+ * @param {string} submissionType - 投稿类型 (news/opinion)
+ * @param {boolean} isApproved - 是否被批准
+ * @param {Object} [submissionData] - 投稿数据 {title: string, content: string}
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export async function updateOpinionRecord(userId, submissionType, isApproved, submissionData = null) {
+    try {
+        if (!isApproved) {
+            // 如果是拒绝，不需要记录到文件中
+            return {
+                success: true,
+                message: '投稿已标记为不合理'
+            };
+        }
+
+        // 读取现有记录
+        const records = getOpinionRecords();
+
+        // 检查用户是否已有记录
+        const existingUserRecord = records.validSubmissions.find(record => record.userId === userId);
+
+        const submissionRecord = {
+            type: submissionType,
+            title: submissionData?.title || '未记录标题',
+            content: submissionData?.content || '未记录内容',
+            approvedAt: new Date().toISOString()
+        };
+
+        if (existingUserRecord) {
+            // 更新现有用户记录
+            existingUserRecord.submissions.push(submissionRecord);
+        } else {
+            // 创建新用户记录
+            records.validSubmissions.push({
+                userId: userId,
+                submissions: [submissionRecord]
+            });
+        }
+
+        // 保存记录
+        saveOpinionRecords(records);
+
+        logTime(`[意见记录] 已记录用户 ${userId} 的有效${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionRecord.title}"`);
+
+        return {
+            success: true,
+            message: '投稿已标记为合理并记录'
+        };
+    } catch (error) {
+        logTime(`[意见记录] 更新意见记录失败: ${error.message}`, true);
+        return {
+            success: false,
+            message: '更新记录时出错'
+        };
+    }
+}
+
+/**
+ * 检查用户是否有有效的投稿记录
+ * @param {string} userId - 用户ID
+ * @returns {boolean} 是否有有效记录
+ */
+export function hasValidSubmissionRecord(userId) {
+    try {
+        const records = getOpinionRecords();
+        const userRecord = records.validSubmissions.find(record => record.userId === userId);
+        return userRecord && userRecord.submissions.length > 0;
+    } catch (error) {
+        logTime(`[意见记录] 检查投稿记录失败: ${error.message}`, true);
+        return false;
     }
 }

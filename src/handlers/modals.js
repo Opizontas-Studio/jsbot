@@ -44,6 +44,32 @@ const handleSubmission = async (interaction, type, titlePrefix, color) => {
                 icon_url: interaction.user.displayAvatarURL(),
             },
             timestamp: new Date(),
+            footer: {
+                text: '等待管理员审定'
+            }
+        };
+
+        // 创建判定按钮
+        const buttons = [
+            {
+                type: 2,
+                style: 3, // Success (绿色)
+                label: '合理',
+                custom_id: `approve_submission_${interaction.user.id}_${type}`,
+                emoji: { name: '✅' }
+            },
+            {
+                type: 2,
+                style: 4, // Danger (红色)
+                label: '不合理',
+                custom_id: `reject_submission_${interaction.user.id}_${type}`,
+                emoji: { name: '🚪' }
+            }
+        ];
+
+        const actionRow = {
+            type: 1,
+            components: buttons
         };
 
         // 获取目标频道并发送消息
@@ -53,7 +79,10 @@ const handleSubmission = async (interaction, type, titlePrefix, color) => {
                 throw new Error('无法获取目标频道');
             }
 
-            await targetChannel.send({ embeds: [messageEmbed] });
+            await targetChannel.send({
+                embeds: [messageEmbed],
+                components: [actionRow]
+            });
 
             // 回复用户确认消息
             await interaction.editReply({

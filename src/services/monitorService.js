@@ -237,7 +237,7 @@ class MonitorService {
     }
 
     /**
-     * 监控Senator角色成员数量
+     * 监控志愿者角色成员数量
      * @param {Client} client Discord客户端
      * @param {string} guildId 服务器ID
      */
@@ -248,10 +248,10 @@ class MonitorService {
                 return;
             }
 
-            // 获取参议员角色ID
-            const senatorRoleId = guildConfig.roleApplication?.senatorRoleId;
-            if (!senatorRoleId) {
-                logTime(`[监控服务] 服务器 ${guildId} 未配置参议员角色ID`, true);
+            // 获取角色ID
+            const volunteerRoleId = guildConfig.roleApplication?.volunteerRoleId;
+            if (!volunteerRoleId) {
+                logTime(`[监控服务] 服务器 ${guildId} 未配置角色ID`, true);
                 return;
             }
 
@@ -263,9 +263,9 @@ class MonitorService {
 
             // 获取角色
             const roles = await guild.roles.fetch();
-            const role = roles.get(senatorRoleId);
+            const role = roles.get(volunteerRoleId);
             if (!role) {
-                throw new Error(`无法获取角色 ${senatorRoleId}`);
+                throw new Error(`无法获取角色 ${volunteerRoleId}`);
             }
 
             // 获取所有服务器成员
@@ -273,12 +273,12 @@ class MonitorService {
 
             // 统计拥有议员身份组的成员数量
             const memberCount = members.filter(
-                member => member.roles.cache.has(senatorRoleId) && !member.user.bot
+                member => member.roles.cache.has(volunteerRoleId) && !member.user.bot
             ).size;
 
             // logTime(`[监控服务] 服务器 ${guildId} 议员人数: ${memberCount} (身份组: ${role.name})`);
 
-            const channelName = `赛博议员: ${memberCount}`;
+            const channelName = `社区志愿者: ${memberCount}`;
 
             // 获取分类频道
             const category = await guild.channels.fetch(guildConfig.monitor.roleMonitorCategoryId);
@@ -319,16 +319,16 @@ class MonitorService {
                 // 更新配置文件
                 await this.updateConfigSenatorChannelId(client, guildId, channel.id);
 
-                logTime(`[监控服务] 已在服务器 ${guildId} 创建议员监控频道: ${channel.name}`);
+                logTime(`[监控服务] 已在服务器 ${guildId} 创建志愿者监控频道: ${channel.name}`);
             }
             // 如果频道存在但名称需要更新
             else if (channel.name !== channelName) {
                 await channel.setName(channelName);
-                logTime(`[监控服务] 已更新服务器 ${guildId} 的议员监控频道名称: ${channelName}`);
+                logTime(`[监控服务] 已更新服务器 ${guildId} 的志愿者监控频道名称: ${channelName}`);
             }
 
         } catch (error) {
-            logTime(`[监控服务] 监控议员人数失败 [服务器 ${guildId}]: ${error.message}`, true);
+            logTime(`[监控服务] 监控志愿者人数失败 [服务器 ${guildId}]: ${error.message}`, true);
         }
     }
 }

@@ -151,9 +151,8 @@ export const buttonHandlers = {
         // 检查冷却时间
         const cooldownLeft = checkCooldown('volunteer_apply', interaction.user.id, 60000); // 1分钟冷却
         if (cooldownLeft) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
-                flags: ['Ephemeral'],
             });
             return;
         }
@@ -161,9 +160,8 @@ export const buttonHandlers = {
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
         if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.volunteerRoleId) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: '❌ 服务器未正确配置志愿者身份组',
-                flags: ['Ephemeral'],
             });
             return;
         }
@@ -171,9 +169,8 @@ export const buttonHandlers = {
         // 检查用户是否已有志愿者身份组
         const member = await interaction.guild.members.fetch(interaction.user.id);
         if (member.roles.cache.has(guildConfig.roleApplication.volunteerRoleId)) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: '❌ 您已经拥有志愿者身份组',
-                flags: ['Ephemeral'],
             });
             return;
         }
@@ -181,9 +178,8 @@ export const buttonHandlers = {
         // 申请条件验证
         const validationResult = await validateVolunteerApplication(member, guildConfig);
         if (!validationResult.isValid) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: `❌ ${validationResult.reason}`,
-                flags: ['Ephemeral'],
             });
             return;
         }
@@ -193,9 +189,8 @@ export const buttonHandlers = {
             await applyVolunteerRole(interaction);
         } catch (error) {
             if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({
+                await interaction.editReply({
                     content: '❌ 申请志愿者身份组时出错，请稍后重试',
-                    flags: ['Ephemeral'],
                 });
             }
             logTime(`志愿者申请失败: ${error.message}`, true);
@@ -563,8 +558,7 @@ export const buttonHandlers = {
                             title: '✅ 投稿审定通过',
                             description: [
                                 `感谢您投稿的${submissionType === 'news' ? '新闻投稿' : '社区意见'}`,
-                                '',
-                                `**投稿标题：${submissionData?.title || '未知标题'}**`,
+                                `**标题：${submissionData?.title || '未知标题'}**`,
                                 '您现在可以在[相关频道](https://discord.com/channels/1291925535324110879/1374312282351468626)申请社区志愿者身份组，参与重大决策的投票。',
                             ].join('\n'),
                             timestamp: new Date(),

@@ -113,8 +113,8 @@ async function sendQualifiedThreadsList(channel, guildId, threadInfoArray, messa
 
     const embed = {
         color: 0x0099ff,
-        title: '符合频道主条件列表',
-        description: '注：此列表显示关注人数达到900的子区',
+        title: '可申请频道主的子区',
+        description: '满足条件的创作者（也支持类脑服务器的申请）可以到[【投诉通道】](https://discord.com/channels/1291925535324110879/1374608096076500992)提交申请。',
         timestamp: new Date(),
         fields: qualifiedThreads.slice(0, 10).map((thread, index) => ({
             name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,

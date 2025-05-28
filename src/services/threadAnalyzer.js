@@ -114,7 +114,7 @@ async function sendQualifiedThreadsList(channel, guildId, threadInfoArray, messa
     const embed = {
         color: 0x0099ff,
         title: '可申请频道主的子区',
-        description: '满足条件的创作者（也支持类脑服务器的申请）可以到[【投诉通道】](https://discord.com/channels/1291925535324110879/1374608096076500992)提交申请。',
+        description: '满足条件（帖子关注人数达900，含类脑服务器）的创作者可以到[【投诉通道】](https://discord.com/channels/1291925535324110879/1374608096076500992)提交申请。',
         timestamp: new Date(),
         fields: qualifiedThreads.slice(0, 10).map((thread, index) => ({
             name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
@@ -218,8 +218,8 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
     const currentTime = Date.now();
     const threadArray = Array.from(activeThreads.threads.values());
 
-    // 使用globalBatchProcessor处理消息获取
-    const batchResults = await globalBatchProcessor.processBatch(
+    // 第一阶段：获取基本信息和成员数量
+    const basicInfoResults = await globalBatchProcessor.processBatch(
         threadArray,
         async thread => {
             try {
@@ -228,7 +228,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     try {
                         // 无条件确保子区开启和标注
                         await thread.setArchived(true, '定时重归档');
-                        delay(250);
+                        await delay(300);
                         await thread.setArchived(false, '定时重归档');
                         await thread.pin('保持标注');
                     } catch (error) {
@@ -242,7 +242,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                 try {
                     const messages = await withTimeout(
                         thread.messages.fetch({ limit: 1 }),
-                        5000,
+                        6000,
                         `获取子区消息 ${thread.name}`,
                     );
                     lastMessage = messages.first();
@@ -250,7 +250,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     if (!lastMessage) {
                         const moreMessages = await withTimeout(
                             thread.messages.fetch({ limit: 3 }),
-                            5000,
+                            6000,
                             `获取更多子区消息 ${thread.name}`,
                         );
                         lastMessage = moreMessages.find(msg => msg !== null);
@@ -273,23 +273,10 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                         `获取子区成员 ${thread.name}`,
                     );
                     memberCount = members.size;
+                    // 增加延迟以避免API限制
+                    await delay(1000);
                 } catch (error) {
                     logTime(`获取子区 ${thread.name} 成员数量失败: ${handleDiscordError(error)}`, true);
-                }
-
-                // 获取创作者信息
-                let creatorTag = '未知用户';
-                if (thread.ownerId) {
-                    try {
-                        const creator = await withTimeout(
-                            client.users.fetch(thread.ownerId),
-                            3000,
-                            `获取创作者信息 ${thread.name}`,
-                        );
-                        creatorTag = creator.tag;
-                    } catch (error) {
-                        logTime(`获取子区 ${thread.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
-                    }
                 }
 
                 return {
@@ -302,14 +289,14 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     inactiveHours,
                     messageCount: thread.messageCount || 0,
                     memberCount,
-                    creatorTag,
+                    creatorTag: '未知用户', // 暂时设为默认值
                     isPinned: thread.flags.has(ChannelFlags.Pinned),
                 };
             } catch (error) {
                 failedOperations.push({
                     threadId: thread.id,
                     threadName: thread.name,
-                    operation: '获取消息历史',
+                    operation: '获取基本信息',
                     error: handleDiscordError(error),
                 });
                 statistics.processedWithErrors++;
@@ -317,12 +304,46 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
             }
         },
         null,
-        'threadAnalysis',
+        'members', // 使用members类型，限制更严格
     );
 
-    const validThreads = batchResults
-        .filter(result => result !== null)
-        .sort((a, b) => b.inactiveHours - a.inactiveHours);
+    const validThreads = basicInfoResults.filter(result => result !== null);
+
+    // 筛选出符合条件的子区（关注人数≥900）
+    const qualifiedThreads = validThreads.filter(thread => thread.memberCount >= 900);
+    logTime(`第二阶段：为 ${qualifiedThreads.length} 个符合条件的子区获取创作者信息`);
+
+    // 第二阶段：仅为符合条件的子区获取创作者信息
+    if (qualifiedThreads.length > 0) {
+        const creatorInfoResults = await globalBatchProcessor.processBatch(
+            qualifiedThreads,
+            async threadInfo => {
+                if (threadInfo.thread.ownerId) {
+                    try {
+                        const creator = await withTimeout(
+                            client.users.fetch(threadInfo.thread.ownerId),
+                            5000,
+                            `获取创作者信息 ${threadInfo.name}`,
+                        );
+                        threadInfo.creatorTag = creator.displayName || creator.username || '未知用户';
+                        // 增加延迟以避免API限制
+                        await delay(100);
+                    } catch (error) {
+                        logTime(`获取子区 ${threadInfo.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
+                        failedOperations.push({
+                            threadId: threadInfo.threadId,
+                            threadName: threadInfo.name,
+                            operation: '获取创作者信息',
+                            error: handleDiscordError(error),
+                        });
+                    }
+                }
+                return threadInfo;
+            },
+            null,
+            'default', // 用户信息获取使用default类型
+        );
+    }
 
     // 合并统计
     validThreads.forEach(thread => {
@@ -350,7 +371,10 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         statistics.forumDistribution[thread.parentId].count++;
     });
 
-    return { statistics, failedOperations, validThreads };
+    // 按不活跃时长排序
+    const sortedThreads = validThreads.sort((a, b) => b.inactiveHours - a.inactiveHours);
+
+    return { statistics, failedOperations, validThreads: sortedThreads };
 };
 
 /**

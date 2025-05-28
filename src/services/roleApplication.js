@@ -565,7 +565,7 @@ export async function applyVolunteerRole(interaction) {
                     `已在以下服务器获得志愿者身份组：`,
                     result.successfulServers.join('\n'),
                     '',
-                    '感谢您成为社区志愿者！',
+                    '您将可以在[表决频道](https://discord.com/channels/1291925535324110879/1375007194365296710)参与社区重大决策的投票。',
                 ].join('\n'),
             });
         } else {

@@ -46,6 +46,7 @@ export class GuildManager {
                 roleApplication: guildConfig.roleApplication || {
                     logThreadId: null, // string | null - 角色申请日志频道ID
                     creatorRoleId: null, // string | null - 创作者角色ID
+                    volunteerRoleId: null, // string | null - 志愿者角色ID
                     senatorRoleId: null, // string | null - 参议员角色ID
                     appealDebateRoleId: null, // string | null - 辩诉通行角色ID
                     QAerRoleId: null, // string | null - 答题员角色ID

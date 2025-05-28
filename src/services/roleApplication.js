@@ -464,3 +464,246 @@ export async function exitSenatorRole(interaction) {
         await handleInteractionError(interaction, error);
     }
 }
+
+/**
+ * 验证志愿者申请条件
+ * @param {GuildMember} member - Discord服务器成员对象
+ * @param {Object} guildConfig - 服务器配置
+ * @returns {Promise<{isValid: boolean, reason?: string}>}
+ */
+export async function validateVolunteerApplication(member, guildConfig) {
+    try {
+        // 1. 检查加入时间（至少一个月）
+        const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        if (member.joinedTimestamp > oneMonthAgo) {
+            return {
+                isValid: false,
+                reason: '您需要加入社区满一个月才能申请志愿者身份组',
+            };
+        }
+
+        // 2. 检查是否被警告
+        if (guildConfig.roleApplication?.WarnedRoleId && member.roles.cache.has(guildConfig.roleApplication.WarnedRoleId)) {
+            return {
+                isValid: false,
+                reason: '您目前处于被警告状态，无法申请志愿者身份组',
+            };
+        }
+
+        // 3. 检查是否为创作者（推荐条件）
+        const hasCreatorRole = guildConfig.roleApplication?.creatorRoleId &&
+                              member.roles.cache.has(guildConfig.roleApplication.creatorRoleId);
+
+        if (hasCreatorRole) {
+            return {
+                isValid: true,
+            };
+        }
+
+        // 4. 如果不是创作者，检查是否至少有已验证身份组
+        const roleSyncConfig = getRoleSyncConfig();
+        const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+
+        if (verifiedGroup) {
+            const verifiedRoleId = verifiedGroup.roles[member.guild.id];
+            if (verifiedRoleId && member.roles.cache.has(verifiedRoleId)) {
+                return {
+                    isValid: true,
+                };
+            }
+        }
+
+        return {
+            isValid: false,
+            reason: '申请志愿者身份组需要满足以下条件之一：1) 拥有创作者身份组 2) 拥有已验证身份组且提出过合理建议',
+        };
+    } catch (error) {
+        logTime(`[身份同步] 验证志愿者申请条件时发生错误: ${error.message}`, true);
+        return {
+            isValid: false,
+            reason: '验证申请条件时出错，请稍后重试',
+        };
+    }
+}
+
+/**
+ * 处理志愿者身份组申请
+ * @param {ButtonInteraction} interaction - 按钮交互对象
+ */
+export async function applyVolunteerRole(interaction) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+
+        // 获取服务器配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+
+        // 获取志愿者身份组的同步配置
+        const roleSyncConfig = getRoleSyncConfig();
+        const volunteerSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '社区志愿者');
+
+        if (!volunteerSyncGroup) {
+            await interaction.editReply({
+                content: '❌ 无法找到志愿者身份组同步配置',
+            });
+            return;
+        }
+
+        // 使用身份组同步系统添加志愿者身份组
+        const result = await manageRolesByGroups(
+            interaction.client,
+            interaction.user.id,
+            [volunteerSyncGroup],
+            '用户自行申请志愿者身份组',
+            false // 添加操作
+        );
+
+        // 根据结果决定显示的消息
+        if (result.success) {
+            logTime(
+                `[身份同步] 用户 ${interaction.user.tag} 成功申请了志愿者身份组，已在 ${result.successfulServers.length} 个服务器获得权限`,
+            );
+
+            await interaction.editReply({
+                content: [
+                    '✅ 志愿者身份组申请成功',
+                    '',
+                    `已在以下服务器获得志愿者身份组：`,
+                    result.successfulServers.join('\n'),
+                    '',
+                    '感谢您成为社区志愿者！',
+                ].join('\n'),
+            });
+        } else {
+            logTime(`[身份同步] 用户 ${interaction.user.tag} 申请志愿者身份组失败`, true);
+
+            await interaction.editReply({
+                content: '❌ 申请志愿者身份组失败，请联系管理员',
+            });
+        }
+    } catch (error) {
+        logTime(`[身份同步] 处理志愿者身份组申请时发生错误: ${error.message}`, true);
+        await handleInteractionError(interaction, error);
+    }
+}
+
+/**
+ * 处理用户退出志愿者身份组的请求
+ * @param {ButtonInteraction} interaction - 按钮交互对象
+ */
+export async function exitVolunteerRole(interaction) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+
+        // 检查冷却时间
+        const cooldownLeft = checkCooldown('volunteer_exit', interaction.user.id, 60000); // 1分钟冷却
+        if (cooldownLeft) {
+            await interaction.editReply({
+                content: `❌ 请等待 ${cooldownLeft} 秒后再次操作`,
+            });
+            return;
+        }
+
+        // 获取服务器配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.volunteerRoleId) {
+            await interaction.editReply({
+                content: '❌ 服务器未正确配置志愿者身份组',
+            });
+            return;
+        }
+
+        // 检查用户是否有志愿者身份组
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (!member.roles.cache.has(guildConfig.roleApplication.volunteerRoleId)) {
+            await interaction.editReply({
+                content: '❌ 您没有志愿者身份组，无需退出',
+            });
+            return;
+        }
+
+        // 获取身份组同步配置
+        const roleSyncConfig = getRoleSyncConfig();
+
+        // 查找志愿者同步组
+        const volunteerSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '社区志愿者');
+
+        if (!volunteerSyncGroup) {
+            await interaction.editReply({
+                content: '❌ 无法找到志愿者身份组同步配置',
+            });
+            return;
+        }
+
+        // 创建确认按钮
+        const confirmEmbed = {
+            title: '⚠️ 确认退出志愿者身份组',
+            description: ['您确定要退出所有社区服务器的志愿者身份组吗？'].join('\n'),
+            color: 0xff0000,
+        };
+
+        // 显示确认按钮
+        await handleConfirmationButton({
+            interaction,
+            embed: confirmEmbed,
+            customId: `confirm_exit_volunteer_${interaction.user.id}`,
+            buttonLabel: '确认退出',
+            onConfirm: async confirmation => {
+                await confirmation.deferUpdate();
+
+                const result = await manageRolesByGroups(
+                    interaction.client,
+                    interaction.user.id,
+                    [volunteerSyncGroup],
+                    '用户自行退出',
+                    true // 移除操作
+                );
+
+                // 根据结果决定显示的消息
+                if (result.success) {
+                    logTime(
+                        `[身份同步] 用户 ${interaction.user.tag} 成功退出了志愿者身份组，已在 ${result.successfulServers.length} 个服务器移除权限`,
+                    );
+
+                    await confirmation.editReply({
+                        embeds: [
+                            {
+                                title: '✅ 已退出志愿者身份组',
+                                description: `成功在以下服务器移除志愿者身份组：\n${result.successfulServers.join('\n')}`,
+                                color: 0x00ff00,
+                            },
+                        ],
+                        components: [],
+                    });
+                } else {
+                    logTime(`[身份同步] 用户 ${interaction.user.tag} 尝试退出志愿者身份组失败`, true);
+
+                    await confirmation.editReply({
+                        embeds: [
+                            {
+                                title: '❌ 退出志愿者身份组失败',
+                                description: '操作过程中发生错误，请联系管理员',
+                                color: 0xff0000,
+                            },
+                        ],
+                        components: [],
+                    });
+                }
+            },
+            onTimeout: async () => {
+                await interaction.editReply({
+                    embeds: [
+                        {
+                            title: '❌ 操作已取消',
+                            description: '您取消了退出志愿者身份组的操作',
+                            color: 0x808080,
+                        },
+                    ],
+                    components: [],
+                });
+            },
+        });
+    } catch (error) {
+        logTime(`[身份同步] 处理用户退出志愿者身份组时发生错误: ${error.message}`, true);
+        await handleInteractionError(interaction, error);
+    }
+}

@@ -8,7 +8,13 @@ import {
     createNewsSubmissionModal,
     createOpinionSubmissionModal,
 } from '../services/modalService.js';
-import { exitSenatorRole, syncMemberRoles } from '../services/roleApplication.js';
+import {
+    applyVolunteerRole,
+    exitSenatorRole,
+    exitVolunteerRole,
+    syncMemberRoles,
+    validateVolunteerApplication
+} from '../services/roleApplication.js';
 import { VoteService } from '../services/voteService.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -137,6 +143,67 @@ export const buttonHandlers = {
     // 议员身份组自助退出按钮处理器
     exit_senator_role: async interaction => {
         await exitSenatorRole(interaction);
+    },
+
+    // 志愿者身份组申请按钮处理器
+    apply_volunteer_role: async interaction => {
+        // 检查冷却时间
+        const cooldownLeft = checkCooldown('volunteer_apply', interaction.user.id, 60000); // 1分钟冷却
+        if (cooldownLeft) {
+            await interaction.reply({
+                content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 获取服务器配置
+        const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+        if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.volunteerRoleId) {
+            await interaction.reply({
+                content: '❌ 服务器未正确配置志愿者身份组',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 检查用户是否已有志愿者身份组
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        if (member.roles.cache.has(guildConfig.roleApplication.volunteerRoleId)) {
+            await interaction.reply({
+                content: '❌ 您已经拥有志愿者身份组',
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 申请条件验证
+        const validationResult = await validateVolunteerApplication(member, guildConfig);
+        if (!validationResult.isValid) {
+            await interaction.reply({
+                content: `❌ ${validationResult.reason}`,
+                flags: ['Ephemeral'],
+            });
+            return;
+        }
+
+        // 如果验证通过，自动授予志愿者身份组
+        try {
+            await applyVolunteerRole(interaction);
+        } catch (error) {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ 申请志愿者身份组时出错，请稍后重试',
+                    flags: ['Ephemeral'],
+                });
+            }
+            logTime(`志愿者申请失败: ${error.message}`, true);
+        }
+    },
+
+    // 志愿者身份组退出按钮处理器
+    exit_volunteer_role: async interaction => {
+        await exitVolunteerRole(interaction);
     },
 
     // 翻页按钮处理器
@@ -446,6 +513,8 @@ const BUTTON_CONFIG = {
     // 需要defer的按钮
     deferButtons: {
         exit_senator_role: { handler: buttonHandlers.exit_senator_role },
+        apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role },
+        exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role },
         support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute') },
         support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
         support_appeal: { handler: interaction => CourtService.handleSupport(interaction, 'appeal') },

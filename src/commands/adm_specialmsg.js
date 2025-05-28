@@ -24,7 +24,7 @@ export default {
                     { name: '创作者申请', value: 'creator_application' },
                     { name: '身份组同步', value: 'role_sync' },
                     { name: '提交议案', value: 'debate_submission' },
-                    { name: '议员自助退出', value: 'senator_role_exit' },
+                    { name: '志愿者身份组管理', value: 'volunteer_role_management' },
                     { name: '新闻和意见信箱', value: 'opinion_mailbox' },
                 ),
         )
@@ -53,8 +53,8 @@ export default {
                 await createRoleSyncMessage(interaction, targetChannel);
             } else if (messageType === 'debate_submission') {
                 await createDebateSubmissionMessage(interaction, targetChannel, guildConfig);
-            } else if (messageType === 'senator_role_exit') {
-                await createSenatorExitMessage(interaction, targetChannel);
+            } else if (messageType === 'volunteer_role_management') {
+                await createVolunteerRoleManagementMessage(interaction, targetChannel, guildConfig);
             } else if (messageType === 'opinion_mailbox') {
                 await createMailboxMessage(interaction, targetChannel, guildConfig);
             }
@@ -191,32 +191,53 @@ async function createDebateSubmissionMessage(interaction, channel, guildConfig) 
 }
 
 /**
- * 创建议员身份组自助退出消息
+ * 创建志愿者身份组管理消息
  * @param {Interaction} interaction - 斜杠命令交互对象
  * @param {Channel} channel - 目标频道
+ * @param {Object} guildConfig - 服务器配置
  */
-async function createSenatorExitMessage(interaction, channel) {
-    // 创建退出按钮
-    const button = new ButtonBuilder()
-        .setCustomId('exit_senator_role')
-        .setLabel('退出议员身份组')
+async function createVolunteerRoleManagementMessage(interaction, channel, guildConfig) {
+    // 检查是否配置了志愿者身份组
+    if (!guildConfig.roleApplication?.volunteerRoleId) {
+        await interaction.editReply({
+            content: '❌ 此服务器未配置志愿者身份组 (volunteerRoleId)',
+        });
+        return;
+    }
+
+    // 创建申请和退出按钮
+    const applyButton = new ButtonBuilder()
+        .setCustomId('apply_volunteer_role')
+        .setLabel('申请志愿者身份组')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🙋');
+
+    const exitButton = new ButtonBuilder()
+        .setCustomId('exit_volunteer_role')
+        .setLabel('退出志愿者身份组')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('🚪');
 
-    const row = new ActionRowBuilder().addComponents(button);
+    const row = new ActionRowBuilder().addComponents(applyButton, exitButton);
 
     // 创建嵌入消息
     const embed = new EmbedBuilder()
-        .setTitle('🏛️ 议员身份组自助退出')
+        .setTitle('🤝 社区志愿者身份组自助办理')
         .setDescription(
             [
-                '点击下方按钮，您可以自助退出两个社区的赛博议员身份组：',
+                '点击下方按钮申请或退出志愿者身份组：',
                 '',
-                '**注意事项：**',
-                '- 如需重新获取赛博议员身份组，请在原本申请帖子中呼叫管理员',
+                '**申请条件：**',
+                '• 自愿参与社区内重大事项投票的用户',
+                '• 加入达一个月，未处于被警告者状态',
+                '• 是创作者或在意见信箱中提出过合理建议',
+                '',
+                '**志愿者职责：**',
+                '• 参与社区重大决策的投票',
+                '• 有资格被抽选为监督员监督管理员工作',
             ].join('\n'),
         )
-        .setColor(0xff6666);
+        .setColor(0x00aa00);
 
     // 发送消息
     await channel.send({
@@ -224,9 +245,9 @@ async function createSenatorExitMessage(interaction, channel) {
         components: [row],
     });
 
-    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了赛博议员身份组自助退出消息`);
+    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了志愿者身份组管理消息`);
     await interaction.editReply({
-        content: `✅ 已在 <#${channel.id}> 创建赛博议员身份组自助退出消息`,
+        content: `✅ 已在 <#${channel.id}> 创建志愿者身份组管理消息`,
     });
 }
 

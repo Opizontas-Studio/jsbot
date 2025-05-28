@@ -507,15 +507,18 @@ export async function validateVolunteerApplication(member, guildConfig) {
         if (verifiedGroup) {
             const verifiedRoleId = verifiedGroup.roles[member.guild.id];
             if (verifiedRoleId && member.roles.cache.has(verifiedRoleId)) {
-                return {
-                    isValid: true,
-                };
+                // 检查是否有合理建议记录
+                if (hasQualifiedSuggestion(member.user.id)) {
+                    return {
+                        isValid: true,
+                    };
+                }
             }
         }
 
         return {
             isValid: false,
-            reason: '申请志愿者身份组需要满足以下条件之一：1) 拥有创作者身份组 2) 拥有已验证身份组且提出过合理建议',
+            reason: '申请志愿者身份组需要满足以下条件之一：1) 拥有创作者身份组 2) 拥有已验证身份组且在意见信箱中提出过获得✅反应的合理建议、新闻',
         };
     } catch (error) {
         logTime(`[身份同步] 验证志愿者申请条件时发生错误: ${error.message}`, true);

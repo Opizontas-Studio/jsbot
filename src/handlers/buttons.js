@@ -513,8 +513,6 @@ const BUTTON_CONFIG = {
     // 需要defer的按钮
     deferButtons: {
         exit_senator_role: { handler: buttonHandlers.exit_senator_role },
-        apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role },
-        exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role },
         support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute') },
         support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
         support_appeal: { handler: interaction => CourtService.handleSupport(interaction, 'appeal') },
@@ -534,6 +532,8 @@ const BUTTON_CONFIG = {
             return buttonHandlers.appeal(interaction, punishmentId);
         },
         apply_creator_role: buttonHandlers.apply_creator_role,
+        apply_volunteer_role: buttonHandlers.apply_volunteer_role,
+        exit_volunteer_role: buttonHandlers.exit_volunteer_role,
         start_debate: buttonHandlers.start_debate,
         page_prev: buttonHandlers.page_prev,
         page_next: buttonHandlers.page_next,

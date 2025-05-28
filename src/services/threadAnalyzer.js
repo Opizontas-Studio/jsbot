@@ -101,27 +101,26 @@ async function getOrCreateMessage(channel, type, guildId, messageIds) {
 }
 
 /**
- * 发送不活跃子区列表
+ * 发送符合频道主条件的子区列表
  * @param {Object} channel - Discord频道对象
  * @param {string} guildId - 服务器ID
  * @param {Array<Object>} threadInfoArray - 子区信息数组
  * @param {Object} messageIds - 消息ID配置对象
  */
-async function sendInactiveThreadsList(channel, guildId, threadInfoArray, messageIds) {
-    // 过滤掉置顶的子区
-    const nonPinnedThreads = threadInfoArray.filter(thread => !thread.isPinned);
+async function sendQualifiedThreadsList(channel, guildId, threadInfoArray, messageIds) {
+    // 过滤出关注人数达到900的子区
+    const qualifiedThreads = threadInfoArray.filter(thread => thread.memberCount >= 900);
 
     const embed = {
         color: 0x0099ff,
-        title: '最不活跃的子区 (TOP 10)',
-        description: '注：此列表不包含置顶子区',
+        title: '符合频道主条件列表',
+        description: '注：此列表显示关注人数达到900的子区',
         timestamp: new Date(),
-        fields: nonPinnedThreads.slice(0, 10).map((thread, index) => ({
+        fields: qualifiedThreads.slice(0, 10).map((thread, index) => ({
             name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
             value: [
                 `所属频道: ${thread.parentName}`,
-                `消息数量: ${thread.messageCount}`,
-                `不活跃时长: ${thread.inactiveHours.toFixed(1)}小时`,
+                `创作者: ${thread.creatorTag || '未知用户'}`,
                 `[🔗 链接](https://discord.com/channels/${guildId}/${thread.threadId})`,
             ].join('\n'),
             inline: false,
@@ -154,6 +153,7 @@ async function sendStatisticsReport(channel, guildId, statistics, failedOperatio
                     `72小时以上不活跃: ${statistics.inactiveThreads.over72h}`,
                     `48小时以上不活跃: ${statistics.inactiveThreads.over48h}`,
                     `24小时以上不活跃: ${statistics.inactiveThreads.over24h}`,
+                    `符合频道主条件(≥900关注): ${statistics.qualifiedThreads.over900Members}`,
                 ].join('\n'),
                 inline: false,
             },
@@ -208,6 +208,9 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
             over48h: 0,
             over24h: 0,
         },
+        qualifiedThreads: {
+            over900Members: 0,
+        },
         forumDistribution: {},
     };
 
@@ -261,6 +264,34 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                 const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
                 const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
 
+                // 获取子区成员数量
+                let memberCount = 0;
+                try {
+                    const members = await withTimeout(
+                        thread.members.fetch(),
+                        5000,
+                        `获取子区成员 ${thread.name}`,
+                    );
+                    memberCount = members.size;
+                } catch (error) {
+                    logTime(`获取子区 ${thread.name} 成员数量失败: ${handleDiscordError(error)}`, true);
+                }
+
+                // 获取创作者信息
+                let creatorTag = '未知用户';
+                if (thread.ownerId) {
+                    try {
+                        const creator = await withTimeout(
+                            client.users.fetch(thread.ownerId),
+                            3000,
+                            `获取创作者信息 ${thread.name}`,
+                        );
+                        creatorTag = creator.tag;
+                    } catch (error) {
+                        logTime(`获取子区 ${thread.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
+                    }
+                }
+
                 return {
                     thread,
                     threadId: thread.id,
@@ -270,6 +301,8 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     lastMessageTime: lastActiveTime,
                     inactiveHours,
                     messageCount: thread.messageCount || 0,
+                    memberCount,
+                    creatorTag,
                     isPinned: thread.flags.has(ChannelFlags.Pinned),
                 };
             } catch (error) {
@@ -301,6 +334,11 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         }
         if (thread.inactiveHours >= 24) {
             statistics.inactiveThreads.over24h++;
+        }
+
+        // 统计符合频道主条件的子区
+        if (thread.memberCount >= 900) {
+            statistics.qualifiedThreads.over900Members++;
         }
 
         if (!statistics.forumDistribution[thread.parentId]) {
@@ -376,7 +414,7 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
         const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
 
         // 生成报告
-        await sendInactiveThreadsList(logChannel, guildId, validThreads, messageIds);
+        await sendQualifiedThreadsList(logChannel, guildId, validThreads, messageIds);
         await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
 
         const executionTime = totalTimer();
@@ -414,7 +452,7 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         failedOperations.push(...cleanupResult.failedOperations);
 
         // 生成报告
-        await sendInactiveThreadsList(logChannel, guildId, validThreads, messageIds);
+        await sendQualifiedThreadsList(logChannel, guildId, validThreads, messageIds);
         await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
 
         // 输出清理结果日志

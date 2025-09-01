@@ -170,10 +170,30 @@ export class RequestQueue {
 
                         // 任务完成
                         taskInfo.status = 'completed';
+
+                        // 删除进度通知消息
+                        if (taskInfo.notificationMessage) {
+                            try {
+                                await taskInfo.notificationMessage.delete();
+                            } catch (error) {
+                                logTime(`删除任务进度消息失败 (${taskId}): ${error.message}`, true);
+                            }
+                        }
+
                         return result;
                     } catch (error) {
                         taskInfo.status = 'failed';
                         taskInfo.error = error.message;
+
+                        // 如果任务失败，也删除进度通知消息
+                        if (taskInfo.notificationMessage) {
+                            try {
+                                await taskInfo.notificationMessage.delete();
+                            } catch (deleteError) {
+                                logTime(`删除失败任务进度消息失败 (${taskId}): ${deleteError.message}`, true);
+                            }
+                        }
+
                         throw error;
                     } finally {
                         // 释放锁
@@ -208,94 +228,6 @@ export class RequestQueue {
                 logTime(`队列处理出错: ${error.message}`, true);
             });
         });
-    }
-
-    /**
-     * 发送任务初始通知
-     * @private
-     */
-    async sendInitialTaskNotification(taskInfo) {
-        const { notifyTarget, taskName, taskId } = taskInfo;
-        if (!notifyTarget?.channel || !notifyTarget?.user) return;
-
-        try {
-            const message = await notifyTarget.channel.send({
-                content: `<@${notifyTarget.user.id}>`,
-                embeds: [{
-                    color: 0x0099ff,
-                    title: '📋 任务已接收',
-                    description: `**${taskName}** 正在处理中...`,
-                    fields: [
-                        { name: '任务ID', value: taskId, inline: true },
-                        { name: '状态', value: '⏳ 等待执行...', inline: false }
-                    ],
-                    timestamp: new Date()
-                }]
-            });
-
-            // 存储消息引用用于后续所有更新
-            taskInfo.notificationMessage = message;
-        } catch (error) {
-            logTime(`发送初始任务通知失败: ${error.message}`, true);
-        }
-    }
-
-    /**
-     * 更新任务状态为等待
-     * @private
-     */
-    async updateTaskToWaiting(taskInfo, lockType) {
-        if (!taskInfo.notificationMessage) return;
-
-        const lockTypeText = lockType === 'thread' ? '子区' : '服务器';
-
-        try {
-            const embed = {
-                color: 0xffaa00,
-                title: '⏳ 任务排队等待中',
-                description: `**${taskInfo.taskName}** 正在等待其他任务完成...`,
-                fields: [
-                    { name: '任务ID', value: taskInfo.taskId, inline: true },
-                    { name: '等待原因', value: `${lockTypeText}正在执行其他清理任务`, inline: true },
-                    { name: '状态', value: '🔄 自动排队中，无需手动重试', inline: false }
-                ],
-                timestamp: new Date()
-            };
-
-            await taskInfo.notificationMessage.edit({
-                embeds: [embed]
-            });
-        } catch (error) {
-            logTime(`更新等待状态失败: ${error.message}`, true);
-        }
-    }
-
-    /**
-     * 更新任务状态为运行中
-     * @private
-     */
-    async updateTaskToRunning(taskInfo) {
-        if (!taskInfo.notificationMessage) return;
-
-        try {
-            const embed = {
-                color: 0x00ff00,
-                title: '🚀 任务已开始',
-                description: `**${taskInfo.taskName}** 正在执行中...`,
-                fields: [
-                    { name: '任务ID', value: taskInfo.taskId, inline: true },
-                    { name: '开始时间', value: new Date().toLocaleString('zh-CN'), inline: true },
-                    { name: '进度', value: '⏳ 准备中...', inline: false }
-                ],
-                timestamp: new Date()
-            };
-
-            await taskInfo.notificationMessage.edit({
-                embeds: [embed]
-            });
-        } catch (error) {
-            logTime(`更新运行状态失败: ${error.message}`, true);
-        }
     }
 
     /**

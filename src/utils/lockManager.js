@@ -157,9 +157,6 @@ class LockManager {
             }
 
             waitCount++;
-            if (waitCount === 1) {
-                logTime(`[锁管理] 子区 ${threadId} 被占用，开始等待，操作: ${operation}`);
-            }
 
             // 每次等待10秒，最多等待5分钟
             await new Promise(resolve => setTimeout(resolve, 10000));
@@ -189,9 +186,6 @@ class LockManager {
             }
 
             waitCount++;
-            if (waitCount === 1) {
-                logTime(`[锁管理] 服务器 ${guildId} 被占用，开始等待，操作: ${operation}`);
-            }
 
             // 每次等待10秒，最多等待5分钟
             await new Promise(resolve => setTimeout(resolve, 10000));

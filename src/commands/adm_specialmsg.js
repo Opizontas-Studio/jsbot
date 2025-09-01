@@ -79,7 +79,7 @@ async function createCreatorApplicationMessage(interaction, channel) {
     const embed = new EmbedBuilder()
         .setTitle('创作者身份组自助申请')
         .setDescription(
-            '请您点击下方按钮输入您的达到5个正面反应的作品帖子链接（形如 https://discord.com/channels/.../... ），bot会自动审核，通过则为您在所有服务器添加创作者身份组。',
+            '请您点击下方按钮输入您的达到5个正面反应的作品帖子链接（形如 https://discord.com/channels/.../... ），bot会自动审核，通过则为您添加创作者身份组。',
         )
         .setColor(0x0099ff);
 

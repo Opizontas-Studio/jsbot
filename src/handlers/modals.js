@@ -183,20 +183,20 @@ const handleSubmissionReview = async (interaction, isApproved) => {
                     color: isApproved ? 0x00ff00 : 0xff0000,
                     title: isApproved ? '✅ 投稿审定通过' : '❌ 投稿暂时无法执行',
                     description: [
-                        isApproved ? `感谢您投稿的社区意见` : `感谢您投稿的社区意见`,
-                        `**标题：${submissionTitle}**`,
-                        '',
-                        '**管理组回复：**',
+                        `**对您的投稿：${submissionTitle}，管理组回复为：**`,
                         adminReply
                     ].join('\n'),
                     timestamp: new Date(),
+                    footer: {
+                        text: '感谢您投稿的社区意见',
+                    }
                 };
 
                 await targetUser.send({ embeds: [dmEmbed] });
-                dmStatus = '✅ 私聊通知已成功发送';
+                dmStatus = '发送成功';
                 logTime(`已向用户 ${targetUser.tag} 发送投稿${isApproved ? '审定通过' : '拒绝'}通知`);
             } else {
-                dmStatus = '❌ 无法获取用户信息，私聊通知发送失败';
+                dmStatus = '发送失败';
             }
         } catch (dmError) {
             dmStatus = `❌ 私聊通知发送失败: ${dmError.message}`;
@@ -209,10 +209,8 @@ const handleSubmissionReview = async (interaction, isApproved) => {
                 targetUser = await interaction.client.users.fetch(userId);
             }
             const auditLogContent = [
-                `**管理员 ${interaction.user.tag} ${isApproved ? '审定通过了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见**`,
-                '',
-                `${dmStatus}，回复为：`,
-                `${adminReply}`,
+                `### ${interaction.user.tag} ${isApproved ? '审定通过了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见`,
+                `回复为（${dmStatus}）：${adminReply}`,
             ].join('\n');
 
             await originalMessage.reply({

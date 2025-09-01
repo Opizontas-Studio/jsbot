@@ -100,6 +100,138 @@ const handleSubmission = async (interaction, type, titlePrefix, color) => {
 };
 
 /**
+ * 投稿审核处理
+ * @param {ModalSubmitInteraction} interaction - Discord模态框提交交互对象
+ * @param {boolean} isApproved - 是否批准（true为批准，false为拒绝）
+ */
+const handleSubmissionReview = async (interaction, isApproved) => {
+    try {
+        // 先 defer 回复
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+
+        // 从modalId中解析用户ID、投稿类型和消息ID
+        const modalIdParts = interaction.customId.split('_');
+        const userId = modalIdParts[3];
+        const submissionType = modalIdParts[4];
+        const messageId = modalIdParts[5];
+
+        // 获取管理员输入的回复内容
+        const adminReply = interaction.fields.getTextInputValue('admin_reply');
+
+        // 通过消息ID获取原始消息
+        const originalMessage = await interaction.channel.messages.fetch(messageId);
+        if (!originalMessage) {
+            await interaction.editReply({
+                content: '❌ 无法获取原始投稿消息',
+            });
+            return;
+        }
+
+        // 从embed中提取投稿信息
+        const originalEmbed = originalMessage.embeds[0];
+        let submissionData = null;
+        let submissionTitle = '未知标题';
+
+        if (originalEmbed) {
+            // 提取标题（去掉前缀）
+            let title = originalEmbed.title || '未记录标题';
+            if (title.startsWith('💬 社区意见：')) {
+                title = title.replace('💬 社区意见：', '').trim();
+            }
+            submissionTitle = title;
+
+            // 只有批准时才需要完整的投稿数据
+            if (isApproved) {
+                const content = originalEmbed.description || '未记录内容';
+                submissionData = {
+                    title: title,
+                    content: content
+                };
+            }
+        }
+
+        // 根据处理结果更新消息的embed
+        const updatedEmbed = {
+            ...originalEmbed.toJSON(),
+            author: isApproved ? undefined : originalEmbed.author, // 批准时移除作者信息，拒绝时保留
+            footer: {
+                text: isApproved ? '审定有效' : '审定无效'
+            }
+        };
+
+        // 移除按钮并更新消息
+        await originalMessage.edit({
+            embeds: [updatedEmbed],
+            components: []
+        });
+
+        // 发送审核日志消息
+        try {
+            const targetUser = await interaction.client.users.fetch(userId);
+            const auditLogContent = [
+                `📋 **审核日志（${isApproved ? '批准' : '拒绝'}）**`,
+                `管理员 ${interaction.user.tag} ${isApproved ? '审定通过了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见`,
+                '',
+                `**管理组回复：**`,
+                `${adminReply}`
+            ].join('\n');
+
+            await originalMessage.reply({
+                content: auditLogContent,
+                allowedMentions: { users: [] }
+            });
+        } catch (auditError) {
+            logTime(`发送审核日志失败: ${auditError.message}`, true);
+        }
+
+        // 如果是批准，需要更新意见记录
+        if (isApproved) {
+            const result = await updateOpinionRecord(userId, submissionType, true, submissionData);
+            if (!result.success) {
+                await interaction.editReply({
+                    content: `❌ ${result.message}`,
+                });
+                return;
+            }
+        }
+
+        // 向目标用户发送自定义回复
+        try {
+            const targetUser = await interaction.client.users.fetch(userId);
+            if (targetUser) {
+                const dmEmbed = {
+                    color: isApproved ? 0x00ff00 : 0xff0000,
+                    title: isApproved ? '✅ 投稿审定通过' : '❌ 投稿暂时无法执行',
+                    description: [
+                        isApproved ? `感谢您投稿的社区意见` : `非常感谢您的投稿`,
+                        `**标题：${submissionTitle}**`,
+                        '',
+                        '**管理组回复：**',
+                        adminReply
+                    ].join('\n'),
+                    timestamp: new Date(),
+                };
+
+                await targetUser.send({ embeds: [dmEmbed] });
+                logTime(`已向用户 ${targetUser.tag} 发送投稿${isApproved ? '审定通过' : '拒绝'}通知`);
+            }
+        } catch (dmError) {
+            logTime(`向用户 ${userId} 发送投稿${isApproved ? '审定' : '拒绝'}通知失败: ${dmError.message}`, true);
+            // 私聊发送失败不影响主流程
+        }
+
+        // 回复管理员确认消息
+        await interaction.editReply({
+            content: `✅ 已将该社区意见标记为${isApproved ? '合理' : '不合理'}并发送了自定义回复`,
+        });
+
+        logTime(`管理员 ${interaction.user.tag} ${isApproved ? '批准' : '拒绝'}了用户 ${userId} 的社区意见: "${submissionTitle}"`);
+    } catch (error) {
+        await handleInteractionError(interaction, error, `${isApproved ? 'approve' : 'reject'}_submission_modal`);
+    }
+};
+
+/**
  * 模态框处理器映射
  * 每个处理器函数接收一个 ModalSubmitInteraction 参数
  */
@@ -384,8 +516,6 @@ export const modalHandlers = {
         }
     },
 
-
-
     // 社区意见投稿模态框处理器
     opinion_submission_modal: async interaction => {
         await handleSubmission(interaction, 'opinion', '💬 社区意见：', 0x2ecc71); // 绿色
@@ -393,194 +523,12 @@ export const modalHandlers = {
 
     // 批准投稿模态框处理器
     approve_submission_modal: async interaction => {
-        try {
-            // 从modalId中解析用户ID、投稿类型和消息ID
-            const modalIdParts = interaction.customId.split('_');
-            const userId = modalIdParts[3];
-            const submissionType = modalIdParts[4];
-            const messageId = modalIdParts[5];
-
-            // 获取管理员输入的回复内容
-            const adminReply = interaction.fields.getTextInputValue('admin_reply');
-
-            // 通过消息ID获取原始消息
-            const originalMessage = await interaction.channel.messages.fetch(messageId);
-            if (!originalMessage) {
-                await interaction.editReply({
-                    content: '❌ 无法获取原始投稿消息',
-                });
-                return;
-            }
-
-            // 从embed中提取投稿信息
-            const originalEmbed = originalMessage.embeds[0];
-            let submissionData = null;
-
-            if (originalEmbed) {
-                // 提取标题（去掉前缀）
-                let title = originalEmbed.title || '未记录标题';
-                if (title.startsWith('💬 社区意见：')) {
-                    title = title.replace('💬 社区意见：', '').trim();
-                }
-
-                // 提取内容
-                const content = originalEmbed.description || '未记录内容';
-
-                submissionData = {
-                    title: title,
-                    content: content
-                };
-            }
-
-            // 更新意见记录
-            const result = await updateOpinionRecord(userId, submissionType, true, submissionData);
-
-            if (result.success) {
-                // 更新消息的embed，移除贡献者信息
-                const updatedEmbed = {
-                    ...originalEmbed.toJSON(),
-                    author: undefined,
-                    footer: {
-                        text: '审定有效'
-                    }
-                };
-
-                // 移除按钮并更新消息
-                await originalMessage.edit({
-                    embeds: [updatedEmbed],
-                    components: []
-                });
-
-                // 发送审核日志消息
-                try {
-                    const targetUser = await interaction.client.users.fetch(userId);
-                    const auditLogContent = `管理员 ${interaction.user.tag} 审定通过了用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见`;
-
-                    await originalMessage.reply({
-                        content: auditLogContent,
-                        allowedMentions: { users: [] }
-                    });
-                } catch (auditError) {
-                    logTime(`发送审核日志失败: ${auditError.message}`, true);
-                }
-
-                // 向目标用户发送自定义回复
-                try {
-                    const targetUser = await interaction.client.users.fetch(userId);
-                    if (targetUser) {
-                        const dmEmbed = {
-                            color: 0x00ff00,
-                            title: '✅ 投稿审定通过',
-                            description: [
-                                `感谢您投稿的社区意见`,
-                                `**标题：${submissionData?.title || '未知标题'}**`,
-                                '',
-                                '**管理组回复：**',
-                                adminReply
-                            ].join('\n'),
-                            timestamp: new Date(),
-                        };
-
-                        await targetUser.send({ embeds: [dmEmbed] });
-                        logTime(`已向用户 ${targetUser.tag} 发送投稿审定通过通知`);
-                    }
-                } catch (dmError) {
-                    logTime(`向用户 ${userId} 发送投稿审定通知失败: ${dmError.message}`, true);
-                    // 私聊发送失败不影响主流程
-                }
-
-                await interaction.editReply({
-                    content: `✅ 已将该社区意见标记为合理并发送了自定义回复`,
-                });
-
-                logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 的社区意见: "${submissionData?.title || '未知标题'}"`);
-            } else {
-                await interaction.editReply({
-                    content: `❌ ${result.message}`,
-                });
-            }
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'approve_submission_modal');
-        }
+        await handleSubmissionReview(interaction, true);
     },
 
     // 拒绝投稿模态框处理器
     reject_submission_modal: async interaction => {
-        try {
-            // 从modalId中解析用户ID、投稿类型和消息ID
-            const modalIdParts = interaction.customId.split('_');
-            const userId = modalIdParts[3];
-            const messageId = modalIdParts[5];
-
-            // 获取管理员输入的回复内容
-            const adminReply = interaction.fields.getTextInputValue('admin_reply');
-
-            // 通过消息ID获取原始消息
-            const originalMessage = await interaction.channel.messages.fetch(messageId);
-            if (!originalMessage) {
-                await interaction.editReply({
-                    content: '❌ 无法获取原始投稿消息',
-                });
-                return;
-            }
-
-            // 从embed中提取投稿标题
-            const originalEmbed = originalMessage.embeds[0];
-            let submissionTitle = '未知标题';
-            if (originalEmbed && originalEmbed.title) {
-                let title = originalEmbed.title;
-                if (title.startsWith('💬 社区意见：')) {
-                    submissionTitle = title.replace('💬 社区意见：', '').trim();
-                }
-            }
-
-            // 更新消息的embed
-            const updatedEmbed = {
-                ...originalEmbed.toJSON(),
-                footer: {
-                    text: '审定无效'
-                }
-            };
-
-            // 移除按钮并更新消息
-            await originalMessage.edit({
-                embeds: [updatedEmbed],
-                components: []
-            });
-
-            // 向目标用户发送自定义回复
-            try {
-                const targetUser = await interaction.client.users.fetch(userId);
-                if (targetUser) {
-                    const dmEmbed = {
-                        color: 0xff0000,
-                        title: '❌ 投稿暂时无法执行',
-                        description: [
-                            `感谢您投稿的社区意见`,
-                            `**标题：${submissionTitle}**`,
-                            '',
-                            '**管理组回复：**',
-                            adminReply
-                        ].join('\n'),
-                        timestamp: new Date(),
-                    };
-
-                    await targetUser.send({ embeds: [dmEmbed] });
-                    logTime(`已向用户 ${targetUser.tag} 发送投稿拒绝通知`);
-                }
-            } catch (dmError) {
-                logTime(`向用户 ${userId} 发送投稿拒绝通知失败: ${dmError.message}`, true);
-                // 私聊发送失败不影响主流程
-            }
-
-            await interaction.editReply({
-                content: `✅ 已将该社区意见标记为不合理并发送了自定义回复`,
-            });
-
-            logTime(`管理员 ${interaction.user.tag} 拒绝了用户 ${userId} 的社区意见: "${submissionTitle}"`);
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'reject_submission_modal');
-        }
+        await handleSubmissionReview(interaction, false);
     },
 };
 

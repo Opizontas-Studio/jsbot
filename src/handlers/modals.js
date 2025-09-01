@@ -209,9 +209,9 @@ const handleSubmissionReview = async (interaction, isApproved) => {
                 targetUser = await interaction.client.users.fetch(userId);
             }
             const auditLogContent = [
-                `管理员 ${interaction.user.tag} ${isApproved ? '审定通过了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见，通知发送状态为：${dmStatus}`,
+                `**管理员 ${interaction.user.tag} ${isApproved ? '审定通过了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见**`,
                 '',
-                `**回复为：**`,
+                `${dmStatus}，回复为：`,
                 `${adminReply}`,
             ].join('\n');
 
@@ -228,7 +228,7 @@ const handleSubmissionReview = async (interaction, isApproved) => {
             content: `✅ 已将该社区意见标记为${isApproved ? '合理' : '不合理'}并发送了自定义回复`,
         });
 
-        logTime(`管理员 ${interaction.user.tag} ${isApproved ? '批准' : '拒绝'}了用户 ${userId} 的社区意见: "${submissionTitle}"，通知发送状态为：${dmStatus}`);
+        logTime(`管理员 ${interaction.user.tag} ${isApproved ? '批准' : '拒绝'}了用户 ${userId} 的社区意见: "${submissionTitle}"`);
     } catch (error) {
         await handleInteractionError(interaction, error, `${isApproved ? 'approve' : 'reject'}_submission_modal`);
     }

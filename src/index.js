@@ -16,6 +16,7 @@ import { logTime } from './utils/logger.js';
 import { dbManager } from './db/dbManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
+import { globalLockManager } from './utils/lockManager.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(readFileSync(join(process.cwd(), 'config.json'), 'utf8'));
@@ -146,6 +147,11 @@ const gracefulShutdown = async (client, signal) => {
         // 清理请求队列
         if (globalRequestQueue) {
             await globalRequestQueue.cleanup();
+        }
+
+        // 清理锁管理器
+        if (globalLockManager) {
+            globalLockManager.cleanup();
         }
 
         // 关闭数据库连接

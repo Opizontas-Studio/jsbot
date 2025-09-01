@@ -1,6 +1,6 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { handleSingleThreadCleanup } from '../services/threadCleaner.js';
-import { delay } from '../utils/concurrency.js';
+import { cleanThreadMembers } from '../services/threadCleaner.js';
+import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -369,15 +369,89 @@ export default {
                         },
                         onConfirm: async confirmation => {
                             await confirmation.deferUpdate();
-                            await interaction.editReply({
-                                content: '⏳ 正在开始清理...',
-                                components: [],
-                                embeds: [],
-                            });
 
-                            // 执行清理
-                            await handleSingleThreadCleanup(interaction, guildConfig);
-                            logTime(`[自助管理] 楼主 ${interaction.user.tag} 清理了帖子 ${thread.name} 中的不活跃用户`);
+                            try {
+                                // 生成任务ID
+                                const taskId = `cleanup_${thread.id}_${Date.now()}`;
+
+                                // 添加任务到后台队列
+                                await globalRequestQueue.addBackgroundTask({
+                                    task: async () => {
+                                        // 执行清理任务
+                                        const result = await cleanThreadMembers(
+                                            thread,
+                                            threshold,
+                                            {
+                                                sendThreadReport: true,
+                                                taskId,
+                                                whitelistedThreads: guildConfig.automation.whitelistedThreads
+                                            }
+                                        );
+
+                                        // 发送管理日志
+                                        if (result.status === 'completed') {
+                                            const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
+                                            await logChannel.send({
+                                                embeds: [
+                                                    {
+                                                        color: 0x0099ff,
+                                                        title: '子区清理报告',
+                                                        fields: [
+                                                            {
+                                                                name: result.name,
+                                                                value: [
+                                                                    `[跳转到子区](${result.url})`,
+                                                                    `原始人数: ${result.originalCount}`,
+                                                                    `移除人数: ${result.removedCount}`,
+                                                                    `当前人数: ${result.originalCount - result.removedCount}`,
+                                                                    result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
+                                                                ].filter(Boolean).join('\n'),
+                                                                inline: false,
+                                                            },
+                                                        ],
+                                                        timestamp: new Date(),
+                                                        footer: { text: '用户自助清理' },
+                                                    },
+                                                ],
+                                            });
+                                        }
+
+                                        return result;
+                                    },
+                                    taskId,
+                                    taskName: '清理不活跃用户',
+                                    notifyTarget: {
+                                        channel: interaction.channel,
+                                        user: interaction.user
+                                    },
+                                    priority: 2, // 较高优先级
+                                    threadId: thread.id,
+                                    guildId: interaction.guildId
+                                });
+
+                                // 通知用户任务已添加到队列
+                                await interaction.editReply({
+                                    embeds: [{
+                                        color: 0x00ff00,
+                                        title: '✅ 任务已提交成功',
+                                        description: [
+                                            '清理任务已添加到后台队列，系统已发送专门的通知消息来跟踪任务进度。',
+                                            '你可以在该通知消息中查看实时状态更新。',
+                                        ].join('\n'),
+                                        timestamp: new Date()
+                                    }],
+                                    components: [],
+                                });
+
+                                logTime(`[自助管理] 楼主 ${interaction.user.tag} 提交了清理帖子 ${thread.name} 的后台任务 ${taskId}`);
+                            } catch (error) {
+                                await interaction.editReply({
+                                    content: `❌ 添加清理任务失败: ${error.message}`,
+                                    components: [],
+                                    embeds: [],
+                                });
+                                throw error;
+                            }
                         },
                         onTimeout: async interaction => {
                             await interaction.editReply({
@@ -534,9 +608,7 @@ export default {
                              */
                             const updateProgress = async (status = '处理中') => {
                                 await interaction.editReply({
-                                    content: `⏳ ${status} ${targetUser.tag} 的消息...
-已扫描: ${messagesProcessed} 条 (上限 ${MAX_MESSAGES_TO_SCAN})
-已删除: ${deletedCount} 条`, // 修改：增加上限提示
+                                    content: `⏳ ${status} ${targetUser.tag} 的消息...已扫描: ${messagesProcessed} 条 (上限 ${MAX_MESSAGES_TO_SCAN}) 已删除: ${deletedCount} 条`,
                                     components: [],
                                     embeds: [],
                                 });

@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { delay, globalBatchProcessor } from '../utils/concurrency.js';
+import { delay, globalBatchProcessor, globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
 const noop = () => undefined;
@@ -122,6 +122,7 @@ async function fetchMessagesBatch(thread, lastId = null) {
  * @param {number} threshold - 目标人数阈值
  * @param {Object} options - 配置选项
  * @param {boolean} options.sendThreadReport - 是否发送子区报告
+ * @param {string} options.taskId - 任务ID（用于进度更新）
  * @param {Function} progressCallback - 进度回调函数
  * @returns {Promise<Object>} 清理结果
  */
@@ -174,6 +175,16 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         let hasMoreMessages = true;
         let reachedCachedMessages = false;
         let lastMessageIds = [];
+        let estimatedTotalMessages = thread.messageCount || 1000; // 估计总消息数，用于计算进度
+
+        // 更新进度：开始扫描消息
+        if (options.taskId) {
+            await globalRequestQueue.updateTaskProgress(
+                options.taskId,
+                '正在扫描消息历史...',
+                0
+            );
+        }
 
         while (hasMoreMessages && !reachedCachedMessages) {
             try {
@@ -219,6 +230,16 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                 // 更新进度
                 messagesProcessed += messages.size;
                 lastId = messages.last().id;
+
+                // 更新进度显示
+                const scanProgress = Math.min(95, (messagesProcessed / estimatedTotalMessages) * 100);
+                if (options.taskId) {
+                    await globalRequestQueue.updateTaskProgress(
+                        options.taskId,
+                        `已扫描 ${messagesProcessed} 条消息`,
+                        scanProgress
+                    );
+                }
 
                 await progressCallback({
                     type: 'message_scan',
@@ -274,6 +295,14 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         };
 
         // 使用 BatchProcessor 处理成员移除
+        if (options.taskId) {
+            await globalRequestQueue.updateTaskProgress(
+                options.taskId,
+                '开始移除成员...',
+                95
+            );
+        }
+
         const removedResults = await globalBatchProcessor.processBatch(
             toRemove,
             async member => {
@@ -287,6 +316,17 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             },
             async (progress, processed, total) => {
                 result.removedCount = processed;
+
+                // 更新任务进度
+                if (options.taskId) {
+                    const removeProgress = 95 + (processed / total) * 5; // 95-100%
+                    await globalRequestQueue.updateTaskProgress(
+                        options.taskId,
+                        `正在移除成员 ${processed}/${total}`,
+                        removeProgress
+                    );
+                }
+
                 await progressCallback({
                     type: 'member_remove',
                     thread,
@@ -317,6 +357,15 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             activeUsers: activeUsersObj,
             memberCount: memberCount - result.removedCount
         });
+
+        // 最终进度更新
+        if (options.taskId) {
+            await globalRequestQueue.updateTaskProgress(
+                options.taskId,
+                `✅ 清理完成！已移除 ${result.removedCount} 个成员`,
+                100
+            );
+        }
 
         if (options.sendThreadReport) {
             await sendThreadReport(thread, result);

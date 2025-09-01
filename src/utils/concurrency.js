@@ -1,3 +1,4 @@
+import { globalLockManager } from './lockManager.js';
 import { logTime } from './logger.js';
 
 // 延迟函数
@@ -16,6 +17,9 @@ export class RequestQueue {
             processed: 0,
             failed: 0,
         };
+
+        // 活动任务跟踪（用于进度通知）
+        this.activeTasks = new Map();
         this.taskTimeout = 900000; // 任务超时时间：15分钟
         this.lastProcessTime = Date.now();
         this.healthCheckInterval = setInterval(() => this.healthCheck(), 60000); // 1分钟
@@ -82,6 +86,218 @@ export class RequestQueue {
         });
     }
 
+    /**
+     * 添加带通知的后台任务
+     * @param {Object} options - 任务选项
+     * @param {Function} options.task - 要执行的任务函数
+     * @param {string} options.taskId - 任务唯一标识
+     * @param {string} options.taskName - 任务名称
+     * @param {Object} options.notifyTarget - 通知目标 {channel, user}
+     * @param {Function} options.progressCallback - 进度回调函数
+     * @param {number} options.priority - 任务优先级
+     * @param {string} options.threadId - 子区ID（用于锁）
+     * @param {string} options.guildId - 服务器ID（用于锁）
+     * @returns {Promise} 任务承诺
+     */
+    async addBackgroundTask({
+        task,
+        taskId,
+        taskName = '后台任务',
+        notifyTarget,
+        progressCallback,
+        priority = 1,
+        threadId,
+        guildId
+    }) {
+        return new Promise((resolve, reject) => {
+            const taskInfo = {
+                taskId,
+                taskName,
+                notifyTarget,
+                progressCallback,
+                threadId,
+                guildId,
+                startTime: null,
+                status: 'queued'
+            };
+
+            // 存储任务信息
+            this.activeTasks.set(taskId, taskInfo);
+
+            const queueItem = {
+                task: async () => {
+                    try {
+                        // 自动等待并获取锁
+                        if (threadId) {
+                            // 发送等待通知
+                            if (notifyTarget && globalLockManager.isThreadLocked(threadId)) {
+                                await this.sendWaitingNotification(taskInfo, 'thread');
+                            }
+
+                            const acquired = await globalLockManager.waitAndAcquireThreadLock(threadId, taskName);
+                            if (!acquired) {
+                                throw new Error(`获取子区锁超时: ${threadId}`);
+                            }
+                        }
+
+                        if (guildId) {
+                            // 发送等待通知
+                            if (notifyTarget && globalLockManager.isGuildLocked(guildId)) {
+                                await this.sendWaitingNotification(taskInfo, 'guild');
+                            }
+
+                            const acquired = await globalLockManager.waitAndAcquireGuildLock(guildId, taskName);
+                            if (!acquired) {
+                                // 如果已经获取了子区锁，需要释放
+                                if (threadId) {
+                                    globalLockManager.releaseThreadLock(threadId, '获取服务器锁失败');
+                                }
+                                throw new Error(`获取服务器锁超时: ${guildId}`);
+                            }
+                        }
+
+                        // 更新任务状态
+                        taskInfo.status = 'running';
+                        taskInfo.startTime = Date.now();
+
+                        // 发送开始通知
+                        if (notifyTarget) {
+                            await this.sendTaskStartNotification(taskInfo);
+                        }
+
+                        // 执行任务
+                        const result = await task();
+
+                        // 任务完成
+                        taskInfo.status = 'completed';
+                        return result;
+                    } catch (error) {
+                        taskInfo.status = 'failed';
+                        taskInfo.error = error.message;
+                        throw error;
+                    } finally {
+                        // 释放锁
+                        if (threadId) {
+                            globalLockManager.releaseThreadLock(threadId, '任务完成');
+                        }
+                        if (guildId) {
+                            globalLockManager.releaseGuildLock(guildId, '任务完成');
+                        }
+
+                        // 清理任务信息
+                        this.activeTasks.delete(taskId);
+                    }
+                },
+                priority,
+                resolve,
+                reject,
+                timestamp: Date.now(),
+                taskId
+            };
+
+            // 根据优先级插入队列
+            const index = this.queue.findIndex(item => item.priority < priority);
+            if (index === -1) {
+                this.queue.push(queueItem);
+            } else {
+                this.queue.splice(index, 0, queueItem);
+            }
+
+            // 尝试处理队列
+            this.process().catch(error => {
+                logTime(`队列处理出错: ${error.message}`, true);
+            });
+        });
+    }
+
+    /**
+     * 发送任务初始通知
+     * @private
+     */
+    async sendInitialTaskNotification(taskInfo) {
+        const { notifyTarget, taskName, taskId } = taskInfo;
+        if (!notifyTarget?.channel || !notifyTarget?.user) return;
+
+        try {
+            const message = await notifyTarget.channel.send({
+                content: `<@${notifyTarget.user.id}>`,
+                embeds: [{
+                    color: 0x0099ff,
+                    title: '📋 任务已接收',
+                    description: `**${taskName}** 正在处理中...`,
+                    fields: [
+                        { name: '任务ID', value: taskId, inline: true },
+                        { name: '状态', value: '⏳ 等待执行...', inline: false }
+                    ],
+                    timestamp: new Date()
+                }]
+            });
+
+            // 存储消息引用用于后续所有更新
+            taskInfo.notificationMessage = message;
+        } catch (error) {
+            logTime(`发送初始任务通知失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 更新任务状态为等待
+     * @private
+     */
+    async updateTaskToWaiting(taskInfo, lockType) {
+        if (!taskInfo.notificationMessage) return;
+
+        const lockTypeText = lockType === 'thread' ? '子区' : '服务器';
+
+        try {
+            const embed = {
+                color: 0xffaa00,
+                title: '⏳ 任务排队等待中',
+                description: `**${taskInfo.taskName}** 正在等待其他任务完成...`,
+                fields: [
+                    { name: '任务ID', value: taskInfo.taskId, inline: true },
+                    { name: '等待原因', value: `${lockTypeText}正在执行其他清理任务`, inline: true },
+                    { name: '状态', value: '🔄 自动排队中，无需手动重试', inline: false }
+                ],
+                timestamp: new Date()
+            };
+
+            await taskInfo.notificationMessage.edit({
+                embeds: [embed]
+            });
+        } catch (error) {
+            logTime(`更新等待状态失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 更新任务状态为运行中
+     * @private
+     */
+    async updateTaskToRunning(taskInfo) {
+        if (!taskInfo.notificationMessage) return;
+
+        try {
+            const embed = {
+                color: 0x00ff00,
+                title: '🚀 任务已开始',
+                description: `**${taskInfo.taskName}** 正在执行中...`,
+                fields: [
+                    { name: '任务ID', value: taskInfo.taskId, inline: true },
+                    { name: '开始时间', value: new Date().toLocaleString('zh-CN'), inline: true },
+                    { name: '进度', value: '⏳ 准备中...', inline: false }
+                ],
+                timestamp: new Date()
+            };
+
+            await taskInfo.notificationMessage.edit({
+                embeds: [embed]
+            });
+        } catch (error) {
+            logTime(`更新运行状态失败: ${error.message}`, true);
+        }
+    }
+
     // 处理队列中的任务
     async process() {
         // 更新最后处理时间
@@ -135,6 +351,43 @@ export class RequestQueue {
         await Promise.all(processPromises.map(p => p.catch(e => e)));
     }
 
+    /**
+     * 更新任务进度
+     * @param {string} taskId - 任务ID
+     * @param {string} progressText - 进度文本
+     * @param {number} [percentage] - 进度百分比（0-100）
+     */
+    async updateTaskProgress(taskId, progressText, percentage) {
+        const taskInfo = this.activeTasks.get(taskId);
+        if (!taskInfo || !taskInfo.notificationMessage) return;
+
+        try {
+            const progressField = {
+                name: '进度',
+                value: percentage !== undefined
+                    ? `${progressText} (${percentage.toFixed(1)}%)`
+                    : progressText,
+                inline: false
+            };
+
+            const embed = taskInfo.notificationMessage.embeds[0];
+            const newEmbed = {
+                ...embed,
+                fields: [
+                    ...embed.fields.slice(0, 2), // 保留任务ID和开始时间
+                    progressField
+                ],
+                timestamp: new Date()
+            };
+
+            await taskInfo.notificationMessage.edit({
+                embeds: [newEmbed]
+            });
+        } catch (error) {
+            logTime(`更新任务进度失败 (${taskId}): ${error.message}`, true);
+        }
+    }
+
     // 清理请求队列
     async cleanup() {
         clearInterval(this.healthCheckInterval);
@@ -146,6 +399,9 @@ export class RequestQueue {
             }
             this.queue = [];
         }
+
+        // 清理活动任务
+        this.activeTasks.clear();
 
         this.currentProcessing = 0;
         this.stats.failed += this.currentProcessing;

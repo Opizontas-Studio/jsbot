@@ -1,4 +1,3 @@
-import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { logTime } from './logger.js';
 
@@ -169,11 +168,6 @@ export const sendModLogNotification = async (channel, punishment, executor, targ
                     inline: true,
                 },
                 {
-                    name: '执行管理员',
-                    value: `<@${executor.id}>`,
-                    inline: true,
-                },
-                {
                     name: '处罚期限',
                     value: formatPunishmentDuration(punishment.duration),
                     inline: true,
@@ -237,14 +231,6 @@ export const sendChannelNotification = async (channel, target, punishment) => {
                 dynamic: true,
                 size: 64,
             }) || target.defaultAvatarURL;
-
-        // 检查处罚时长是否小于48小时+1秒
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < 48 * 60 * 60 * 1000 + 1000;
-
-        // 检查处罚是否已过期
-        const now = Date.now();
-        const isPunishmentExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
-
         // 频道通知的 embed
         const channelEmbed = {
             color: 0xff0000,
@@ -269,7 +255,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
                 },
             ],
             footer: {
-                text: `由管理员 ${executor.tag} 执行`,
+                text: `如有异议，请联系服务器主或在任管理员。`,
             },
             timestamp: new Date(),
         };
@@ -282,24 +268,6 @@ export const sendChannelNotification = async (channel, target, punishment) => {
                 inline: true,
             });
         }
-
-        // 如果是禁言处罚，添加上诉相关信息
-        if (punishment.type === 'mute') {
-            let appealInfo = '';
-            if (isShortPunishment) {
-                appealInfo = '⚠️ 由于处罚时长小于议事周期，不予受理上诉申请。';
-            } else if (isPunishmentExpired) {
-                appealInfo = '⚠️ 处罚已到期，无需上诉。';
-            } else {
-                appealInfo = '如需上诉，请查看私信消息。';
-            }
-
-            channelEmbed.fields.push({
-                name: '上诉说明',
-                value: appealInfo,
-            });
-        }
-
         // 发送到频道
         await channel.send({ embeds: [channelEmbed] });
         return true;
@@ -310,7 +278,7 @@ export const sendChannelNotification = async (channel, target, punishment) => {
 };
 
 /**
- * 发送禁言上诉通知
+ * 发送禁言通知
  * @param {Object} channel - Discord频道对象
  * @param {Object} target - 目标用户对象
  * @param {Object} punishment - 处罚数据库记录
@@ -319,18 +287,6 @@ export const sendChannelNotification = async (channel, target, punishment) => {
 export const sendAppealNotification = async (channel, target, punishment) => {
     try {
         const executor = await channel.client.users.fetch(punishment.executorId);
-        const guildConfig = channel.client.guildManager.getGuildConfig(channel.guild.id);
-
-        // 检查禁言时长是否小于3天+1秒
-        const isShortPunishment = punishment.duration > 0 && punishment.duration < 3 * 24 * 60 * 60 * 1000 + 1000;
-
-        // 检查处罚是否已过期
-        const now = Date.now();
-        const isPunishmentExpired = punishment.duration > 0 && punishment.createdAt + punishment.duration <= now;
-
-        // 从配置中获取上诉参数
-        const appealDuration = guildConfig?.courtSystem?.appealDuration || 259200000; // 默认3天
-        const appealDurationDays = Math.floor(appealDuration / (24 * 60 * 60 * 1000));
 
         // 私信通知的 embed
         const dmEmbed = {
@@ -345,55 +301,23 @@ export const sendAppealNotification = async (channel, target, punishment) => {
                     ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
                     : null,
                 `• 处罚理由：${punishment.reason || '未提供原因'}`,
-                '',
-                isShortPunishment
-                    ? '⚠️ 由于处罚时长过短，不予受理上诉申请。'
-                    : isPunishmentExpired
-                    ? '⚠️ 处罚已到期，无需上诉。'
-                    : [
-                          '**上诉说明**',
-                          `- 点击下方按钮开始上诉流程，周期${appealDurationDays}天`,
-                          '- 请在控件中提交详细的上诉文章',
-                          '- 请注意查看私信消息，了解上诉进展',
-                      ].join('\n'),
             ]
                 .filter(Boolean)
                 .join('\n'),
             footer: {
-                text: `由管理员 ${executor.tag} 执行`,
+                text: `如有异议，请联系服务器主或在任管理员。`,
             },
             timestamp: new Date(),
         };
 
-        // 只有在处罚未过期且时长大于48小时+1秒时才添加上诉按钮
-        const appealComponents =
-            !isShortPunishment && !isPunishmentExpired
-                ? [
-                      {
-                          type: 1,
-                          components: [
-                              {
-                                  type: 2,
-                                  style: 1,
-                                  label: '提交上诉',
-                                  custom_id: `appeal_${punishment.id}`,
-                                  emoji: { name: '📝' },
-                                  disabled: false,
-                              },
-                          ],
-                      },
-                  ]
-                : [];
-
-        // 发送私信（包含上诉按钮和详细说明）
+        // 发送私信（不含上诉按钮）
         await target.send({
             embeds: [dmEmbed],
-            components: appealComponents,
         });
 
         return true;
     } catch (error) {
-        logTime(`发送上诉通知失败: ${error.message}`, true);
+        logTime(`发送处罚通知失败: ${error.message}`, true);
         return false;
     }
 };
@@ -550,70 +474,4 @@ export const revokePunishmentInGuilds = async (client, punishment, target, reaso
     }
 };
 
-/**
- * 检查上诉资格
- * @param {string} userId - 用户ID
- * @param {number} punishmentId - 处罚ID
- * @returns {Promise<{isEligible: boolean, error: string|null, punishment: Object|null}>}
- */
-export const checkAppealEligibility = async (userId, punishmentId) => {
-    try {
-        // 检查是否已有活跃的上诉流程
-        const userProcesses = await ProcessModel.getUserProcesses(userId, false);
-        const hasActiveAppeal = userProcesses.some(
-            p => p.type === 'appeal' && ['pending', 'in_progress'].includes(p.status),
-        );
 
-        if (hasActiveAppeal) {
-            return { isEligible: false, error: '你已有正在进行的上诉', punishment: null };
-        }
-
-        // 检查处罚记录是否存在且有效
-        if (punishmentId) {
-            const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-            const { isValid, error: statusError } = checkPunishmentStatus(punishment);
-
-            if (!isValid) {
-                return { isEligible: false, error: statusError, punishment: null };
-            }
-
-            return { isEligible: true, error: null, punishment };
-        }
-
-        return { isEligible: true, error: null, punishment: null };
-    } catch (error) {
-        logTime(`检查上诉资格失败: ${error.message}`, true);
-        throw error;
-    }
-};
-
-/**
- * 检查处罚状态
- * @param {Object} punishment - 处罚记录
- * @returns {{isValid: boolean, error: string|null}}
- */
-export const checkPunishmentStatus = punishment => {
-    if (!punishment) {
-        return { isValid: false, error: '找不到相关的处罚记录' };
-    }
-
-    if (punishment.status !== 'active') {
-        let error = '无法提交上诉：';
-        switch (punishment.status) {
-            case 'appealed':
-                error += '该处罚已进入辩诉阶段';
-                break;
-            case 'expired':
-                error += '该处罚已过期';
-                break;
-            case 'revoked':
-                error += '该处罚已被撤销';
-                break;
-            default:
-                error += '处罚状态异常';
-        }
-        return { isValid: false, error };
-    }
-
-    return { isValid: true, error: null };
-};

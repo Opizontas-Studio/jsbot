@@ -2,11 +2,10 @@ import { Collection } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import CourtService from '../services/courtService.js';
 import {
-    createAppealModal,
     createCreatorRoleModal,
     createDebateModal,
     createNewsSubmissionModal,
-    createOpinionSubmissionModal,
+    createOpinionSubmissionModal
 } from '../services/modalService.js';
 import {
     applyVolunteerRole,
@@ -19,7 +18,6 @@ import {
 import { VoteService } from '../services/voteService.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { checkAppealEligibility } from '../utils/punishmentHelper.js';
 
 // 创建冷却时间集合
 const cooldowns = new Collection();
@@ -246,10 +244,6 @@ export const buttonHandlers = {
         await CourtService.handleSupport(interaction, 'ban');
     },
 
-    support_appeal: async interaction => {
-        await CourtService.handleSupport(interaction, 'appeal');
-    },
-
     support_debate: async interaction => {
         await CourtService.handleSupport(interaction, 'debate');
     },
@@ -395,69 +389,7 @@ export const buttonHandlers = {
         }
     },
 
-    // 撤回上诉按钮处理器
-    revoke_appeal: async interaction => {
-        try {
-            // 解析按钮ID获取提交者ID、流程ID和原始消息ID
-            const [, , submitterId, processId, originalMessageId] = interaction.customId.split('_');
 
-            // 使用CourtService撤销流程
-            const result = await CourtService.revokeProcess({
-                processId: processId,
-                revokedBy: interaction.user,
-                isAdmin: false,
-                originalMessageId: originalMessageId,
-                client: interaction.client,
-                user: interaction.user
-            });
-
-            await interaction.editReply({
-                content: result.success ? result.message : `❌ ${result.message}`,
-            });
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'revoke_appeal');
-        }
-    },
-
-    // 上诉按钮处理器
-    appeal: async (interaction, punishmentId) => {
-        try {
-            // 检查冷却时间
-            const cooldownLeft = checkCooldown('appeal', interaction.user.id);
-            if (cooldownLeft) {
-                await interaction.reply({
-                    content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 检查上诉资格
-            const {
-                isEligible,
-                error: eligibilityError,
-                punishment,
-            } = await checkAppealEligibility(interaction.user.id, punishmentId);
-            if (!isEligible) {
-                await CourtService.removeAppealButton(interaction.user, interaction.message.id);
-                await interaction.reply({
-                    content: `❌ ${eligibilityError}`,
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 调试日志
-            logTime(`用户申请上诉，处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
-
-            // 创建上诉表单
-            const modal = createAppealModal(punishmentId, interaction.message.id);
-
-            await interaction.showModal(modal);
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'appeal_button');
-        }
-    },
 
     // 投稿AI新闻按钮处理器
     submit_news: async interaction => {
@@ -630,22 +562,16 @@ const BUTTON_CONFIG = {
         reject_submission: { handler: buttonHandlers.reject_submission },
         support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute') },
         support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
-        support_appeal: { handler: interaction => CourtService.handleSupport(interaction, 'appeal') },
         support_debate: { handler: interaction => CourtService.handleSupport(interaction, 'debate') },
         support_impeach: { handler: interaction => CourtService.handleSupport(interaction, 'impeach') },
         vote_red: { handler: interaction => VoteService.handleVoteButton(interaction, 'red') },
         vote_blue: { handler: interaction => VoteService.handleVoteButton(interaction, 'blue') },
         sync_roles: { handler: buttonHandlers.sync_roles },
         revoke_process: { handler: buttonHandlers.revoke_process },
-        revoke_appeal: { handler: buttonHandlers.revoke_appeal },
     },
 
     // 不需要defer的按钮
     modalButtons: {
-        appeal_: interaction => {
-            const punishmentId = interaction.customId.split('_')[1];
-            return buttonHandlers.appeal(interaction, punishmentId);
-        },
         apply_creator_role: buttonHandlers.apply_creator_role,
         start_debate: buttonHandlers.start_debate,
         page_prev: buttonHandlers.page_prev,

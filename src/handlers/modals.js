@@ -2,12 +2,10 @@ import { ChannelType } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { ProcessModel } from '../db/models/processModel.js';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { manageRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 import { globalTaskScheduler } from './scheduler.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
@@ -252,199 +250,6 @@ export const modalHandlers = {
             await interaction.editReply('❌ 处理申请时出现错误，请稍后重试。');
         }
     },
-
-    // 处罚上诉模态框处理器
-    appeal_modal: async interaction => {
-        try {
-            // 获取主服务器配置
-            const guildIds = interaction.client.guildManager.getGuildIds();
-            const mainGuildConfig = guildIds
-                .map(id => interaction.client.guildManager.getGuildConfig(id))
-                .find(config => config?.serverType === 'Main server');
-
-            if (!mainGuildConfig?.courtSystem?.enabled) {
-                await interaction.reply({
-                    content: '❌ 主服务器未启用议事系统',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 获取主服务器实例
-            const mainGuild = await interaction.client.guilds.fetch(mainGuildConfig.id);
-            if (!mainGuild) {
-                await interaction.reply({
-                    content: '❌ 无法访问主服务器',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 从customId中获取处罚ID
-            const punishmentId = interaction.customId.split('_')[2];
-            if (!punishmentId) {
-                await interaction.reply({
-                    content: '❌ 无效的处罚ID',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 获取处罚记录 - 在buttons.js的appeal处理器中已经完成了检查
-            const punishment = await PunishmentModel.getPunishmentById(parseInt(punishmentId));
-
-            // 获取上诉内容
-            const appealContent = interaction.fields.getTextInputValue('appeal_content');
-
-            // 获取处罚执行者信息
-            const executor = await interaction.client.users.fetch(punishment.executorId);
-
-            // 获取议事区频道
-            const courtChannel = await mainGuild.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);
-            if (!courtChannel) {
-                await interaction.reply({
-                    content: '❌ 无法访问议事频道',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 计算过期时间
-            const expireTime = new Date(Date.now() + mainGuildConfig.courtSystem.appealDuration);
-
-            // 先创建上诉流程（不含messageId）
-            const process = await ProcessModel.createCourtProcess({
-                type: 'appeal',
-                targetId: interaction.user.id, // 上诉人（被处罚者）
-                executorId: executor.id, // 处罚执行者
-                expireAt: expireTime.getTime(),
-                details: {
-                    punishmentId: punishmentId,
-                    appealContent: appealContent,
-                },
-            });
-
-            // 构建描述文本
-            let descriptionText = [
-                `<@${interaction.user.id}> 上诉`,
-                '',
-                '**上诉理由：**',
-                appealContent,
-            ].join('\n');
-
-            // 添加原处罚通知链接（如果有）
-            const punishmentGuildConfig = interaction.client.guildManager.getGuildConfig(
-                punishment.notificationGuildId,
-            );
-            if (punishment.notificationMessageId && punishmentGuildConfig?.moderationLogThreadId) {
-                const notificationLink = `https://discord.com/channels/${punishment.notificationGuildId}/${punishmentGuildConfig.moderationLogThreadId}/${punishment.notificationMessageId}`;
-                descriptionText += `\n\n**原处罚通知：**\n[点击查看](${notificationLink})`;
-            }
-
-            // 直接发送完整消息
-            const message = await courtChannel.send({
-                embeds: [
-                    {
-                        color: 0x5865f2,
-                        title: '处罚上诉申请',
-                        description: descriptionText,
-                        fields: [
-                            {
-                                name: '处罚执行者',
-                                value: `<@${executor.id}>`,
-                                inline: true,
-                            },
-                            {
-                                name: '处罚详情',
-                                value: `${
-                                    punishment.type === 'ban'
-                                        ? '永久封禁'
-                                        : `禁言 ${formatPunishmentDuration(punishment.duration)}`
-                                }`,
-                                inline: true,
-                            },
-                            {
-                                name: '原处罚理由',
-                                value: punishment.reason,
-                                inline: false,
-                            },
-                        ],
-                        timestamp: new Date(),
-                        footer: {
-                            text: `处罚ID: ${punishment.id} | 流程ID: ${process.id}`,
-                        },
-                    },
-                ]
-            });
-
-            // 一次性更新流程记录
-            await ProcessModel.updateStatus(process.id, 'pending', {
-                messageId: message.id,
-                details: {
-                    ...process.details,
-                    embed: message.embeds[0].toJSON(),
-                },
-            });
-
-            // 记录上诉提交日志
-            logTime(`用户 ${interaction.user.tag} 提交了对管理员 ${executor.tag} 的处罚上诉`);
-
-            // 获取并更新原始上诉按钮消息
-            try {
-                // 从 customId 中获取消息 ID (格式: appeal_modal_punishmentId_messageId)
-                const messageId = interaction.customId.split('_')[3];
-                if (messageId) {
-                    // 先尝试获取用户的DM channel
-                    const dmChannel = await interaction.user.createDM();
-                    if (dmChannel) {
-                        try {
-                            const originalMessage = await dmChannel.messages.fetch(messageId);
-                            if (originalMessage) {
-                                await originalMessage.edit({
-                                    components: [
-                                        {
-                                            type: 1,
-                                            components: [
-                                                {
-                                                    type: 2,
-                                                    style: 4,
-                                                    label: '撤回上诉',
-                                                    custom_id: `revoke_appeal_${interaction.user.id}_${process.id}_${messageId}`,
-                                                    emoji: { name: '↩️' },
-                                                },
-                                            ],
-                                        },
-                                    ],
-                                });
-                            }
-                        } catch (error) {
-                            // 如果获取消息失败，记录日志但不影响主流程
-                            logTime(`获取原始上诉消息失败: ${error.message}`, true);
-                        }
-                    }
-                }
-            } catch (error) {
-                logTime(`更新原始上诉消息失败: ${error.message}`, true);
-                // 继续执行，不影响主流程
-            }
-
-            // 调度流程到期处理
-            await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
-
-            // 发送确认消息
-            await interaction.editReply({
-                content: '✅ 上诉申请已提交到议事区，请等待议员审议',
-                flags: ['Ephemeral'],
-            });
-        } catch (error) {
-            logTime(`处理上诉表单提交失败: ${error.message}`, true);
-            await interaction.editReply({
-                content: '❌ 处理上诉申请时出错，请稍后重试',
-                flags: ['Ephemeral'],
-            });
-        }
-    },
-
     // 议事模态框处理器
     submit_debate_modal: async interaction => {
         try {
@@ -596,15 +401,7 @@ export const modalHandlers = {
  */
 export async function handleModal(interaction) {
     // 获取基础模态框ID
-    let modalId;
-    if (interaction.customId.includes('appeal_modal_')) {
-        // 处理上诉模态框 ID (appeal_modal_123 -> appeal_modal)
-        modalId = interaction.customId.split('_').slice(0, 2).join('_');
-    } else {
-        // 处理其他模态框 ID (保持原样)
-        modalId = interaction.customId;
-    }
-
+    const modalId = interaction.customId;
     const handler = modalHandlers[modalId];
 
     if (!handler) {

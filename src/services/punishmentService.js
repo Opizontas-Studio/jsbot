@@ -158,18 +158,18 @@ class PunishmentService {
                 }
             }
 
-            // 发送禁言上诉通知（仅私信）
+            // 发送禁言私信通知
             if (punishment.type === 'mute' && data.channelId && !data.noAppeal) {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
                     if (channel && channel.guild.id === executingGuildId) {
                         const success = await sendAppealNotification(channel, target, punishment);
                         if (success) {
-                            notificationResults.push(`服务器 ${guild.name} 的上诉通知`);
+                            notificationResults.push(`服务器 ${guild.name} 的私信通知`);
                         }
                     }
                 } catch (error) {
-                    logTime(`发送上诉通知失败: ${error.message}`, true);
+                    logTime(`发送私信通知失败: ${error.message}`, true);
                 }
             }
 

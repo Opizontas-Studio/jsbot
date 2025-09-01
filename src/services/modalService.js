@@ -87,30 +87,7 @@ export function createDebateModal() {
     return modal;
 }
 
-/**
- * 创建上诉申请模态框
- * @param {string} punishmentId - 处罚ID
- * @param {string} messageId - 消息ID
- * @returns {ModalBuilder} 构建好的模态框
- */
-export function createAppealModal(punishmentId, messageId) {
-    const modal = new ModalBuilder().setCustomId(`appeal_modal_${punishmentId}_${messageId}`).setTitle('提交上诉申请');
 
-    const appealContentInput = new TextInputBuilder()
-        .setCustomId('appeal_content')
-        .setLabel('请详细说明你的上诉理由')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder(
-            '请详细描述你的上诉理由，包括：\n1. 为什么你认为处罚不合理\n2. 为什么你认为议员应该支持你上诉\n3. 其他支持你上诉的理由\n如您有更多信息或图片需要提交，请使用托管在网络上的文档链接传达。',
-        )
-        .setMinLength(10)
-        .setMaxLength(1000)
-        .setRequired(true);
-
-    modal.addComponents(new ActionRowBuilder().addComponents(appealContentInput));
-
-    return modal;
-}
 
 /**
  * 创建AI新闻投稿模态框

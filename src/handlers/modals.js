@@ -11,9 +11,9 @@ import { globalTaskScheduler } from './scheduler.js';
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 
 /**
- * 统一处理投稿提交
+ * 处理意见投稿提交
  * @param {ModalSubmitInteraction} interaction - Discord模态框提交交互对象
- * @param {string} type - 投稿类型（news或opinion）
+ * @param {string} type - 投稿类型（固定为opinion）
  * @param {string} titlePrefix - 标题前缀
  * @param {number} color - 嵌入消息颜色
  */
@@ -84,17 +84,17 @@ const handleSubmission = async (interaction, type, titlePrefix, color) => {
 
             // 回复用户确认消息
             await interaction.editReply({
-                content: `✅ ${type === 'news' ? '新闻投稿' : '社区意见'}已成功提交！`,
+                content: `✅ 社区意见已成功提交！`,
             });
 
-            logTime(`用户 ${interaction.user.tag} 提交了${type === 'news' ? '新闻投稿' : '社区意见'}: "${title}"`);
+            logTime(`用户 ${interaction.user.tag} 提交了社区意见: "${title}"`);
         } catch (error) {
             throw new Error(`发送投稿时出错: ${error.message}`);
         }
     } catch (error) {
-        logTime(`处理${type === 'news' ? '新闻投稿' : '社区意见'}失败: ${error.message}`, true);
+        logTime(`处理社区意见失败: ${error.message}`, true);
         await interaction.editReply({
-            content: `❌ 提交${type === 'news' ? '新闻' : '意见'}时出错，请稍后重试`,
+            content: `❌ 提交意见时出错，请稍后重试`,
         });
     }
 };
@@ -384,10 +384,7 @@ export const modalHandlers = {
         }
     },
 
-    // AI新闻投稿模态框处理器
-    news_submission_modal: async interaction => {
-        await handleSubmission(interaction, 'news', '📰 新闻投稿：', 0x3498db); // 蓝色
-    },
+
 
     // 社区意见投稿模态框处理器
     opinion_submission_modal: async interaction => {
@@ -422,9 +419,7 @@ export const modalHandlers = {
             if (originalEmbed) {
                 // 提取标题（去掉前缀）
                 let title = originalEmbed.title || '未记录标题';
-                if (title.startsWith('📰 新闻投稿：')) {
-                    title = title.replace('📰 新闻投稿：', '').trim();
-                } else if (title.startsWith('💬 社区意见：')) {
+                if (title.startsWith('💬 社区意见：')) {
                     title = title.replace('💬 社区意见：', '').trim();
                 }
 
@@ -441,9 +436,10 @@ export const modalHandlers = {
             const result = await updateOpinionRecord(userId, submissionType, true, submissionData);
 
             if (result.success) {
-                // 更新消息的embed
+                // 更新消息的embed，移除贡献者信息
                 const updatedEmbed = {
                     ...originalEmbed.toJSON(),
+                    author: undefined,
                     footer: {
                         text: '审定有效'
                     }
@@ -455,6 +451,19 @@ export const modalHandlers = {
                     components: []
                 });
 
+                // 发送审核日志消息
+                try {
+                    const targetUser = await interaction.client.users.fetch(userId);
+                    const auditLogContent = `管理员 ${interaction.user.tag} 审定通过了用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见`;
+
+                    await originalMessage.reply({
+                        content: auditLogContent,
+                        allowedMentions: { users: [] }
+                    });
+                } catch (auditError) {
+                    logTime(`发送审核日志失败: ${auditError.message}`, true);
+                }
+
                 // 向目标用户发送自定义回复
                 try {
                     const targetUser = await interaction.client.users.fetch(userId);
@@ -463,7 +472,7 @@ export const modalHandlers = {
                             color: 0x00ff00,
                             title: '✅ 投稿审定通过',
                             description: [
-                                `感谢您投稿的${submissionType === 'news' ? '新闻投稿' : '社区意见'}`,
+                                `感谢您投稿的社区意见`,
                                 `**标题：${submissionData?.title || '未知标题'}**`,
                                 '',
                                 '**管理组回复：**',
@@ -481,10 +490,10 @@ export const modalHandlers = {
                 }
 
                 await interaction.editReply({
-                    content: `✅ 已将该${submissionType === 'news' ? '新闻投稿' : '社区意见'}标记为合理并发送了自定义回复`,
+                    content: `✅ 已将该社区意见标记为合理并发送了自定义回复`,
                 });
 
-                logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 的${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionData?.title || '未知标题'}"`);
+                logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 的社区意见: "${submissionData?.title || '未知标题'}"`);
             } else {
                 await interaction.editReply({
                     content: `❌ ${result.message}`,
@@ -498,13 +507,9 @@ export const modalHandlers = {
     // 拒绝投稿模态框处理器
     reject_submission_modal: async interaction => {
         try {
-            // 先 defer 回复
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-
             // 从modalId中解析用户ID、投稿类型和消息ID
             const modalIdParts = interaction.customId.split('_');
             const userId = modalIdParts[3];
-            const submissionType = modalIdParts[4];
             const messageId = modalIdParts[5];
 
             // 获取管理员输入的回复内容
@@ -524,9 +529,7 @@ export const modalHandlers = {
             let submissionTitle = '未知标题';
             if (originalEmbed && originalEmbed.title) {
                 let title = originalEmbed.title;
-                if (title.startsWith('📰 新闻投稿：')) {
-                    submissionTitle = title.replace('📰 新闻投稿：', '').trim();
-                } else if (title.startsWith('💬 社区意见：')) {
+                if (title.startsWith('💬 社区意见：')) {
                     submissionTitle = title.replace('💬 社区意见：', '').trim();
                 }
             }
@@ -551,9 +554,9 @@ export const modalHandlers = {
                 if (targetUser) {
                     const dmEmbed = {
                         color: 0xff0000,
-                        title: '❌ 投稿审定未通过',
+                        title: '❌ 投稿暂时无法执行',
                         description: [
-                            `您投稿的${submissionType === 'news' ? '新闻投稿' : '社区意见'}未通过审定`,
+                            `感谢您投稿的社区意见`,
                             `**标题：${submissionTitle}**`,
                             '',
                             '**管理组回复：**',
@@ -571,10 +574,10 @@ export const modalHandlers = {
             }
 
             await interaction.editReply({
-                content: `✅ 已将该${submissionType === 'news' ? '新闻投稿' : '社区意见'}标记为不合理并发送了自定义回复`,
+                content: `✅ 已将该社区意见标记为不合理并发送了自定义回复`,
             });
 
-            logTime(`管理员 ${interaction.user.tag} 拒绝了用户 ${userId} 的${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionTitle}"`);
+            logTime(`管理员 ${interaction.user.tag} 拒绝了用户 ${userId} 的社区意见: "${submissionTitle}"`);
         } catch (error) {
             await handleInteractionError(interaction, error, 'reject_submission_modal');
         }

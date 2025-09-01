@@ -87,41 +87,6 @@ export function createDebateModal() {
     return modal;
 }
 
-
-
-/**
- * 创建AI新闻投稿模态框
- * @returns {ModalBuilder} 构建好的模态框
- */
-export function createNewsSubmissionModal() {
-    const modal = new ModalBuilder().setCustomId('news_submission_modal').setTitle('AI新闻投稿');
-
-    const titleInput = new TextInputBuilder()
-        .setCustomId('news_title')
-        .setLabel('新闻标题')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('请输入简短明了的新闻标题')
-        .setMinLength(5)
-        .setMaxLength(100)
-        .setRequired(true);
-
-    const contentInput = new TextInputBuilder()
-        .setCustomId('news_content')
-        .setLabel('新闻内容')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('请详细描述新闻内容，可以包含链接')
-        .setMinLength(10)
-        .setMaxLength(1500)
-        .setRequired(true);
-
-    modal.addComponents(
-        new ActionRowBuilder().addComponents(titleInput),
-        new ActionRowBuilder().addComponents(contentInput),
-    );
-
-    return modal;
-}
-
 /**
  * 创建社区意见投稿模态框
  * @returns {ModalBuilder} 构建好的模态框

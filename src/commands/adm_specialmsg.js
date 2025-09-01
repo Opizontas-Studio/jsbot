@@ -25,7 +25,7 @@ export default {
                     { name: '身份组同步', value: 'role_sync' },
                     { name: '提交议案', value: 'debate_submission' },
                     { name: '志愿者身份组管理', value: 'volunteer_role_management' },
-                    { name: '新闻和意见信箱', value: 'opinion_mailbox' },
+                    { name: '意见信箱', value: 'opinion_mailbox' },
                 ),
         )
         .addChannelOption(option =>
@@ -247,7 +247,7 @@ async function createVolunteerRoleManagementMessage(interaction, channel, guildC
 }
 
 /**
- * 创建新闻和意见信箱消息
+ * 创建意见信箱消息
  * @param {Interaction} interaction - 斜杠命令交互对象
  * @param {Channel} channel - 目标频道
  * @param {Object} guildConfig - 服务器配置
@@ -261,33 +261,27 @@ async function createMailboxMessage(interaction, channel, guildConfig) {
         return;
     }
 
-    // 创建投稿按钮
-    const newsButton = new ButtonBuilder()
-        .setCustomId('submit_news')
-        .setLabel('投稿AI新闻')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('📰');
-
+    // 创建意见投稿按钮
     const opinionButton = new ButtonBuilder()
         .setCustomId('submit_opinion')
-        .setLabel('投稿社区意见')
-        .setStyle(ButtonStyle.Success)
+        .setLabel('提交社区意见')
+        .setStyle(ButtonStyle.Primary)
         .setEmoji('💬');
 
-    const row = new ActionRowBuilder().addComponents(newsButton, opinionButton);
+    const row = new ActionRowBuilder().addComponents(opinionButton);
 
     // 创建嵌入消息
     const embed = new EmbedBuilder()
-        .setTitle('📮 新闻和意见信箱')
+        .setTitle('📮 社区意见信箱')
         .setDescription(
             [
-                '点击下方按钮，您可以向社区投稿AI新闻或提交社区意见：',
+                '点击下方按钮，您可以向社区提交意见或建议：',
                 '',
-                '**投稿要求：**',
-                '- 新闻投稿：分享值得关注的最新AI相关新闻',
-                '- 意见投稿：提出对社区的建议或反馈',
+                '**提交要求：**',
+                '- 意见内容应当具体、建设性',
+                '- 可以是对社区的反馈或倡议',
                 '',
-                '管理组会查看并尽快处理您的投稿',
+                '管理组会查看并尽快处理您的意见',
             ].join('\n'),
         )
         .setColor(0x00aaff);
@@ -298,8 +292,8 @@ async function createMailboxMessage(interaction, channel, guildConfig) {
         components: [row],
     });
 
-    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了新闻和意见信箱消息`);
+    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了社区意见信箱消息`);
     await interaction.editReply({
-        content: `✅ 已在 <#${channel.id}> 创建新闻和意见信箱消息`,
+        content: `✅ 已在 <#${channel.id}> 创建社区意见信箱消息`,
     });
 }

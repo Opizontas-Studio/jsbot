@@ -5,7 +5,6 @@ import {
     createApproveSubmissionModal,
     createCreatorRoleModal,
     createDebateModal,
-    createNewsSubmissionModal,
     createOpinionSubmissionModal,
     createRejectSubmissionModal
 } from '../services/modalService.js';
@@ -390,30 +389,6 @@ export const buttonHandlers = {
         }
     },
 
-
-
-    // 投稿AI新闻按钮处理器
-    submit_news: async interaction => {
-        try {
-            // 检查冷却时间
-            const cooldownLeft = checkCooldown('news_submission', interaction.user.id, 30000); // 30秒冷却
-            if (cooldownLeft) {
-                await interaction.reply({
-                    content: `❌ 请等待 ${cooldownLeft} 秒后再次投稿`,
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
-            // 创建投稿表单
-            const modal = createNewsSubmissionModal();
-
-            await interaction.showModal(modal);
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'submit_news_button');
-        }
-    },
-
     // 投稿社区意见按钮处理器
     submit_opinion: async interaction => {
         try {
@@ -490,7 +465,6 @@ const BUTTON_CONFIG = {
         start_debate: buttonHandlers.start_debate,
         page_prev: buttonHandlers.page_prev,
         page_next: buttonHandlers.page_next,
-        submit_news: buttonHandlers.submit_news,
         submit_opinion: buttonHandlers.submit_opinion,
         approve_submission: buttonHandlers.approve_submission,
         reject_submission: buttonHandlers.reject_submission,

@@ -230,10 +230,7 @@ async function createVolunteerRoleManagementMessage(interaction, channel, guildC
                 '**申请条件：**',
                 '1. 加入达一个月，未处于被警告者状态',
                 '2. 是创作者身份组的成员 或 在意见信箱中提出过合理建议',
-                '',
-                '**志愿者职责：**',
-                '• 可参与社区重大决策的投票',
-                '• 有资格被抽选为监督员监督管理员工作',
+                '**志愿者可参与社区重大决策的投票**',
             ].join('\n'),
         )
         .setColor(0x00aa00);
@@ -291,7 +288,7 @@ async function createMailboxMessage(interaction, channel, guildConfig) {
                 '- 新闻投稿：分享值得关注的最新AI相关新闻',
                 '- 意见投稿：提出对社区的建议或反馈',
                 '',
-                '管理组会查看并尽快处理您的投稿。',
+                '管理组会查看并尽快处理您的投稿',
             ].join('\n'),
         )
         .setColor(0x00aaff);

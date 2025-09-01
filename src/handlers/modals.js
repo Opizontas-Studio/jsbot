@@ -106,9 +106,6 @@ const handleSubmission = async (interaction, type, titlePrefix, color) => {
  */
 const handleSubmissionReview = async (interaction, isApproved) => {
     try {
-        // 先 defer 回复
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
         // 从modalId中解析用户ID、投稿类型和消息ID
         const modalIdParts = interaction.customId.split('_');
         const userId = modalIdParts[3];

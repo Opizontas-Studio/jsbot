@@ -291,16 +291,13 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         // 私信通知的 embed
         const dmEmbed = {
             color: 0xff0000,
-            title: '禁言处罚通知',
+            title: '您已被禁言',
             description: [
-                `处罚对象：<@${target.id}>`,
-                '',
-                '**处罚详情**',
-                `• 处罚期限：${formatPunishmentDuration(punishment.duration)}`,
+                `• 禁言期限：${formatPunishmentDuration(punishment.duration)}`,
                 punishment.warningDuration
                     ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
                     : null,
-                `• 处罚理由：${punishment.reason || '未提供原因'}`,
+                `• 禁言理由：${punishment.reason || '未提供原因'}`,
             ]
                 .filter(Boolean)
                 .join('\n'),

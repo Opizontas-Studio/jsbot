@@ -56,7 +56,6 @@ class PunishmentService {
                             '您已被永久封禁：',
                             `• 原因：${punishment.reason}`,
                             `• 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
-                            `• 执行管理员：${executor.tag}`,
                             '您将被立即移出所有相关服务器。',
                         ].join('\n'),
                     });

@@ -298,6 +298,89 @@ export class RequestQueue {
         }
     }
 
+    /**
+     * 发送等待通知
+     * @private
+     */
+    async sendWaitingNotification(taskInfo, lockType) {
+        const { notifyTarget, taskName, taskId } = taskInfo;
+        if (!notifyTarget?.channel || !notifyTarget?.user) return;
+
+        const lockTypeText = lockType === 'thread' ? '子区' : '服务器';
+
+        try {
+            const message = await notifyTarget.channel.send({
+                content: `<@${notifyTarget.user.id}>`,
+                embeds: [{
+                    color: 0xffaa00,
+                    title: '⏳ 任务排队等待中',
+                    description: `**${taskName}** 正在等待其他任务完成...`,
+                    fields: [
+                        { name: '任务ID', value: taskId, inline: true },
+                        { name: '等待原因', value: `${lockTypeText}正在执行其他清理任务`, inline: true },
+                        { name: '状态', value: '🔄 自动排队中，无需手动重试', inline: false }
+                    ],
+                    timestamp: new Date()
+                }]
+            });
+
+            // 存储消息引用用于后续更新
+            taskInfo.notificationMessage = message;
+        } catch (error) {
+            logTime(`发送等待通知失败: ${error.message}`, true);
+        }
+    }
+
+    /**
+     * 发送任务开始通知
+     * @private
+     */
+    async sendTaskStartNotification(taskInfo) {
+        const { notifyTarget, taskName, taskId } = taskInfo;
+        if (!notifyTarget?.channel || !notifyTarget?.user) return;
+
+        try {
+            // 如果已经有通知消息，则编辑它；否则创建新的
+            if (taskInfo.notificationMessage) {
+                const embed = {
+                    color: 0x00ff00,
+                    title: '🚀 任务已开始',
+                    description: `**${taskName}** 正在执行中...`,
+                    fields: [
+                        { name: '任务ID', value: taskId, inline: true },
+                        { name: '开始时间', value: new Date().toLocaleString('zh-CN'), inline: true },
+                        { name: '进度', value: '⏳ 准备中...', inline: false }
+                    ],
+                    timestamp: new Date()
+                };
+
+                await taskInfo.notificationMessage.edit({
+                    embeds: [embed]
+                });
+            } else {
+                const message = await notifyTarget.channel.send({
+                    content: `<@${notifyTarget.user.id}>`,
+                    embeds: [{
+                        color: 0x00ff00,
+                        title: '🚀 任务已开始',
+                        description: `**${taskName}** 正在执行中...`,
+                        fields: [
+                            { name: '任务ID', value: taskId, inline: true },
+                            { name: '开始时间', value: new Date().toLocaleString('zh-CN'), inline: true },
+                            { name: '进度', value: '⏳ 准备中...', inline: false }
+                        ],
+                        timestamp: new Date()
+                    }]
+                });
+
+                // 存储消息引用用于更新进度
+                taskInfo.notificationMessage = message;
+            }
+        } catch (error) {
+            logTime(`发送任务开始通知失败: ${error.message}`, true);
+        }
+    }
+
     // 处理队列中的任务
     async process() {
         // 更新最后处理时间

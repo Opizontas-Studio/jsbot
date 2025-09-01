@@ -4,9 +4,10 @@ import { logTime } from '../utils/logger.js';
 import {
     executePunishmentAction,
     formatPunishmentDuration,
-    sendAppealNotification,
+    sendBanNotification,
     sendChannelNotification,
     sendModLogNotification,
+    sendMuteNotification,
 } from '../utils/punishmentHelper.js';
 
 class PunishmentService {
@@ -49,19 +50,11 @@ class PunishmentService {
 
             // 3. 如果是永封处罚，先发送私信通知
             if (punishment.type === 'ban') {
-                try {
-                    await target.send({
-                        content: [
-                            '⚠️ **永封通知**',
-                            '您已被永久封禁：',
-                            `• 原因：${punishment.reason}`,
-                            `• 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
-                            '您将被立即移出所有相关服务器。',
-                        ].join('\n'),
-                    });
+                const success = await sendBanNotification(target, punishment);
+                if (success) {
                     logTime(`已向用户 ${target.tag} 发送永封通知`);
-                } catch (error) {
-                    logTime(`无法向用户 ${target.tag} 发送永封通知: ${error.message}`, true);
+                } else {
+                    logTime(`无法向用户 ${target.tag} 发送永封通知`, true);
                 }
             }
 
@@ -162,7 +155,7 @@ class PunishmentService {
                 try {
                     const channel = await client.channels.fetch(data.channelId);
                     if (channel && channel.guild.id === executingGuildId) {
-                        const success = await sendAppealNotification(channel, target, punishment);
+                        const success = await sendMuteNotification(channel, target, punishment);
                         if (success) {
                             notificationResults.push(`服务器 ${guild.name} 的私信通知`);
                         }

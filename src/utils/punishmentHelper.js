@@ -284,15 +284,14 @@ export const sendChannelNotification = async (channel, target, punishment) => {
  * @param {Object} punishment - 处罚数据库记录
  * @returns {Promise<boolean>} 发送是否成功
  */
-export const sendAppealNotification = async (channel, target, punishment) => {
+export const sendMuteNotification = async (channel, target, punishment) => {
     try {
-        const executor = await channel.client.users.fetch(punishment.executorId);
-
         // 私信通知的 embed
         const dmEmbed = {
             color: 0xff0000,
-            title: '您已被禁言',
+            title: '⚠️ **禁言通知**',
             description: [
+                '您已在旅程ΟΡΙΖΟΝΤΑΣ被禁言：',
                 `• 禁言期限：${formatPunishmentDuration(punishment.duration)}`,
                 punishment.warningDuration
                     ? `• 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
@@ -307,7 +306,7 @@ export const sendAppealNotification = async (channel, target, punishment) => {
             timestamp: new Date(),
         };
 
-        // 发送私信（不含上诉按钮）
+        // 发送私信（包含上诉按钮和详细说明）
         await target.send({
             embeds: [dmEmbed],
         });
@@ -315,6 +314,41 @@ export const sendAppealNotification = async (channel, target, punishment) => {
         return true;
     } catch (error) {
         logTime(`发送处罚通知失败: ${error.message}`, true);
+        return false;
+    }
+};
+
+/**
+ * 发送永封通知
+ * @param {Object} target - 目标用户对象
+ * @param {Object} punishment - 处罚数据库记录
+ * @returns {Promise<boolean>} 发送是否成功
+ */
+export const sendBanNotification = async (target, punishment) => {
+    try {
+        // 私信通知的 embed
+        const dmEmbed = {
+            color: 0xff0000,
+            title: '⚠️ **永封通知**',
+            description: [
+                '您已在旅程ΟΡΙΖΟΝΤΑΣ被永久封禁：',
+                `• 封禁理由：${punishment.reason || '未提供原因'}`,
+                `• 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
+            ].join('\n'),
+            footer: {
+                text: `如有异议，请联系服务器主或在任管理员。`,
+            },
+            timestamp: new Date(),
+        };
+
+        // 发送私信
+        await target.send({
+            embeds: [dmEmbed],
+        });
+
+        return true;
+    } catch (error) {
+        logTime(`发送永封通知失败: ${error.message}`, true);
         return false;
     }
 };

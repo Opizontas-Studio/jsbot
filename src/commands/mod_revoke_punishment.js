@@ -88,7 +88,6 @@ export default {
                                 `• 处罚ID：${punishment.id}`,
                                 `• 原处罚原因：${punishment.reason}`,
                                 `• 撤销原因：${reason}`,
-                                `• 执行管理员：${interaction.user.tag}`,
                             ].join('\n'),
                             timestamp: new Date(),
                         };
@@ -129,11 +128,6 @@ export default {
                         {
                             name: '目标用户',
                             value: `<@${target.id}>`,
-                            inline: true,
-                        },
-                        {
-                            name: '执行管理员',
-                            value: `<@${interaction.user.id}>`,
                             inline: true,
                         },
                         {

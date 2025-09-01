@@ -2,17 +2,18 @@ import { Collection } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import CourtService from '../services/courtService.js';
 import {
+    createApproveSubmissionModal,
     createCreatorRoleModal,
     createDebateModal,
     createNewsSubmissionModal,
-    createOpinionSubmissionModal
+    createOpinionSubmissionModal,
+    createRejectSubmissionModal
 } from '../services/modalService.js';
 import {
     applyVolunteerRole,
     exitSenatorRole,
     exitVolunteerRole,
     syncMemberRoles,
-    updateOpinionRecord,
     validateVolunteerApplication
 } from '../services/roleApplication.js';
 import { VoteService } from '../services/voteService.js';
@@ -441,79 +442,10 @@ export const buttonHandlers = {
             // 解析按钮ID获取用户ID和投稿类型
             const [, , userId, submissionType] = interaction.customId.split('_');
 
-            // 从embed中提取投稿信息
-            const originalEmbed = interaction.message.embeds[0];
-            let submissionData = null;
+            // 创建批准投稿模态框，传递消息ID
+            const modal = createApproveSubmissionModal(userId, submissionType, interaction.message.id);
 
-            if (originalEmbed) {
-                // 提取标题（去掉前缀）
-                let title = originalEmbed.title || '未记录标题';
-                if (title.startsWith('📰 新闻投稿：')) {
-                    title = title.replace('📰 新闻投稿：', '').trim();
-                } else if (title.startsWith('💬 社区意见：')) {
-                    title = title.replace('💬 社区意见：', '').trim();
-                }
-
-                // 提取内容
-                const content = originalEmbed.description || '未记录内容';
-
-                submissionData = {
-                    title: title,
-                    content: content
-                };
-            }
-
-            // 更新意见记录
-            const result = await updateOpinionRecord(userId, submissionType, true, submissionData);
-
-            if (result.success) {
-                // 更新消息的embed
-                const updatedEmbed = {
-                    ...originalEmbed.toJSON(),
-                    footer: {
-                        text: '审定有效，可申请志愿者身份组'
-                    }
-                };
-
-                // 移除按钮并更新消息
-                await interaction.message.edit({
-                    embeds: [updatedEmbed],
-                    components: []
-                });
-
-                // 向目标用户发送私聊通知
-                try {
-                    const targetUser = await interaction.client.users.fetch(userId);
-                    if (targetUser) {
-                        const dmEmbed = {
-                            color: 0x00ff00,
-                            title: '✅ 投稿审定通过',
-                            description: [
-                                `感谢您投稿的${submissionType === 'news' ? '新闻投稿' : '社区意见'}`,
-                                `**标题：${submissionData?.title || '未知标题'}**`,
-                                '您现在可以在[相关频道](https://discord.com/channels/1291925535324110879/1374312282351468626)申请社区志愿者身份组，参与重大决策的投票。',
-                            ].join('\n'),
-                            timestamp: new Date(),
-                        };
-
-                        await targetUser.send({ embeds: [dmEmbed] });
-                        logTime(`已向用户 ${targetUser.tag} 发送投稿审定通过通知`);
-                    }
-                } catch (dmError) {
-                    logTime(`向用户 ${userId} 发送投稿审定通知失败: ${dmError.message}`, true);
-                    // 私聊发送失败不影响主流程
-                }
-
-                await interaction.editReply({
-                    content: `✅ 已将该${submissionType === 'news' ? '新闻投稿' : '社区意见'}标记为合理`,
-                });
-
-                logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 的${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionData?.title || '未知标题'}"`);
-            } else {
-                await interaction.editReply({
-                    content: `❌ ${result.message}`,
-                });
-            }
+            await interaction.showModal(modal);
         } catch (error) {
             await handleInteractionError(interaction, error, 'approve_submission');
         }
@@ -525,26 +457,10 @@ export const buttonHandlers = {
             // 解析按钮ID获取用户ID和投稿类型
             const [, , userId, submissionType] = interaction.customId.split('_');
 
-            // 更新消息的embed
-            const originalEmbed = interaction.message.embeds[0];
-            const updatedEmbed = {
-                ...originalEmbed.toJSON(),
-                footer: {
-                    text: '审定无效'
-                }
-            };
+            // 创建拒绝投稿模态框，传递消息ID
+            const modal = createRejectSubmissionModal(userId, submissionType, interaction.message.id);
 
-            // 移除按钮并更新消息
-            await interaction.message.edit({
-                embeds: [updatedEmbed],
-                components: []
-            });
-
-            await interaction.editReply({
-                content: `✅ 已将该${submissionType === 'news' ? '新闻投稿' : '社区意见'}标记为不合理`,
-            });
-
-            logTime(`管理员 ${interaction.user.tag} 拒绝了用户 ${userId} 的${submissionType === 'news' ? '新闻投稿' : '社区意见'}`);
+            await interaction.showModal(modal);
         } catch (error) {
             await handleInteractionError(interaction, error, 'reject_submission');
         }
@@ -558,8 +474,6 @@ const BUTTON_CONFIG = {
         exit_senator_role: { handler: buttonHandlers.exit_senator_role },
         apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role },
         exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role },
-        approve_submission: { handler: buttonHandlers.approve_submission },
-        reject_submission: { handler: buttonHandlers.reject_submission },
         support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute') },
         support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
         support_debate: { handler: interaction => CourtService.handleSupport(interaction, 'debate') },
@@ -578,6 +492,8 @@ const BUTTON_CONFIG = {
         page_next: buttonHandlers.page_next,
         submit_news: buttonHandlers.submit_news,
         submit_opinion: buttonHandlers.submit_opinion,
+        approve_submission: buttonHandlers.approve_submission,
+        reject_submission: buttonHandlers.reject_submission,
     },
 };
 

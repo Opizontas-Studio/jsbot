@@ -154,3 +154,59 @@ export function createOpinionSubmissionModal() {
 
     return modal;
 }
+
+/**
+ * 创建批准投稿回复模态框
+ * @param {string} userId - 投稿用户ID
+ * @param {string} submissionType - 投稿类型（news或opinion）
+ * @param {string} messageId - 原始消息ID
+ * @returns {ModalBuilder} 构建好的模态框
+ */
+export function createApproveSubmissionModal(userId, submissionType, messageId) {
+    const modal = new ModalBuilder()
+        .setCustomId(`approve_submission_modal_${userId}_${submissionType}_${messageId}`)
+        .setTitle('批准投稿 - 编写回复');
+
+    const replyInput = new TextInputBuilder()
+        .setCustomId('admin_reply')
+        .setLabel('给投稿者的回复消息')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('请输入要发送给投稿者的回复内容...')
+        .setMinLength(10)
+        .setMaxLength(1000)
+        .setRequired(true);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(replyInput),
+    );
+
+    return modal;
+}
+
+/**
+ * 创建拒绝投稿回复模态框
+ * @param {string} userId - 投稿用户ID
+ * @param {string} submissionType - 投稿类型（news或opinion）
+ * @param {string} messageId - 原始消息ID
+ * @returns {ModalBuilder} 构建好的模态框
+ */
+export function createRejectSubmissionModal(userId, submissionType, messageId) {
+    const modal = new ModalBuilder()
+        .setCustomId(`reject_submission_modal_${userId}_${submissionType}_${messageId}`)
+        .setTitle('拒绝投稿 - 编写回复');
+
+    const replyInput = new TextInputBuilder()
+        .setCustomId('admin_reply')
+        .setLabel('给投稿者的回复消息')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('请输入要发送给投稿者的回复内容，说明拒绝原因...')
+        .setMinLength(10)
+        .setMaxLength(1000)
+        .setRequired(true);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(replyInput),
+    );
+
+    return modal;
+}

@@ -385,7 +385,8 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             lastUpdateTime: Date.now(),
             lastMessageIds,
             activeUsers: activeUsersObj,
-            memberCount: memberCount - result.removedCount
+            memberCount: memberCount - result.removedCount,
+            lastManualThreshold: options.manualThreshold || cache?.lastManualThreshold || null
         });
 
         // 最终进度更新
@@ -457,13 +458,18 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
                 // 检查是否达到1000人阈值
                 if (memberCount >= 1000) {
                     cleanupResults.qualifiedThreads++;
-                    logTime(`[缓存清理] 子区 ${thread.name} 达到1000人阈值，开始执行950人清理`);
+
+                    // 读取缓存以获取上次手动设置的阈值
+                    const cache = await loadThreadCache(threadId);
+                    const inheritedThreshold = cache?.lastManualThreshold || 950; // 默认950
+
+                    logTime(`[缓存清理] 子区 ${thread.name} 达到1000人阈值，使用继承阈值${inheritedThreshold}人进行清理`);
 
                     // 生成任务ID
                     const taskId = `cached_cleanup_${threadId}_${Date.now()}`;
 
-                    // 执行清理（阈值950人）
-                    const cleanupResult = await cleanThreadMembers(thread, 950, {
+                    // 执行清理（使用继承的阈值）
+                    const cleanupResult = await cleanThreadMembers(thread, inheritedThreshold, {
                         sendThreadReport: true,
                         taskId: taskId
                     });

@@ -1,7 +1,6 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers } from '../services/threadCleaner.js';
-import { generateProgressReport, globalBatchProcessor, globalRequestQueue } from '../utils/concurrency.js';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
+import { cleanThreadMembers, cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -32,15 +31,7 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('全部')
-                .setDescription('清理所有超过阈值的子区')
-                .addIntegerOption(option =>
-                    option
-                        .setName('阈值')
-                        .setDescription('目标人数阈值(默认980)')
-                        .setMinValue(900)
-                        .setMaxValue(1000)
-                        .setRequired(false),
-                ),
+                .setDescription('检查并清理所有达到1000人的已缓存子区(使用继承阈值)'),
         ),
 
     async execute(interaction, guildConfig) {
@@ -65,178 +56,138 @@ export default {
 
 /**
  * 处理全服子区的清理
+ * 使用类似定时任务的逻辑：检查已缓存子区中达到1000人的进行清理
  */
 async function handleAllThreads(interaction, guildConfig) {
-    const threshold = interaction.options.getInteger('阈值') || 980;
-    logTime(`开始执行全服清理，阈值: ${threshold}`);
-
-    const activeThreads = await interaction.guild.channels.fetchActiveThreads();
-    const threads = activeThreads.threads.filter(
-        thread => !guildConfig.automation.whitelistedThreads?.includes(thread.id),
-    );
-
-    logTime(`已获取活跃子区列表，共 ${threads.size} 个子区`);
+    logTime(`开始执行全服缓存子区清理检查`);
 
     await interaction.editReply({
-        content: '⏳ 正在检查所有子区人数...',
+        content: '⏳ 正在获取活跃子区列表和缓存信息...',
         flags: ['Ephemeral'],
     });
 
-    let skippedCount = 0;
-    let lastProgressUpdate = Date.now();
-
     try {
-        // 使用批处理器处理子区检查，每批次处理3个子区
-        const batchSize = 3;
-        const threadArray = Array.from(threads.values());
-        const batches = [];
-
-        for (let i = 0; i < threadArray.length; i += batchSize) {
-            batches.push(threadArray.slice(i, i + batchSize));
-        }
-
-        const results = [];
-        let processedCount = 0;
-
-        // 并发处理每个批次
-        await Promise.all(
-            batches.map(async batch => {
-                const batchResults = await globalBatchProcessor.processBatch(
-                    batch,
-                    async thread => {
-                        try {
-                            const members = await thread.members.fetch();
-                            return {
-                                thread,
-                                memberCount: members.size,
-                                needsCleanup: members.size > threshold,
-                            };
-                        } catch (error) {
-                            logTime(`获取子区 ${thread.name} 成员数失败: ${error.message}`, true);
-                            return null;
-                        }
-                    },
-                    null, // 移除每个子任务的进度回调
-                    'threadCheck',
-                );
-
-                // 更新进度
-                processedCount += batch.length;
-                const now = Date.now();
-                if (now - lastProgressUpdate > 1000) {
-                    // 限制进度更新频率为1秒
-                    lastProgressUpdate = now;
-                    await interaction.editReply({
-                        content: `⏳ 正在检查子区人数... (${processedCount}/${threads.size})`,
-                    });
-                }
-
-                results.push(...batchResults);
-            }),
+        // 获取活跃子区列表
+        const activeThreads = await interaction.guild.channels.fetchActiveThreads();
+        const threads = activeThreads.threads.filter(
+            thread => !guildConfig.automation.whitelistedThreads?.includes(thread.id),
         );
 
-        // 处理结果
-        const threadsToClean = [];
-        for (const result of results) {
-            if (result && result.needsCleanup) {
-                threadsToClean.push(result);
-            } else if (result) {
-                skippedCount++;
-            }
-        }
+        logTime(`已获取活跃子区列表，共 ${threads.size} 个子区`);
 
-        if (threadsToClean.length === 0) {
+        // 创建活跃子区映射表
+        const activeThreadsMap = new Map();
+        threads.forEach(thread => {
+            activeThreadsMap.set(thread.id, thread);
+        });
+
+        await interaction.editReply({
+            content: '⏳ 正在检查已缓存子区的人数状态...',
+        });
+
+        // 执行缓存子区的清理检查（类似定时任务逻辑）
+        const cleanupResults = await cleanupCachedThreadsSequentially(
+            interaction.client,
+            interaction.guildId,
+            activeThreadsMap
+        );
+
+        // 根据结果显示不同的信息
+        if (cleanupResults.totalChecked === 0) {
             await interaction.editReply({
                 content: [
-                    '✅ 检查完成，没有发现需要清理的子区',
-                    `📊 已检查: ${threads.size} 个子区`,
-                    `⏭️ 已跳过: ${skippedCount} 个子区(人数未超限)`,
+                    '✅ 检查完成',
+                    '📊 在活跃子区中未发现任何已缓存的子区',
+                    '💡 只有执行过清理的子区才会被纳入检查范围',
                 ].join('\n'),
             });
             return;
         }
 
-        // 构建需要清理的子区信息摘要
-        const threadsInfo = threadsToClean.map(
-            ({ thread, memberCount }) =>
-                `• ${thread.name}: ${memberCount}人 (需清理${memberCount - threshold}人)`
-        ).join('\n');
-
-        // 使用确认按钮让管理员确认是否执行清理
-        await handleConfirmationButton({
-            interaction,
-            customId: 'confirm_clean_all_threads',
-            buttonLabel: '确认清理',
-            embed: {
-                color: 0xff9900,
-                title: '🔍 子区清理确认',
-                description: [
-                    `共发现 ${threadsToClean.length} 个需要清理的子区:`,
-                    '',
-                    threadsInfo,
-                    '',
-                    `⚠️ **警告**: 此操作将从上述子区移除不活跃成员。`,
-                    `清理阈值: ${threshold}人`,
-                    `总计清理人数: ${threadsToClean.reduce((sum, { memberCount }) => sum + (memberCount - threshold), 0)}人`,
+        if (cleanupResults.qualifiedThreads === 0) {
+            await interaction.editReply({
+                content: [
+                    '✅ 检查完成，没有发现需要清理的子区',
+                    `📊 已检查缓存子区: ${cleanupResults.totalChecked} 个`,
+                    `💡 所有已缓存子区人数均未达到1000人清理阈值`,
                 ].join('\n'),
-                footer: { text: '请确认是否执行清理操作' }
-            },
-            onConfirm: async confirmation => {
-                await confirmation.update({
-                    content: '⏳ 已确认，开始执行清理操作...',
-                    components: [],
-                    embeds: [],
-                });
+            });
+            return;
+        }
 
-                // 处理结果存储
-                const cleanupResults = [];
+        // 构建清理结果信息
+        const successDetails = cleanupResults.details
+            .filter(detail => detail.status === 'success')
+            .map(detail =>
+                `• ${detail.threadName}: 原${detail.originalCount}人 → 现${detail.originalCount - detail.removedCount}人 (移除${detail.removedCount}人)`
+            ).join('\n');
 
-                // 使用批处理器处理子区清理
-                const cleanupBatchResults = await globalBatchProcessor.processBatch(
-                    threadsToClean,
-                    async ({ thread }) => {
-                        await interaction.editReply({
-                            content: generateProgressReport(cleanupResults.length + 1, threadsToClean.length, {
-                                prefix: '正在处理子区清理',
-                                suffix: `- ${thread.name}`,
-                                progressChar: '🔄',
-                            }),
-                        });
+        const errorDetails = cleanupResults.errors.length > 0
+            ? cleanupResults.errors
+                .slice(0, 5) // 最多显示5个错误
+                .map(error => `• ${error.threadName}: ${error.error}`)
+                .join('\n')
+            : '';
 
-                        return await cleanThreadMembers(thread, threshold, { sendThreadReport: true }, progress => {
-                            if (progress.type === 'message_scan' && progress.messagesProcessed % 1000 === 0) {
-                                logTime(`[${thread.name}] 已处理 ${progress.messagesProcessed} 条消息`);
-                            } else if (progress.type === 'member_remove' && progress.batchCount % 5 === 0) {
-                                logTime(`[${thread.name}] 已移除 ${progress.removedCount}/${progress.totalToRemove} 个成员`);
-                            }
-                        });
-                    },
-                    async (progress, processed, total) => {
-                        if (processed % 5 === 0) {
-                            logTime(`已完成 ${processed}/${total} 个子区的清理`);
-                        }
-                    },
-                    'memberRemove', // 使用较小批次处理子区清理
-                );
-
-                cleanupResults.push(...cleanupBatchResults.filter(result => result.status === 'completed'));
-
-                // 发送总结报告
-                await sendSummaryReport(interaction, cleanupResults, threshold, guildConfig);
-            },
-            onTimeout: async () => {
-                await interaction.editReply({
-                    content: '⏱️ 确认超时，操作已取消',
-                    components: [],
-                    embeds: [],
-                });
-            },
-            onError: async error => {
-                await handleCommandError(interaction, error, '全服清理确认');
-            },
+        // 发送总结报告到自动化日志频道
+        const logChannel = await interaction.client.channels.fetch(guildConfig.automation.logThreadId);
+        await logChannel.send({
+            embeds: [
+                {
+                    color: 0x0099ff,
+                    title: '管理员触发的缓存子区清理报告',
+                    description: '基于缓存数据的智能清理结果：',
+                    fields: [
+                        {
+                            name: '📊 清理统计',
+                            value: [
+                                `已检查缓存子区: ${cleanupResults.totalChecked}`,
+                                `符合条件子区: ${cleanupResults.qualifiedThreads}`,
+                                `成功清理子区: ${cleanupResults.cleanedThreads}`,
+                                `清理失败子区: ${cleanupResults.errors.length}`,
+                            ].join('\n'),
+                            inline: false,
+                        },
+                        ...(successDetails ? [{
+                            name: '✅ 成功清理的子区',
+                            value: successDetails,
+                            inline: false,
+                        }] : []),
+                        ...(errorDetails ? [{
+                            name: '❌ 清理失败的子区',
+                            value: errorDetails + (cleanupResults.errors.length > 5 ? `\n... 以及其他 ${cleanupResults.errors.length - 5} 个错误` : ''),
+                            inline: false,
+                        }] : []),
+                    ],
+                    timestamp: new Date(),
+                    footer: { text: `执行者: ${interaction.user.tag}` },
+                },
+            ],
         });
+
+        // 发送执行结果给管理员
+        await interaction.editReply({
+            content: [
+                '✅ 全服缓存子区清理完成！',
+                '',
+                '📊 **执行统计:**',
+                `• 已检查缓存子区: ${cleanupResults.totalChecked}个`,
+                `• 符合1000人条件: ${cleanupResults.qualifiedThreads}个`,
+                `• 成功清理子区: ${cleanupResults.cleanedThreads}个`,
+                `• 清理失败子区: ${cleanupResults.errors.length}个`,
+                '',
+                '💡 **说明:**',
+                '• 此清理基于已缓存的子区数据，使用继承的个性化阈值',
+                '• 只有达到1000人的已缓存子区才会被清理',
+                '• 详细清理报告已发送到自动化日志频道',
+            ].join('\n'),
+            flags: ['Ephemeral'],
+        });
+
+        logTime(`[管理员全服清理] ${interaction.user.tag} 完成缓存子区清理 - 检查: ${cleanupResults.totalChecked}, 清理: ${cleanupResults.cleanedThreads}, 错误: ${cleanupResults.errors.length}`);
+
     } catch (error) {
-        await handleCommandError(interaction, error, '全服清理');
+        await handleCommandError(interaction, error, '全服缓存子区清理');
     }
 }
 
@@ -351,7 +302,8 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
                     {
                         sendThreadReport: true,
                         taskId,
-                        whitelistedThreads: guildConfig.automation.whitelistedThreads
+                        whitelistedThreads: guildConfig.automation.whitelistedThreads,
+                        manualThreshold: threshold // 保存管理员手动设置的阈值
                     }
                 );
 

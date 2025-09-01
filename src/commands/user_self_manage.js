@@ -384,7 +384,8 @@ export default {
                                             {
                                                 sendThreadReport: true,
                                                 taskId,
-                                                whitelistedThreads: guildConfig.automation.whitelistedThreads
+                                                whitelistedThreads: guildConfig.automation.whitelistedThreads,
+                                                manualThreshold: threshold // 保存用户手动设置的阈值
                                             }
                                         );
 

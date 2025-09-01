@@ -59,6 +59,23 @@ async function loadThreadCache(threadId) {
 }
 
 /**
+ * 获取所有已缓存的子区ID列表
+ * @returns {Promise<string[]>} 子区ID数组
+ */
+export async function getAllCachedThreadIds() {
+    try {
+        await ensureCacheDirectory();
+        const files = await fs.readdir(CACHE_DIR);
+        return files
+            .filter(file => file.endsWith('.json'))
+            .map(file => file.replace('.json', ''));
+    } catch (error) {
+        logTime(`获取缓存子区列表失败: ${error.message}`, true);
+        return [];
+    }
+}
+
+/**
  * 发送子区清理报告
  * @param {ThreadChannel} thread - 子区对象
  * @param {Object} result - 清理结果
@@ -394,6 +411,107 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         };
     }
 };
+
+/**
+ * 对达到1000人的已缓存子区进行顺序清理
+ * @param {Object} client - Discord客户端
+ * @param {string} guildId - 服务器ID
+ * @param {Map} activeThreadsMap - 活跃子区映射表 (threadId -> thread对象)
+ * @returns {Promise<Object>} 清理结果统计
+ */
+export async function cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap) {
+    const cleanupResults = {
+        totalChecked: 0,
+        qualifiedThreads: 0,
+        cleanedThreads: 0,
+        errors: [],
+        details: []
+    };
+
+    try {
+        // 获取所有缓存的子区ID
+        const cachedThreadIds = await getAllCachedThreadIds();
+        logTime(`[缓存清理] 发现 ${cachedThreadIds.length} 个已缓存的子区`);
+
+        // 筛选出在活跃列表中且有缓存的子区
+        const activeCachedThreads = [];
+        for (const threadId of cachedThreadIds) {
+            if (activeThreadsMap.has(threadId)) {
+                const thread = activeThreadsMap.get(threadId);
+                activeCachedThreads.push({ threadId, thread });
+            }
+        }
+
+        logTime(`[缓存清理] 在活跃子区中找到 ${activeCachedThreads.length} 个已缓存的子区`);
+        cleanupResults.totalChecked = activeCachedThreads.length;
+
+        // 顺序检查每个子区的成员数量并执行清理
+        for (const { threadId, thread } of activeCachedThreads) {
+            try {
+                // 获取子区成员数量
+                const members = await thread.members.fetch();
+                const memberCount = members.size;
+
+                logTime(`[缓存清理] 子区 ${thread.name} 当前成员数: ${memberCount}`);
+
+                // 检查是否达到1000人阈值
+                if (memberCount >= 1000) {
+                    cleanupResults.qualifiedThreads++;
+                    logTime(`[缓存清理] 子区 ${thread.name} 达到1000人阈值，开始执行950人清理`);
+
+                    // 生成任务ID
+                    const taskId = `cached_cleanup_${threadId}_${Date.now()}`;
+
+                    // 执行清理（阈值950人）
+                    const cleanupResult = await cleanThreadMembers(thread, 950, {
+                        sendThreadReport: true,
+                        taskId: taskId
+                    });
+
+                    if (cleanupResult.status === 'completed') {
+                        cleanupResults.cleanedThreads++;
+                        cleanupResults.details.push({
+                            threadId,
+                            threadName: thread.name,
+                            originalCount: cleanupResult.originalCount,
+                            removedCount: cleanupResult.removedCount,
+                            status: 'success'
+                        });
+                        logTime(`[缓存清理] 子区 ${thread.name} 清理完成，移除 ${cleanupResult.removedCount} 个成员`);
+                    } else {
+                        cleanupResults.errors.push({
+                            threadId,
+                            threadName: thread.name,
+                            error: cleanupResult.error || '清理失败',
+                            status: cleanupResult.status
+                        });
+                        logTime(`[缓存清理] 子区 ${thread.name} 清理失败: ${cleanupResult.error || cleanupResult.status}`, true);
+                    }
+                    await delay(1000);
+                }
+            } catch (error) {
+                cleanupResults.errors.push({
+                    threadId,
+                    threadName: thread.name,
+                    error: error.message
+                });
+                logTime(`[缓存清理] 处理子区 ${thread.name} 时出错: ${error.message}`, true);
+            }
+        }
+
+        logTime(`[缓存清理] 完成缓存子区清理任务 - 检查: ${cleanupResults.totalChecked}, 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}, 错误: ${cleanupResults.errors.length}`);
+        return cleanupResults;
+
+    } catch (error) {
+        logTime(`[缓存清理] 缓存子区清理任务执行失败: ${error.message}`, true);
+        cleanupResults.errors.push({
+            threadId: 'system',
+            threadName: '系统',
+            error: error.message
+        });
+        return cleanupResults;
+    }
+}
 
 /**
  * 处理清理结果

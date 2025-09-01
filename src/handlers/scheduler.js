@@ -7,6 +7,7 @@ import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
 import PunishmentService from '../services/punishmentService.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';
+import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
 import { VoteService } from '../services/voteService.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
@@ -606,12 +607,11 @@ class TaskScheduler {
         managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
 
-            // 创建每30分钟执行一次的规则
-            // 将服务器的执行时间错开，每个服务器的分钟偏移量为index * 5
+            // 创建每天早上3点和下午3点执行的规则
             const rule = new schedule.RecurrenceRule();
-            // 设置分钟为当前服务器的偏移量，每30分钟执行一次
-            const offsetMinute = (index * 5) % 30;
-            rule.minute = [offsetMinute, (offsetMinute + 30) % 60];
+            rule.hour = [19, 7];
+            rule.minute = (index * 5) % 60;
+            rule.second = 0;
 
             // 为该服务器创建定时任务
             const job = schedule.scheduleJob(rule, async () => {
@@ -623,6 +623,18 @@ class TaskScheduler {
 
                         // 执行子区管理（分析和/或清理）
                         await executeThreadManagement(client, guildConfig, guildId, activeThreads);
+
+                        // 创建活跃子区映射表
+                        const activeThreadsMap = new Map();
+                        activeThreads.threads.forEach(thread => {
+                            activeThreadsMap.set(thread.id, thread);
+                        });
+
+                        // 执行缓存子区的顺序清理
+                        const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
+                        if (cleanupResults.qualifiedThreads > 0) {
+                            logTime(`[定时任务] 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
+                        }
                     }, 0);
 
                     logTime(`[定时任务] 完成服务器 ${guildId} 的子区管理任务，下次执行时间：${job.nextInvocation().toLocaleString()}`);
@@ -638,6 +650,10 @@ class TaskScheduler {
 
             // 存储任务
             this.jobs.set(`thread_management_${guildId}`, job);
+
+            // 输出任务创建日志，说明执行时间
+            const nextExecution = job.nextInvocation();
+            logTime(`[定时任务] 已为服务器 ${guildId} 创建子区管理任务，执行时间：每天UTC+8的3:${rule.minute.toString().padStart(2, '0')}和15:${rule.minute.toString().padStart(2, '0')}，下次执行：${nextExecution.toLocaleString()}`);
         });
     }
 

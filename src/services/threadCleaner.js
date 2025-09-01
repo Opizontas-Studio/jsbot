@@ -139,53 +139,8 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         }
 
         // 获取成员列表（这是一个API调用，但已在队列中）
-        let members;
-        let memberCount;
-
-        try {
-            members = await thread.members.fetch();
-            memberCount = members.size;
-
-            // 验证获取到的数据
-            if (!members || memberCount === 0) {
-                logTime(`[${thread.name}] 获取成员列表为空，可能是权限问题或子区状态异常`);
-
-                if (options.taskId) {
-                    await globalRequestQueue.updateTaskProgress(
-                        options.taskId,
-                        `❌ 无法获取成员列表，可能是权限不足`,
-                        100
-                    );
-                    await delay(3000);
-                }
-
-                return {
-                    status: 'skipped',
-                    memberCount: 0,
-                    reason: 'empty_members',
-                };
-            }
-
-            logTime(`[${thread.name}] 成功获取成员列表，当前人数: ${memberCount}`);
-        } catch (error) {
-            logTime(`[${thread.name}] 获取成员列表失败: ${error.message}`, true);
-
-            if (options.taskId) {
-                await globalRequestQueue.updateTaskProgress(
-                    options.taskId,
-                    `❌ 获取成员列表失败: ${error.message}`,
-                    100
-                );
-                await delay(3000);
-            }
-
-            return {
-                status: 'skipped',
-                memberCount: 0,
-                reason: 'fetch_members_failed',
-                error: error.message,
-            };
-        }
+        const members = await thread.members.fetch();
+        const memberCount = members.size;
 
         if (memberCount <= threshold) {
             // 更新任务进度显示跳过原因

@@ -396,67 +396,6 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 };
 
 /**
- * 处理单个子区的清理
- * @param {Interaction} interaction - Discord交互对象
- * @param {Object} guildConfig - 服务器配置
- * @returns {Promise<void>}
- */
-export async function handleSingleThreadCleanup(interaction, guildConfig) {
-    if (!interaction.channel.isThread()) {
-        await interaction.editReply({
-            content: '❌ 此命令只能在子区中使用',
-            flags: ['Ephemeral'],
-        });
-        return;
-    }
-
-    const thread = interaction.channel;
-    const threshold = interaction.options.getInteger('阈值') || 950;
-
-    // 检查白名单
-    if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
-        await interaction.editReply({
-            content: '✅ 此子区在白名单中，已跳过清理。',
-            flags: ['Ephemeral'],
-        });
-        return;
-    }
-
-    // 提前检查成员数量
-    const members = await thread.members.fetch();
-    const memberCount = members.size;
-
-    if (memberCount < threshold) {
-        await interaction.editReply({
-            embeds: [
-                {
-                    color: 0x808080,
-                    title: '❌ 无需清理',
-                    description: `当前子区人数(${memberCount})未达到清理阈值(${threshold})`,
-                },
-            ],
-        });
-        return;
-    }
-
-    const result = await cleanThreadMembers(thread, threshold, { sendThreadReport: true }, async progress => {
-        if (progress.type === 'message_scan') {
-            await interaction.editReply({
-                content: `⏳ 正在统计消息历史... (已处理 ${progress.messagesProcessed} 条消息)`,
-                flags: ['Ephemeral'],
-            });
-        } else if (progress.type === 'member_remove') {
-            await interaction.editReply({
-                content: `⏳ 正在移除未发言成员... (${progress.removedCount}/${progress.totalToRemove})`,
-                flags: ['Ephemeral'],
-            });
-        }
-    });
-
-    await handleCleanupResult(interaction, result, threshold, guildConfig);
-}
-
-/**
  * 处理清理结果
  * @private
  * @param {Interaction} interaction - Discord交互对象

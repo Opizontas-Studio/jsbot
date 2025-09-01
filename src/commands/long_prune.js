@@ -1,6 +1,6 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { cleanThreadMembers } from '../services/threadCleaner.js';
-import { generateProgressReport, globalBatchProcessor } from '../utils/concurrency.js';
+import { generateProgressReport, globalBatchProcessor, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -294,103 +294,6 @@ async function sendSummaryReport(interaction, results, threshold, guildConfig) {
 }
 
 /**
- * 特殊处理单个子区的后台清理
- * 此方法不更新交互，而是直接在后台运行并记录日志
- * @param {Interaction} interaction - Discord交互对象
- * @param {Object} thread - 子区对象
- * @param {number} threshold - 目标人数阈值
- * @param {Object} guildConfig - 服务器配置
- */
-async function handleBackgroundThreadCleanup(interaction, thread, threshold, guildConfig) {
-    try {
-        logTime(`[${thread.name}] 开始后台清理任务，阈值: ${threshold}`);
-
-        // 检查白名单
-        if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
-            logTime(`[${thread.name}] 此子区在白名单中，已跳过清理`);
-            return;
-        }
-
-        // 获取成员数量
-        const members = await thread.members.fetch();
-        const memberCount = members.size;
-
-        if (memberCount <= threshold) {
-            logTime(`[${thread.name}] 当前子区人数(${memberCount})未达到清理阈值(${threshold})，无需清理`);
-            return;
-        }
-
-        // 用于计数消息处理进度
-        let messageCounter = 0;
-
-        // 执行清理任务
-        const result = await cleanThreadMembers(thread, threshold, { sendThreadReport: true }, progress => {
-            if (progress.type === 'message_scan') {
-                messageCounter = progress.messagesProcessed;
-                // 每处理5000条消息记录一次进度
-                if (messageCounter % 5000 === 0) {
-                    logTime(`[${thread.name}] 正在统计消息历史... (已处理 ${messageCounter} 条消息)`);
-                }
-            } else if (progress.type === 'member_remove' && progress.batchCount % 5 === 0) {
-                logTime(`[${thread.name}] 正在移除未发言成员... (${progress.removedCount}/${progress.totalToRemove})`);
-            }
-        });
-
-        // 记录清理完成
-        logTime(`[${thread.name}] 子区清理完成！原始人数: ${result.originalCount}, 移除人数: ${result.removedCount}, 当前人数: ${result.originalCount - result.removedCount}`);
-
-        // 发送自动化日志
-        const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-        await logChannel.send({
-            embeds: [
-                {
-                    color: 0x0099ff,
-                    title: '子区清理报告',
-                    fields: [
-                        {
-                            name: result.name,
-                            value: [
-                                `[跳转到子区](${result.url})`,
-                                `原始人数: ${result.originalCount}`,
-                                `移除人数: ${result.removedCount}`,
-                                `当前人数: ${result.originalCount - result.removedCount}`,
-                                result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
-                            ]
-                                .filter(Boolean)
-                                .join('\n'),
-                            inline: false,
-                        },
-                    ],
-                    timestamp: new Date(),
-                    footer: { text: '论坛管理系统' },
-                },
-            ],
-        });
-
-        // 发送子区通知
-        await thread.send({
-            embeds: [
-                {
-                    color: 0x00ff00,
-                    title: '✅ 子区清理完成',
-                    description: [
-                        `🎯 目标阈值: ${threshold}`,
-                        `📊 原始人数: ${result.originalCount}`,
-                        `👥 活跃用户: ${result.originalCount - result.inactiveCount}`,
-                        `🚫 已移除: ${result.removedCount}`,
-                        `👤 当前人数: ${result.originalCount - result.removedCount}`,
-                    ].join('\n'),
-                    timestamp: new Date(),
-                },
-            ],
-        });
-
-    } catch (error) {
-        logTime(`[${thread.name}] 后台清理任务出错: ${error.message}`, true);
-    }
-}
-
-/**
  * 处理单个子区的清理
  * @param {Interaction} interaction - Discord交互对象
  * @param {Object} guildConfig - 服务器配置
@@ -434,29 +337,85 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
         return;
     }
 
-    // 立即返回命令已开始执行
-    await interaction.editReply({
-        embeds: [
-            {
-                color: 0x0099ff,
-                title: '🚀 子区清理任务已启动',
-                description: [
-                    `已开始清理子区: ${thread.name}`,
-                    `当前人数: ${memberCount}`,
-                    `目标阈值: ${threshold}`,
-                    '',
-                    '⏳ 此任务将在后台执行，完成后会自动发送报告',
-                    '请勿重复执行此命令'
-                ].join('\n'),
-                timestamp: new Date(),
-            },
-        ],
-    });
+    try {
+        // 生成任务ID
+        const taskId = `admin_cleanup_${thread.id}_${Date.now()}`;
 
-    // 在后台执行清理任务
-    setTimeout(() => {
-        handleBackgroundThreadCleanup(interaction, thread, threshold, guildConfig).catch(error => {
-            logTime(`后台清理任务启动失败: ${error.message}`, true);
+        // 添加任务到后台队列
+        await globalRequestQueue.addBackgroundTask({
+            task: async () => {
+                // 执行清理任务
+                const result = await cleanThreadMembers(
+                    thread,
+                    threshold,
+                    {
+                        sendThreadReport: true,
+                        taskId,
+                        whitelistedThreads: guildConfig.automation.whitelistedThreads
+                    }
+                );
+
+                // 发送管理日志
+                if (result.status === 'completed') {
+                    const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
+                    await logChannel.send({
+                        embeds: [
+                            {
+                                color: 0x0099ff,
+                                title: '子区清理报告',
+                                fields: [
+                                    {
+                                        name: result.name,
+                                        value: [
+                                            `[跳转到子区](${result.url})`,
+                                            `原始人数: ${result.originalCount}`,
+                                            `移除人数: ${result.removedCount}`,
+                                            `当前人数: ${result.originalCount - result.removedCount}`,
+                                            result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
+                                        ].filter(Boolean).join('\n'),
+                                        inline: false,
+                                    },
+                                ],
+                                timestamp: new Date(),
+                                footer: { text: '管理员清理' },
+                            },
+                        ],
+                    });
+                }
+
+                return result;
+            },
+            taskId,
+            taskName: '管理员清理不活跃用户',
+            notifyTarget: {
+                channel: interaction.channel,
+                user: interaction.user
+            },
+            priority: 2, // 较高优先级
+            threadId: thread.id,
+            guildId: interaction.guildId
         });
-    }, 100);
+
+        // 通知用户任务已添加到队列
+        await interaction.editReply({
+            embeds: [{
+                color: 0x00ff00,
+                title: '✅ 清理任务已提交成功',
+                description: [
+                    '清理任务已添加到后台队列，系统已发送专门的通知消息来跟踪任务进度。',
+                    '你可以在该通知消息中查看实时状态更新。',
+                ].join('\n'),
+                timestamp: new Date()
+            }],
+            flags: ['Ephemeral'],
+        });
+
+        logTime(`[管理员清理] ${interaction.user.tag} 提交了清理子区 ${thread.name} 的后台任务 ${taskId}`);
+    } catch (error) {
+        await interaction.editReply({
+            content: `❌ 添加清理任务失败: ${error.message}`,
+            flags: ['Ephemeral'],
+        });
+        throw error;
+    }
 }

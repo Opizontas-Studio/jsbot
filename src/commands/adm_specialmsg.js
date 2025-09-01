@@ -225,12 +225,11 @@ async function createVolunteerRoleManagementMessage(interaction, channel, guildC
         .setTitle('🤝 社区志愿者身份组自助办理')
         .setDescription(
             [
-                '点击下方按钮申请或退出志愿者身份组：',
+                '志愿者可参与社区重大决策的投票',
                 '',
                 '**申请条件：**',
                 '1. 加入达一个月，未处于被警告者状态',
                 '2. 是创作者身份组的成员 或 在意见信箱中提出过合理建议',
-                '**志愿者可参与社区重大决策的投票**',
             ].join('\n'),
         )
         .setColor(0x00aa00);

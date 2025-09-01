@@ -4,6 +4,7 @@ import { join } from 'path';
 import { delay, globalBatchProcessor } from '../utils/concurrency.js';
 import { handleDiscordError, measureTime } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+import { startQualifiedThreadsCarousel } from './carouselService.js';
 
 // 超时控制的工具函数
 const withTimeout = async (promise, ms = 10000, context = '') => {
@@ -72,7 +73,7 @@ async function saveMessageIds(messageIds) {
  * @param {Object} messageIds - 消息ID配置对象
  * @returns {Promise<Message>} Discord消息对象
  */
-async function getOrCreateMessage(channel, type, guildId, messageIds) {
+export async function getOrCreateMessage(channel, type, guildId, messageIds) {
     const guildMessageId = messageIds.analysisMessages[type][guildId];
 
     if (guildMessageId) {
@@ -108,27 +109,34 @@ async function getOrCreateMessage(channel, type, guildId, messageIds) {
  * @param {Object} messageIds - 消息ID配置对象
  */
 async function sendQualifiedThreadsList(channel, guildId, threadInfoArray, messageIds) {
-    // 过滤出关注人数达到900的子区
-    const qualifiedThreads = threadInfoArray.filter(thread => thread.memberCount >= 900);
+    // 过滤出关注人数达到950的子区
+    const qualifiedThreads = threadInfoArray.filter(thread => thread.memberCount >= 950);
 
-    const embed = {
-        color: 0x0099ff,
-        title: '接近申请频道主标准的子区',
-        description: '[【点此查看申请标准】]，满足条件的创作者可以到[【申请通道】](https://discord.com/channels/1291925535324110879/1374608096076500992)提交申请。现在也允许多人合作申请频道。',
-        timestamp: new Date(),
-        fields: qualifiedThreads.slice(0, 10).map((thread, index) => ({
-            name: `${index + 1}. ${thread.name}${thread.error ? ' ⚠️' : ''}`,
-            value: [
-                `所属频道: ${thread.parentName}`,
-                `创作者: ${thread.creatorTag || '未知用户'}`,
-                `[🔗 链接](https://discord.com/channels/${guildId}/${thread.threadId})`,
-            ].join('\n'),
-            inline: false,
-        })),
-    };
+    // 按关注人数降序排序，人数相同则按名字字典序排序
+    qualifiedThreads.sort((a, b) => {
+        if (a.memberCount !== b.memberCount) {
+            return b.memberCount - a.memberCount;
+        }
+        return a.name.localeCompare(b.name);
+    });
 
-    const message = await getOrCreateMessage(channel, 'top10', guildId, messageIds);
-    await message.edit({ embeds: [embed] });
+    // 如果没有符合条件的子区，显示空状态
+    if (qualifiedThreads.length === 0) {
+        const embed = {
+            color: 0x0099ff,
+            title: '950人以上关注的子区轮播',
+            description: '[【点此查看申请标准】](https://discord.com/channels/1291925535324110879/1374952785975443466/1374954348655804477)，满足条件的创作者可以到[【申请通道】](https://discord.com/channels/1291925535324110879/1374608096076500992)提交申请。现在也允许多人合作申请频道。\n\n🔍 当前没有达到950关注的子区',
+            timestamp: new Date(),
+            fields: [],
+        };
+
+        const message = await getOrCreateMessage(channel, 'top10', guildId, messageIds);
+        await message.edit({ embeds: [embed] });
+        return;
+    }
+
+    // 启动轮播逻辑，将数据传递给调度器
+    await startQualifiedThreadsCarousel(channel, guildId, qualifiedThreads, messageIds);
 }
 
 /**
@@ -153,7 +161,7 @@ async function sendStatisticsReport(channel, guildId, statistics, failedOperatio
                     `72小时以上不活跃: ${statistics.inactiveThreads.over72h}`,
                     `48小时以上不活跃: ${statistics.inactiveThreads.over48h}`,
                     `24小时以上不活跃: ${statistics.inactiveThreads.over24h}`,
-                    `符合频道主条件(≥900关注): ${statistics.qualifiedThreads.over900Members}`,
+                    `符合频道主条件(≥950关注): ${statistics.qualifiedThreads.over900Members}`,
                 ].join('\n'),
                 inline: false,
             },
@@ -309,8 +317,8 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 
     const validThreads = basicInfoResults.filter(result => result !== null);
 
-    // 筛选出符合条件的子区（关注人数≥900）
-    const qualifiedThreads = validThreads.filter(thread => thread.memberCount >= 900);
+    // 筛选出符合条件的子区（关注人数≥950）
+    const qualifiedThreads = validThreads.filter(thread => thread.memberCount >= 950);
     logTime(`第二阶段：为 ${qualifiedThreads.length} 个符合条件的子区获取创作者信息`);
 
     // 第二阶段：仅为符合条件的子区获取创作者信息
@@ -358,7 +366,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         }
 
         // 统计符合频道主条件的子区
-        if (thread.memberCount >= 900) {
+        if (thread.memberCount >= 950) {
             statistics.qualifiedThreads.over900Members++;
         }
 

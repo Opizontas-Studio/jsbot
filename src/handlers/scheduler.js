@@ -2,6 +2,7 @@ import schedule from 'node-schedule';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
+import { carouselService } from '../services/carouselService.js';
 import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
 import PunishmentService from '../services/punishmentService.js';
@@ -721,6 +722,9 @@ class TaskScheduler {
         this.processScheduler.cleanup();
         this.punishmentScheduler.cleanup();
         this.voteScheduler.cleanup();
+
+        // 停止所有轮播
+        carouselService.stopAll();
 
         if (taskCount > 0) {
             logTime(`[定时任务] 已停止 ${taskCount} 个定时任务`);

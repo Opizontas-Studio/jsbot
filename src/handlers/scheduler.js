@@ -407,6 +407,7 @@ class TaskScheduler {
             this.registerAnalysisTasks(client);
             this.registerDatabaseTasks();
             this.registerMonitorTasks(client);
+            this.registerCachedThreadCleanupTasks(client);
 
             this.isInitialized = true;
         } catch (error) {
@@ -607,10 +608,10 @@ class TaskScheduler {
         managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
 
-            // 创建每天早上3点和下午3点执行的规则
+            // 创建每天早上7点和晚上19点执行的规则（与缓存清理任务错开）
             const rule = new schedule.RecurrenceRule();
             rule.hour = [19, 7];
-            rule.minute = (index * 5) % 60;
+            rule.minute = 15 + ((index * 5) % 30); // 15分和45分区间内错开，避免与缓存清理（0分和30分）冲突
             rule.second = 0;
 
             // 为该服务器创建定时任务
@@ -623,18 +624,6 @@ class TaskScheduler {
 
                         // 执行子区管理（分析和/或清理）
                         await executeThreadManagement(client, guildConfig, guildId, activeThreads);
-
-                        // 创建活跃子区映射表
-                        const activeThreadsMap = new Map();
-                        activeThreads.threads.forEach(thread => {
-                            activeThreadsMap.set(thread.id, thread);
-                        });
-
-                        // 执行缓存子区的顺序清理
-                        const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
-                        if (cleanupResults.qualifiedThreads > 0) {
-                            logTime(`[定时任务] 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
-                        }
                     }, 0);
 
                     logTime(`[定时任务] 完成服务器 ${guildId} 的子区管理任务，下次执行时间：${job.nextInvocation().toLocaleString()}`);
@@ -653,7 +642,7 @@ class TaskScheduler {
 
             // 输出任务创建日志，说明执行时间
             const nextExecution = job.nextInvocation();
-            logTime(`[定时任务] 已为服务器 ${guildId} 创建子区管理任务，执行时间：每天UTC+8的3:${rule.minute.toString().padStart(2, '0')}和15:${rule.minute.toString().padStart(2, '0')}，下次执行：${nextExecution.toLocaleString()}`);
+            logTime(`[定时任务] 已为服务器 ${guildId} 创建子区管理任务，执行时间：每天UTC+8的7:${rule.minute.toString().padStart(2, '0')}和19:${rule.minute.toString().padStart(2, '0')}，下次执行：${nextExecution.toLocaleString()}`);
         });
     }
 
@@ -723,6 +712,70 @@ class TaskScheduler {
                 })();
             }
         }
+    }
+
+    // 注册缓存子区清理任务
+    registerCachedThreadCleanupTasks(client) {
+        // 获取所有启用了子区管理的服务器（mode不为disabled）
+        const managedGuilds = Array.from(client.guildManager.guilds.entries())
+            .filter(([_, config]) => config.automation?.mode !== 'disabled')
+            .map(([guildId]) => guildId);
+
+        if (managedGuilds.length === 0) {
+            logTime('[定时任务] 没有启用子区管理的服务器，跳过缓存子区清理任务注册');
+            return;
+        }
+
+        // 创建每30分钟执行一次的规则
+        const rule = new schedule.RecurrenceRule();
+        rule.minute = new schedule.Range(0, 59, 30); // 每小时的0分和30分执行
+
+        const job = schedule.scheduleJob(rule, async () => {
+            try {
+                logTime('[定时任务] 开始执行缓存子区清理任务');
+
+                // 为每个服务器执行缓存子区清理
+                for (const guildId of managedGuilds) {
+                    try {
+                        await globalRequestQueue.add(async () => {
+                            // 获取活跃子区数据
+                            const guild = await client.guilds.fetch(guildId);
+                            const activeThreads = await guild.channels.fetchActiveThreads();
+
+                            // 创建活跃子区映射表
+                            const activeThreadsMap = new Map();
+                            activeThreads.threads.forEach(thread => {
+                                activeThreadsMap.set(thread.id, thread);
+                            });
+
+                            // 执行缓存子区的顺序清理
+                            const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
+                            if (cleanupResults.qualifiedThreads > 0) {
+                                logTime(`[定时任务] 服务器 ${guildId} 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
+                            }
+                        }, 0);
+                    } catch (error) {
+                        logTime(
+                            `[定时任务] 服务器 ${guildId} 的缓存子区清理任务执行失败: ${error.name}${
+                                error.code ? ` (${error.code})` : ''
+                            } - ${error.message}`,
+                            true,
+                        );
+                    }
+                }
+
+                logTime('[定时任务] 缓存子区清理任务执行完成');
+            } catch (error) {
+                logTime(`[定时任务] 缓存子区清理任务执行失败: ${error.message}`, true);
+            }
+        });
+
+        // 存储任务
+        this.jobs.set('cached_thread_cleanup', job);
+
+        // 输出任务创建日志
+        const nextExecution = job.nextInvocation();
+        logTime(`[定时任务] 已创建缓存子区清理任务，每30分钟执行一次，下次执行：${nextExecution.toLocaleString()}`);
     }
 
     // 停止所有任务

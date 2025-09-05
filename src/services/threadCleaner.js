@@ -187,7 +187,6 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 
         // 如果存在缓存，读取活跃用户数据
         if (cache) {
-            logTime(`[${thread.name}] 使用缓存数据`);
             cachedMessageIds = cache.lastMessageIds || [];
 
             // 恢复活跃用户数据
@@ -199,7 +198,6 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         }
 
         // 获取所有消息以统计发言用户
-        logTime(`[${thread.name}] 开始子区重整`);
         let lastId = null;
         let messagesProcessed = 0;
         let hasMoreMessages = true;
@@ -414,7 +412,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 };
 
 /**
- * 对达到1000人的已缓存子区进行顺序清理
+ * 对达到990人的已缓存子区进行顺序清理
  * @param {Object} client - Discord客户端
  * @param {string} guildId - 服务器ID
  * @param {Map} activeThreadsMap - 活跃子区映射表 (threadId -> thread对象)
@@ -432,7 +430,6 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
     try {
         // 获取所有缓存的子区ID
         const cachedThreadIds = await getAllCachedThreadIds();
-        logTime(`[缓存清理] 发现 ${cachedThreadIds.length} 个已缓存的子区`);
 
         // 筛选出在活跃列表中且有缓存的子区
         const activeCachedThreads = [];
@@ -455,15 +452,15 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
 
                 logTime(`[缓存清理] 子区 ${thread.name} 当前成员数: ${memberCount}`);
 
-                // 检查是否达到1000人阈值
-                if (memberCount >= 1000) {
+                // 检查是否达到990人阈值
+                if (memberCount >= 990) {
                     cleanupResults.qualifiedThreads++;
 
                     // 读取缓存以获取上次手动设置的阈值
                     const cache = await loadThreadCache(threadId);
                     const inheritedThreshold = cache?.lastManualThreshold || 950; // 默认950
 
-                    logTime(`[缓存清理] 子区 ${thread.name} 达到1000人阈值，使用继承阈值${inheritedThreshold}人进行清理`);
+                    logTime(`[缓存清理] 子区 ${thread.name} 达到990人阈值，使用继承阈值${inheritedThreshold}人进行清理`);
 
                     // 生成任务ID
                     const taskId = `cached_cleanup_${threadId}_${Date.now()}`;

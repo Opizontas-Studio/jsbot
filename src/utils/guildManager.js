@@ -33,7 +33,7 @@ export class GuildManager {
                 serverType: guildConfig.serverType || '', // string - 服务器类型，'Main server' 或 'Sub server'
                 moderationLogThreadId: guildConfig.moderationLogThreadId, // string - 管理日志频道ID
                 threadLogThreadId: guildConfig.threadLogThreadId, // string - 帖子操作日志频道ID
-                opinionMailThreadId: guildConfig.opinionMailThreadId, // string - 意见信箱和新闻投稿频道ID
+                opinionMailThreadId: guildConfig.opinionMailThreadId, // string - 意见信箱频道ID
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID
@@ -51,7 +51,7 @@ export class GuildManager {
                     appealDebateRoleId: null, // string | null - 辩诉通行角色ID
                     QAerRoleId: null, // string | null - 答题员角色ID
                     senatorRoleForumId: null, // string | null - 参议员论坛ID
-                    WarnedRoleId: null, // string - 警告角色ID，从根级别移动到此处
+                    WarnedRoleId: null, // string - 警告角色ID
                 },
                 fastgpt: guildConfig.fastgpt || {
                     enabled: false,

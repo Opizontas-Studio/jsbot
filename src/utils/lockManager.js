@@ -36,8 +36,6 @@ class LockManager {
         }, this.lockTimeout);
 
         this.lockTimeouts.set(`thread_${threadId}`, timeoutId);
-
-        logTime(`[锁管理] 子区 ${threadId} 已锁定，操作: ${operation}`);
         return true;
     }
 
@@ -56,8 +54,6 @@ class LockManager {
                 clearTimeout(timeoutId);
                 this.lockTimeouts.delete(`thread_${threadId}`);
             }
-
-            logTime(`[锁管理] 子区 ${threadId} 锁已释放，原因: ${reason}`);
         }
     }
 
@@ -81,8 +77,6 @@ class LockManager {
         }, this.lockTimeout);
 
         this.lockTimeouts.set(`guild_${guildId}`, timeoutId);
-
-        logTime(`[锁管理] 服务器 ${guildId} 已锁定，操作: ${operation}`);
         return true;
     }
 
@@ -101,8 +95,6 @@ class LockManager {
                 clearTimeout(timeoutId);
                 this.lockTimeouts.delete(`guild_${guildId}`);
             }
-
-            logTime(`[锁管理] 服务器 ${guildId} 锁已释放，原因: ${reason}`);
         }
     }
 

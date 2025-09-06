@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport } from '../services/threadCleaner.js';
+import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport, updateThreadAutoCleanupSetting } from '../services/threadCleaner.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -25,6 +25,12 @@ export default {
                         .setDescription('目标人数阈值(默认950)')
                         .setMinValue(800)
                         .setMaxValue(1000)
+                        .setRequired(false),
+                )
+                .addBooleanOption(option =>
+                    option
+                        .setName('启用自动清理')
+                        .setDescription('是否启用自动清理功能（默认为是）')
                         .setRequired(false),
                 ),
         )
@@ -261,6 +267,7 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
 
     const thread = interaction.channel;
     const threshold = interaction.options.getInteger('阈值') || 950;
+    const enableAutoCleanup = interaction.options.getBoolean('启用自动清理') ?? true; // 默认为true
 
     // 检查白名单
     if (guildConfig.automation.whitelistedThreads?.includes(thread.id)) {
@@ -275,15 +282,61 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
     const members = await thread.members.fetch();
     const memberCount = members.size;
 
+    // 检查阈值是否大于990
+    if (threshold > 990) {
+        await interaction.editReply({
+            embeds: [
+                {
+                    color: 0xffa500,
+                    title: '⚠️ 阈值提醒',
+                    description: [
+                        `当前子区人数: ${memberCount}`,
+                        `设定阈值: ${threshold}`,
+                        '',
+                        '**注意：阈值大于990不会应用到自动清理配置中**',
+                        '自动清理仅在子区达到990人时触发，使用的阈值不会超过990',
+                        '',
+                        `**🤖 自动清理设置：${enableAutoCleanup ? '启用' : '禁用'}**`,
+                        enableAutoCleanup
+                            ? '• 系统将在子区达到990人时自动清理'
+                            : '• 系统将不会对此子区进行自动清理',
+                    ].join('\n'),
+                },
+            ],
+            flags: ['Ephemeral'],
+        });
+
+        // 更新自动清理设置（但不保存大于990的阈值）
+        await updateThreadAutoCleanupSetting(thread.id, {
+            enableAutoCleanup: enableAutoCleanup
+            // 不保存 manualThreshold，因为它大于990
+        });
+        return;
+    }
+
     if (memberCount < threshold) {
+        // 更新自动清理设置
+        await updateThreadAutoCleanupSetting(thread.id, {
+            manualThreshold: threshold,
+            enableAutoCleanup: enableAutoCleanup
+        });
+
         await interaction.editReply({
             embeds: [
                 {
                     color: 0x808080,
                     title: '❌ 无需清理',
-                    description: `当前子区人数(${memberCount})未达到清理阈值(${threshold})`,
+                    description: [
+                        `当前子区人数(${memberCount})未达到清理阈值(${threshold})`,
+                        '',
+                        `**🤖 自动清理设置已更新：${enableAutoCleanup ? '启用' : '禁用'}**`,
+                        enableAutoCleanup
+                            ? '• 系统将在子区达到990人时自动清理至设定的阈值'
+                            : '• 系统将不会对此子区进行自动清理',
+                    ].join('\n'),
                 },
             ],
+            flags: ['Ephemeral'],
         });
         return;
     }
@@ -305,7 +358,8 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
                         executor: interaction.user,
                         taskId,
                         whitelistedThreads: guildConfig.automation.whitelistedThreads,
-                        manualThreshold: threshold // 保存管理员手动设置的阈值
+                        manualThreshold: threshold, // 保存管理员手动设置的阈值
+                        enableAutoCleanup: enableAutoCleanup // 保存自动清理启用状态
                     }
                 );
 

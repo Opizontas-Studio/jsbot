@@ -1,5 +1,5 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers, sendLogReport } from '../services/threadCleaner.js';
+import { cleanThreadMembers, sendLogReport, updateThreadAutoCleanupSetting } from '../services/threadCleaner.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
@@ -46,6 +46,12 @@ export default {
                         .setDescription('目标人数阈值（默认950，最低800）')
                         .setMinValue(800)
                         .setMaxValue(1000)
+                        .setRequired(false),
+                )
+                .addBooleanOption(option =>
+                    option
+                        .setName('启用自动清理')
+                        .setDescription('是否启用自动清理功能（默认为是）')
                         .setRequired(false),
                 ),
         )
@@ -333,19 +339,59 @@ export default {
                 // 处理清理不活跃用户命令
                 try {
                     const threshold = interaction.options.getInteger('阈值') || 950;
+                    const enableAutoCleanup = interaction.options.getBoolean('启用自动清理') ?? true; // 默认为true
 
                     // 先获取当前成员数量
                     const members = await thread.members.fetch();
                     const memberCount = members.size;
 
-                    // 如果人数低于阈值,直接返回
+                    // 检查阈值是否大于990
+                    if (threshold > 990) {
+                        await interaction.editReply({
+                            embeds: [
+                                {
+                                    color: 0xffa500,
+                                    title: '⚠️ 阈值提醒',
+                                    description: [
+                                        `当前帖子人数(${memberCount})未达到清理阈值(${threshold})`,
+                                        `自动清理：${enableAutoCleanup ? '启用' : '禁用'}`,
+                                        '此外，当前阈值大于990，因此不会应用到自动清理配置中',
+                                        enableAutoCleanup
+                                            ? '- 系统将在帖子达到990人时自动清理'
+                                            : '- 系统将不会对此帖子进行自动清理',
+                                    ].join('\n'),
+                                },
+                            ],
+                        });
+
+                        // 更新自动清理设置（但不保存大于990的阈值）
+                        await updateThreadAutoCleanupSetting(thread.id, {
+                            enableAutoCleanup: enableAutoCleanup
+                            // 不保存 manualThreshold，因为它大于990
+                        });
+                        return;
+                    }
+
+                    // 如果人数低于阈值，检查是否需要更新自动清理设置
                     if (memberCount < threshold) {
+                        // 更新自动清理设置
+                        await updateThreadAutoCleanupSetting(thread.id, {
+                            manualThreshold: threshold,
+                            enableAutoCleanup: enableAutoCleanup
+                        });
+
                         await interaction.editReply({
                             embeds: [
                                 {
                                     color: 0x808080,
                                     title: '❌ 无需清理',
-                                    description: [`当前帖子人数(${memberCount})未达到清理阈值(${threshold})`].join('\n'),
+                                    description: [
+                                        `当前帖子人数(${memberCount})未达到清理阈值(${threshold})`,
+                                        `自动清理：${enableAutoCleanup ? '启用' : '禁用'}`,
+                                        enableAutoCleanup
+                                            ? `- 系统将在帖子达到990人时自动清理至当前设定的阈值(${threshold})`
+                                            : '- 系统将不会对此帖子进行自动清理',
+                                    ].join('\n'),
                                 },
                             ],
                         });
@@ -362,9 +408,14 @@ export default {
                             description: [
                                 `你确定要清理帖子 "${thread.name}" 中的不活跃用户吗？`,
                                 '',
-                                `**⚠️ 此操作将：至少清理：${memberCount - threshold} 人**`,
-                                '- 优先移除未发言成员，若不足则会移除发言最少的成员',
+                                `⚠️ 此操作将：至少清理：${memberCount - threshold} 人`,
+                                '- 优先移除未发言成员，若不足则会移除上次发言较早的成员',
                                 '- 被移除的成员可以随时重新加入讨论',
+                                '',
+                                `🤖 自动清理：${enableAutoCleanup ? '启用' : '禁用'}`,
+                                enableAutoCleanup
+                                    ? '- 系统将在帖子达到990人时自动清理至设定阈值'
+                                    : '- 系统将不会对此帖子进行自动清理',
                             ].join('\n'),
                         },
                         onConfirm: async confirmation => {
@@ -387,7 +438,8 @@ export default {
                                                 executor: interaction.user,
                                                 taskId,
                                                 whitelistedThreads: guildConfig.automation.whitelistedThreads,
-                                                manualThreshold: threshold // 保存用户手动设置的阈值
+                                                manualThreshold: threshold, // 保存用户手动设置的阈值
+                                                enableAutoCleanup: enableAutoCleanup // 保存自动清理启用状态
                                             }
                                         );
 
@@ -423,8 +475,11 @@ export default {
                                         color: 0x00ff00,
                                         title: '✅ 任务已提交成功',
                                         description: [
-                                            '清理任务已添加到后台队列，系统已发送专门的通知消息来跟踪任务进度。',
-                                            '你可以在该通知消息中查看实时状态更新。',
+                                            '清理任务已添加到后台队列，你可以在该通知消息中查看实时状态更新。',
+                                            `**🤖 自动清理状态：${enableAutoCleanup ? '已启用' : '已禁用'}**`,
+                                            enableAutoCleanup
+                                                ? '• 系统将在帖子达到990人时自动清理至你设定的阈值'
+                                                : '• 系统将不会对此帖子进行自动清理',
                                         ].join('\n'),
                                         timestamp: new Date()
                                     }],

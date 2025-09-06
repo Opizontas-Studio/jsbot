@@ -59,6 +59,35 @@ async function loadThreadCache(threadId) {
 }
 
 /**
+ * 更新子区的自动清理设置（不执行清理）
+ * @param {string} threadId - 子区ID
+ * @param {Object} options - 配置选项
+ * @returns {Promise<boolean>} 是否成功更新
+ */
+export async function updateThreadAutoCleanupSetting(threadId, options = {}) {
+    try {
+        // 读取现有缓存
+        const cache = await loadThreadCache(threadId);
+
+        // 更新缓存
+        await saveThreadCache(threadId, {
+            lastUpdateTime: cache?.lastUpdateTime || Date.now(),
+            lastMessageIds: cache?.lastMessageIds || [],
+            activeUsers: cache?.activeUsers || {},
+            memberCount: cache?.memberCount || 0,
+            lastManualThreshold: options.manualThreshold || cache?.lastManualThreshold || null,
+            autoCleanupEnabled: options.enableAutoCleanup ?? cache?.autoCleanupEnabled ?? true
+        });
+
+        logTime(`[${threadId}] 已更新自动清理设置: ${options.enableAutoCleanup ? '启用' : '禁用'}`);
+        return true;
+    } catch (error) {
+        logTime(`更新子区自动清理设置失败: ${error.message}`, true);
+        return false;
+    }
+}
+
+/**
  * 获取所有已缓存的子区ID列表
  * @returns {Promise<string[]>} 子区ID数组
  */
@@ -87,6 +116,10 @@ export const sendThreadReport = async (thread, result, options = {}) => {
     try {
         const { type = 'manual', executor } = options;
 
+        // 读取缓存以获取自动清理状态
+        const cache = await loadThreadCache(thread.id);
+        const autoCleanupEnabled = cache?.autoCleanupEnabled ?? true;
+
         const typeConfig = {
             auto: {
                 color: 0x00ff88,
@@ -96,12 +129,12 @@ export const sendThreadReport = async (thread, result, options = {}) => {
             manual: {
                 color: 0xffcc00,
                 title: '👤 手动清理完成',
-                description: '为保持子区正常运行，系统已移除部分未发言成员，已启用定时自动清理功能。',
+                description: `为保持子区正常运行，系统已移除部分未发言成员${autoCleanupEnabled ? '，自动清理已启用' : '，自动清理已禁用'}。`,
             },
             admin: {
                 color: 0xff6600,
                 title: '🛡️ 管理员清理完成',
-                description: '为保持子区正常运行，系统已移除部分未发言成员，已启用定时自动清理功能。',
+                description: `为保持子区正常运行，系统已移除部分未发言成员${autoCleanupEnabled ? '，自动清理已启用' : '，自动清理已禁用'}。`,
             }
         };
 
@@ -114,7 +147,7 @@ export const sendThreadReport = async (thread, result, options = {}) => {
                     title: config.title,
                     description: [
                         config.description,
-                        '被移除的成员可以随时重新加入讨论。',
+                        `被移除的成员可以随时重新加入讨论。`,
                     ].join('\n'),
                     fields: [
                         {
@@ -599,7 +632,8 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             lastMessageIds,
             activeUsers: activeUsersObj,
             memberCount: memberCount - result.removedCount,
-            lastManualThreshold: options.manualThreshold || cache?.lastManualThreshold || null
+            lastManualThreshold: options.manualThreshold || cache?.lastManualThreshold || null,
+            autoCleanupEnabled: options.enableAutoCleanup ?? cache?.autoCleanupEnabled ?? true // 默认启用
         });
 
         // 最终进度更新
@@ -674,9 +708,23 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
                 if (memberCount >= 990) {
                     cleanupResults.qualifiedThreads++;
 
-                    // 读取缓存以获取上次手动设置的阈值
+                    // 读取缓存以获取上次手动设置的阈值和自动清理设置
                     const cache = await loadThreadCache(threadId);
                     const inheritedThreshold = cache?.lastManualThreshold || 950; // 默认950
+                    const autoCleanupEnabled = cache?.autoCleanupEnabled ?? true; // 默认启用
+
+                    // 检查是否启用了自动清理
+                    if (!autoCleanupEnabled) {
+                        logTime(`[缓存清理] 子区 ${thread.name} 已禁用自动清理，跳过清理`);
+                        cleanupResults.details.push({
+                            threadId,
+                            threadName: thread.name,
+                            originalCount: memberCount,
+                            removedCount: 0,
+                            status: 'skipped_auto_cleanup_disabled'
+                        });
+                        continue;
+                    }
 
                     logTime(`[缓存清理] 子区 ${thread.name} 达到990人阈值，使用继承阈值${inheritedThreshold}人进行清理`);
 

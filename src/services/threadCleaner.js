@@ -702,7 +702,7 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
                 const members = await thread.members.fetch();
                 const memberCount = members.size;
 
-                logTime(`[缓存清理] 子区 ${thread.name} 当前成员数: ${memberCount}`);
+                // logTime(`[缓存清理] 子区 ${thread.name} 当前成员数: ${memberCount}`);
 
                 // 检查是否达到990人阈值
                 if (memberCount >= 990) {

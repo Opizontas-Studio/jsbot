@@ -751,7 +751,7 @@ class TaskScheduler {
                             // 执行缓存子区的顺序清理
                             const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
                             if (cleanupResults.qualifiedThreads > 0) {
-                                logTime(`[定时任务] 服务器 ${guildId} 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
+                            //    logTime(`[定时任务] 服务器 ${guildId} 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);、、
                             }
                         }, 0);
                     } catch (error) {

@@ -37,7 +37,7 @@ async function saveThreadCache(threadId, data) {
         await ensureCacheDirectory();
         const filePath = getThreadCacheFilePath(threadId);
         await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
-        logTime(`[${threadId}] 子区缓存已保存`);
+        // logTime(`[${threadId}] 子区缓存已保存`);
     } catch (error) {
         logTime(`保存子区缓存失败: ${error.message}`, true);
     }
@@ -408,7 +408,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                     });
 
                     if (foundCached) {
-                        logTime(`[${thread.name}] 检测到缓存的消息，停止扫描`);
+                        // logTime(`[${thread.name}] 检测到缓存的消息，停止扫描`);
                         reachedCachedMessages = true;
                         continue;
                     }

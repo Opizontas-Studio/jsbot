@@ -79,16 +79,41 @@ export async function getAllCachedThreadIds() {
  * 发送子区清理报告
  * @param {ThreadChannel} thread - 子区对象
  * @param {Object} result - 清理结果
+ * @param {Object} options - 配置选项
+ * @param {string} options.type - 清理类型: 'auto' | 'manual' | 'admin'
+ * @param {Object} options.executor - 执行者信息（手动/管理员清理时）
  */
-export const sendThreadReport = async (thread, result) => {
+export const sendThreadReport = async (thread, result, options = {}) => {
     try {
+        const { type = 'manual', executor } = options;
+
+        const typeConfig = {
+            auto: {
+                color: 0x00ff88,
+                title: '🤖 自动清理完成',
+                description: '系统已移除部分未发言成员，阈值继承上次设置。',
+            },
+            manual: {
+                color: 0xffcc00,
+                title: '👤 手动清理完成',
+                description: '为保持子区正常运行，系统已移除部分未发言成员，已启用定时自动清理功能。',
+            },
+            admin: {
+                color: 0xff6600,
+                title: '🛡️ 管理员清理完成',
+                description: '为保持子区正常运行，系统已移除部分未发言成员，已启用定时自动清理功能。',
+            }
+        };
+
+        const config = typeConfig[type];
+
         await thread.send({
             embeds: [
                 {
-                    color: 0xffcc00,
-                    title: '⚠️ 子区人数已重整',
+                    color: config.color,
+                    title: config.title,
                     description: [
-                        '为保持子区正常运行，系统已移除部分未发言成员。',
+                        config.description,
                         '被移除的成员可以随时重新加入讨论。',
                     ].join('\n'),
                     fields: [
@@ -97,7 +122,6 @@ export const sendThreadReport = async (thread, result) => {
                             value: [
                                 `原始人数: ${result.originalCount}`,
                                 `移除人数: ${result.removedCount}`,
-                                `当前人数: ${result.originalCount - result.removedCount}`,
                                 result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
                             ]
                                 .filter(Boolean)
@@ -111,6 +135,69 @@ export const sendThreadReport = async (thread, result) => {
         });
     } catch (error) {
         logTime(`发送子区报告失败 ${thread.name}: ${error.message}`, true);
+    }
+};
+
+/**
+ * 发送管理日志报告
+ * @param {Object} client - Discord客户端
+ * @param {string} logChannelId - 日志频道ID
+ * @param {Object} result - 清理结果
+ * @param {Object} options - 配置选项
+ * @param {string} options.type - 清理类型: 'auto' | 'manual' | 'admin'
+ * @param {Object} options.executor - 执行者信息（手动/管理员清理时）
+ */
+export const sendLogReport = async (client, logChannelId, result, options = {}) => {
+    try {
+        const { type = 'manual', executor } = options;
+
+        const typeConfig = {
+            auto: {
+                color: 0x00ff88,
+                title: '🤖 自动清理报告',
+                footer: '论坛自动化系统'
+            },
+            manual: {
+                color: 0xffcc00,
+                title: '👤 用户清理报告',
+                footer: executor ? `用户清理 · 执行者: ${executor.tag}` : '论坛管理系统'
+            },
+            admin: {
+                color: 0xff6600,
+                title: '🛡️ 管理员清理报告',
+                footer: executor ? `管理员清理 · 执行者: ${executor.tag}` : '论坛管理系统'
+            }
+        };
+
+        const config = typeConfig[type];
+        const logChannel = await client.channels.fetch(logChannelId);
+
+        await logChannel.send({
+            embeds: [
+                {
+                    color: config.color,
+                    title: config.title,
+                    fields: [
+                        {
+                            name: result.name,
+                            value: [
+                                `[跳转到子区](${result.url})`,
+                                `原始人数: ${result.originalCount}`,
+                                `移除人数: ${result.removedCount}`,
+                                result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
+                            ]
+                                .filter(Boolean)
+                                .join('\n'),
+                            inline: false,
+                        },
+                    ],
+                    timestamp: new Date(),
+                    footer: { text: config.footer },
+                },
+            ],
+        });
+    } catch (error) {
+        logTime(`发送管理日志失败: ${error.message}`, true);
     }
 };
 
@@ -134,11 +221,41 @@ async function fetchMessagesBatch(thread, lastId = null) {
 }
 
 /**
+ * 获取子区的第一条消息（帖子作者）
+ * @param {ThreadChannel} thread - Discord子区对象
+ * @returns {Promise<string|null>} 帖子作者的用户ID
+ */
+async function getThreadAuthor(thread) {
+    try {
+        // 获取第一条消息（帖子的原始消息）
+        const firstMessage = await thread.messages.fetch({ limit: 1, after: '0' });
+        const threadStarter = firstMessage.first();
+        return threadStarter?.author?.id || null;
+    } catch (error) {
+        logTime(`获取子区 ${thread.name} 作者失败: ${error.message}`, true);
+        return null;
+    }
+}
+
+/**
+ * 检查用户数据是否为新格式
+ * @param {any} userData - 用户数据
+ * @returns {boolean} 是否为新格式
+ */
+function isNewUserDataFormat(userData) {
+    return typeof userData === 'object' && userData !== null &&
+           typeof userData.count === 'number' &&
+           typeof userData.lastMessageTime === 'number';
+}
+
+/**
  * 清理子区成员
  * @param {ThreadChannel} thread - Discord子区对象
  * @param {number} threshold - 目标人数阈值
  * @param {Object} options - 配置选项
  * @param {boolean} options.sendThreadReport - 是否发送子区报告
+ * @param {string} options.reportType - 报告类型: 'auto' | 'manual' | 'admin'
+ * @param {Object} options.executor - 执行者信息（手动/管理员清理时）
  * @param {string} options.taskId - 任务ID（用于进度更新）
  * @param {Function} progressCallback - 进度回调函数
  * @returns {Promise<Object>} 清理结果
@@ -180,6 +297,11 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             };
         }
 
+        // 获取需要保护的用户ID
+        const threadAuthorId = await getThreadAuthor(thread);
+        const botId = thread.client.user.id;
+        const protectedUserIds = new Set([threadAuthorId, botId].filter(Boolean));
+
         // 获取历史缓存
         const cache = await loadThreadCache(thread.id);
         let cachedMessageIds = [];
@@ -191,8 +313,18 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 
             // 恢复活跃用户数据
             if (cache.activeUsers) {
-                Object.entries(cache.activeUsers).forEach(([userId, count]) => {
-                    activeUsers.set(userId, count);
+                Object.entries(cache.activeUsers).forEach(([userId, userData]) => {
+                    if (isNewUserDataFormat(userData)) {
+                        // 新格式：{count, lastMessageTime, lastMessageId}
+                        activeUsers.set(userId, userData);
+                    } else {
+                        // 旧格式：直接是数字（发言条数）
+                        activeUsers.set(userId, {
+                            count: userData,
+                            lastMessageTime: null, // 标记为需要更新
+                            lastMessageId: null
+                        });
+                    }
                 });
             }
         }
@@ -249,10 +381,36 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
                     }
                 }
 
-                // 处理消息
+                // 处理消息（更新用户数据到新格式）
                 messages.forEach(msg => {
                     const userId = msg.author.id;
-                    activeUsers.set(userId, (activeUsers.get(userId) || 0) + 1);
+                    const messageTime = msg.createdTimestamp;
+                    const currentData = activeUsers.get(userId);
+
+                    if (currentData) {
+                        // 如果是新格式，直接更新
+                        if (isNewUserDataFormat(currentData)) {
+                            activeUsers.set(userId, {
+                                count: currentData.count + 1,
+                                lastMessageTime: Math.max(currentData.lastMessageTime, messageTime),
+                                lastMessageId: currentData.lastMessageTime < messageTime ? msg.id : currentData.lastMessageId
+                            });
+                        } else {
+                            // 如果是旧格式或标记为需要更新的，转换为新格式
+                            activeUsers.set(userId, {
+                                count: (currentData.count || currentData) + 1,
+                                lastMessageTime: messageTime,
+                                lastMessageId: msg.id
+                            });
+                        }
+                    } else {
+                        // 新用户，直接使用新格式
+                        activeUsers.set(userId, {
+                            count: 1,
+                            lastMessageTime: messageTime,
+                            lastMessageId: msg.id
+                        });
+                    }
                 });
 
                 // 更新进度
@@ -283,33 +441,81 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
             }
         }
 
-        // 找出未发言的成员
-        const inactiveMembers = members.filter(member => !activeUsers.has(member.id));
+        // 找出未发言的成员（排除保护用户）
+        const inactiveMembers = members.filter(member =>
+            !activeUsers.has(member.id) && !protectedUserIds.has(member.id)
+        );
         const needToRemove = memberCount - threshold;
         let toRemove;
 
-        if (inactiveMembers.size >= needToRemove) {
-            toRemove = Array.from(inactiveMembers.values()).slice(0, needToRemove);
-            logTime(`[${thread.name}] 找到 ${inactiveMembers.size} 个未发言成员，将移除其中 ${needToRemove} 个`);
-        } else {
-            const remainingToRemove = needToRemove - inactiveMembers.size;
-            logTime(`[${thread.name}] 未发言成员不足，将额外移除 ${remainingToRemove} 个低活跃度成员`);
+        // 获取所有非保护成员的活跃数据，分为旧格式和新格式
+        const allEligibleMembers = Array.from(members.values())
+            .filter(member => !protectedUserIds.has(member.id))
+            .map(member => {
+                const userData = activeUsers.get(member.id);
+                const isInactive = !userData;
+                const isOldFormat = userData && !isNewUserDataFormat(userData);
 
-            const memberActivity = Array.from(members.values())
-                .map(member => ({
-                    member,
-                    messageCount: activeUsers.get(member.id) || 0,
-                }))
-                .sort((a, b) => a.messageCount - b.messageCount);
+                if (isInactive) {
+                    return {
+                        member,
+                        isInactive: true,
+                        isOldFormat: false,
+                        messageCount: 0,
+                        lastMessageTime: 0,
+                        priority: 1 // 最高优先级：未发言用户
+                    };
+                } else if (isOldFormat) {
+                    return {
+                        member,
+                        isInactive: false,
+                        isOldFormat: true,
+                        messageCount: userData.count || userData,
+                        lastMessageTime: 0, // 旧格式没有时间信息
+                        priority: 2 // 次高优先级：旧格式用户（优先迁移）
+                    };
+                } else {
+                    return {
+                        member,
+                        isInactive: false,
+                        isOldFormat: false,
+                        messageCount: userData.count,
+                        lastMessageTime: userData.lastMessageTime,
+                        priority: 3 // 最低优先级：新格式用户（按时间排序）
+                    };
+                }
+            });
 
-            toRemove = [
-                ...Array.from(inactiveMembers.values()),
-                ...memberActivity
-                    .filter(item => !inactiveMembers.has(item.member.id))
-                    .slice(0, remainingToRemove)
-                    .map(item => item.member),
-            ];
-        }
+        // 智能排序：优先移除未发言用户，然后是旧格式用户，最后按时间排序新格式用户
+        allEligibleMembers.sort((a, b) => {
+            // 首先按优先级排序
+            if (a.priority !== b.priority) {
+                return a.priority - b.priority;
+            }
+
+            // 相同优先级内的排序
+            if (a.priority === 1) {
+                // 未发言用户：无特殊排序
+                return 0;
+            } else if (a.priority === 2) {
+                // 旧格式用户：按发言条数升序
+                return a.messageCount - b.messageCount;
+            } else {
+                // 新格式用户：按最后发言时间升序（最久未发言的优先）
+                return a.lastMessageTime - b.lastMessageTime;
+            }
+        });
+
+        toRemove = allEligibleMembers.slice(0, needToRemove).map(item => item.member);
+
+        const inactiveCount = toRemove.filter(member => !activeUsers.has(member.id)).length;
+        const oldFormatCount = toRemove.filter(member => {
+            const userData = activeUsers.get(member.id);
+            return userData && !isNewUserDataFormat(userData);
+        }).length;
+        const newFormatCount = needToRemove - inactiveCount - oldFormatCount;
+
+        logTime(`[${thread.name}] 清理策略 - 未发言用户: ${inactiveCount}, 旧格式用户: ${oldFormatCount}, 新格式用户: ${newFormatCount}`);
 
         const result = {
             status: 'completed',
@@ -373,9 +579,18 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         const activeUsersObj = {};
         // 过滤掉已移除的成员
         const removedMemberIds = toRemove.map(member => member.id);
-        activeUsers.forEach((count, userId) => {
+        activeUsers.forEach((userData, userId) => {
             if (!removedMemberIds.includes(userId)) {
-                activeUsersObj[userId] = count;
+                if (isNewUserDataFormat(userData)) {
+                    // 新格式：直接保存
+                    activeUsersObj[userId] = userData;
+                } else if (userData.lastMessageTime === null) {
+                    // 旧格式用户且没有在本次扫描中更新：保持原始旧格式
+                    activeUsersObj[userId] = userData.count;
+                } else {
+                    // 已经更新过的用户：保存新格式
+                    activeUsersObj[userId] = userData;
+                }
             }
         });
 
@@ -397,7 +612,10 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         }
 
         if (options.sendThreadReport) {
-            await sendThreadReport(thread, result);
+            await sendThreadReport(thread, result, {
+                type: options.reportType || 'manual',
+                executor: options.executor
+            });
         }
 
         return result;
@@ -468,6 +686,7 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
                     // 执行清理（使用继承的阈值）
                     const cleanupResult = await cleanThreadMembers(thread, inheritedThreshold, {
                         sendThreadReport: true,
+                        reportType: 'auto',
                         taskId: taskId
                     });
 
@@ -516,70 +735,3 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
     }
 }
 
-/**
- * 处理清理结果
- * @private
- * @param {Interaction} interaction - Discord交互对象
- * @param {Object} result - 清理结果
- * @param {number} threshold - 清理阈值
- * @param {Object} guildConfig - 服务器配置
- */
-async function handleCleanupResult(interaction, result, threshold, guildConfig) {
-    if (result.status === 'skipped') {
-        const message =
-            result.reason === 'whitelisted'
-                ? '✅ 此子区在白名单中，已跳过清理。'
-                : `✅ 当前子区人数(${result.memberCount})已经在限制范围内，无需清理。`;
-
-        await interaction.editReply({
-            content: message,
-            flags: ['Ephemeral'],
-        });
-        return;
-    }
-
-    if (result.status === 'error') {
-        throw new Error(result.error);
-    }
-
-    // 发送自动化日志
-    const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-    await logChannel.send({
-        embeds: [
-            {
-                color: 0x0099ff,
-                title: '子区清理报告',
-                fields: [
-                    {
-                        name: result.name,
-                        value: [
-                            `[跳转到子区](${result.url})`,
-                            `原始人数: ${result.originalCount}`,
-                            `移除人数: ${result.removedCount}`,
-                            `当前人数: ${result.originalCount - result.removedCount}`,
-                            result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
-                        ]
-                            .filter(Boolean)
-                            .join('\n'),
-                        inline: false,
-                    },
-                ],
-                timestamp: new Date(),
-                footer: { text: '论坛管理系统' },
-            },
-        ],
-    });
-
-    // 回复执行结果
-    await interaction.editReply({
-        content: [
-            '✅ 子区清理完成！',
-            `🎯 目标阈值: ${threshold}`,
-            `📊 原始人数: ${result.originalCount}`,
-            `👥 活跃用户: ${result.originalCount - result.inactiveCount}`,
-            `🚫 已移除: ${result.removedCount}`,
-            `👤 当前人数: ${result.originalCount - result.removedCount}`,
-        ].join('\n'),
-        flags: ['Ephemeral'],
-    });
-}

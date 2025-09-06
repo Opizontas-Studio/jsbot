@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers, cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
+import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport } from '../services/threadCleaner.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -301,6 +301,8 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
                     threshold,
                     {
                         sendThreadReport: true,
+                        reportType: 'admin',
+                        executor: interaction.user,
                         taskId,
                         whitelistedThreads: guildConfig.automation.whitelistedThreads,
                         manualThreshold: threshold // 保存管理员手动设置的阈值
@@ -309,30 +311,15 @@ export async function handleSingleThreadCleanup(interaction, guildConfig) {
 
                 // 发送管理日志
                 if (result.status === 'completed') {
-                    const logChannel = await interaction.client.channels.fetch(guildConfig.threadLogThreadId);
-                    await logChannel.send({
-                        embeds: [
-                            {
-                                color: 0x0099ff,
-                                title: '子区清理报告',
-                                fields: [
-                                    {
-                                        name: result.name,
-                                        value: [
-                                            `[跳转到子区](${result.url})`,
-                                            `原始人数: ${result.originalCount}`,
-                                            `移除人数: ${result.removedCount}`,
-                                            `当前人数: ${result.originalCount - result.removedCount}`,
-                                            result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
-                                        ].filter(Boolean).join('\n'),
-                                        inline: false,
-                                    },
-                                ],
-                                timestamp: new Date(),
-                                footer: { text: '管理员清理' },
-                            },
-                        ],
-                    });
+                    await sendLogReport(
+                        interaction.client,
+                        guildConfig.threadLogThreadId,
+                        result,
+                        {
+                            type: 'admin',
+                            executor: interaction.user
+                        }
+                    );
                 }
 
                 return result;

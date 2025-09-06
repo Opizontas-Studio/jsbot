@@ -764,7 +764,7 @@ class TaskScheduler {
                     }
                 }
 
-                logTime('[定时任务] 缓存子区清理任务执行完成');
+                // logTime('[定时任务] 缓存子区清理任务执行完成');
             } catch (error) {
                 logTime(`[定时任务] 缓存子区清理任务执行失败: ${error.message}`, true);
             }

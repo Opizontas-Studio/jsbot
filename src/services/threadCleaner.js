@@ -692,7 +692,7 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
             }
         }
 
-        logTime(`[缓存清理] 在活跃子区中找到 ${activeCachedThreads.length} 个已缓存的子区`);
+        // logTime(`[缓存清理] 在活跃子区中找到 ${activeCachedThreads.length} 个已缓存的子区`);
         cleanupResults.totalChecked = activeCachedThreads.length;
 
         // 顺序检查每个子区的成员数量并执行清理

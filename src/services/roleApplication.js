@@ -117,7 +117,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                 .join('、');
             logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 同步结果：${syncSummary}`);
         } else {
-            logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 无需同步任何身份组`);
+            // logTime(`${isAutoSync ? '[自动同步] ' : '[手动同步] '}用户 ${member.user.tag} 无需同步任何身份组`);
         }
 
         return { syncedRoles };

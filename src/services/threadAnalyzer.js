@@ -287,7 +287,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     logTime(`获取子区 ${thread.name} 成员数量失败: ${handleDiscordError(error)}`, true);
                 }
 
-                return {
+                const threadInfo = {
                     thread,
                     threadId: thread.id,
                     name: thread.name,
@@ -297,9 +297,32 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     inactiveHours,
                     messageCount: thread.messageCount || 0,
                     memberCount,
-                    creatorTag: '未知用户', // 暂时设为默认值
+                    creatorTag: '未知用户', // 默认值
                     isPinned: thread.flags.has(ChannelFlags.Pinned),
                 };
+
+                // 仅对符合条件的子区（≥950关注）获取创作者信息
+                if (memberCount >= 950 && thread.ownerId) {
+                    try {
+                        const creator = await withTimeout(
+                            client.users.fetch(thread.ownerId),
+                            5000,
+                            `获取创作者信息 ${thread.name}`,
+                        );
+                        threadInfo.creatorTag = creator.displayName || creator.username || '未知用户';
+                        await delay(100);
+                    } catch (error) {
+                        logTime(`获取子区 ${thread.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
+                        failedOperations.push({
+                            threadId: thread.id,
+                            threadName: thread.name,
+                            operation: '获取创作者信息',
+                            error: handleDiscordError(error),
+                        });
+                    }
+                }
+
+                return threadInfo;
             } catch (error) {
                 failedOperations.push({
                     threadId: thread.id,
@@ -319,39 +342,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 
     // 筛选出符合条件的子区（关注人数≥950）
     const qualifiedThreads = validThreads.filter(thread => thread.memberCount >= 950);
-    logTime(`第二阶段：为 ${qualifiedThreads.length} 个符合条件的子区获取创作者信息`);
-
-    // 第二阶段：仅为符合条件的子区获取创作者信息
-    if (qualifiedThreads.length > 0) {
-        const creatorInfoResults = await globalBatchProcessor.processBatch(
-            qualifiedThreads,
-            async threadInfo => {
-                if (threadInfo.thread.ownerId) {
-                    try {
-                        const creator = await withTimeout(
-                            client.users.fetch(threadInfo.thread.ownerId),
-                            5000,
-                            `获取创作者信息 ${threadInfo.name}`,
-                        );
-                        threadInfo.creatorTag = creator.displayName || creator.username || '未知用户';
-                        // 延迟一段
-                        await delay(50);
-                    } catch (error) {
-                        logTime(`获取子区 ${threadInfo.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
-                        failedOperations.push({
-                            threadId: threadInfo.threadId,
-                            threadName: threadInfo.name,
-                            operation: '获取创作者信息',
-                            error: handleDiscordError(error),
-                        });
-                    }
-                }
-                return threadInfo;
-            },
-            null,
-            'default', // 用户信息获取使用default类型
-        );
-    }
+    logTime(`数据处理完成：找到 ${qualifiedThreads.length} 个符合条件的子区`);
 
     // 合并统计
     validThreads.forEach(thread => {

@@ -282,7 +282,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     );
                     memberCount = members.size;
                     // 增加延迟以避免API限制
-                    await delay(1000);
+                    await delay(200);
                 } catch (error) {
                     logTime(`获取子区 ${thread.name} 成员数量失败: ${handleDiscordError(error)}`, true);
                 }
@@ -334,8 +334,8 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                             `获取创作者信息 ${threadInfo.name}`,
                         );
                         threadInfo.creatorTag = creator.displayName || creator.username || '未知用户';
-                        // 增加延迟以避免API限制
-                        await delay(100);
+                        // 延迟一段
+                        await delay(50);
                     } catch (error) {
                         logTime(`获取子区 ${threadInfo.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
                         failedOperations.push({

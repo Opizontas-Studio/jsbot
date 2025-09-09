@@ -1,12 +1,19 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { checkModeratorPermission, handleCommandError, validateImageFile } from '../utils/helper.js';
 
 export default {
     cooldown: 5,
     ephemeral: true,
     data: new SlashCommandBuilder()
-        .setName('提交证据')
-        .setDescription('提交或修改处罚的文字和图片解释说明')
+        .setName('提交BOT消息')
+        .setDescription('提交或修改一条BOT消息')
+        .addChannelOption(option =>
+            option
+                .setName('频道')
+                .setDescription('选择要发送消息的频道（留空则使用默认管理日志频道）')
+                .setRequired(false)
+                .addChannelTypes(ChannelType.GuildText, ChannelType.PublicThread, ChannelType.PrivateThread)
+        )
         .addStringOption(option =>
             option
                 .setName('消息id')
@@ -92,18 +99,19 @@ export default {
                 return;
             }
 
-            // 检查是否配置了 moderationLogThreadId
-            if (!guildConfig.moderationLogThreadId) {
+            // 获取参数
+            const targetChannel = interaction.options.getChannel('频道');
+            const messageId = interaction.options.getString('消息id');
+            const textContent = interaction.options.getString('文本内容');
+
+            // 确定目标频道：用户选择的频道 或 默认管理日志频道
+            if (!targetChannel && !guildConfig.moderationLogThreadId) {
                 await interaction.editReply({
-                    content: '❌ 服务器未配置管理日志频道',
+                    content: '❌ 请选择目标频道或确保服务器已配置管理日志频道',
                     flags: ['Ephemeral'],
                 });
                 return;
             }
-
-            // 获取参数
-            const messageId = interaction.options.getString('消息id');
-            const textContent = interaction.options.getString('文本内容');
 
             // 收集所有图片附件
             const imageAttachments = [];
@@ -135,13 +143,17 @@ export default {
                 }
             }
 
-            // 获取管理日志频道
+            // 获取目标频道
             let logChannel;
             try {
-                logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
+                if (targetChannel) {
+                    logChannel = targetChannel;
+                } else {
+                    logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
+                }
             } catch (error) {
                 await interaction.editReply({
-                    content: '❌ 无法访问管理日志频道',
+                    content: '❌ 无法访问目标频道',
                     flags: ['Ephemeral'],
                 });
                 return;
@@ -193,8 +205,9 @@ export default {
                         files: files,
                     });
 
+                    const channelMention = targetChannel ? `<#${logChannel.id}>` : '管理日志频道';
                     await interaction.editReply({
-                        content: '✅ 证据已成功提交到管理日志频道',
+                        content: `✅ 文本已成功提交到${channelMention}`,
                         flags: ['Ephemeral'],
                     });
                 }

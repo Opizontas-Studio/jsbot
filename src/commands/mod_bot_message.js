@@ -5,7 +5,7 @@ export default {
     cooldown: 5,
     ephemeral: true,
     data: new SlashCommandBuilder()
-        .setName('提交BOT消息')
+        .setName('提交bot消息')
         .setDescription('提交或修改一条BOT消息')
         .addChannelOption(option =>
             option

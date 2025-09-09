@@ -608,10 +608,10 @@ class TaskScheduler {
         managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
 
-            // 创建每天早上7点和晚上19点执行的规则（与缓存清理任务错开）
+            // 创建每2小时执行一次的规则，每个小时的第15分钟执行（与缓存清理任务错开）
             const rule = new schedule.RecurrenceRule();
-            rule.hour = [19, 7];
-            rule.minute = 15 + ((index * 5) % 30); // 15分和45分区间内错开，避免与缓存清理（0分和30分）冲突
+            rule.hour = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]; // 每2小时执行
+            rule.minute = 15 + ((index * 2) % 10); // 15分钟基础上错开2分钟间隔，避免同时执行
             rule.second = 0;
 
             // 为该服务器创建定时任务

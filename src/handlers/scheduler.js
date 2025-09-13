@@ -5,6 +5,7 @@ import { VoteModel } from '../db/models/voteModel.js';
 import { carouselService } from '../services/carouselService.js';
 import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
+import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import PunishmentService from '../services/punishmentService.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';
 import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
@@ -407,6 +408,7 @@ class TaskScheduler {
             this.registerAnalysisTasks(client);
             this.registerDatabaseTasks();
             this.registerMonitorTasks(client);
+            this.registerOpinionMailboxTasks(client);
             this.registerCachedThreadCleanupTasks(client);
 
             this.isInitialized = true;
@@ -711,6 +713,28 @@ class TaskScheduler {
                 })();
             }
         }
+    }
+
+    // 注册意见信箱维护任务
+    registerOpinionMailboxTasks(client) {
+        // 创建每5分钟执行一次的规则
+        const rule = new schedule.RecurrenceRule();
+        rule.minute = new schedule.Range(0, 59, 5); // 每小时的0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55分钟执行
+        rule.second = 15; // 错开时间，避免与其他任务冲突
+
+        const job = schedule.scheduleJob(rule, async () => {
+            try {
+                // 批量维护所有意见信箱消息
+                await opinionMailboxService.maintainAllMailboxMessages(client);
+            } catch (error) {
+                logTime(`[定时任务] 意见信箱维护任务执行失败: ${error.message}`, true);
+            }
+        });
+
+        // 存储任务
+        this.jobs.set('opinion_mailbox_maintenance', job);
+
+        logTime(`[定时任务] 已创建意见信箱维护任务，每5分钟执行一次，下次执行时间：${job.nextInvocation().toLocaleString()}`);
     }
 
     // 注册缓存子区清理任务

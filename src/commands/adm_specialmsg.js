@@ -6,6 +6,7 @@ import {
     EmbedBuilder,
     SlashCommandBuilder,
 } from 'discord.js';
+import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
@@ -253,47 +254,29 @@ async function createVolunteerRoleManagementMessage(interaction, channel, guildC
  * @param {Object} guildConfig - 服务器配置
  */
 async function createMailboxMessage(interaction, channel, guildConfig) {
-    // 检查是否配置了意见信箱频道
-    if (!guildConfig.opinionMailThreadId) {
+    try {
+        // 检查是否配置了意见信箱处理频道
+        if (!guildConfig.opinionMailThreadId) {
+            await interaction.editReply({
+                content: '❌ 此服务器未配置意见信箱处理频道 (opinionMailThreadId)，无法处理用户提交的内容',
+            });
+            return;
+        }
+
+        // 删除旧的意见信箱消息（如果存在）
+        await opinionMailboxService.deleteOldMailboxMessage(channel);
+
+        // 发送新的意见信箱消息
+        const message = await opinionMailboxService.sendMailboxMessage(channel);
+
+        logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了社区意见信箱消息 (ID: ${message.id})`);
         await interaction.editReply({
-            content: '❌ 此服务器未配置意见信箱频道 (opinionMailThreadId)',
+            content: `✅ 已在 <#${channel.id}> 创建社区意见信箱消息`,
         });
-        return;
+    } catch (error) {
+        logTime(`创建意见信箱消息失败: ${error.message}`, true);
+        await interaction.editReply({
+            content: `❌ 创建意见信箱消息失败: ${error.message}`,
+        });
     }
-
-    // 创建意见投稿按钮
-    const opinionButton = new ButtonBuilder()
-        .setCustomId('submit_opinion')
-        .setLabel('提交社区意见')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('💬');
-
-    const row = new ActionRowBuilder().addComponents(opinionButton);
-
-    // 创建嵌入消息
-    const embed = new EmbedBuilder()
-        .setTitle('📮 社区意见信箱')
-        .setDescription(
-            [
-                '点击下方按钮，您可以向社区提交意见或建议：',
-                '',
-                '**提交要求：**',
-                '- 意见内容应当具体、建设性',
-                '- 可以是对社区的反馈或倡议',
-                '',
-                '管理组会查看并尽快处理您的意见',
-            ].join('\n'),
-        )
-        .setColor(0x00aaff);
-
-    // 发送消息
-    await channel.send({
-        embeds: [embed],
-        components: [row],
-    });
-
-    logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了社区意见信箱消息`);
-    await interaction.editReply({
-        content: `✅ 已在 <#${channel.id}> 创建社区意见信箱消息`,
-    });
 }

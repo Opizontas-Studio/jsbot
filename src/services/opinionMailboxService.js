@@ -1,8 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
+import { delay } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
-import { delay } from '../utils/utils.js';
 
 const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
 

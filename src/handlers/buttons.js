@@ -139,11 +139,6 @@ export const buttonHandlers = {
         await interaction.showModal(modal);
     },
 
-    // 议员身份组自助退出按钮处理器
-    exit_senator_role: async interaction => {
-        await exitSenatorRole(interaction);
-    },
-
     // 志愿者身份组申请按钮处理器
     apply_volunteer_role: async interaction => {
         // 检查冷却时间

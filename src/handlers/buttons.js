@@ -10,7 +10,6 @@ import {
 } from '../services/modalService.js';
 import {
     applyVolunteerRole,
-    exitSenatorRole,
     exitVolunteerRole,
     syncMemberRoles,
     validateVolunteerApplication

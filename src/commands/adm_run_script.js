@@ -187,16 +187,29 @@ export default {
             const result = await executeScript(scriptName, context);
             const executionTime = Date.now() - startTime;
 
-            // 格式化结果为文本并创建附件
-            const resultText = formatResultAsText(result, scriptName, executionTime);
-            const attachment = createResultAttachment(resultText, scriptName);
+            // 检查脚本是否返回了自定义附件数据
+            const attachments = [];
+            let replyContent = `✅ 脚本执行完成 (耗时: ${executionTime}ms)`;
 
-            // 准备回复消息
-            const replyContent = `✅ 脚本执行完成 (耗时: ${executionTime}ms)\n📄 详细结果请查看附件`;
+            if (result && result.attachmentData) {
+                // 使用脚本提供的附件数据
+                const customAttachment = new AttachmentBuilder(
+                    Buffer.from(result.attachmentData.content, 'utf8'),
+                    { name: result.attachmentData.filename }
+                );
+                attachments.push(customAttachment);
+                replyContent += `\n📄 ${result.message || '详细结果请查看附件'}`;
+            } else {
+                // 使用默认的结果格式
+                const resultText = formatResultAsText(result, scriptName, executionTime);
+                const attachment = createResultAttachment(resultText, scriptName);
+                attachments.push(attachment);
+                replyContent += `\n📄 详细结果请查看附件`;
+            }
 
             await interaction.editReply({
                 content: replyContent,
-                files: [attachment]
+                files: attachments
             });
 
             logTime(`管理员 ${interaction.user.tag} 执行脚本 ${scriptName}，耗时 ${executionTime}ms`);

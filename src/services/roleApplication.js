@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
+import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { checkCooldown } from '../handlers/buttons.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
@@ -8,6 +9,7 @@ import { logTime } from '../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 const opinionRecordsPath = join(process.cwd(), 'data', 'opinionRecords.json');
+const blacklistPath = join(process.cwd(), 'data', 'blacklist.json');
 
 /**
  * 读取身份组同步配置
@@ -354,20 +356,20 @@ export const handleDebateRolesAfterVote = async (client, executorId, targetId) =
  */
 export async function validateVolunteerApplication(member, guildConfig) {
     try {
-        // 1. 检查加入时间（至少一个月）
+        // 1. 检查是否受到过处罚
+        if (isUserBlacklisted(member.user.id)) {
+            return {
+                isValid: false,
+                reason: '您没有资格申请志愿者身份组',
+            };
+        }
+
+        // 2. 检查加入时间（至少一个月）
         const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
         if (member.joinedTimestamp > oneMonthAgo) {
             return {
                 isValid: false,
                 reason: '您需要加入社区满一个月才能申请志愿者身份组',
-            };
-        }
-
-        // 2. 检查是否被警告
-        if (guildConfig.roleApplication?.WarnedRoleId && member.roles.cache.has(guildConfig.roleApplication.WarnedRoleId)) {
-            return {
-                isValid: false,
-                reason: '您目前处于被警告状态，无法申请志愿者身份组',
             };
         }
 
@@ -682,6 +684,179 @@ export function hasValidSubmissionRecord(userId) {
         return userRecord && userRecord.submissions.length > 0;
     } catch (error) {
         logTime(`[意见记录] 检查投稿记录失败: ${error.message}`, true);
+        return false;
+    }
+}
+
+/**
+ * 读取黑名单配置
+ * @returns {Object} 黑名单配置对象
+ */
+export const getBlacklist = () => {
+    try {
+        return JSON.parse(readFileSync(blacklistPath, 'utf8'));
+    } catch (error) {
+        logTime(`[黑名单] 读取黑名单配置失败: ${error.message}`, true);
+        // 如果文件不存在，返回默认结构
+        return {
+            users: [],
+            lastUpdated: null,
+            manuallyAdded: [],
+            protectedUsers: []
+        };
+    }
+};
+
+/**
+ * 写入黑名单配置
+ * @param {Object} blacklist - 黑名单对象
+ */
+export const saveBlacklist = (blacklist) => {
+    try {
+        writeFileSync(blacklistPath, JSON.stringify(blacklist, null, 4), 'utf8');
+    } catch (error) {
+        logTime(`[黑名单] 保存黑名单配置失败: ${error.message}`, true);
+        throw error;
+    }
+};
+
+/**
+ * 检查用户是否在黑名单中
+ * @param {string} userId - 用户ID
+ * @returns {boolean} 是否在黑名单中
+ */
+export function isUserBlacklisted(userId) {
+    try {
+        const blacklist = getBlacklist();
+
+        // 受保护用户永远不在黑名单中
+        if ((blacklist.protectedUsers || []).includes(userId)) {
+            return false;
+        }
+
+        return blacklist.users.includes(userId) || (blacklist.manuallyAdded || []).includes(userId);
+    } catch (error) {
+        logTime(`[黑名单] 检查黑名单失败: ${error.message}`, true);
+        return false;
+    }
+}
+
+/**
+ * 更新黑名单（扫描处罚表）
+ * @param {Object} client - Discord客户端（用于获取黑名单角色用户）
+ * @returns {Promise<{success: boolean, addedCount: number, totalCount: number}>}
+ */
+export async function updateBlacklistFromPunishments(client = null) {
+    try {
+        // 获取现有黑名单
+        const blacklist = getBlacklist();
+
+        // 确保所有字段存在
+        if (!blacklist.users) blacklist.users = [];
+        if (!blacklist.manuallyAdded) blacklist.manuallyAdded = [];
+        if (!blacklist.protectedUsers) blacklist.protectedUsers = [];
+
+        // 获取所有处罚记录（包括已过期的）
+        const allPunishments = await PunishmentModel.getAllPunishments(true);
+
+        // 提取用户ID列表并去重
+        const punishedUserIds = [...new Set(allPunishments.map(punishment => punishment.userId))];
+
+        // 添加黑名单角色用户
+        let roleBlacklistUsers = [];
+        if (client) {
+            try {
+                // 遍历所有配置的服务器，查找有黑名单角色的用户
+                for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
+                    if (guildConfig.blacklistRoleId) {
+                        try {
+                            const guild = await client.guilds.fetch(guildId);
+                            const role = await guild.roles.fetch(guildConfig.blacklistRoleId);
+                            if (role) {
+                                const membersWithRole = role.members.map(member => member.user.id);
+                                roleBlacklistUsers.push(...membersWithRole);
+                                logTime(`[黑名单] 从服务器 ${guild.name} 的角色 ${role.name} 获取了 ${membersWithRole.length} 个用户`);
+                            }
+                        } catch (error) {
+                            logTime(`[黑名单] 获取服务器 ${guildId} 的黑名单角色失败: ${error.message}`, true);
+                        }
+                    }
+                }
+                roleBlacklistUsers = [...new Set(roleBlacklistUsers)]; // 去重
+            } catch (error) {
+                logTime(`[黑名单] 获取角色黑名单用户失败: ${error.message}`, true);
+            }
+        }
+
+        // 合并所有黑名单来源并去重
+        const allBlacklistCandidates = [...new Set([...punishedUserIds, ...roleBlacklistUsers])];
+
+        // 合并到现有黑名单，去重
+        const originalAutoList = blacklist.users || [];
+        const newAutoList = [...new Set([...originalAutoList, ...allBlacklistCandidates])];
+
+        // 计算新增用户数量
+        const addedCount = newAutoList.length - originalAutoList.length;
+
+        // 更新黑名单
+        blacklist.users = newAutoList;
+        blacklist.lastUpdated = new Date().toISOString();
+
+        // 保存黑名单
+        saveBlacklist(blacklist);
+
+        logTime(`[黑名单] 黑名单更新完成，新增 ${addedCount} 个用户，总计 ${newAutoList.length + (blacklist.manuallyAdded?.length || 0)} 个用户`);
+
+        return {
+            success: true,
+            addedCount,
+            totalCount: newAutoList.length + (blacklist.manuallyAdded?.length || 0)
+        };
+    } catch (error) {
+        logTime(`[黑名单] 更新黑名单失败: ${error.message}`, true);
+        return {
+            success: false,
+            addedCount: 0,
+            totalCount: 0
+        };
+    }
+}
+
+/**
+ * 添加用户到黑名单（用于处罚时立即添加）
+ * @param {string} userId - 用户ID
+ * @returns {Promise<boolean>} 是否成功添加
+ */
+export async function addUserToBlacklistImmediately(userId) {
+    try {
+        const blacklist = getBlacklist();
+
+        // 确保所有字段存在
+        if (!blacklist.users) blacklist.users = [];
+        if (!blacklist.manuallyAdded) blacklist.manuallyAdded = [];
+        if (!blacklist.protectedUsers) blacklist.protectedUsers = [];
+
+        // 检查是否为受保护用户
+        if (blacklist.protectedUsers.includes(userId)) {
+            logTime(`[黑名单] 用户 ${userId} 为受保护用户，不会被添加到黑名单`);
+            return false;
+        }
+
+        // 检查是否已在黑名单中
+        if (blacklist.users.includes(userId) || blacklist.manuallyAdded.includes(userId)) {
+            return true; // 已经在黑名单中，返回成功
+        }
+
+        // 添加到自动黑名单
+        blacklist.users.push(userId);
+
+        // 保存黑名单
+        saveBlacklist(blacklist);
+
+        logTime(`[黑名单] 已将用户 ${userId} 立即添加到黑名单`);
+        return true;
+    } catch (error) {
+        logTime(`[黑名单] 立即添加用户到黑名单失败: ${error.message}`, true);
         return false;
     }
 }

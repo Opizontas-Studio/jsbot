@@ -37,6 +37,7 @@ export class GuildManager {
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID
+                blacklistRoleId: guildConfig.blacklistRoleId || null, // string | null - 黑名单角色ID
                 automation: {
                     mode: automationConfig.mode || 'disabled', // string - 子区管理模式：'analysis'、'cleanup'或'disabled'
                     threshold: automationConfig.threshold || 960, // number - 清理阈值

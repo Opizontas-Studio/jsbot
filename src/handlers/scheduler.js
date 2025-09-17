@@ -7,6 +7,7 @@ import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import PunishmentService from '../services/punishmentService.js';
+import { updateBlacklistFromPunishments } from '../services/roleApplication.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';
 import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
 import { VoteService } from '../services/voteService.js';
@@ -570,6 +571,25 @@ class TaskScheduler {
                     logTime('[定时任务] 数据库备份完成');
                 } catch (error) {
                     logTime(`[定时任务] 数据库备份失败: ${error.message}`, true);
+                }
+            },
+        });
+
+        // 黑名单更新任务 - 每天早上4点执行
+        this.addDailyTask({
+            taskId: 'blacklistUpdate',
+            hour: 4,
+            minute: 0,
+            task: async () => {
+                try {
+                    const result = await updateBlacklistFromPunishments(this.client);
+                    if (result.success) {
+                        logTime(`[定时任务] 黑名单更新完成，新增 ${result.addedCount} 个用户，总计 ${result.totalCount} 个用户`);
+                    } else {
+                        logTime('[定时任务] 黑名单更新失败', true);
+                    }
+                } catch (error) {
+                    logTime(`[定时任务] 黑名单更新失败: ${error.message}`, true);
                 }
             },
         });

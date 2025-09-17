@@ -229,7 +229,7 @@ async function createVolunteerRoleManagementMessage(interaction, channel, guildC
                 '志愿者可参与社区重大决策的投票',
                 '',
                 '**申请条件：**',
-                '1. 加入达一个月，未处于被警告者状态',
+                '1. 加入达一个月，最近没有受到过处罚',
                 '2. 是创作者身份组的成员 或 在意见信箱中提出过合理建议',
             ].join('\n'),
         )

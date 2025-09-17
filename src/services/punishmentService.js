@@ -9,6 +9,7 @@ import {
     sendModLogNotification,
     sendMuteNotification,
 } from '../utils/punishmentHelper.js';
+import { addUserToBlacklistImmediately } from './roleApplication.js';
 
 class PunishmentService {
     /**
@@ -96,6 +97,14 @@ class PunishmentService {
             // 5. 更新同步状态
             await PunishmentModel.updateSyncStatus(punishment.id, [executingGuildId]);
 
+            // 6. 将用户添加到黑名单
+            try {
+                await addUserToBlacklistImmediately(punishment.userId);
+            } catch (error) {
+                logTime(`[处罚] 添加用户 ${punishment.userId} 到黑名单失败: ${error.message}`, true);
+                // 不影响处罚的执行，继续执行
+            }
+
             // 如果是永封，标记为过期
             if (punishment.type === 'ban') {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行永封');
@@ -112,7 +121,7 @@ class PunishmentService {
                 }
             }
 
-            // 6. 发送通知
+            // 7. 发送通知
             const notificationResults = [];
 
             // 如果有指定频道，发送频道通知

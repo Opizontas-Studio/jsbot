@@ -262,7 +262,6 @@ class PunishmentService {
             // 只有当禁言和警告都到期时，才更新状态为已过期
             if ((muteExpired && punishment.type === 'mute') || warningExpired) {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '处罚已到期');
-                logTime(`处罚 ${punishment.id} 状态已更新为已过期`);
             }
         } catch (error) {
             logTime(`处理处罚到期失败 [ID: ${punishment.id}]: ${error.message}`, true);
@@ -398,9 +397,6 @@ class PunishmentService {
             }
 
             // 记录执行结果
-            if (successfulServers.length > 0) {
-                logTime(`处罚解除成功的服务器: ${successfulServers.join(', ')}`);
-            }
             if (failedServers.length > 0) {
                 logTime(`处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
             }

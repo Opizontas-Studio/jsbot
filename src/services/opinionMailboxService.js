@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'disc
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
 import { delay } from '../utils/concurrency.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
 const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
@@ -16,31 +17,18 @@ class OpinionMailboxService {
     }
 
     /**
-     * 获取主服务器ID
-     * @param {Client} client - Discord客户端
-     * @returns {string|null} 主服务器ID或null
-     */
-    getMainGuildId(client) {
-        if (!client?.guildManager) {
-            return null;
-        }
-
-        return client.guildManager.getMainServerId();
-    }
-
-    /**
      * 加载消息ID配置
      * @returns {Object} 消息ID配置对象
      */
     loadMessageIds() {
-        try {
-            const data = readFileSync(messageIdsPath, 'utf8');
-            const messageIds = JSON.parse(data);
-            return messageIds;
-        } catch (error) {
-            logTime(`[意见信箱] 加载消息ID配置失败，将创建新配置: ${error.message}`, true);
-            return {};
-        }
+        return ErrorHandler.handleSilent(
+            () => {
+                const data = readFileSync(messageIdsPath, 'utf8');
+                return JSON.parse(data);
+            },
+            "加载消息ID配置",
+            {}
+        );
     }
 
     /**
@@ -48,13 +36,14 @@ class OpinionMailboxService {
      * @param {Object} messageIds - 消息ID配置对象
      */
     saveMessageIds(messageIds) {
-        try {
-            writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2), 'utf8');
-            this.messageIds = messageIds;
-        } catch (error) {
-            logTime(`[意见信箱] 保存消息ID配置失败: ${error.message}`, true);
-            throw error;
-        }
+        ErrorHandler.handleServiceSync(
+            () => {
+                writeFileSync(messageIdsPath, JSON.stringify(messageIds, null, 2), 'utf8');
+                this.messageIds = messageIds;
+            },
+            "保存消息ID配置",
+            { throwOnError: true }
+        );
     }
 
     /**
@@ -100,18 +89,19 @@ class OpinionMailboxService {
      * @returns {Promise<Message>} 发送的消息对象
      */
     async sendMailboxMessage(channel, client) {
-        try {
-            const messageContent = this.createMailboxMessage();
-            const message = await channel.send(messageContent);
+        return await ErrorHandler.handleService(
+            async () => {
+                const messageContent = this.createMailboxMessage();
+                const message = await channel.send(messageContent);
 
-            // 更新消息ID记录
-            this.updateMailboxMessageId(channel.id, message.id, client);
+                // 更新消息ID记录
+                this.updateMailboxMessageId(channel.id, message.id, client);
 
-            return message;
-        } catch (error) {
-            logTime(`[意见信箱] 发送意见信箱消息失败: ${error.message}`, true);
-            throw error;
-        }
+                return message;
+            },
+            "发送意见信箱消息",
+            { throwOnError: true }
+        );
     }
 
     /**
@@ -121,30 +111,29 @@ class OpinionMailboxService {
      * @param {Client} client - Discord客户端（用于获取主服务器ID）
      */
     updateMailboxMessageId(channelId, messageId, client) {
-        const guildId = this.getMainGuildId(client);
-        if (!guildId) {
-            throw new Error('无法获取主服务器ID');
-        }
-        try {
-            // 确保服务器结构存在
-            if (!this.messageIds[guildId]) {
-                this.messageIds[guildId] = {};
-            }
-            if (!this.messageIds[guildId].opinionMailbox) {
-                this.messageIds[guildId].opinionMailbox = {};
-            }
+        ErrorHandler.handleServiceSync(
+            () => {
+                const guildId = client.guildManager.getMainServerId();
 
-            // 更新内存中的配置
-            this.messageIds[guildId].opinionMailbox[channelId] = messageId;
+                // 确保结构存在
+                if (!this.messageIds[guildId]) {
+                    this.messageIds[guildId] = {};
+                }
+                if (!this.messageIds[guildId].opinionMailbox) {
+                    this.messageIds[guildId].opinionMailbox = {};
+                }
 
-            // 保存到文件
-            this.saveMessageIds(this.messageIds);
+                // 更新内存中的配置
+                this.messageIds[guildId].opinionMailbox[channelId] = messageId;
 
-            logTime(`[意见信箱] 已更新频道 ${channelId} 的消息ID记录: ${messageId}`);
-        } catch (error) {
-            logTime(`[意见信箱] 更新消息ID记录失败: ${error.message}`, true);
-            throw error;
-        }
+                // 保存到文件
+                this.saveMessageIds(this.messageIds);
+
+                logTime(`[意见信箱] 已更新频道 ${channelId} 的消息ID记录: ${messageId}`);
+            },
+            "更新消息ID记录",
+            { throwOnError: true }
+        );
     }
 
     /**
@@ -154,10 +143,7 @@ class OpinionMailboxService {
      * @returns {string|null} 消息ID或null
      */
     getMailboxMessageId(channelId, client) {
-        const guildId = this.getMainGuildId(client);
-        if (!guildId) {
-            return null;
-        }
+        const guildId = client.guildManager.getMainServerId();
         return this.messageIds[guildId]?.opinionMailbox?.[channelId] || null;
     }
 
@@ -168,24 +154,20 @@ class OpinionMailboxService {
      * @returns {Promise<boolean>} 删除是否成功
      */
     async deleteOldMailboxMessage(channel, client) {
-        try {
-            const oldMessageId = this.getMailboxMessageId(channel.id, client);
-            if (!oldMessageId) {
-                return false;
-            }
+        return await ErrorHandler.handleSilent(
+            async () => {
+                const oldMessageId = this.getMailboxMessageId(channel.id, client);
+                if (!oldMessageId) {
+                    return false;
+                }
 
-            try {
                 const oldMessage = await channel.messages.fetch(oldMessageId);
                 await oldMessage.delete();
                 return true;
-            } catch (fetchError) {
-                logTime(`[意见信箱] 无法获取或删除旧消息 ${oldMessageId}: ${fetchError.message}`);
-                return false;
-            }
-        } catch (error) {
-            logTime(`[意见信箱] 删除旧意见信箱消息失败: ${error.message}`, true);
-            return false;
-        }
+            },
+            "删除旧意见信箱消息",
+            false
+        );
     }
 
     /**
@@ -194,18 +176,19 @@ class OpinionMailboxService {
      * @returns {Promise<boolean>} 最后一条消息是否为BOT发送
      */
     async isLastMessageFromBot(channel) {
-        try {
-            const messages = await channel.messages.fetch({ limit: 1 });
-            if (messages.size === 0) {
-                return false;
-            }
+        return await ErrorHandler.handleSilent(
+            async () => {
+                const messages = await channel.messages.fetch({ limit: 1 });
+                if (messages.size === 0) {
+                    return false;
+                }
 
-            const lastMessage = messages.first();
-            return lastMessage.author.bot;
-        } catch (error) {
-            logTime(`[意见信箱] 检查频道最后消息失败: ${error.message}`, true);
-            return false;
-        }
+                const lastMessage = messages.first();
+                return lastMessage.author.bot;
+            },
+            "检查频道最后消息",
+            false
+        );
     }
 
     /**
@@ -215,45 +198,33 @@ class OpinionMailboxService {
      * @returns {Promise<boolean>} 是否进行了维护操作
      */
     async maintainMailboxMessage(client, channelId) {
-        try {
-            const channel = await client.channels.fetch(channelId).catch(() => null);
-            if (!channel) {
-                logTime(`[意见信箱] 无法获取频道 ${channelId}`, true);
-                return false;
-            }
+        const result = await ErrorHandler.handleService(
+            async () => {
+                const channel = await client.channels.fetch(channelId).catch(() => null);
+                if (!channel) {
+                    throw new Error(`无法获取频道 ${channelId}`);
+                }
 
-            // 检查最后一条消息是否为BOT发送
-            const isLastFromBot = await this.isLastMessageFromBot(channel);
-            if (isLastFromBot) {
-                // 如果最后一条消息是BOT发送的，不需要维护
-                return false;
-            }
+                // 检查最后一条消息是否为BOT发送
+                const isLastFromBot = await this.isLastMessageFromBot(channel);
+                if (isLastFromBot) {
+                    // 如果最后一条消息是BOT发送的，不需要维护
+                    return false;
+                }
 
-            // 如果最后一条消息不是BOT发送的，删除旧的意见信箱入口并重新发送
-            await this.deleteOldMailboxMessage(channel, client);
+                // 如果最后一条消息不是BOT发送的，删除旧的意见信箱入口并重新发送
+                await this.deleteOldMailboxMessage(channel, client);
 
-            // 发送新的意见信箱消息
-            await this.sendMailboxMessage(channel, client);
+                // 发送新的意见信箱消息
+                await this.sendMailboxMessage(channel, client);
 
-            logTime(`[意见信箱] 已完成频道 ${channel.name} 的意见信箱入口维护`);
-            return true;
-        } catch (error) {
-            logTime(`[意见信箱] 维护意见信箱消息失败 [频道 ${channelId}]: ${error.message}`, true);
-            return false;
-        }
-    }
+                logTime(`[意见信箱] 已完成频道 ${channel.name} 的意见信箱入口维护`);
+                return true;
+            },
+            `意见信箱维护 [频道 ${channelId}]`
+        );
 
-    /**
-     * 获取所有有意见信箱入口消息记录的频道列表
-     * @param {Client} client - Discord客户端（用于获取主服务器ID）
-     * @returns {Array} 需要维护的频道ID列表
-     */
-    getMailboxChannels(client) {
-        const guildId = this.getMainGuildId(client);
-        if (!guildId) {
-            return [];
-        }
-        return Object.keys(this.messageIds[guildId]?.opinionMailbox || {});
+        return result.success ? result.data : false;
     }
 
     /**
@@ -262,26 +233,29 @@ class OpinionMailboxService {
      * @returns {Promise<number>} 维护的频道数量
      */
     async maintainAllMailboxMessages(client) {
-        try {
-            // 获取主服务器的频道列表
-            const channelIds = this.getMailboxChannels(client);
-            let maintainedCount = 0;
+        const result = await ErrorHandler.handleService(
+            async () => {
+                // 获取主服务器的频道列表
+                const guildId = client.guildManager.getMainServerId();
+                const channelIds = Object.keys(this.messageIds[guildId]?.opinionMailbox || {});
+                let maintainedCount = 0;
 
-            for (const channelId of channelIds) {
-                const maintained = await this.maintainMailboxMessage(client, channelId);
-                if (maintained) {
-                    maintainedCount++;
+                for (const channelId of channelIds) {
+                    const maintained = await this.maintainMailboxMessage(client, channelId);
+                    if (maintained) {
+                        maintainedCount++;
+                    }
+
+                    // 添加延迟以避免API速率限制
+                    await delay(1000);
                 }
 
-                // 添加延迟以避免API速率限制
-                await delay(1000);
-            }
+                return maintainedCount;
+            },
+            "意见信箱批量维护"
+        );
 
-            return maintainedCount;
-        } catch (error) {
-            logTime(`[意见信箱] 批量维护意见信箱消息失败: ${error.message}`, true);
-            return 0;
-        }
+        return result.success ? result.data : 0;
     }
 
     /**
@@ -289,15 +263,11 @@ class OpinionMailboxService {
      * @returns {Object} 意见记录配置对象
      */
     getOpinionRecords() {
-        try {
-            return JSON.parse(readFileSync(opinionRecordsPath, 'utf8'));
-        } catch (error) {
-            logTime(`[意见记录] 读取意见记录配置失败: ${error.message}`, true);
-            // 如果文件不存在，返回默认结构
-            return {
-                validSubmissions: []
-            };
-        }
+        return ErrorHandler.handleSilent(
+            () => JSON.parse(readFileSync(opinionRecordsPath, 'utf8')),
+            "读取意见记录配置",
+            { validSubmissions: [] }
+        );
     }
 
     /**
@@ -305,12 +275,13 @@ class OpinionMailboxService {
      * @param {Object} records - 意见记录对象
      */
     saveOpinionRecords(records) {
-        try {
-            writeFileSync(opinionRecordsPath, JSON.stringify(records, null, 4), 'utf8');
-        } catch (error) {
-            logTime(`[意见记录] 保存意见记录配置失败: ${error.message}`, true);
-            throw error;
-        }
+        ErrorHandler.handleServiceSync(
+            () => {
+                writeFileSync(opinionRecordsPath, JSON.stringify(records, null, 4), 'utf8');
+            },
+            "保存意见记录配置",
+            { throwOnError: true }
+        );
     }
 
     /**
@@ -322,55 +293,47 @@ class OpinionMailboxService {
      * @returns {Promise<{success: boolean, message: string}>}
      */
     async updateOpinionRecord(userId, submissionType, isApproved, submissionData = null) {
-        try {
-            if (!isApproved) {
-                // 如果是拒绝，不需要记录到文件中
-                return {
-                    success: true,
-                    message: '投稿已标记为不合理'
+        return await ErrorHandler.handleService(
+            async () => {
+                if (!isApproved) {
+                    // 如果是拒绝，不需要记录到文件中
+                    return { message: '投稿已标记为不合理' };
+                }
+
+                // 读取现有记录
+                const records = await this.getOpinionRecords();
+
+                // 检查用户是否已有记录
+                const existingUserRecord = records.validSubmissions.find(record => record.userId === userId);
+
+                const submissionRecord = {
+                    type: submissionType,
+                    title: submissionData?.title || '未记录标题',
+                    content: submissionData?.content || '未记录内容',
+                    approvedAt: new Date().toISOString()
                 };
-            }
 
-            // 读取现有记录
-            const records = this.getOpinionRecords();
+                if (existingUserRecord) {
+                    // 更新现有用户记录
+                    existingUserRecord.submissions.push(submissionRecord);
+                } else {
+                    // 创建新用户记录
+                    records.validSubmissions.push({
+                        userId: userId,
+                        submissions: [submissionRecord]
+                    });
+                }
 
-            // 检查用户是否已有记录
-            const existingUserRecord = records.validSubmissions.find(record => record.userId === userId);
+                // 保存记录
+                this.saveOpinionRecords(records);
 
-            const submissionRecord = {
-                type: submissionType,
-                title: submissionData?.title || '未记录标题',
-                content: submissionData?.content || '未记录内容',
-                approvedAt: new Date().toISOString()
-            };
+                logTime(`[意见记录] 已记录用户 ${userId} 的有效${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionRecord.title}"`);
 
-            if (existingUserRecord) {
-                // 更新现有用户记录
-                existingUserRecord.submissions.push(submissionRecord);
-            } else {
-                // 创建新用户记录
-                records.validSubmissions.push({
-                    userId: userId,
-                    submissions: [submissionRecord]
-                });
-            }
-
-            // 保存记录
-            this.saveOpinionRecords(records);
-
-            logTime(`[意见记录] 已记录用户 ${userId} 的有效${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionRecord.title}"`);
-
-            return {
-                success: true,
-                message: '投稿已标记为合理并记录'
-            };
-        } catch (error) {
-            logTime(`[意见记录] 更新意见记录失败: ${error.message}`, true);
-            return {
-                success: false,
-                message: '更新记录时出错'
-            };
-        }
+                return { message: '投稿已标记为合理并记录' };
+            },
+            "更新意见记录",
+            { userFriendly: true }
+        );
     }
 
     /**
@@ -379,14 +342,15 @@ class OpinionMailboxService {
      * @returns {boolean} 是否有有效记录
      */
     hasValidSubmissionRecord(userId) {
-        try {
-            const records = this.getOpinionRecords();
-            const userRecord = records.validSubmissions.find(record => record.userId === userId);
-            return userRecord && userRecord.submissions.length > 0;
-        } catch (error) {
-            logTime(`[意见记录] 检查投稿记录失败: ${error.message}`, true);
-            return false;
-        }
+        return ErrorHandler.handleSilent(
+            () => {
+                const records = this.getOpinionRecords();
+                const userRecord = records.validSubmissions.find(record => record.userId === userId);
+                return userRecord && userRecord.submissions.length > 0;
+            },
+            "检查投稿记录",
+            false
+        );
     }
 }
 

@@ -502,10 +502,11 @@ class OpinionMailboxService {
                         if (!targetUser) return false;
 
                         const dmEmbed = {
-                            color: isApproved ? 0x00ff00 : 0xff0000,
-                            title: isApproved ? '✅ 投稿审定通过' : '❌ 投稿暂时无法执行',
+                            color: isApproved ? 0x5fa85f : 0xb85c5c,
+                            title: '📮 意见信箱反馈',
                             description: [
-                                `**对您的投稿：${submissionTitle}，管理组回复为：**`,
+                                `**对您的投稿：${submissionTitle}**`,
+                                `**管理组回复为：**`,
                                 adminReply
                             ].join('\n'),
                             timestamp: new Date(),

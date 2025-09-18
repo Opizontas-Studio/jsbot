@@ -50,8 +50,6 @@
       },
       "monitor": {
         "enabled": "boolean",
-        "channelId": "string | null",
-        "messageId": "string | null",
         "roleMonitorCategoryId": "string | null",
         "senatorRoleChannelId": "string | null"
       }

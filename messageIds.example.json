@@ -16,6 +16,9 @@
         },
         "opinionMailbox": {
             "channelId3": "messageId5"
+        },
+        "monitor": {
+            "channelId4": "messageId6"
         }
     }
 }

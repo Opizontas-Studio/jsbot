@@ -1,8 +1,9 @@
 import { exec } from 'child_process';
-import { ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
+import { EmbedFactory } from '../factories/embedFactory.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
@@ -46,11 +47,6 @@ const formatUptime = uptime => {
 
 class MonitorService {
     constructor() {
-        this.embedTemplate = new EmbedBuilder()
-            .setColor(0x0099ff)
-            .setTitle('系统运行状态')
-            .setFooter({ text: '系统监控' });
-
         // 记录启动时间
         this.startTime = Date.now();
     }
@@ -71,46 +67,27 @@ class MonitorService {
      */
     async createStatusEmbed(client) {
         const ping = Math.round(client.ws.ping);
-        const status = getConnectionStatus(client);
-        const uptime = this.getSystemUptime(); // 不再需要await
+        const connectionStatus = getConnectionStatus(client);
+        const uptime = this.getSystemUptime();
 
         // 获取队列统计信息
         const queueLength = globalRequestQueue.queue.length;
         const currentProcessing = globalRequestQueue.currentProcessing;
         const { processed, failed } = globalRequestQueue.stats;
 
-        return this.embedTemplate.setFields(
-            {
-                name: '网络延迟',
-                value: ping === -1 ? '无法获取' : `${ping}ms`,
-                inline: true,
-            },
-            {
-                name: 'WebSocket状态',
-                value: status,
-                inline: true,
-            },
-            {
-                name: '运行时间',
-                value: uptime,
-                inline: true,
-            },
-            {
-                name: '队列状态',
-                value: `🟢 运行中`,
-                inline: true,
-            },
-            {
-                name: '队列统计',
-                value: [
-                    `📥 等待处理: ${queueLength}`,
-                    `⚡ 正在处理: ${currentProcessing}`,
-                    `✅ 已完成: ${processed}`,
-                    `❌ 失败: ${failed}`,
-                ].join('\n'),
-                inline: false,
-            },
-        ).setTimestamp();
+        const statusData = {
+            ping,
+            connectionStatus,
+            uptime,
+            queueStats: {
+                queueLength,
+                currentProcessing,
+                processed,
+                failed
+            }
+        };
+
+        return EmbedFactory.createSystemStatusEmbed(statusData);
     }
 
     /**

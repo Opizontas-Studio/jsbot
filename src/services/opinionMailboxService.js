@@ -1,6 +1,7 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
+import { EmbedFactory } from '../factories/embedFactory.js';
 import { delay } from '../utils/concurrency.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
@@ -61,20 +62,7 @@ class OpinionMailboxService {
         const row = new ActionRowBuilder().addComponents(opinionButton);
 
         // 创建嵌入消息
-        const embed = new EmbedBuilder()
-            .setTitle('📮 社区意见信箱')
-            .setDescription(
-                [
-                    '点击下方按钮，您可以向社区提交意见或建议：',
-                    '',
-                    '**提交要求：**',
-                    '- 意见内容应当具体、建设性',
-                    '- 可以是对社区的反馈或倡议',
-                    '',
-                    '管理组会查看并尽快处理您的意见',
-                ].join('\n'),
-            )
-            .setColor(0x00aaff);
+        const embed = EmbedFactory.createOpinionMailboxEmbed();
 
         return {
             embeds: [embed],
@@ -368,19 +356,7 @@ class OpinionMailboxService {
                 const guildConfig = client.guildManager.getGuildConfig(guildId);
 
                 // 创建嵌入消息
-                const messageEmbed = {
-                    color: color,
-                    title: `${titlePrefix}${title}`,
-                    description: content,
-                    author: {
-                        name: user.tag,
-                        icon_url: user.displayAvatarURL(),
-                    },
-                    timestamp: new Date(),
-                    footer: {
-                        text: '等待管理员审定'
-                    }
-                };
+                const messageEmbed = EmbedFactory.createSubmissionReviewEmbed(user, title, content, titlePrefix, color);
 
                 // 创建判定按钮
                 const buttons = [
@@ -468,13 +444,7 @@ class OpinionMailboxService {
                 }
 
                 // 根据处理结果更新消息的embed
-                const updatedEmbed = {
-                    ...originalEmbed.toJSON(),
-                    author: isApproved ? undefined : originalEmbed.author, // 批准时移除作者信息，拒绝时保留
-                    footer: {
-                        text: isApproved ? '审定有效' : '审定无效'
-                    }
-                };
+                const updatedEmbed = EmbedFactory.createUpdatedSubmissionEmbed(originalEmbed, isApproved);
 
                 // 移除按钮并更新消息
                 await originalMessage.edit({
@@ -501,19 +471,7 @@ class OpinionMailboxService {
                     async () => {
                         if (!targetUser) return false;
 
-                        const dmEmbed = {
-                            color: isApproved ? 0x5fa85f : 0xb85c5c,
-                            title: '📮 意见信箱反馈',
-                            description: [
-                                `**对您的投稿：${submissionTitle}**`,
-                                `**管理组回复为：**`,
-                                adminReply
-                            ].join('\n'),
-                            timestamp: new Date(),
-                            footer: {
-                                text: '感谢您投稿的社区意见',
-                            }
-                        };
+                        const dmEmbed = EmbedFactory.createDMFeedbackEmbed(isApproved, submissionTitle, adminReply);
 
                         await targetUser.send({ embeds: [dmEmbed] });
                         logTime(`已向用户 ${targetUser.tag} 发送投稿${isApproved ? '审定通过' : '拒绝'}通知`);

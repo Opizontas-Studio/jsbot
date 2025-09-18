@@ -8,6 +8,8 @@ import { logTime } from '../utils/logger.js';
 
 const execAsync = promisify(exec);
 
+const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
+
 // 获取WebSocket状态描述
 const getConnectionStatus = client => {
     const monitor = client.wsStateMonitor;
@@ -111,42 +113,82 @@ class MonitorService {
     }
 
     /**
-     * 更新配置中的messageId
-     * @param {Object} client Discord客户端
+     * 加载消息ID配置
+     * @returns {Object} 消息ID配置对象
+     */
+    async loadMessageIds() {
+        try {
+            const data = await readFile(MESSAGE_IDS_PATH, 'utf8');
+            return JSON.parse(data);
+        } catch (error) {
+            logTime(`[监控服务] 加载消息ID配置失败，将创建新配置: ${error.message}`, true);
+            return {};
+        }
+    }
+
+    /**
+     * 保存消息ID配置
+     * @param {Object} messageIds - 消息ID配置对象
+     */
+    async saveMessageIds(messageIds) {
+        await writeFile(MESSAGE_IDS_PATH, JSON.stringify(messageIds, null, 4), 'utf8');
+    }
+
+    /**
+     * 获取监控配置的channelId和messageId
      * @param {string} guildId 服务器ID
+     * @returns {Promise<{channelId: string|null, messageId: string|null}>}
+     */
+    async getMonitorIds(guildId) {
+        try {
+            const messageIds = await this.loadMessageIds();
+
+            // 从messageIds.json获取数据
+            const monitorData = messageIds[guildId]?.monitor;
+            if (!monitorData) {
+                return { channelId: null, messageId: null };
+            }
+
+            // messageIds.json中的结构是 { channelId: messageId }
+            const channelId = Object.keys(monitorData)[0];
+            const messageId = channelId ? monitorData[channelId] : null;
+
+            return { channelId, messageId };
+        } catch (error) {
+            logTime(`[监控服务] 获取监控ID失败: ${error.message}`, true);
+            return { channelId: null, messageId: null };
+        }
+    }
+
+    /**
+     * 更新messageIds.json中的监控消息ID
+     * @param {string} guildId 服务器ID
+     * @param {string} channelId 频道ID
      * @param {string} messageId 消息ID
      * @returns {Promise<boolean>} 更新是否成功
      */
-    async updateConfigMessageId(client, guildId, messageId) {
+    async updateMonitorMessageId(guildId, channelId, messageId) {
         try {
-            // 读取配置文件
-            const configPath = join(process.cwd(), 'config.json');
-            const configData = await readFile(configPath, 'utf8');
-            const config = JSON.parse(configData);
+            const messageIds = await this.loadMessageIds();
+
+            // 确保服务器结构存在
+            if (!messageIds[guildId]) {
+                messageIds[guildId] = {};
+            }
+            if (!messageIds[guildId].monitor) {
+                messageIds[guildId].monitor = {};
+            }
 
             // 更新messageId
-            if (!config.guilds?.[guildId]?.monitor) {
-                throw new Error('无效的服务器配置');
-            }
+            messageIds[guildId].monitor[channelId] = messageId;
 
-            config.guilds[guildId].monitor.messageId = messageId;
-
-            // 写入配置文件
-            await writeFile(configPath, JSON.stringify(config, null, 4), 'utf8');
+            // 保存文件
+            await this.saveMessageIds(messageIds);
             logTime(`[监控服务] 已更新服务器 ${guildId} 的监控消息ID: ${messageId}`);
-
-            // 直接更新内存中的配置
-            if (client.guildManager && client.guildManager.guilds.has(guildId)) {
-                const guildConfig = client.guildManager.guilds.get(guildId);
-                if (guildConfig.monitor) {
-                    guildConfig.monitor.messageId = messageId;
-                    logTime(`[监控服务] 已更新内存中服务器 ${guildId} 的监控消息ID: ${messageId}`);
-                }
-            }
 
             return true;
         } catch (error) {
-            logTime(`[监控服务] 更新配置文件失败: ${error.message}`, true);
+            logTime(`[监控服务] 更新消息ID配置失败: ${error.message}`, true);
             return false;
         }
     }
@@ -195,12 +237,18 @@ class MonitorService {
     /**
      * 更新状态消息
      * @param {Client} client Discord客户端
-     * @param {string} channelId 频道ID
-     * @param {string} messageId 消息ID
      * @param {string} guildId 服务器ID
      */
-    async updateStatusMessage(client, channelId, messageId, guildId) {
+    async updateStatusMessage(client, guildId) {
         try {
+            // 从messageIds.json获取channelId和messageId
+            const { channelId, messageId } = await this.getMonitorIds(guildId);
+
+            if (!channelId) {
+                logTime(`[监控服务] 服务器 ${guildId} 未配置监控频道ID`, true);
+                return;
+            }
+
             const channel = await client.channels.fetch(channelId);
             if (!channel) {
                 throw new Error(`无法获取频道 ${channelId}`);
@@ -228,8 +276,8 @@ class MonitorService {
             // 只有在没有messageId或消息不存在时才创建新消息
             const newMessage = await channel.send({ embeds: [embed] });
 
-            // 更新配置文件
-            await this.updateConfigMessageId(client, guildId, newMessage.id);
+            // 更新messageIds.json
+            await this.updateMonitorMessageId(guildId, channelId, newMessage.id);
 
         } catch (error) {
             logTime(`[监控服务] 更新状态消息失败: ${error.message}`, true);

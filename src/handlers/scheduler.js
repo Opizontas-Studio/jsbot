@@ -669,9 +669,9 @@ class TaskScheduler {
 
     // 注册监控任务
     registerMonitorTasks(client) {
-        // 从配置中获取监控频道ID和消息ID
+        // 遍历所有服务器配置
         for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
-            if (!guildConfig.monitor?.channelId || !guildConfig.monitor?.enabled) {
+            if (!guildConfig.monitor?.enabled) {
                 continue;
             }
 
@@ -681,9 +681,7 @@ class TaskScheduler {
 
             const job = schedule.scheduleJob(rule, async () => {
                 try {
-                    const channelId = guildConfig.monitor.channelId;
-                    const messageId = guildConfig.monitor.messageId;
-                    await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
+                    await monitorService.updateStatusMessage(client, guildId);
                 } catch (error) {
                     logTime(`[定时任务] 监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);
                 }
@@ -695,9 +693,7 @@ class TaskScheduler {
             // 立即执行一次
             (async () => {
                 try {
-                    const channelId = guildConfig.monitor.channelId;
-                    const messageId = guildConfig.monitor.messageId;
-                    await monitorService.updateStatusMessage(client, channelId, messageId, guildId);
+                    await monitorService.updateStatusMessage(client, guildId);
                     logTime(`[定时任务] 已为服务器 ${guildId} 创建监控任务，每分钟执行一次，下次执行时间：${job.nextInvocation().toLocaleString()}`);
                 } catch (error) {
                     logTime(`[定时任务] 初始监控任务执行失败 [服务器 ${guildId}]: ${error.message}`, true);

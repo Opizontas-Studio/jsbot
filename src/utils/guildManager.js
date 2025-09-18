@@ -73,8 +73,6 @@ export class GuildManager {
                 },
                 monitor: {
                     enabled: guildConfig.monitor?.enabled || false,
-                    channelId: guildConfig.monitor?.channelId || null,
-                    messageId: guildConfig.monitor?.messageId || null,
                     roleMonitorCategoryId: guildConfig.monitor?.roleMonitorCategoryId || null,
                     senatorRoleChannelId: guildConfig.monitor?.senatorRoleChannelId || null,
                 },

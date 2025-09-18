@@ -2,7 +2,7 @@ import { Events } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { syncMemberRoles } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
-import { executePunishmentAction } from '../utils/punishmentHelper.js';
+import PunishmentService from '../services/punishmentService.js';
 
 export default {
     name: Events.GuildMemberAdd,
@@ -12,20 +12,15 @@ export default {
             const punishments = await PunishmentModel.getUserPunishments(member.user.id, false);
             if (punishments && punishments.length > 0) {
                 for (const punishment of punishments) {
-                    // 永封类型已经在所有服务器执行过
-                    if (punishment.type === 'ban') {
-                        continue;
-                    }
-
                     // 执行禁言和警告
-                    const success = await executePunishmentAction(member.guild, punishment);
+                    const success = await PunishmentService.executePunishmentAction(member.guild, punishment);
 
                     if (success) {
                         // 更新同步状态
                         const newSyncedServers = [...punishment.syncedServers, member.guild.id];
                         await PunishmentModel.updateSyncStatus(punishment.id, newSyncedServers);
 
-                        logTime(`对加入用户 ${member.user.tag} 同步执行禁言处罚 (处罚ID: ${punishment.id})`);
+                        logTime(`对加入用户 ${member.user.tag} 同步执行处罚 (处罚ID: ${punishment.id})`);
                     }
                 }
             }

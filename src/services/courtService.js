@@ -5,7 +5,7 @@ import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { setupDebateParticipantRoles } from '../services/roleApplication.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
-import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
+import PunishmentService from './punishmentService.js';
 import { VoteService } from './voteService.js';
 
 class CourtService {
@@ -576,7 +576,7 @@ class CourtService {
 
                     // 如果处罚未过期，在所有服务器中移除处罚
                     if (!isPunishmentExpired) {
-                        await revokePunishmentInGuilds(client, punishment, target, '上诉申请通过', { isAppeal: true });
+                        await PunishmentService.revokePunishmentInGuilds(client, punishment, target, '上诉申请通过', { isAppeal: true });
                     }
 
                     // 设置辩诉参与者身份组

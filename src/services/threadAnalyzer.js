@@ -270,14 +270,13 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
             }
         },
         null,
-        'members', // 使用members类型，限制更严格
+        'members', 
     );
 
     const validThreads = basicInfoResults.filter(result => result !== null);
 
     // 筛选出符合条件的子区（关注人数≥950）
     const qualifiedThreads = validThreads.filter(thread => thread.memberCount >= 950);
-    logTime(`数据处理完成：找到 ${qualifiedThreads.length} 个符合条件的子区`);
 
     // 合并统计
     validThreads.forEach(thread => {

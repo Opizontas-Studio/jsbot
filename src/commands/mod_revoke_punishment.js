@@ -1,8 +1,8 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import PunishmentService from '../services/punishmentService.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 
 export default {
     cooldown: 5,
@@ -67,7 +67,7 @@ export default {
             }
 
             // 执行处罚撤销
-            const { success, successfulServers, failedServers } = await revokePunishmentInGuilds(
+            const { success, successfulServers, failedServers } = await PunishmentService.revokePunishmentInGuilds(
                 interaction.client,
                 punishment,
                 target,
@@ -85,9 +85,9 @@ export default {
                                 `您的${punishment.type === 'ban' ? '永封' : '禁言'}处罚已被管理员撤销。`,
                                 '',
                                 '**处罚详情**',
-                                `• 处罚ID：${punishment.id}`,
-                                `• 原处罚原因：${punishment.reason}`,
-                                `• 撤销原因：${reason}`,
+                                `- 处罚ID：${punishment.id}`,
+                                `- 原处罚原因：${punishment.reason}`,
+                                `- 撤销原因：${reason}`,
                             ].join('\n'),
                             timestamp: new Date(),
                         };

@@ -1,4 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
+import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
 
 /**
  * Embed工厂类
@@ -436,6 +437,180 @@ export class EmbedFactory {
             timestamp: new Date(),
             footer: { text: config.footer },
         };
+    }
+
+    // 处罚系统相关embed
+
+    /**
+     * 创建管理日志处罚通知embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @param {Object} target - 目标用户对象
+     * @returns {Object} 原始embed对象
+     */
+    static createModLogPunishmentEmbed(punishment, target) {
+        const targetAvatarURL = target.displayAvatarURL({
+            dynamic: true,
+            size: 64,
+        }) || target.defaultAvatarURL;
+
+        const embed = {
+            color: 0xff0000,
+            title: `${target.username} 已被${EmbedFactory.getPunishmentTypeText(punishment.type)}`,
+            thumbnail: {
+                url: targetAvatarURL,
+            },
+            fields: [
+                {
+                    name: '处罚对象',
+                    value: `<@${target.id}>`,
+                    inline: true,
+                },
+                {
+                    name: '处罚期限',
+                    value: formatPunishmentDuration(punishment.duration),
+                    inline: true,
+                },
+                {
+                    name: '处罚理由',
+                    value: punishment.reason || '未提供原因',
+                },
+            ],
+            timestamp: new Date(),
+            footer: { text: `处罚ID: ${punishment.id}` },
+        };
+
+        // 如果有警告，添加警告信息
+        if (punishment.warningDuration) {
+            embed.fields.push({
+                name: '警告时长',
+                value: formatPunishmentDuration(punishment.warningDuration),
+                inline: true,
+            });
+        }
+
+        // 如果有投票信息，添加链接
+        if (punishment.voteInfo) {
+            const voteLink = `https://discord.com/channels/${punishment.voteInfo.guildId}/${punishment.voteInfo.channelId}/${punishment.voteInfo.messageId}`;
+            embed.fields.push({
+                name: '议会投票',
+                value: `[点击查看投票结果](${voteLink})`,
+                inline: true,
+            });
+        }
+
+        return embed;
+    }
+
+    /**
+     * 创建频道处罚通知embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @param {Object} target - 目标用户对象
+     * @returns {Object} 原始embed对象
+     */
+    static createChannelPunishmentEmbed(punishment, target) {
+        const targetAvatarURL = target.displayAvatarURL({
+            dynamic: true,
+            size: 64,
+        }) || target.defaultAvatarURL;
+
+        const embed = {
+            color: 0xff0000,
+            title: `${EmbedFactory.getPunishmentTypeText(punishment.type)}处罚已执行`,
+            thumbnail: {
+                url: targetAvatarURL,
+            },
+            fields: [
+                {
+                    name: '处罚对象',
+                    value: `<@${target.id}>`,
+                    inline: true,
+                },
+                {
+                    name: '处罚期限',
+                    value: punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久',
+                    inline: true,
+                },
+                {
+                    name: '处罚理由',
+                    value: punishment.reason || '未提供原因',
+                },
+            ],
+            footer: {
+                text: `如有异议，请联系服务器主或在任管理员。`,
+            },
+            timestamp: new Date(),
+        };
+
+        // 如果有警告，添加警告信息
+        if (punishment.warningDuration) {
+            embed.fields.push({
+                name: '附加警告',
+                value: formatPunishmentDuration(punishment.warningDuration),
+                inline: true,
+            });
+        }
+
+        return embed;
+    }
+
+    /**
+     * 创建禁言私信通知embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @returns {Object} 原始embed对象
+     */
+    static createMuteNotificationEmbed(punishment) {
+        return {
+            color: 0xff0000,
+            title: '⚠️ **禁言通知**',
+            description: [
+                '您已在旅程ΟΡΙΖΟΝΤΑΣ被禁言：',
+                `- 禁言期限：${formatPunishmentDuration(punishment.duration)}`,
+                punishment.warningDuration
+                    ? `- 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`
+                    : null,
+                `- 禁言理由：${punishment.reason || '未提供原因'}`,
+            ]
+                .filter(Boolean)
+                .join('\n'),
+            footer: {
+                text: `如有异议，请联系服务器主或在任管理员。`,
+            },
+            timestamp: new Date(),
+        };
+    }
+
+    /**
+     * 创建永封私信通知embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @returns {Object} 原始embed对象
+     */
+    static createBanNotificationEmbed(punishment) {
+        return {
+            color: 0xff0000,
+            title: '⚠️ **永封通知**',
+            description: [
+                '您已在旅程ΟΡΙΖΟΝΤΑΣ被永久封禁：',
+                `- 封禁理由：${punishment.reason || '未提供原因'}`,
+                `- 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
+            ].join('\n'),
+            footer: {
+                text: `如有异议，请联系服务器主或在任管理员。`,
+            },
+            timestamp: new Date(),
+        };
+    }
+
+    /**
+     * 获取处罚类型的中文描述
+     * @param {string} type - 处罚类型
+     * @returns {string} 中文描述
+     */
+    static getPunishmentTypeText(type) {
+        return ({
+            ban: '永封',
+            mute: '禁言',
+            warn: '警告',
+        }[type] || type);
     }
 
     /**

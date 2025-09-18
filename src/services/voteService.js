@@ -228,9 +228,7 @@ class VoteService {
     static async _getSenatorsCount(client) {
         try {
             // 获取主服务器配置
-            const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
-                config => config.serverType === 'Main server',
-            );
+            const mainGuildConfig = client.guildManager.getMainServerConfig();
 
             if (!mainGuildConfig?.courtSystem?.enabled || !mainGuildConfig.roleApplication?.senatorRoleId) {
                 logTime('无法获取主服务器配置或议事系统未启用', true);
@@ -444,11 +442,7 @@ class VoteService {
             }
 
             // 获取主服务器配置
-            const mainGuildConfig = client.guildManager.getGuildConfig(
-                client.guildManager
-                    .getGuildIds()
-                    .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
-            );
+            const mainGuildConfig = client.guildManager.getMainServerConfig();
 
             if (!mainGuildConfig) {
                 throw new Error('无法获取主服务器配置');
@@ -533,11 +527,7 @@ class VoteService {
         if (result === 'red_win') {
             try {
                 // 获取主服务器配置
-                const mainGuildConfig = client.guildManager.getGuildConfig(
-                    client.guildManager
-                        .getGuildIds()
-                        .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
-                );
+                const mainGuildConfig = client.guildManager.getMainServerConfig();
 
                 // 读取身份组同步配置
                 const roleSyncConfig = JSON.parse(readFileSync(roleSyncConfigPath, 'utf8'));
@@ -721,11 +711,7 @@ class VoteService {
 
         if (result.startsWith('red_win')) {
             // 获取主服务器配置
-            const mainGuildConfig = client.guildManager.getGuildConfig(
-                client.guildManager
-                    .getGuildIds()
-                    .find(id => client.guildManager.getGuildConfig(id)?.serverType === 'Main server'),
-            );
+            const mainGuildConfig = client.guildManager.getMainServerConfig();
 
             // 根据结果类型决定处罚内容
             let punishmentType = type === 'court_ban' ? 'ban' : 'mute';

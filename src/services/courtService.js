@@ -349,10 +349,7 @@ class CourtService {
             }
 
             // 获取主服务器配置
-            const mainGuildConfig = client.guildManager
-                .getGuildIds()
-                .map(id => client.guildManager.getGuildConfig(id))
-                .find(config => config?.serverType === 'Main server');
+            const mainGuildConfig = client.guildManager.getMainServerConfig();
 
             if (!mainGuildConfig?.courtSystem?.enabled) {
                 logTime('主服务器未启用议事系统', true);
@@ -917,10 +914,7 @@ class CourtService {
             if (process.messageId) {
                 try {
                     // 获取主服务器配置
-                    const mainGuildConfig = client.guildManager
-                        .getGuildIds()
-                        .map(id => client.guildManager.getGuildConfig(id))
-                        .find(config => config?.serverType === 'Main server');
+                    const mainGuildConfig = client.guildManager.getMainServerConfig();
 
                     if (mainGuildConfig?.courtSystem?.courtChannelId) {
                         const channel = await client.channels.fetch(mainGuildConfig.courtSystem.courtChannelId);

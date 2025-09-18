@@ -201,6 +201,28 @@ export class GuildManager {
     getGuildIds() {
         return Array.from(this.guilds.keys());
     }
+
+    /**
+     * 获取主服务器配置
+     * @returns {Object|null} 主服务器配置对象，如果未找到则返回null
+     */
+    getMainServerConfig() {
+        for (const config of this.guilds.values()) {
+            if (config.serverType === 'Main server') {
+                return config;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 获取主服务器ID
+     * @returns {string|null} 主服务器ID，如果未找到则返回null
+     */
+    getMainServerId() {
+        const mainConfig = this.getMainServerConfig();
+        return mainConfig?.id || null;
+    }
 }
 
 export default GuildManager;

@@ -151,11 +151,10 @@ export default {
                 }
 
                 // 获取主服务器配置
-                const mainGuildConfig = Array.from(interaction.client.guildManager.guilds.values())
-                    .find(config => config.serverType === 'Main server' && config.courtSystem?.enabled);
+                const mainGuildConfig = interaction.client.guildManager.getMainServerConfig();
 
-                // 构建消息链接基础URL（如果可用）
-                const courtChannelId = mainGuildConfig?.courtSystem?.courtChannelId;
+                // 构建消息链接基础URL（如果可用且议事系统已启用）
+                const courtChannelId = mainGuildConfig?.courtSystem?.enabled ? mainGuildConfig.courtSystem.courtChannelId : null;
                 const mainGuildId = mainGuildConfig?.id;
                 const baseMessageUrl = courtChannelId && mainGuildId
                     ? `https://discord.com/channels/${mainGuildId}/${courtChannelId}/`
@@ -265,11 +264,10 @@ export default {
                 }
 
                 // 获取主服务器配置
-                const mainGuildConfig = Array.from(interaction.client.guildManager.guilds.values())
-                    .find(config => config.serverType === 'Main server' && config.courtSystem?.enabled);
+                const mainGuildConfig = interaction.client.guildManager.getMainServerConfig();
 
-                // 构建消息链接和辩诉帖链接的基础URL
-                const debateChannelId = mainGuildConfig?.courtSystem?.debateChannelId;
+                // 构建消息链接和辩诉帖链接的基础URL（如果议事系统已启用）
+                const debateChannelId = mainGuildConfig?.courtSystem?.enabled ? mainGuildConfig.courtSystem.debateChannelId : null;
                 const mainGuildId = mainGuildConfig?.id;
 
                 // 如果筛选了特定用户，直接使用传入的targetUser，否则只缓存API查询唯一值

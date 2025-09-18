@@ -284,9 +284,7 @@ export const setupDebateParticipantRoles = async (client, guildConfig, executorI
 export const handleDebateRolesAfterVote = async (client, executorId, targetId) => {
     try {
         // 获取主服务器配置
-        const mainGuildConfig = Array.from(client.guildManager.guilds.values()).find(
-            config => config.serverType === 'Main server',
-        );
+        const mainGuildConfig = client.guildManager.getMainServerConfig();
 
         if (!mainGuildConfig?.courtSystem?.enabled) {
             return;

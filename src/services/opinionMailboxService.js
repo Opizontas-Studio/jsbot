@@ -25,11 +25,7 @@ class OpinionMailboxService {
             return null;
         }
 
-        const guildIds = client.guildManager.getGuildIds();
-        return guildIds.find(id => {
-            const config = client.guildManager.getGuildConfig(id);
-            return config?.serverType === 'Main server';
-        }) || null;
+        return client.guildManager.getMainServerId();
     }
 
     /**

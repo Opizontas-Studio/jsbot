@@ -264,10 +264,10 @@ async function createMailboxMessage(interaction, channel, guildConfig) {
         }
 
         // 删除旧的意见信箱消息（如果存在）
-        await opinionMailboxService.deleteOldMailboxMessage(channel);
+        await opinionMailboxService.deleteOldMailboxMessage(channel, interaction.client);
 
         // 发送新的意见信箱消息
-        const message = await opinionMailboxService.sendMailboxMessage(channel);
+        const message = await opinionMailboxService.sendMailboxMessage(channel, interaction.client);
 
         logTime(`管理员 ${interaction.user.tag} 在频道 ${channel.name} 创建了社区意见信箱消息 (ID: ${message.id})`);
         await interaction.editReply({

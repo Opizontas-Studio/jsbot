@@ -15,6 +15,23 @@ class OpinionMailboxService {
     }
 
     /**
+     * 获取主服务器ID
+     * @param {Client} client - Discord客户端
+     * @returns {string|null} 主服务器ID或null
+     */
+    getMainGuildId(client) {
+        if (!client?.guildManager) {
+            return null;
+        }
+
+        const guildIds = client.guildManager.getGuildIds();
+        return guildIds.find(id => {
+            const config = client.guildManager.getGuildConfig(id);
+            return config?.serverType === 'Main server';
+        }) || null;
+    }
+
+    /**
      * 加载消息ID配置
      * @returns {Object} 消息ID配置对象
      */
@@ -22,22 +39,10 @@ class OpinionMailboxService {
         try {
             const data = readFileSync(messageIdsPath, 'utf8');
             const messageIds = JSON.parse(data);
-
-            // 确保opinionMailbox结构存在
-            if (!messageIds.opinionMailbox) {
-                messageIds.opinionMailbox = {};
-            }
-
             return messageIds;
         } catch (error) {
             logTime(`[意见信箱] 加载消息ID配置失败，将创建新配置: ${error.message}`, true);
-            return {
-                analysisMessages: {
-                    top10: {},
-                    statistics: {},
-                },
-                opinionMailbox: {}
-            };
+            return {};
         }
     }
 
@@ -94,15 +99,16 @@ class OpinionMailboxService {
     /**
      * 发送意见信箱消息到指定频道
      * @param {Channel} channel - 目标频道
+     * @param {Client} client - Discord客户端
      * @returns {Promise<Message>} 发送的消息对象
      */
-    async sendMailboxMessage(channel) {
+    async sendMailboxMessage(channel, client) {
         try {
             const messageContent = this.createMailboxMessage();
             const message = await channel.send(messageContent);
 
             // 更新消息ID记录
-            this.updateMailboxMessageId(channel.id, message.id);
+            this.updateMailboxMessageId(channel.id, message.id, client);
 
             return message;
         } catch (error) {
@@ -115,11 +121,24 @@ class OpinionMailboxService {
      * 更新频道的意见信箱消息ID记录
      * @param {string} channelId - 频道ID
      * @param {string} messageId - 消息ID
+     * @param {Client} client - Discord客户端（用于获取主服务器ID）
      */
-    updateMailboxMessageId(channelId, messageId) {
+    updateMailboxMessageId(channelId, messageId, client) {
+        const guildId = this.getMainGuildId(client);
+        if (!guildId) {
+            throw new Error('无法获取主服务器ID');
+        }
         try {
+            // 确保服务器结构存在
+            if (!this.messageIds[guildId]) {
+                this.messageIds[guildId] = {};
+            }
+            if (!this.messageIds[guildId].opinionMailbox) {
+                this.messageIds[guildId].opinionMailbox = {};
+            }
+
             // 更新内存中的配置
-            this.messageIds.opinionMailbox[channelId] = messageId;
+            this.messageIds[guildId].opinionMailbox[channelId] = messageId;
 
             // 保存到文件
             this.saveMessageIds(this.messageIds);
@@ -134,20 +153,26 @@ class OpinionMailboxService {
     /**
      * 获取频道的意见信箱消息ID
      * @param {string} channelId - 频道ID
+     * @param {Client} client - Discord客户端（用于获取主服务器ID）
      * @returns {string|null} 消息ID或null
      */
-    getMailboxMessageId(channelId) {
-        return this.messageIds.opinionMailbox[channelId] || null;
+    getMailboxMessageId(channelId, client) {
+        const guildId = this.getMainGuildId(client);
+        if (!guildId) {
+            return null;
+        }
+        return this.messageIds[guildId]?.opinionMailbox?.[channelId] || null;
     }
 
     /**
      * 删除旧的意见信箱消息
      * @param {Channel} channel - 频道对象
+     * @param {Client} client - Discord客户端
      * @returns {Promise<boolean>} 删除是否成功
      */
-    async deleteOldMailboxMessage(channel) {
+    async deleteOldMailboxMessage(channel, client) {
         try {
-            const oldMessageId = this.getMailboxMessageId(channel.id);
+            const oldMessageId = this.getMailboxMessageId(channel.id, client);
             if (!oldMessageId) {
                 return false;
             }
@@ -208,10 +233,10 @@ class OpinionMailboxService {
             }
 
             // 如果最后一条消息不是BOT发送的，删除旧的意见信箱入口并重新发送
-            await this.deleteOldMailboxMessage(channel);
+            await this.deleteOldMailboxMessage(channel, client);
 
             // 发送新的意见信箱消息
-            await this.sendMailboxMessage(channel);
+            await this.sendMailboxMessage(channel, client);
 
             logTime(`[意见信箱] 已完成频道 ${channel.name} 的意见信箱入口维护`);
             return true;
@@ -223,10 +248,15 @@ class OpinionMailboxService {
 
     /**
      * 获取所有有意见信箱入口消息记录的频道列表
+     * @param {Client} client - Discord客户端（用于获取主服务器ID）
      * @returns {Array} 需要维护的频道ID列表
      */
-    getMailboxChannels() {
-        return Object.keys(this.messageIds.opinionMailbox);
+    getMailboxChannels(client) {
+        const guildId = this.getMainGuildId(client);
+        if (!guildId) {
+            return [];
+        }
+        return Object.keys(this.messageIds[guildId]?.opinionMailbox || {});
     }
 
     /**
@@ -236,7 +266,8 @@ class OpinionMailboxService {
      */
     async maintainAllMailboxMessages(client) {
         try {
-            const channelIds = this.getMailboxChannels();
+            // 获取主服务器的频道列表
+            const channelIds = this.getMailboxChannels(client);
             let maintainedCount = 0;
 
             for (const channelId of channelIds) {

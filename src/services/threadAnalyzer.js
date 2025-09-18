@@ -32,28 +32,11 @@ async function loadMessageIds() {
     try {
         const data = await fs.readFile(MESSAGE_IDS_PATH, 'utf8');
         const messageIds = JSON.parse(data);
-
-        // 确保所有必要的结构都存在
-        if (!messageIds.analysisMessages) {
-            messageIds.analysisMessages = {};
-        }
-
-        ['top10', 'statistics'].forEach(type => {
-            if (!messageIds.analysisMessages[type]) {
-                messageIds.analysisMessages[type] = {};
-            }
-        });
-
         return messageIds;
     } catch (error) {
         // 如果文件不存在或解析失败，创建新的配置
         logTime(`加载消息ID配置失败，将创建新配置: ${error.message}`, true);
-        return {
-            analysisMessages: {
-                top10: {},
-                statistics: {},
-            },
-        };
+        return {};
     }
 }
 
@@ -74,15 +57,24 @@ async function saveMessageIds(messageIds) {
  * @returns {Promise<Message>} Discord消息对象
  */
 export async function getOrCreateMessage(channel, type, guildId, messageIds) {
-    const guildMessageId = messageIds.analysisMessages[type][guildId];
+    // 确保服务器结构存在
+    if (!messageIds[guildId]) {
+        messageIds[guildId] = {};
+    }
+    if (!messageIds[guildId][type]) {
+        messageIds[guildId][type] = {};
+    }
 
-    if (guildMessageId) {
+    const channelId = channel.id;
+    const existingMessageId = messageIds[guildId][type][channelId];
+
+    if (existingMessageId) {
         try {
-            return await channel.messages.fetch(guildMessageId);
+            return await channel.messages.fetch(existingMessageId);
         } catch (error) {
             // 如果消息不存在，从配置中删除
             logTime(`消息ID配置中不存在消息: ${error.message}`, true);
-            delete messageIds.analysisMessages[type][guildId];
+            delete messageIds[guildId][type][channelId];
             await saveMessageIds(messageIds);
         }
     }
@@ -96,7 +88,7 @@ export async function getOrCreateMessage(channel, type, guildId, messageIds) {
     const message = await channel.send({ embeds: [initialEmbed] });
 
     // 保存新消息ID
-    messageIds.analysisMessages[type][guildId] = message.id;
+    messageIds[guildId][type][channelId] = message.id;
     await saveMessageIds(messageIds);
     return message;
 }

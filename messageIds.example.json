@@ -1,12 +1,21 @@
 {
-  "analysisMessages": {
-    "top10": {
-      "guildId1": "messageId1",
-      "guildId2": "messageId2"
+    "guildId1": {
+        "top10": {
+            "channelId1": "messageId1"
+        },
+        "statistics": {
+            "channelId1": "messageId3"
+        }
     },
-    "statistics": {
-      "guildId1": "messageId3",
-      "guildId2": "messageId4"
+    "guildId2": {
+        "top10": {
+            "channelId2": "messageId2"
+        },
+        "statistics": {
+            "channelId2": "messageId4"
+        },
+        "opinionMailbox": {
+            "channelId3": "messageId5"
+        }
     }
-  }
 }

@@ -2,7 +2,8 @@ import { ChannelType } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
 import { ProcessModel } from '../db/models/processModel.js';
-import { manageRolesByGroups, updateOpinionRecord } from '../services/roleApplication.js';
+import { opinionMailboxService } from '../services/opinionMailboxService.js';
+import { manageRolesByGroups } from '../services/roleApplication.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -164,7 +165,7 @@ const handleSubmissionReview = async (interaction, isApproved) => {
 
         // 如果是批准，需要更新意见记录
         if (isApproved) {
-            const result = await updateOpinionRecord(userId, submissionType, true, submissionData);
+            const result = await opinionMailboxService.updateOpinionRecord(userId, submissionType, true, submissionData);
             if (!result.success) {
                 await interaction.editReply({
                     content: `❌ ${result.message}`,

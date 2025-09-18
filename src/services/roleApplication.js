@@ -6,9 +6,9 @@ import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
+import { opinionMailboxService } from './opinionMailboxService.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
-const opinionRecordsPath = join(process.cwd(), 'data', 'opinionRecords.json');
 const blacklistPath = join(process.cwd(), 'data', 'blacklist.json');
 
 /**
@@ -384,7 +384,7 @@ export async function validateVolunteerApplication(member, guildConfig) {
         }
 
         // 4. 检查是否有有效的投稿记录
-        const hasValidSubmission = hasValidSubmissionRecord(member.user.id);
+        const hasValidSubmission = opinionMailboxService.hasValidSubmissionRecord(member.user.id);
 
         if (hasValidSubmission) {
             return {
@@ -580,111 +580,6 @@ export async function exitVolunteerRole(interaction) {
     } catch (error) {
         logTime(`[身份同步] 处理用户退出志愿者身份组时发生错误: ${error.message}`, true);
         await handleInteractionError(interaction, error);
-    }
-}
-
-/**
- * 读取意见记录配置
- * @returns {Object} 意见记录配置对象
- */
-export const getOpinionRecords = () => {
-    try {
-        return JSON.parse(readFileSync(opinionRecordsPath, 'utf8'));
-    } catch (error) {
-        logTime(`[意见记录] 读取意见记录配置失败: ${error.message}`, true);
-        // 如果文件不存在，返回默认结构
-        return {
-            validSubmissions: []
-        };
-    }
-};
-
-/**
- * 写入意见记录配置
- * @param {Object} records - 意见记录对象
- */
-export const saveOpinionRecords = (records) => {
-    try {
-        writeFileSync(opinionRecordsPath, JSON.stringify(records, null, 4), 'utf8');
-    } catch (error) {
-        logTime(`[意见记录] 保存意见记录配置失败: ${error.message}`, true);
-        throw error;
-    }
-};
-
-/**
- * 更新意见记录
- * @param {string} userId - 用户ID
- * @param {string} submissionType - 投稿类型 (news/opinion)
- * @param {boolean} isApproved - 是否被批准
- * @param {Object} [submissionData] - 投稿数据 {title: string, content: string}
- * @returns {Promise<{success: boolean, message: string}>}
- */
-export async function updateOpinionRecord(userId, submissionType, isApproved, submissionData = null) {
-    try {
-        if (!isApproved) {
-            // 如果是拒绝，不需要记录到文件中
-            return {
-                success: true,
-                message: '投稿已标记为不合理'
-            };
-        }
-
-        // 读取现有记录
-        const records = getOpinionRecords();
-
-        // 检查用户是否已有记录
-        const existingUserRecord = records.validSubmissions.find(record => record.userId === userId);
-
-        const submissionRecord = {
-            type: submissionType,
-            title: submissionData?.title || '未记录标题',
-            content: submissionData?.content || '未记录内容',
-            approvedAt: new Date().toISOString()
-        };
-
-        if (existingUserRecord) {
-            // 更新现有用户记录
-            existingUserRecord.submissions.push(submissionRecord);
-        } else {
-            // 创建新用户记录
-            records.validSubmissions.push({
-                userId: userId,
-                submissions: [submissionRecord]
-            });
-        }
-
-        // 保存记录
-        saveOpinionRecords(records);
-
-        logTime(`[意见记录] 已记录用户 ${userId} 的有效${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionRecord.title}"`);
-
-        return {
-            success: true,
-            message: '投稿已标记为合理并记录'
-        };
-    } catch (error) {
-        logTime(`[意见记录] 更新意见记录失败: ${error.message}`, true);
-        return {
-            success: false,
-            message: '更新记录时出错'
-        };
-    }
-}
-
-/**
- * 检查用户是否有有效的投稿记录
- * @param {string} userId - 用户ID
- * @returns {boolean} 是否有有效记录
- */
-export function hasValidSubmissionRecord(userId) {
-    try {
-        const records = getOpinionRecords();
-        const userRecord = records.validSubmissions.find(record => record.userId === userId);
-        return userRecord && userRecord.submissions.length > 0;
-    } catch (error) {
-        logTime(`[意见记录] 检查投稿记录失败: ${error.message}`, true);
-        return false;
     }
 }
 

@@ -5,6 +5,7 @@ import { delay } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
 const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
+const opinionRecordsPath = join(process.cwd(), 'data', 'opinionRecords.json');
 
 /**
  * 意见信箱服务类
@@ -284,6 +285,111 @@ class OpinionMailboxService {
         } catch (error) {
             logTime(`[意见信箱] 批量维护意见信箱消息失败: ${error.message}`, true);
             return 0;
+        }
+    }
+
+    /**
+     * 读取意见记录配置
+     * @returns {Object} 意见记录配置对象
+     */
+    getOpinionRecords() {
+        try {
+            return JSON.parse(readFileSync(opinionRecordsPath, 'utf8'));
+        } catch (error) {
+            logTime(`[意见记录] 读取意见记录配置失败: ${error.message}`, true);
+            // 如果文件不存在，返回默认结构
+            return {
+                validSubmissions: []
+            };
+        }
+    }
+
+    /**
+     * 写入意见记录配置
+     * @param {Object} records - 意见记录对象
+     */
+    saveOpinionRecords(records) {
+        try {
+            writeFileSync(opinionRecordsPath, JSON.stringify(records, null, 4), 'utf8');
+        } catch (error) {
+            logTime(`[意见记录] 保存意见记录配置失败: ${error.message}`, true);
+            throw error;
+        }
+    }
+
+    /**
+     * 更新意见记录
+     * @param {string} userId - 用户ID
+     * @param {string} submissionType - 投稿类型 (news/opinion)
+     * @param {boolean} isApproved - 是否被批准
+     * @param {Object} [submissionData] - 投稿数据 {title: string, content: string}
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async updateOpinionRecord(userId, submissionType, isApproved, submissionData = null) {
+        try {
+            if (!isApproved) {
+                // 如果是拒绝，不需要记录到文件中
+                return {
+                    success: true,
+                    message: '投稿已标记为不合理'
+                };
+            }
+
+            // 读取现有记录
+            const records = this.getOpinionRecords();
+
+            // 检查用户是否已有记录
+            const existingUserRecord = records.validSubmissions.find(record => record.userId === userId);
+
+            const submissionRecord = {
+                type: submissionType,
+                title: submissionData?.title || '未记录标题',
+                content: submissionData?.content || '未记录内容',
+                approvedAt: new Date().toISOString()
+            };
+
+            if (existingUserRecord) {
+                // 更新现有用户记录
+                existingUserRecord.submissions.push(submissionRecord);
+            } else {
+                // 创建新用户记录
+                records.validSubmissions.push({
+                    userId: userId,
+                    submissions: [submissionRecord]
+                });
+            }
+
+            // 保存记录
+            this.saveOpinionRecords(records);
+
+            logTime(`[意见记录] 已记录用户 ${userId} 的有效${submissionType === 'news' ? '新闻投稿' : '社区意见'}: "${submissionRecord.title}"`);
+
+            return {
+                success: true,
+                message: '投稿已标记为合理并记录'
+            };
+        } catch (error) {
+            logTime(`[意见记录] 更新意见记录失败: ${error.message}`, true);
+            return {
+                success: false,
+                message: '更新记录时出错'
+            };
+        }
+    }
+
+    /**
+     * 检查用户是否有有效的投稿记录
+     * @param {string} userId - 用户ID
+     * @returns {boolean} 是否有有效记录
+     */
+    hasValidSubmissionRecord(userId) {
+        try {
+            const records = this.getOpinionRecords();
+            const userRecord = records.validSubmissions.find(record => record.userId === userId);
+            return userRecord && userRecord.submissions.length > 0;
+        } catch (error) {
+            logTime(`[意见记录] 检查投稿记录失败: ${error.message}`, true);
+            return false;
         }
     }
 }

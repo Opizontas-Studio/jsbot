@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { EmbedFactory } from '../factories/embedFactory.js';
 import { delay, globalBatchProcessor, globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 
@@ -120,51 +121,13 @@ export const sendThreadReport = async (thread, result, options = {}) => {
         const cache = await loadThreadCache(thread.id);
         const autoCleanupEnabled = cache?.autoCleanupEnabled ?? true;
 
-        const typeConfig = {
-            auto: {
-                color: 0x00ff88,
-                title: '🤖 自动清理完成',
-                description: '系统已移除部分未发言成员，阈值继承上次设置。',
-            },
-            manual: {
-                color: 0xffcc00,
-                title: '👤 手动清理完成',
-                description: `为保持子区正常运行，系统已移除部分未发言成员${autoCleanupEnabled ? '，自动清理已启用' : '，自动清理已禁用'}。`,
-            },
-            admin: {
-                color: 0xff6600,
-                title: '🛡️ 管理员清理完成',
-                description: `为保持子区正常运行，系统已移除部分未发言成员${autoCleanupEnabled ? '，自动清理已启用' : '，自动清理已禁用'}。`,
-            }
-        };
-
-        const config = typeConfig[type];
+        const embed = EmbedFactory.createThreadCleanupReportEmbed(result, {
+            type,
+            autoCleanupEnabled
+        });
 
         await thread.send({
-            embeds: [
-                {
-                    color: config.color,
-                    title: config.title,
-                    description: [
-                        config.description,
-                        `被移除的成员可以随时重新加入讨论。`,
-                    ].join('\n'),
-                    fields: [
-                        {
-                            name: '统计信息',
-                            value: [
-                                `原始人数: ${result.originalCount}`,
-                                `移除人数: ${result.removedCount}`,
-                                result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
-                            ]
-                                .filter(Boolean)
-                                .join('\n'),
-                            inline: false,
-                        },
-                    ],
-                    timestamp: new Date(),
-                },
-            ],
+            embeds: [embed],
         });
     } catch (error) {
         logTime(`发送子区报告失败 ${thread.name}: ${error.message}`, true);
@@ -184,50 +147,15 @@ export const sendLogReport = async (client, logChannelId, result, options = {}) 
     try {
         const { type = 'manual', executor } = options;
 
-        const typeConfig = {
-            auto: {
-                color: 0x00ff88,
-                title: '🤖 自动清理报告',
-                footer: '论坛自动化系统'
-            },
-            manual: {
-                color: 0xffcc00,
-                title: '👤 用户清理报告',
-                footer: executor ? `用户清理 · 执行者: ${executor.tag}` : '论坛管理系统'
-            },
-            admin: {
-                color: 0xff6600,
-                title: '🛡️ 管理员清理报告',
-                footer: executor ? `管理员清理 · 执行者: ${executor.tag}` : '论坛管理系统'
-            }
-        };
+        const embed = EmbedFactory.createLogCleanupReportEmbed(result, {
+            type,
+            executor
+        });
 
-        const config = typeConfig[type];
         const logChannel = await client.channels.fetch(logChannelId);
 
         await logChannel.send({
-            embeds: [
-                {
-                    color: config.color,
-                    title: config.title,
-                    fields: [
-                        {
-                            name: result.name,
-                            value: [
-                                `[跳转到子区](${result.url})`,
-                                `原始人数: ${result.originalCount}`,
-                                `移除人数: ${result.removedCount}`,
-                                result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
-                            ]
-                                .filter(Boolean)
-                                .join('\n'),
-                            inline: false,
-                        },
-                    ],
-                    timestamp: new Date(),
-                    footer: { text: config.footer },
-                },
-            ],
+            embeds: [embed],
         });
     } catch (error) {
         logTime(`发送管理日志失败: ${error.message}`, true);

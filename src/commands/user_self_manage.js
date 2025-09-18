@@ -24,13 +24,13 @@ export default {
                 .setDescription('标注或取消标注一条消息')
                 .addStringOption(option =>
                     option
-                        .setName('消息链接') // 消息链接参数是必要的，不可以和操作参数合并！
+                        .setName('消息链接')
                         .setDescription('要标注的消息链接')
                         .setRequired(true),
                 )
                 .addStringOption(option =>
                     option
-                        .setName('操作') // 操作参数是必要的，不可以删除！
+                        .setName('操作')
                         .setDescription('选择标注或取消标注')
                         .setRequired(true)
                         .addChoices({ name: '标注', value: 'pin' }, { name: '取消标注', value: 'unpin' }),
@@ -638,12 +638,12 @@ export default {
                                 embeds: [],
                             });
 
-                            const MAX_MESSAGES_TO_SCAN = 15000; // 新增：定义最大扫描消息数量
+                            const MAX_MESSAGES_TO_SCAN = 10000;
                             let lastId = null;
                             let messagesProcessed = 0;
                             let deletedCount = 0;
                             let hasMoreMessages = true;
-                            let limitReached = false; // 新增：标记是否达到扫描上限
+                            let limitReached = false;
 
                             /**
                              * 更新操作进度
@@ -708,8 +708,8 @@ export default {
                                             logTime(`删除用户消息失败 (${message.id}): ${error.message}`, true);
                                         }
                                     }
-                                    // 新增：如果因为达到上限而停止，确保最后一次进度更新
-                                    if (limitReached && !hasMoreMessages) { // 确保只在循环即将结束时调用
+                                    //如果因为达到上限而停止，确保最后一次进度更新
+                                    if (limitReached && !hasMoreMessages) {
                                         await updateProgress('已达到扫描上限，正在完成当前批次删除');
                                     }
                                 }
@@ -718,7 +718,7 @@ export default {
                                 try {
                                     await thread.members.remove(targetUser.id);
 
-                                    // 修改：根据是否达到上限更新最终结果
+                                    //根据是否达到上限更新最终结果
                                     const finalMessage = limitReached
                                         ? `✅ 已扫描 ${messagesProcessed} 条消息（达到上限）。已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息并将其移出子区。`
                                         : `✅ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息并将其移出子区`;
@@ -728,10 +728,8 @@ export default {
                                         embeds: [],
                                     });
 
-                                    // 修改：更新日志记录
                                     logTime(`[自助管理] 楼主 ${interaction.user.tag} 删除了用户 ${targetUser.tag} 在帖子 ${thread.name} 中的 ${deletedCount} 条消息并将其移出子区${limitReached ? ` (扫描达到 ${MAX_MESSAGES_TO_SCAN} 条上限，共扫描 ${messagesProcessed} 条)` : ''}`);
                                 } catch (error) {
-                                    // 修改：根据是否达到上限更新结果，但报告移除成员失败
                                     const finalMessage = limitReached
                                         ? `⚠️ 已扫描 ${messagesProcessed} 条消息（达到上限）。已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`
                                         : `⚠️ 已删除用户 ${targetUser.tag} 的 ${deletedCount} 条消息，但移出子区失败: ${error.message}`;

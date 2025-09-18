@@ -33,11 +33,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
     return await ErrorHandler.handleService(
         async () => {
             // 读取身份组同步配置
-            const roleSyncConfig = ErrorHandler.handleSilentSync(
-                () => getRoleSyncConfig(),
-                "读取身份组同步配置",
-                { syncGroups: [] }
-            );
+            const roleSyncConfig = getRoleSyncConfig();
             const syncedRoles = [];
             const guildRolesMap = new Map(); // Map<guildId, Set<roleId>>
             const guildSyncGroups = new Map(); // Map<guildId, Map<roleId, {name, sourceServer}>>
@@ -272,11 +268,7 @@ export const setupDebateParticipantRoles = async (client, guildConfig, executorI
             await Promise.all(addRolePromises);
 
             // 3. 获取已验证身份组的同步组
-            const roleSyncConfig = ErrorHandler.handleSilentSync(
-                () => getRoleSyncConfig(),
-                "读取身份组同步配置",
-                { syncGroups: [] }
-            );
+            const roleSyncConfig = getRoleSyncConfig();
             const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
             const verifiedGroup = syncGroups.find(group => group.name === '已验证');
 
@@ -351,11 +343,7 @@ export const handleDebateRolesAfterVote = async (client, executorId, targetId) =
             await ErrorHandler.handleSilent(
                 async () => {
                     // 获取已验证身份组的同步组
-                    const roleSyncConfig = ErrorHandler.handleSilentSync(
-                        () => getRoleSyncConfig(),
-                        "读取身份组同步配置",
-                        { syncGroups: [] }
-                    );
+                    const roleSyncConfig = getRoleSyncConfig();
                     const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
                     const verifiedGroup = syncGroups.find(group => group.name === '已验证');
 
@@ -451,11 +439,7 @@ export async function applyVolunteerRole(interaction) {
         interaction,
         async () => {
             // 获取志愿者身份组的同步配置
-            const roleSyncConfig = ErrorHandler.handleSilentSync(
-                () => getRoleSyncConfig(),
-                "读取身份组同步配置",
-                { syncGroups: [] }
-            );
+            const roleSyncConfig = getRoleSyncConfig();
             const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
             const volunteerSyncGroup = syncGroups.find(group => group.name === '社区志愿者');
 
@@ -513,11 +497,7 @@ export async function exitVolunteerRole(interaction) {
             }
 
             // 获取身份组同步配置
-            const roleSyncConfig = ErrorHandler.handleSilentSync(
-                () => getRoleSyncConfig(),
-                "读取身份组同步配置",
-                { syncGroups: [] }
-            );
+            const roleSyncConfig = getRoleSyncConfig();
 
             // 查找志愿者同步组
             const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
@@ -646,12 +626,8 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                 });
 
                 if (maxReactions >= 5) {
-                    // 读取身份组同步配置（可容错操作）
-                    const roleSyncConfig = ErrorHandler.handleSilentSync(
-                        () => getRoleSyncConfig(),
-                        "加载身份组同步配置",
-                        { syncGroups: [] }
-                    );
+                    // 读取身份组同步配置
+                    const roleSyncConfig = getRoleSyncConfig();
 
                     // 确保syncGroups存在且为数组
                     const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];

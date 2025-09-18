@@ -141,6 +141,71 @@ export class EmbedFactory {
             .setFooter({ text: '系统监控' });
     }
 
+    // 子区分析相关embed
+
+    /**
+     * 创建符合条件子区列表的空状态embed
+     * @returns {Object} 原始embed对象
+     */
+    static createEmptyQualifiedThreadsEmbed() {
+        return {
+            color: 0x0099ff,
+            title: '950人以上关注的子区轮播',
+            description: '[【点此查看申请标准】](https://discord.com/channels/1291925535324110879/1374952785975443466/1374954348655804477)，满足条件的创作者可以到[【申请通道】](https://discord.com/channels/1291925535324110879/1374608096076500992)提交申请。现在也允许多人合作申请频道。\n\n🔍 当前没有达到950关注的子区',
+            timestamp: new Date(),
+            fields: [],
+        };
+    }
+
+    /**
+     * 创建子区活跃度统计报告embed
+     * @param {Object} statistics - 统计数据
+     * @param {Array<Object>} failedOperations - 失败记录
+     * @returns {Object} 原始embed对象
+     */
+    static createStatisticsReportEmbed(statistics, failedOperations) {
+        const embed = {
+            color: 0x00ff99,
+            title: '子区活跃度分析报告',
+            timestamp: new Date(),
+            fields: [
+                {
+                    name: '总体统计',
+                    value: [
+                        `总活跃子区数: ${statistics.totalThreads}`,
+                        `处理出错数量: ${statistics.processedWithErrors}`,
+                        `72小时以上不活跃: ${statistics.inactiveThreads.over72h}`,
+                        `48小时以上不活跃: ${statistics.inactiveThreads.over48h}`,
+                        `24小时以上不活跃: ${statistics.inactiveThreads.over24h}`,
+                        `符合频道主条件(≥950关注): ${statistics.qualifiedThreads.over900Members}`,
+                    ].join('\n'),
+                    inline: false,
+                },
+                {
+                    name: '频道分布',
+                    value: Object.values(statistics.forumDistribution)
+                        .sort((a, b) => b.count - a.count)
+                        .map(forum => `${forum.name}: ${forum.count}个活跃子区`)
+                        .join('\n'),
+                    inline: false,
+                },
+            ],
+        };
+
+        if (failedOperations.length > 0) {
+            embed.fields.push({
+                name: '处理失败记录',
+                value: failedOperations
+                    .slice(0, 10)
+                    .map(fail => `${fail.threadName}: ${fail.operation} (${fail.error})`)
+                    .join('\n'),
+                inline: false,
+            });
+        }
+
+        return embed;
+    }
+
     /**
      * 常用颜色常量
      */

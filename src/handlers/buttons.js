@@ -1,12 +1,6 @@
 import { ProcessModel } from '../db/models/processModel.js';
+import { ModalFactory } from '../factories/modalFactory.js';
 import CourtService from '../services/courtService.js';
-import {
-    createApproveSubmissionModal,
-    createCreatorRoleModal,
-    createDebateModal,
-    createOpinionSubmissionModal,
-    createRejectSubmissionModal
-} from '../services/modalService.js';
 import {
     applyVolunteerRole,
     exitVolunteerRole,
@@ -17,7 +11,6 @@ import { VoteService } from '../services/voteService.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { globalCooldownManager } from '../utils/cooldownManager.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
-import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 
 /**
@@ -77,14 +70,13 @@ export const buttonHandlers = {
         }
 
         // 显示申请表单
-        const modal = createCreatorRoleModal();
+        const modal = ModalFactory.createCreatorRoleModal();
 
         await interaction.showModal(modal);
     },
 
     // 志愿者身份组申请按钮处理器
     apply_volunteer_role: async interaction => {
-
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
         if (!guildConfig.roleApplication?.volunteerRoleId) {
@@ -113,16 +105,12 @@ export const buttonHandlers = {
         }
 
         // 如果验证通过，自动授予志愿者身份组
-        try {
-            await applyVolunteerRole(interaction);
-        } catch (error) {
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.editReply({
-                    content: '❌ 申请志愿者身份组时出错，请稍后重试',
-                });
-            }
-            logTime(`志愿者申请失败: ${error.message}`, true);
-        }
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => applyVolunteerRole(interaction),
+            '申请志愿者身份组',
+            { ephemeral: true }
+        );
     },
 
     // 志愿者身份组退出按钮处理器
@@ -189,34 +177,29 @@ export const buttonHandlers = {
 
     // 身份组同步按钮处理器
     sync_roles: async interaction => {
+        const result = await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 同步身份组
+                const { syncedRoles } = await syncMemberRoles(interaction.member);
 
-        try {
-            // 同步身份组
-            const { syncedRoles } = await syncMemberRoles(interaction.member);
+                // 构建回复消息
+                if (syncedRoles.length > 0) {
+                    const replyContent = [
+                        '身份组同步完成',
+                        '',
+                        '**同步成功的身份组：**',
+                        ...syncedRoles.map(role => `• ${role.name} (从 ${role.sourceServer} 同步到 ${role.targetServer})`),
+                    ].join('\n');
 
-            // 构建回复消息
-            let replyContent;
-            if (syncedRoles.length > 0) {
-                replyContent = [
-                    '✅ 身份组同步完成',
-                    '',
-                    '**同步成功的身份组：**',
-                    ...syncedRoles.map(role => `• ${role.name} (从 ${role.sourceServer} 同步到 ${role.targetServer})`),
-                ].join('\n');
-            } else {
-                replyContent = ['✅ 没有需要同步的身份组'].join('\n');
-            }
-
-            // 回复用户
-            await interaction.editReply({
-                content: replyContent,
-            });
-        } catch (error) {
-            await interaction.editReply({
-                content: '❌ 同步身份组时出错，请稍后重试',
-            });
-            logTime(`同步身份组失败: ${error.message}`, true);
-        }
+                    await interaction.editReply({ content: `✅ ${replyContent}` });
+                } else {
+                    await interaction.editReply({ content: '✅ 没有需要同步的身份组' });
+                }
+            },
+            '同步身份组',
+            { ephemeral: true }
+        );
     },
 
     // 提交议事按钮处理器
@@ -264,86 +247,94 @@ export const buttonHandlers = {
         }
 
         // 创建模态框
-        const modal = createDebateModal();
+        const modal = ModalFactory.createDebateModal();
 
         await interaction.showModal(modal);
     },
 
     // 撤销流程按钮处理器
     revoke_process: async interaction => {
-        try {
-            // 获取议事消息
-            const message = interaction.message;
+        // 获取议事消息
+        const message = interaction.message;
 
-            // 解析按钮ID获取提交者ID和流程类型
-            const [, , submitterId, processType] = interaction.customId.split('_');
+        // 解析按钮ID获取提交者ID和流程类型
+        const [, , submitterId, processType] = interaction.customId.split('_');
 
-            // 检查是否是提交者本人
-            if (interaction.user.id !== submitterId) {
-                await interaction.editReply({
-                    content: '❌ 只有申请人本人可以撤销申请',
-                });
-                return;
-            }
-
-            // 使用CourtService撤销流程
-            const result = await CourtService.revokeProcess({
-                messageId: message.id,
-                revokedBy: interaction.user,
-                isAdmin: false,
-                client: interaction.client,
-                user: interaction.user
-            });
-
+        // 检查是否是提交者本人
+        if (interaction.user.id !== submitterId) {
             await interaction.editReply({
-                content: result.success ? result.message : `❌ ${result.message}`,
+                content: '❌ 只有申请人本人可以撤销申请',
             });
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'revoke_process');
+            return;
         }
+
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 使用CourtService撤销流程
+                const result = await CourtService.revokeProcess({
+                    messageId: message.id,
+                    revokedBy: interaction.user,
+                    isAdmin: false,
+                    client: interaction.client,
+                    user: interaction.user
+                });
+
+                await interaction.editReply({
+                    content: result.success ? result.message : `❌ ${result.message}`,
+                });
+            },
+            '撤销流程',
+            { ephemeral: true }
+        );
     },
 
     // 投稿社区意见按钮处理器
     submit_opinion: async interaction => {
-        try {
-
-            // 创建意见表单
-            const modal = createOpinionSubmissionModal();
-
-            await interaction.showModal(modal);
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'submit_opinion_button');
-        }
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 创建意见表单
+                const modal = ModalFactory.createOpinionSubmissionModal();
+                await interaction.showModal(modal);
+            },
+            '显示投稿表单',
+            { ephemeral: true }
+        );
     },
 
     // 批准投稿按钮处理器
     approve_submission: async interaction => {
-        try {
-            // 解析按钮ID获取用户ID和投稿类型
-            const [, , userId, submissionType] = interaction.customId.split('_');
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 解析按钮ID获取用户ID和投稿类型
+                const [, , userId, submissionType] = interaction.customId.split('_');
 
-            // 创建批准投稿模态框，传递消息ID
-            const modal = createApproveSubmissionModal(userId, submissionType, interaction.message.id);
-
-            await interaction.showModal(modal);
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'approve_submission');
-        }
+                // 创建批准投稿模态框，传递消息ID
+                const modal = ModalFactory.createApproveSubmissionModal(userId, submissionType, interaction.message.id);
+                await interaction.showModal(modal);
+            },
+            '显示批准投稿表单',
+            { ephemeral: true }
+        );
     },
 
     // 拒绝投稿按钮处理器
     reject_submission: async interaction => {
-        try {
-            // 解析按钮ID获取用户ID和投稿类型
-            const [, , userId, submissionType] = interaction.customId.split('_');
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 解析按钮ID获取用户ID和投稿类型
+                const [, , userId, submissionType] = interaction.customId.split('_');
 
-            // 创建拒绝投稿模态框，传递消息ID
-            const modal = createRejectSubmissionModal(userId, submissionType, interaction.message.id);
-
-            await interaction.showModal(modal);
-        } catch (error) {
-            await handleInteractionError(interaction, error, 'reject_submission');
-        }
+                // 创建拒绝投稿模态框，传递消息ID
+                const modal = ModalFactory.createRejectSubmissionModal(userId, submissionType, interaction.message.id);
+                await interaction.showModal(modal);
+            },
+            '显示拒绝投稿表单',
+            { ephemeral: true }
+        );
     },
 };
 

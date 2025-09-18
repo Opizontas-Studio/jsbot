@@ -231,19 +231,6 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
         threadArray,
         async thread => {
             try {
-                // 处理置顶子区
-                if (thread.flags.has(ChannelFlags.Pinned)) {
-                    try {
-                        // 无条件确保子区开启和标注
-                        await thread.setArchived(true, '定时重归档');
-                        await delay(300);
-                        await thread.setArchived(false, '定时重归档');
-                        await thread.pin('保持标注');
-                    } catch (error) {
-                        logTime(`设置置顶子区 ${thread.name} 状态失败: ${handleDiscordError(error)}`, true);
-                        // 继续执行，不中断流程
-                    }
-                }
 
                 // 获取子区消息
                 let lastMessage = null;
@@ -377,6 +364,48 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 };
 
 /**
+ * 处理置顶子区的重新标注操作
+ * @param {Array<Object>} pinnedThreads - 置顶子区列表
+ * @returns {Object} 处理结果统计
+ * @private
+ */
+const processPinnedThreads = async (pinnedThreads) => {
+    const statistics = {
+        totalPinnedThreads: pinnedThreads.length,
+        processedSuccessfully: 0,
+        processedWithErrors: 0,
+    };
+    const failedOperations = [];
+
+    for (const threadInfo of pinnedThreads) {
+        try {
+            const { thread } = threadInfo;
+
+            // 无条件确保子区开启和标注
+            await thread.setArchived(true, '定时重归档');
+            await delay(300);
+            await thread.setArchived(false, '定时重归档');
+            await thread.pin('保持标注');
+
+            statistics.processedSuccessfully++;
+        } catch (error) {
+            const errorMsg = handleDiscordError(error);
+            logTime(`设置置顶子区 ${threadInfo.name} 状态失败: ${errorMsg}`, true);
+
+            failedOperations.push({
+                threadId: threadInfo.threadId,
+                threadName: threadInfo.name,
+                operation: '置顶子区重归档',
+                error: errorMsg,
+            });
+            statistics.processedWithErrors++;
+        }
+    }
+
+    return { statistics, failedOperations };
+};
+
+/**
  * 执行子区清理
  * @private
  */
@@ -470,9 +499,21 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         // 执行清理
         const cleanupResult = await cleanupThreads(validThreads, threshold);
 
+        // 在清理完成后处理置顶子区
+        const pinnedThreads = validThreads.filter(thread => thread.isPinned);
+        let pinnedResult = null;
+        if (pinnedThreads.length > 0) {
+            pinnedResult = await processPinnedThreads(pinnedThreads);
+        }
+
         // 合并统计结果
         Object.assign(statistics, cleanupResult.statistics);
         failedOperations.push(...cleanupResult.failedOperations);
+
+        // 合并置顶子区处理结果
+        if (pinnedResult) {
+            failedOperations.push(...pinnedResult.failedOperations);
+        }
 
         // 生成报告
         await sendQualifiedThreadsList(logChannel, guildId, validThreads, messageIds);

@@ -9,7 +9,7 @@ import {
     sendModLogNotification,
     sendMuteNotification,
 } from '../utils/punishmentHelper.js';
-import { addUserToBlacklistImmediately } from './roleApplication.js';
+import { BlacklistService } from './blacklistService.js';
 
 class PunishmentService {
     /**
@@ -99,7 +99,7 @@ class PunishmentService {
 
             // 6. 将用户添加到黑名单
             try {
-                await addUserToBlacklistImmediately(punishment.userId);
+                await BlacklistService.addUserToBlacklistImmediately(punishment.userId);
             } catch (error) {
                 logTime(`[处罚] 添加用户 ${punishment.userId} 到黑名单失败: ${error.message}`, true);
                 // 不影响处罚的执行，继续执行

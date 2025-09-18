@@ -2,12 +2,12 @@ import schedule from 'node-schedule';
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
+import { BlacklistService } from '../services/blacklistService.js';
 import { carouselService } from '../services/carouselService.js';
 import CourtService from '../services/courtService.js';
 import { monitorService } from '../services/monitorService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import PunishmentService from '../services/punishmentService.js';
-import { updateBlacklistFromPunishments } from '../services/roleApplication.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';
 import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
 import { VoteService } from '../services/voteService.js';
@@ -582,7 +582,7 @@ class TaskScheduler {
             minute: 0,
             task: async () => {
                 try {
-                    const result = await updateBlacklistFromPunishments(this.client);
+                    const result = await BlacklistService.updateBlacklistFromPunishments(this.client);
                     if (result.success) {
                         logTime(`[定时任务] 黑名单更新完成，新增 ${result.addedCount} 个用户，总计 ${result.totalCount} 个用户`);
                     } else {

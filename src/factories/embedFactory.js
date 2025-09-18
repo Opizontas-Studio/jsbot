@@ -206,6 +206,128 @@ export class EmbedFactory {
         return embed;
     }
 
+    // 身份组申请相关embed
+
+    /**
+     * 创建志愿者申请成功embed
+     * @param {Array<string>} successfulServers - 成功添加身份组的服务器列表
+     * @returns {Object} 原始embed对象
+     */
+    static createVolunteerApplicationSuccessEmbed(successfulServers) {
+        return {
+            color: EmbedFactory.Colors.SUCCESS,
+            title: '✅ 志愿者身份组申请成功',
+            description: [
+                '恭喜您成功获得志愿者身份组！',
+                '',
+                `已在以下服务器获得志愿者身份组：`,
+                successfulServers.join('\n'),
+                '',
+                '您将可以在[表决频道](https://discord.com/channels/1291925535324110879/1375007194365296710)参与社区重大决策的投票。',
+            ].join('\n'),
+            timestamp: new Date(),
+            footer: {
+                text: '身份组管理系统'
+            }
+        };
+    }
+
+    /**
+     * 创建志愿者退出确认embed
+     * @returns {Object} 原始embed对象
+     */
+    static createVolunteerExitConfirmEmbed() {
+        return {
+            title: '⚠️ 确认退出志愿者身份组',
+            description: '您确定要退出社区服务器的志愿者身份组吗？',
+            color: EmbedFactory.Colors.WARNING,
+            timestamp: new Date(),
+        };
+    }
+
+    /**
+     * 创建志愿者退出结果embed
+     * @param {boolean} success - 是否成功
+     * @param {Array<string>} successfulServers - 成功操作的服务器列表（成功时）
+     * @param {string} errorMessage - 错误消息（失败时）
+     * @returns {Object} 原始embed对象
+     */
+    static createVolunteerExitResultEmbed(success, successfulServers = [], errorMessage = '') {
+        if (success) {
+            return {
+                title: '✅ 已退出志愿者身份组',
+                description: `成功在以下服务器移除志愿者身份组：\n${successfulServers.join('\n')}`,
+                color: EmbedFactory.Colors.SUCCESS,
+                timestamp: new Date(),
+            };
+        } else {
+            return {
+                title: '❌ 退出志愿者身份组失败',
+                description: errorMessage || '操作过程中发生错误，请联系管理员',
+                color: EmbedFactory.Colors.ERROR,
+                timestamp: new Date(),
+            };
+        }
+    }
+
+    /**
+     * 创建志愿者退出操作取消embed
+     * @returns {Object} 原始embed对象
+     */
+    static createVolunteerExitCancelledEmbed() {
+        return {
+            title: '❌ 操作已取消',
+            description: '您取消了退出志愿者身份组的操作',
+            color: 0x808080,
+            timestamp: new Date(),
+        };
+    }
+
+    /**
+     * 创建创作者身份组审核日志embed
+     * @param {Object} options - 审核选项
+     * @param {Object} options.user - 申请用户
+     * @param {string} options.threadLink - 帖子链接
+     * @param {number} options.maxReactions - 最高反应数
+     * @param {string} options.serverName - 作品所在服务器名称
+     * @param {boolean} options.approved - 是否通过审核
+     * @returns {Object} 原始embed对象
+     */
+    static createCreatorRoleAuditEmbed(options) {
+        const { user, threadLink, maxReactions, serverName, approved } = options;
+
+        return {
+            color: approved ? EmbedFactory.Colors.SUCCESS : EmbedFactory.Colors.ERROR,
+            title: approved ? '✅ 创作者身份组申请通过' : '❌ 创作者身份组申请未通过',
+            fields: [
+                {
+                    name: '申请者',
+                    value: `<@${user.id}>`,
+                    inline: true,
+                },
+                {
+                    name: '作品链接',
+                    value: threadLink,
+                    inline: true,
+                },
+                {
+                    name: '最高反应数',
+                    value: `${maxReactions}`,
+                    inline: true,
+                },
+                {
+                    name: '作品所在服务器',
+                    value: serverName,
+                    inline: true,
+                },
+            ],
+            timestamp: new Date(),
+            footer: {
+                text: '自动审核系统',
+            },
+        };
+    }
+
     // 子区清理相关embed
 
     /**

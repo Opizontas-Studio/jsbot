@@ -251,28 +251,3 @@ export class ErrorHandler {
         }
     }
 }
-
-/**
- * 快速创建成功/错误/信息回复内容
- */
-export const ReplyBuilder = {
-    success: (message, ephemeral = false) => ({
-        content: `✅ ${message}`,
-        flags: ephemeral ? ['Ephemeral'] : undefined
-    }),
-
-    error: (message, ephemeral = true) => ({
-        content: `❌ ${message}`,
-        flags: ephemeral ? ['Ephemeral'] : undefined
-    }),
-
-    info: (message, ephemeral = false) => ({
-        content: `ℹ️ ${message}`,
-        flags: ephemeral ? ['Ephemeral'] : undefined
-    }),
-
-    warning: (message, ephemeral = false) => ({
-        content: `⚠️ ${message}`,
-        flags: ephemeral ? ['Ephemeral'] : undefined
-    })
-};

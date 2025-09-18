@@ -299,45 +299,6 @@ export const handleCommandError = async (interaction, error, commandName) => {
 };
 
 /**
- * 统一处理非命令交互错误响应
- * @param {Interaction} interaction - Discord交互对象
- * @param {Error} error - 错误对象
- * @param {string} interactionType - 交互类型（如：'button', 'modal'）
- */
-export const handleInteractionError = async (interaction, error, interactionType) => {
-    // 获取用户友好的错误消息
-    const userMessage = error instanceof DiscordAPIError ? handleDiscordError(error) : '操作失败，请稍后重试';
-
-    // 记录错误日志
-    logTime(`${interactionType}交互出错: ${error.message}`, true);
-
-    try {
-        // 如果是网络相关错误，清理队列
-        if (error?.code?.startsWith?.('ECONN') || error?.name === 'DiscordAPIError') {
-            globalRequestQueue?.cleanup().catch(() => null);
-        }
-
-        // 根据交互状态选择响应方式
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction
-                .reply({
-                    content: `❌ ${userMessage}`,
-                    flags: ['Ephemeral'],
-                })
-                .catch(() => null); // 如果回复失败，静默处理
-        } else if (interaction.deferred) {
-            await interaction
-                .editReply({
-                    content: `❌ ${userMessage}`,
-                })
-                .catch(() => null); // 如果编辑回复失败，静默处理
-        }
-    } catch (followupError) {
-        logTime(`发送错误响应失败: ${followupError}`, true);
-    }
-};
-
-/**
  * 加载命令文件
  * @param {string} commandsDir - 命令文件目录的路径
  * @param {string[]} [excludeFiles=[]] - 要排除的文件名数组

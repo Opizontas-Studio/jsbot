@@ -33,7 +33,11 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
     return await ErrorHandler.handleService(
         async () => {
             // 读取身份组同步配置
-            const roleSyncConfig = getRoleSyncConfig();
+            const roleSyncConfig = ErrorHandler.handleSilent(
+                () => getRoleSyncConfig(),
+                "读取身份组同步配置",
+                { syncGroups: [] }
+            );
             const syncedRoles = [];
             const guildRolesMap = new Map(); // Map<guildId, Set<roleId>>
             const guildSyncGroups = new Map(); // Map<guildId, Map<roleId, {name, sourceServer}>>
@@ -56,7 +60,8 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
                 }
 
                 // 遍历每个同步组
-                for (const syncGroup of roleSyncConfig.syncGroups) {
+                const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
+                for (const syncGroup of syncGroups) {
                     // 跳过"缓冲区"和"被警告者"同步组
                     if (syncGroup.name === '缓冲区' || syncGroup.name === '被警告者') continue;
 
@@ -267,8 +272,13 @@ export const setupDebateParticipantRoles = async (client, guildConfig, executorI
             await Promise.all(addRolePromises);
 
             // 3. 获取已验证身份组的同步组
-            const roleSyncConfig = getRoleSyncConfig();
-            const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+            const roleSyncConfig = ErrorHandler.handleSilent(
+                () => getRoleSyncConfig(),
+                "读取身份组同步配置",
+                { syncGroups: [] }
+            );
+            const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
+            const verifiedGroup = syncGroups.find(group => group.name === '已验证');
 
             if (verifiedGroup) {
                 // 4. 移除目标用户的已验证身份组
@@ -341,8 +351,13 @@ export const handleDebateRolesAfterVote = async (client, executorId, targetId) =
             await ErrorHandler.handleSilent(
                 async () => {
                     // 获取已验证身份组的同步组
-                    const roleSyncConfig = getRoleSyncConfig();
-                    const verifiedGroup = roleSyncConfig.syncGroups.find(group => group.name === '已验证');
+                    const roleSyncConfig = ErrorHandler.handleSilent(
+                        () => getRoleSyncConfig(),
+                        "读取身份组同步配置",
+                        { syncGroups: [] }
+                    );
+                    const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
+                    const verifiedGroup = syncGroups.find(group => group.name === '已验证');
 
                     if (verifiedGroup && targetMember) {
                         // 为目标用户恢复已验证身份组
@@ -436,8 +451,13 @@ export async function applyVolunteerRole(interaction) {
         interaction,
         async () => {
             // 获取志愿者身份组的同步配置
-            const roleSyncConfig = getRoleSyncConfig();
-            const volunteerSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '社区志愿者');
+            const roleSyncConfig = ErrorHandler.handleSilent(
+                () => getRoleSyncConfig(),
+                "读取身份组同步配置",
+                { syncGroups: [] }
+            );
+            const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
+            const volunteerSyncGroup = syncGroups.find(group => group.name === '社区志愿者');
 
             if (!volunteerSyncGroup) {
                 throw new Error('无法找到志愿者身份组同步配置');
@@ -493,10 +513,15 @@ export async function exitVolunteerRole(interaction) {
             }
 
             // 获取身份组同步配置
-            const roleSyncConfig = getRoleSyncConfig();
+            const roleSyncConfig = ErrorHandler.handleSilent(
+                () => getRoleSyncConfig(),
+                "读取身份组同步配置",
+                { syncGroups: [] }
+            );
 
             // 查找志愿者同步组
-            const volunteerSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '社区志愿者');
+            const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
+            const volunteerSyncGroup = syncGroups.find(group => group.name === '社区志愿者');
 
             if (!volunteerSyncGroup) {
                 throw new Error('无法找到志愿者身份组同步配置');
@@ -628,7 +653,9 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                         { syncGroups: [] }
                     );
 
-                    const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
+                    // 确保syncGroups存在且为数组
+                    const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
+                    const creatorSyncGroup = syncGroups.find(group => group.name === '创作者');
 
                     let successMessage = '';
                     if (creatorSyncGroup) {

@@ -168,31 +168,54 @@ class TaskScheduler {
 
         const details = { "执行间隔": formatInterval(interval) };
 
+        // 创建递归调度函数
+        const scheduleNext = () => {
+            const nextTime = new Date(Date.now() + interval);
+            const job = schedule.scheduleJob(nextTime, () => {
+                // 检查任务是否仍然存在（防止已删除的任务继续执行）
+                if (!this.tasks.has(taskId)) {
+                    return;
+                }
+
+                wrappedTask();
+
+                // 检查任务是否在执行过程中被删除
+                if (this.tasks.has(taskId)) {
+                    // 执行完后调度下一次
+                    this.jobs.set(taskId, scheduleNext());
+                }
+            });
+            return job;
+        };
+
         if (startAt) {
             const firstExecutionTime = new Date(startAt);
             details["首次执行"] = firstExecutionTime.toLocaleString();
 
             // 创建首次执行任务
-            const firstJob = schedule.scheduleJob(firstExecutionTime, async () => {
-                await wrappedTask();
-                // 然后创建循环任务
-                const recurringRule = new schedule.RecurrenceRule();
-                recurringRule.second = new schedule.Range(0, 59, Math.floor(interval / 1000));
-                const recurringJob = schedule.scheduleJob(recurringRule, wrappedTask);
-                this.jobs.set(taskId, recurringJob);
+            const firstJob = schedule.scheduleJob(firstExecutionTime, () => {
+                // 检查任务是否仍然存在
+                if (!this.tasks.has(taskId)) {
+                    return;
+                }
+
+                wrappedTask();
+
+                // 检查任务是否在执行过程中被删除
+                if (this.tasks.has(taskId)) {
+                    // 首次执行后开始循环调度
+                    this.jobs.set(taskId, scheduleNext());
+                }
             });
             this.jobs.set(`${taskId}_first`, firstJob);
         } else {
-            // 创建循环执行规则
-            const rule = new schedule.RecurrenceRule();
-            rule.second = new schedule.Range(0, 59, Math.floor(interval / 1000));
-            const job = schedule.scheduleJob(rule, wrappedTask);
-            this.jobs.set(taskId, job);
-
             if (runImmediately) {
                 details["立即执行"] = "是";
                 wrappedTask();
             }
+
+            // 创建循环任务
+            this.jobs.set(taskId, scheduleNext());
         }
 
         logTaskOperation(taskId, "已注册定时任务", details);
@@ -205,13 +228,20 @@ class TaskScheduler {
      */
     removeTask(taskId) {
         // 移除常规任务
-        this.jobs.get(taskId)?.cancel();
-        this.jobs.delete(taskId);
+        const job = this.jobs.get(taskId);
+        if (job) {
+            job.cancel();
+            this.jobs.delete(taskId);
+        }
 
         // 移除首次执行任务
-        this.jobs.get(`${taskId}_first`)?.cancel();
-        this.jobs.delete(`${taskId}_first`);
+        const firstJob = this.jobs.get(`${taskId}_first`);
+        if (firstJob) {
+            firstJob.cancel();
+            this.jobs.delete(`${taskId}_first`);
+        }
 
+        // 标记任务为已删除，防止递归调度继续
         this.tasks.delete(taskId);
     }
 

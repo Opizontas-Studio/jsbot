@@ -33,7 +33,7 @@ export const syncMemberRoles = async (member, isAutoSync = false) => {
     return await ErrorHandler.handleService(
         async () => {
             // 读取身份组同步配置
-            const roleSyncConfig = ErrorHandler.handleSilent(
+            const roleSyncConfig = ErrorHandler.handleSilentSync(
                 () => getRoleSyncConfig(),
                 "读取身份组同步配置",
                 { syncGroups: [] }
@@ -248,11 +248,11 @@ export const setupDebateParticipantRoles = async (client, guildConfig, executorI
             // 1. 获取双方成员对象
             const [executorMember, targetMember] = await Promise.all([
                 ErrorHandler.handleSilent(
-                    () => mainGuild.members.fetch(executorId),
+                    async () => await mainGuild.members.fetch(executorId),
                     `获取执行者 ${executorId} 的成员信息`
                 ),
                 ErrorHandler.handleSilent(
-                    () => mainGuild.members.fetch(targetId),
+                    async () => await mainGuild.members.fetch(targetId),
                     `获取目标用户 ${targetId} 的成员信息`
                 )
             ]);
@@ -272,7 +272,7 @@ export const setupDebateParticipantRoles = async (client, guildConfig, executorI
             await Promise.all(addRolePromises);
 
             // 3. 获取已验证身份组的同步组
-            const roleSyncConfig = ErrorHandler.handleSilent(
+            const roleSyncConfig = ErrorHandler.handleSilentSync(
                 () => getRoleSyncConfig(),
                 "读取身份组同步配置",
                 { syncGroups: [] }
@@ -318,11 +318,11 @@ export const handleDebateRolesAfterVote = async (client, executorId, targetId) =
             // 获取双方成员对象
             const [executorMember, targetMember] = await Promise.all([
                 ErrorHandler.handleSilent(
-                    () => mainGuild.members.fetch(executorId),
+                    async () => await mainGuild.members.fetch(executorId),
                     `获取执行者 ${executorId} 的成员信息`
                 ),
                 ErrorHandler.handleSilent(
-                    () => mainGuild.members.fetch(targetId),
+                    async () => await mainGuild.members.fetch(targetId),
                     `获取目标用户 ${targetId} 的成员信息`
                 )
             ]);
@@ -351,7 +351,7 @@ export const handleDebateRolesAfterVote = async (client, executorId, targetId) =
             await ErrorHandler.handleSilent(
                 async () => {
                     // 获取已验证身份组的同步组
-                    const roleSyncConfig = ErrorHandler.handleSilent(
+                    const roleSyncConfig = ErrorHandler.handleSilentSync(
                         () => getRoleSyncConfig(),
                         "读取身份组同步配置",
                         { syncGroups: [] }
@@ -451,7 +451,7 @@ export async function applyVolunteerRole(interaction) {
         interaction,
         async () => {
             // 获取志愿者身份组的同步配置
-            const roleSyncConfig = ErrorHandler.handleSilent(
+            const roleSyncConfig = ErrorHandler.handleSilentSync(
                 () => getRoleSyncConfig(),
                 "读取身份组同步配置",
                 { syncGroups: [] }
@@ -513,7 +513,7 @@ export async function exitVolunteerRole(interaction) {
             }
 
             // 获取身份组同步配置
-            const roleSyncConfig = ErrorHandler.handleSilent(
+            const roleSyncConfig = ErrorHandler.handleSilentSync(
                 () => getRoleSyncConfig(),
                 "读取身份组同步配置",
                 { syncGroups: [] }
@@ -647,7 +647,7 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
 
                 if (maxReactions >= 5) {
                     // 读取身份组同步配置（可容错操作）
-                    const roleSyncConfig = ErrorHandler.handleSilent(
+                    const roleSyncConfig = ErrorHandler.handleSilentSync(
                         () => getRoleSyncConfig(),
                         "加载身份组同步配置",
                         { syncGroups: [] }
@@ -658,6 +658,8 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                     const creatorSyncGroup = syncGroups.find(group => group.name === '创作者');
 
                     let successMessage = '';
+                    let syncedServers = [];
+
                     if (creatorSyncGroup) {
                         // 使用manageRolesByGroups函数批量添加身份组
                         const roleResult = await manageRolesByGroups(
@@ -670,15 +672,12 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
 
                         // 检查是否有成功的服务器
                         if (roleResult.successfulServers.length > 0) {
+                            syncedServers = roleResult.successfulServers;
                             successMessage = `审核通过！已为您添加创作者身份组${
                                 roleResult.successfulServers.length > 1
                                     ? `（已同步至：${roleResult.successfulServers.join('、')}）`
                                     : ''
                             }`;
-
-                            logTime(
-                                `[自动审核] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${roleResult.successfulServers.join('、')}`
-                            );
                         } else {
                             throw new Error('添加身份组时出现错误，请联系管理员');
                         }
@@ -686,8 +685,13 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                         // 如果没有找到同步配置，只在当前服务器添加
                         const member = await interaction.guild.members.fetch(interaction.user.id);
                         await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
+                        syncedServers = [interaction.guild.name];
                         successMessage = '审核通过，已为您添加创作者身份组。';
                     }
+
+                    logTime(
+                        `[自动审核] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${syncedServers.join('、')}`
+                    );
 
                     // 发送审核日志（可容错操作）
                     await ErrorHandler.handleSilent(

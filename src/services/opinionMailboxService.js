@@ -22,7 +22,7 @@ class OpinionMailboxService {
      * @returns {Object} 消息ID配置对象
      */
     loadMessageIds() {
-        return ErrorHandler.handleSilent(
+        return ErrorHandler.handleSilentSync(
             () => {
                 const data = readFileSync(messageIdsPath, 'utf8');
                 return JSON.parse(data);
@@ -247,7 +247,7 @@ class OpinionMailboxService {
      * @returns {Object} 意见记录配置对象
      */
     getOpinionRecords() {
-        return ErrorHandler.handleSilent(
+        return ErrorHandler.handleSilentSync(
             () => JSON.parse(readFileSync(opinionRecordsPath, 'utf8')),
             "读取意见记录配置",
             { validSubmissions: [] }
@@ -326,7 +326,7 @@ class OpinionMailboxService {
      * @returns {boolean} 是否有有效记录
      */
     hasValidSubmissionRecord(userId) {
-        return ErrorHandler.handleSilent(
+        return ErrorHandler.handleSilentSync(
             () => {
                 const records = this.getOpinionRecords();
                 const userRecord = records.validSubmissions.find(record => record.userId === userId);
@@ -462,7 +462,7 @@ class OpinionMailboxService {
 
                 // 获取目标用户信息（一次性获取，避免重复）
                 const targetUser = await ErrorHandler.handleSilent(
-                    () => client.users.fetch(userId),
+                    async () => await client.users.fetch(userId),
                     "获取用户信息"
                 );
 

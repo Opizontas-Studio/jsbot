@@ -69,7 +69,7 @@ export class PunishmentScheduler {
                     const job = schedule.scheduleJob(expiryTime, () => {
                         // 使用容错处理，避免单个处罚失败影响整个系统
                         ErrorHandler.handleSilent(
-                            () => PunishmentService.handleExpiry(client, punishment),
+                            async () => await PunishmentService.handleExpiry(client, punishment),
                             `处罚 ${punishment.id} 到期处理`
                         );
                     });

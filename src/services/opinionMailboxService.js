@@ -116,12 +116,8 @@ class OpinionMailboxService {
                 const guildId = client.guildManager.getMainServerId();
 
                 // 确保结构存在
-                if (!this.messageIds[guildId]) {
-                    this.messageIds[guildId] = {};
-                }
-                if (!this.messageIds[guildId].opinionMailbox) {
-                    this.messageIds[guildId].opinionMailbox = {};
-                }
+                this.messageIds[guildId] ??= {};
+                this.messageIds[guildId].opinionMailbox ??= {};
 
                 // 更新内存中的配置
                 this.messageIds[guildId].opinionMailbox[channelId] = messageId;

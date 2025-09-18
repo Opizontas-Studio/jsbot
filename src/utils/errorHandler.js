@@ -144,6 +144,22 @@ export class ErrorHandler {
     }
 
     /**
+     * 同步版本的静默错误处理（仅记录日志，不抛出）
+     * @param {Function} operation - 同步操作函数
+     * @param {string} context - 错误上下文描述
+     * @param {any} [fallback=null] - 失败时的默认返回值
+     * @returns {any}
+     */
+    static handleSilentSync(operation, context, fallback = null) {
+        try {
+            return operation();
+        } catch (error) {
+            logTime(`[${context}] ${error.message}`, true);
+            return fallback;
+        }
+    }
+
+    /**
      * 批量操作错误处理（收集成功和失败的结果）
      * @param {Array} items - 要处理的项目数组
      * @param {Function} operation - 对每个项目执行的操作

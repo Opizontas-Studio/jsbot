@@ -96,12 +96,6 @@ export default {
 
             try {
                 const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-                if (!guildConfig) {
-                    return interaction.editReply({
-                        content: '此服务器尚未配置，无法使用命令。',
-                        flags: ['Ephemeral'],
-                    });
-                }
 
                 // 处理命令冷却时间
                 const cooldownResult = await handleCooldown(interaction, command);

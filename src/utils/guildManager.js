@@ -13,18 +13,18 @@ export class GuildManager {
         if (!config.guilds || typeof config.guilds !== 'object') {
             throw new Error('配置文件缺少guilds对象');
         }
+
+        let mainServerCount = 0;
+
         for (const [guildId, guildConfig] of Object.entries(config.guilds)) {
             const automationConfig = guildConfig.automation || {};
 
             // 验证必要的配置字段
-            if (!guildConfig.serverType) {
-                logTime(`警告: 服务器 ${guildId} 缺少 serverType 配置`, true);
-            }
-            if (!guildConfig.AdministratorRoleIds) {
-                logTime(`警告: 服务器 ${guildId} 缺少 AdministratorRoleIds 配置`, true);
-            }
-            if (!guildConfig.ModeratorRoleIds || guildConfig.ModeratorRoleIds.length === 0) {
-                logTime(`警告: 服务器 ${guildId} 缺少 ModeratorRoleIds 配置`, true);
+            this.validateGuildConfig(guildId, guildConfig);
+
+            // 统计主服务器数量
+            if (guildConfig.serverType === 'Main server') {
+                mainServerCount++;
             }
 
             // 创建服务器配置对象
@@ -78,53 +78,9 @@ export class GuildManager {
                 },
             };
 
-            // 验证 FastGPT 配置
+            // FastGPT配置处理（移到初始化后单独处理）
             if (serverConfig.fastgpt.enabled) {
-                if (!serverConfig.fastgpt.endpoints || serverConfig.fastgpt.endpoints.length === 0) {
-                    logTime(`警告: 服务器 ${guildId} 启用了 FastGPT 但未配置任何 endpoints`, true);
-                    serverConfig.fastgpt.enabled = false; // 禁用，因为没有可用端点
-                } else {
-                    serverConfig.fastgpt.endpoints.forEach((ep, index) => {
-                        if (!ep.url || !ep.key) {
-                            logTime(
-                                `警告: 服务器 ${guildId} FastGPT endpoint #${index + 1} 配置不完整 (缺少 url 或 key)`,
-                                true,
-                            );
-                            // 你可以选择移除这个无效的endpoint或禁用整个功能
-                        }
-                    });
-                    // 移除无效的endpoints
-                    serverConfig.fastgpt.endpoints = serverConfig.fastgpt.endpoints.filter(ep => ep.url && ep.key);
-                    if (serverConfig.fastgpt.endpoints.length === 0) {
-                        logTime(`警告: 服务器 ${guildId} 所有 FastGPT endpoints 均无效，已禁用 FastGPT`, true);
-                        serverConfig.fastgpt.enabled = false;
-                    }
-                }
-
-                // 处理端点名称映射
-                if (!serverConfig.fastgpt.endpointNames) {
-                    serverConfig.fastgpt.endpointNames = {};
-                }
-
-                // 为没有名称的端点自动生成名称
-                serverConfig.fastgpt.endpoints.forEach((ep, index) => {
-                    try {
-                        const url = new URL(ep.url);
-                        const domainKey = `${url.protocol}//${url.hostname}`;
-
-                        // 如果没有为此域名设置名称，自动生成一个
-                        if (!serverConfig.fastgpt.endpointNames[domainKey]) {
-                            // 使用域名的第一部分作为默认名称
-                            const defaultName =
-                                url.hostname.split('.')[0].charAt(0).toUpperCase() +
-                                url.hostname.split('.')[0].slice(1);
-                            serverConfig.fastgpt.endpointNames[domainKey] = `端点${index + 1} (${defaultName})`;
-                        }
-                    } catch (error) {
-                        // URL解析错误，使用默认名称
-                        serverConfig.fastgpt.endpointNames[ep.url] = `端点${index + 1}`;
-                    }
-                });
+                this.processFastGPTConfig(guildId, serverConfig);
             }
 
             this.guilds.set(guildId, serverConfig);
@@ -139,6 +95,9 @@ export class GuildManager {
 
             logTime(`[系统启动] 已加载服务器配置: ${guildId}${features.length ? ' (' + features.join(', ') + ')' : ''}`);
         }
+
+        // 验证主服务器配置
+        this.validateMainServerSetup(mainServerCount);
     }
 
     /**
@@ -177,21 +136,10 @@ export class GuildManager {
     /**
      * 获取服务器配置
      * @param {string} guildId - 服务器ID
-     * @returns {Object|null} 服务器配置对象
+     * @returns {Object} 服务器配置对象（启动时已验证，保证存在）
      */
     getGuildConfig(guildId) {
-        if (!guildId) {
-            logTime('尝试获取配置时 guildId 为空', true);
-            return null;
-        }
-
-        const config = this.guilds.get(guildId);
-        if (!config) {
-            logTime(`服务器 ${guildId} 的配置不存在`, true);
-            return null;
-        }
-
-        return config;
+        return this.guilds.get(guildId);
     }
 
     /**
@@ -204,7 +152,7 @@ export class GuildManager {
 
     /**
      * 获取主服务器配置
-     * @returns {Object|null} 主服务器配置对象，如果未找到则返回null
+     * @returns {Object} 主服务器配置对象（启动时已验证，保证存在）
      */
     getMainServerConfig() {
         for (const config of this.guilds.values()) {
@@ -212,16 +160,180 @@ export class GuildManager {
                 return config;
             }
         }
-        return null;
+        // 这里不应该到达，因为启动时已验证过主服务器存在
+        throw new Error('系统错误：找不到主服务器配置');
     }
 
     /**
      * 获取主服务器ID
-     * @returns {string|null} 主服务器ID，如果未找到则返回null
+     * @returns {string} 主服务器ID（启动时已验证，保证存在）
      */
     getMainServerId() {
-        const mainConfig = this.getMainServerConfig();
-        return mainConfig?.id || null;
+        return this.getMainServerConfig().id;
+    }
+
+    /**
+     * 验证单个服务器配置的完整性
+     * @private
+     * @param {string} guildId - 服务器ID
+     * @param {Object} guildConfig - 服务器配置对象
+     */
+    validateGuildConfig(guildId, guildConfig) {
+        const errors = [];
+        const warnings = [];
+
+        // 必需字段验证
+        if (!guildConfig.serverType) {
+            errors.push('缺少 serverType 配置');
+        } else if (!['Main server', 'Sub server'].includes(guildConfig.serverType)) {
+            errors.push(`serverType 必须为 'Main server' 或 'Sub server'，当前值: ${guildConfig.serverType}`);
+        }
+
+        if (!guildConfig.AdministratorRoleIds || !Array.isArray(guildConfig.AdministratorRoleIds) || guildConfig.AdministratorRoleIds.length === 0) {
+            errors.push('缺少 AdministratorRoleIds 配置或配置为空数组');
+        }
+
+        if (!guildConfig.ModeratorRoleIds || !Array.isArray(guildConfig.ModeratorRoleIds) || guildConfig.ModeratorRoleIds.length === 0) {
+            errors.push('缺少 ModeratorRoleIds 配置或配置为空数组');
+        }
+
+        // 主服务器特有验证
+        if (guildConfig.serverType === 'Main server') {
+            if (!guildConfig.opinionMailThreadId) {
+                warnings.push('主服务器未配置 opinionMailThreadId，意见信箱功能将不可用');
+            }
+
+            // 法庭系统验证
+            if (guildConfig.courtSystem?.enabled) {
+                const courtRequiredFields = ['courtChannelId', 'motionChannelId', 'debateChannelId', 'debateTagId', 'motionTagId'];
+                for (const field of courtRequiredFields) {
+                    if (!guildConfig.courtSystem[field]) {
+                        errors.push(`启用法庭系统但缺少 courtSystem.${field} 配置`);
+                    }
+                }
+            }
+
+            // 角色申请系统验证（如果使用）
+            if (guildConfig.roleApplication) {
+                const roleFields = ['creatorRoleId', 'volunteerRoleId', 'senatorRoleId', 'appealDebateRoleId', 'QAerRoleId', 'WarnedRoleId'];
+                const missingRoles = roleFields.filter(field => !guildConfig.roleApplication[field]);
+                if (missingRoles.length > 0) {
+                    warnings.push(`角色申请系统缺少配置: ${missingRoles.join(', ')}`);
+                }
+            }
+
+            // 监控系统验证
+            if (guildConfig.monitor?.enabled) {
+                if (!guildConfig.monitor.roleMonitorCategoryId) {
+                    errors.push('启用监控系统但缺少 monitor.roleMonitorCategoryId 配置');
+                }
+            }
+
+        }
+
+        // 自动化系统验证
+        if (guildConfig.automation?.mode && guildConfig.automation.mode !== 'disabled') {
+            if (!guildConfig.automation.logThreadId) {
+                warnings.push(`启用自动化系统(${guildConfig.automation.mode})但缺少 automation.logThreadId 配置`);
+            }
+        }
+
+        // 输出验证结果
+        if (errors.length > 0) {
+            const errorMsg = `服务器 ${guildId} 配置错误: ${errors.join('; ')}`;
+            logTime(errorMsg, true);
+            throw new Error(errorMsg);
+        }
+
+        if (warnings.length > 0) {
+            warnings.forEach(warning => {
+                logTime(`警告: 服务器 ${guildId} - ${warning}`, true);
+            });
+        }
+    }
+
+    /**
+     * 验证主服务器设置
+     * @private
+     * @param {number} mainServerCount - 主服务器数量
+     */
+    validateMainServerSetup(mainServerCount) {
+        if (mainServerCount === 0) {
+            const errorMsg = '配置错误: 必须至少有一个服务器配置为 "Main server"';
+            logTime(errorMsg, true);
+            throw new Error(errorMsg);
+        }
+
+        if (mainServerCount > 1) {
+            const errorMsg = `配置错误: 只能有一个服务器配置为 "Main server"，当前有 ${mainServerCount} 个`;
+            logTime(errorMsg, true);
+            throw new Error(errorMsg);
+        }
+
+        logTime(`[系统启动] 主服务器配置验证通过 (${mainServerCount} 个主服务器)`);
+    }
+
+    /**
+     * 处理FastGPT配置
+     * @private
+     * @param {string} guildId - 服务器ID
+     * @param {Object} serverConfig - 服务器配置对象
+     */
+    processFastGPTConfig(guildId, serverConfig) {
+        if (!serverConfig.fastgpt.endpoints || serverConfig.fastgpt.endpoints.length === 0) {
+            logTime(`警告: 服务器 ${guildId} 启用了 FastGPT 但未配置任何 endpoints`, true);
+            serverConfig.fastgpt.enabled = false; // 禁用，因为没有可用端点
+            return;
+        }
+
+        // 验证并过滤无效的endpoints
+        const validEndpoints = [];
+        serverConfig.fastgpt.endpoints.forEach((ep, index) => {
+            if (!ep.url || !ep.key) {
+                logTime(
+                    `警告: 服务器 ${guildId} FastGPT endpoint #${index + 1} 配置不完整 (缺少 url 或 key)`,
+                    true,
+                );
+            } else {
+                validEndpoints.push(ep);
+            }
+        });
+
+        // 更新有效的endpoints
+        serverConfig.fastgpt.endpoints = validEndpoints;
+
+        if (validEndpoints.length === 0) {
+            logTime(`警告: 服务器 ${guildId} 所有 FastGPT endpoints 均无效，已禁用 FastGPT`, true);
+            serverConfig.fastgpt.enabled = false;
+            return;
+        }
+
+        // 处理端点名称映射
+        if (!serverConfig.fastgpt.endpointNames) {
+            serverConfig.fastgpt.endpointNames = {};
+        }
+
+        // 为没有名称的端点自动生成名称
+        validEndpoints.forEach((ep, index) => {
+            try {
+                const url = new URL(ep.url);
+                const domainKey = `${url.protocol}//${url.hostname}`;
+
+                // 如果没有为此域名设置名称，自动生成一个
+                if (!serverConfig.fastgpt.endpointNames[domainKey]) {
+                    // 使用域名的第一部分作为默认名称
+                    const defaultName =
+                        url.hostname.split('.')[0].charAt(0).toUpperCase() +
+                        url.hostname.split('.')[0].slice(1);
+                    serverConfig.fastgpt.endpointNames[domainKey] = `端点${index + 1} (${defaultName})`;
+                }
+            } catch (error) {
+                // URL解析错误，使用默认名称
+                serverConfig.fastgpt.endpointNames[ep.url] = `端点${index + 1}`;
+            }
+        });
+
+        logTime(`[系统启动] 服务器 ${guildId} FastGPT 配置处理完成，有效端点: ${validEndpoints.length} 个`);
     }
 }
 

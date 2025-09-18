@@ -113,9 +113,9 @@ export const buttonHandlers = {
 
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-        if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.creatorRoleId) {
+        if (!guildConfig.roleApplication?.creatorRoleId) {
             await interaction.reply({
-                content: '❌ 服务器未正确配置创作者身份组',
+                content: '❌ 服务器未配置创作者身份组功能',
                 flags: ['Ephemeral'],
             });
             return;
@@ -151,9 +151,9 @@ export const buttonHandlers = {
 
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
-        if (!guildConfig || !guildConfig.roleApplication || !guildConfig.roleApplication.volunteerRoleId) {
+        if (!guildConfig.roleApplication?.volunteerRoleId) {
             await interaction.editReply({
-                content: '❌ 服务器未正确配置志愿者身份组',
+                content: '❌ 服务器未配置志愿者身份组功能',
             });
             return;
         }

@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
 const execAsync = promisify(exec);
@@ -117,13 +118,14 @@ class MonitorService {
      * @returns {Object} 消息ID配置对象
      */
     async loadMessageIds() {
-        try {
-            const data = await readFile(MESSAGE_IDS_PATH, 'utf8');
-            return JSON.parse(data);
-        } catch (error) {
-            logTime(`[监控服务] 加载消息ID配置失败，将创建新配置: ${error.message}`, true);
-            return {};
-        }
+        return await ErrorHandler.handleSilent(
+            async () => {
+                const data = await readFile(MESSAGE_IDS_PATH, 'utf8');
+                return JSON.parse(data);
+            },
+            "加载消息ID配置",
+            {}
+        );
     }
 
     /**
@@ -131,7 +133,13 @@ class MonitorService {
      * @param {Object} messageIds - 消息ID配置对象
      */
     async saveMessageIds(messageIds) {
-        await writeFile(MESSAGE_IDS_PATH, JSON.stringify(messageIds, null, 4), 'utf8');
+        await ErrorHandler.handleService(
+            async () => {
+                await writeFile(MESSAGE_IDS_PATH, JSON.stringify(messageIds, null, 4), 'utf8');
+            },
+            "保存消息ID配置",
+            { throwOnError: true }
+        );
     }
 
     /**
@@ -140,24 +148,25 @@ class MonitorService {
      * @returns {Promise<{channelId: string|null, messageId: string|null}>}
      */
     async getMonitorIds(guildId) {
-        try {
-            const messageIds = await this.loadMessageIds();
+        return await ErrorHandler.handleSilent(
+            async () => {
+                const messageIds = await this.loadMessageIds();
 
-            // 从messageIds.json获取数据
-            const monitorData = messageIds[guildId]?.monitor;
-            if (!monitorData) {
-                return { channelId: null, messageId: null };
-            }
+                // 从messageIds.json获取数据
+                const monitorData = messageIds[guildId]?.monitor;
+                if (!monitorData) {
+                    return { channelId: null, messageId: null };
+                }
 
-            // messageIds.json中的结构是 { channelId: messageId }
-            const channelId = Object.keys(monitorData)[0];
-            const messageId = channelId ? monitorData[channelId] : null;
+                // messageIds.json中的结构是 { channelId: messageId }
+                const channelId = Object.keys(monitorData)[0];
+                const messageId = channelId ? monitorData[channelId] : null;
 
-            return { channelId, messageId };
-        } catch (error) {
-            logTime(`[监控服务] 获取监控ID失败: ${error.message}`, true);
-            return { channelId: null, messageId: null };
-        }
+                return { channelId, messageId };
+            },
+            "获取监控ID",
+            { channelId: null, messageId: null }
+        );
     }
 
     /**
@@ -168,29 +177,29 @@ class MonitorService {
      * @returns {Promise<boolean>} 更新是否成功
      */
     async updateMonitorMessageId(guildId, channelId, messageId) {
-        try {
-            const messageIds = await this.loadMessageIds();
+        const result = await ErrorHandler.handleService(
+            async () => {
+                const messageIds = await this.loadMessageIds();
 
-            // 确保服务器结构存在
-            if (!messageIds[guildId]) {
-                messageIds[guildId] = {};
-            }
-            if (!messageIds[guildId].monitor) {
-                messageIds[guildId].monitor = {};
-            }
+                // 确保服务器结构存在
+                if (!messageIds[guildId]) {
+                    messageIds[guildId] = {};
+                }
+                if (!messageIds[guildId].monitor) {
+                    messageIds[guildId].monitor = {};
+                }
 
-            // 更新messageId
-            messageIds[guildId].monitor[channelId] = messageId;
+                // 更新messageId
+                messageIds[guildId].monitor[channelId] = messageId;
 
-            // 保存文件
-            await this.saveMessageIds(messageIds);
-            logTime(`[监控服务] 已更新服务器 ${guildId} 的监控消息ID: ${messageId}`);
+                // 保存文件
+                await this.saveMessageIds(messageIds);
+                logTime(`[监控服务] 已更新服务器 ${guildId} 的监控消息ID: ${messageId}`);
+            },
+            "更新监控消息ID"
+        );
 
-            return true;
-        } catch (error) {
-            logTime(`[监控服务] 更新消息ID配置失败: ${error.message}`, true);
-            return false;
-        }
+        return result.success;
     }
 
     /**
@@ -201,37 +210,37 @@ class MonitorService {
      * @returns {Promise<boolean>} 更新是否成功
      */
     async updateConfigSenatorChannelId(client, guildId, channelId) {
-        try {
-            // 读取配置文件
-            const configPath = join(process.cwd(), 'config.json');
-            const configData = await readFile(configPath, 'utf8');
-            const config = JSON.parse(configData);
+        const result = await ErrorHandler.handleService(
+            async () => {
+                // 读取配置文件
+                const configPath = join(process.cwd(), 'config.json');
+                const configData = await readFile(configPath, 'utf8');
+                const config = JSON.parse(configData);
 
-            // 更新senatorRoleChannelId
-            if (!config.guilds?.[guildId]?.monitor) {
-                throw new Error('无效的服务器配置');
-            }
-
-            config.guilds[guildId].monitor.senatorRoleChannelId = channelId;
-
-            // 写入配置文件
-            await writeFile(configPath, JSON.stringify(config, null, 4), 'utf8');
-            logTime(`[监控服务] 已更新服务器 ${guildId} 的议员监控频道ID: ${channelId}`);
-
-            // 直接更新内存中的配置
-            if (client.guildManager && client.guildManager.guilds.has(guildId)) {
-                const guildConfig = client.guildManager.guilds.get(guildId);
-                if (guildConfig.monitor) {
-                    guildConfig.monitor.senatorRoleChannelId = channelId;
-                    logTime(`[监控服务] 已更新内存中服务器 ${guildId} 的议员监控频道ID: ${channelId}`);
+                // 更新senatorRoleChannelId
+                if (!config.guilds?.[guildId]?.monitor) {
+                    throw new Error('无效的服务器配置');
                 }
-            }
 
-            return true;
-        } catch (error) {
-            logTime(`[监控服务] 更新配置文件失败: ${error.message}`, true);
-            return false;
-        }
+                config.guilds[guildId].monitor.senatorRoleChannelId = channelId;
+
+                // 写入配置文件
+                await writeFile(configPath, JSON.stringify(config, null, 4), 'utf8');
+                logTime(`[监控服务] 已更新服务器 ${guildId} 的议员监控频道ID: ${channelId}`);
+
+                // 直接更新内存中的配置
+                if (client.guildManager?.guilds?.has(guildId)) {
+                    const guildConfig = client.guildManager.guilds.get(guildId);
+                    if (guildConfig?.monitor) {
+                        guildConfig.monitor.senatorRoleChannelId = channelId;
+                        logTime(`[监控服务] 已更新内存中服务器 ${guildId} 的议员监控频道ID: ${channelId}`);
+                    }
+                }
+            },
+            "更新议员监控频道配置"
+        );
+
+        return result.success;
     }
 
     /**
@@ -240,48 +249,41 @@ class MonitorService {
      * @param {string} guildId 服务器ID
      */
     async updateStatusMessage(client, guildId) {
-        try {
-            // 从messageIds.json获取channelId和messageId
-            const { channelId, messageId } = await this.getMonitorIds(guildId);
+        await ErrorHandler.handleSilent(
+            async () => {
+                // 从messageIds.json获取channelId和messageId
+                const { channelId, messageId } = await this.getMonitorIds(guildId);
 
-            if (!channelId) {
-                logTime(`[监控服务] 服务器 ${guildId} 未配置监控频道ID`, true);
-                return;
-            }
-
-            const channel = await client.channels.fetch(channelId);
-            if (!channel) {
-                throw new Error(`无法获取频道 ${channelId}`);
-            }
-
-            const embed = await this.createStatusEmbed(client);
-
-            // 如果有messageId，尝试更新现有消息
-            if (messageId) {
-                try {
-                    const message = await channel.messages.fetch(messageId);
-                    await message.edit({ embeds: [embed] });
-                    return; // 成功更新后直接返回
-                } catch (error) {
-                    // 只有在消息确实不存在时才继续创建新消息
-                    if (error.code === 10008) { // Discord API: Unknown Message
-                        logTime(`[监控服务] 消息 ${messageId} 不存在，将创建新消息`);
-                    } else {
-                        // 其他错误直接抛出
-                        throw error;
-                    }
+                if (!channelId) {
+                    logTime(`[监控服务] 服务器 ${guildId} 未配置监控频道ID`, true);
+                    return;
                 }
-            }
 
-            // 只有在没有messageId或消息不存在时才创建新消息
-            const newMessage = await channel.send({ embeds: [embed] });
+                const channel = await client.channels.fetch(channelId);
+                const embed = await this.createStatusEmbed(client);
 
-            // 更新messageIds.json
-            await this.updateMonitorMessageId(guildId, channelId, newMessage.id);
+                // 如果有messageId，尝试更新现有消息
+                if (messageId) {
+                    const updated = await ErrorHandler.handleSilent(
+                        async () => {
+                            const message = await channel.messages.fetch(messageId);
+                            await message.edit({ embeds: [embed] });
+                            return true;
+                        },
+                        "更新现有监控消息",
+                        false
+                    );
 
-        } catch (error) {
-            logTime(`[监控服务] 更新状态消息失败: ${error.message}`, true);
-        }
+                    if (updated) return; // 成功更新后直接返回
+                    logTime(`[监控服务] 消息 ${messageId} 不存在，将创建新消息`);
+                }
+
+                // 创建新消息
+                const newMessage = await channel.send({ embeds: [embed] });
+                await this.updateMonitorMessageId(guildId, channelId, newMessage.id);
+            },
+            "更新状态消息"
+        );
     }
 
     /**
@@ -290,94 +292,78 @@ class MonitorService {
      * @param {string} guildId 服务器ID
      */
     async monitorSenatorRole(client, guildId) {
-        try {
-            const guildConfig = client.guildManager.getGuildConfig(guildId);
-            if (!guildConfig || !guildConfig.monitor?.enabled || !guildConfig.monitor?.roleMonitorCategoryId) {
-                return;
-            }
-
-            // 获取角色ID
-            const volunteerRoleId = guildConfig.roleApplication?.volunteerRoleId;
-            if (!volunteerRoleId) {
-                logTime(`[监控服务] 服务器 ${guildId} 未配置角色ID`, true);
-                return;
-            }
-
-            // 获取服务器实例
-            const guild = await client.guilds.fetch(guildId);
-            if (!guild) {
-                throw new Error(`无法获取服务器 ${guildId}`);
-            }
-
-            // 获取角色
-            const roles = await guild.roles.fetch();
-            const role = roles.get(volunteerRoleId);
-            if (!role) {
-                throw new Error(`无法获取角色 ${volunteerRoleId}`);
-            }
-
-            // 获取所有服务器成员
-            const members = await guild.members.fetch();
-
-            // 统计拥有议员身份组的成员数量
-            const memberCount = members.filter(
-                member => member.roles.cache.has(volunteerRoleId) && !member.user.bot
-            ).size;
-
-            // logTime(`[监控服务] 服务器 ${guildId} 议员人数: ${memberCount} (身份组: ${role.name})`);
-
-            const channelName = `社区志愿者: ${memberCount}`;
-
-            // 获取分类频道
-            const category = await guild.channels.fetch(guildConfig.monitor.roleMonitorCategoryId);
-            if (!category) {
-                throw new Error(`无法获取分类频道 ${guildConfig.monitor.roleMonitorCategoryId}`);
-            }
-
-            let channel;
-            // 检查现有频道
-            if (guildConfig.monitor.senatorRoleChannelId) {
-                try {
-                    channel = await guild.channels.fetch(guildConfig.monitor.senatorRoleChannelId);
-                } catch (error) {
-                    // 频道不存在，将创建新频道
-                    channel = null;
+        await ErrorHandler.handleSilent(
+            async () => {
+                const guildConfig = client.guildManager.getGuildConfig(guildId);
+                if (!guildConfig?.monitor?.enabled || !guildConfig.monitor.roleMonitorCategoryId) {
+                    return;
                 }
-            }
 
-            // 如果频道不存在，创建新频道
-            if (!channel) {
-                channel = await guild.channels.create({
-                    name: channelName,
-                    type: ChannelType.GuildVoice,
-                    parent: category.id,
-                    permissionOverwrites: [
-                        {
-                            id: guild.roles.everyone.id,
-                            allow: [PermissionFlagsBits.ViewChannel],
-                            deny: [PermissionFlagsBits.Connect, PermissionFlagsBits.SendMessages]
-                        },
-                        {
-                            id: client.user.id,
-                            allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ManageChannels]
-                        }
-                    ]
-                });
+                const volunteerRoleId = guildConfig.roleApplication?.volunteerRoleId;
+                if (!volunteerRoleId) {
+                    logTime(`[监控服务] 服务器 ${guildId} 未配置角色ID`, true);
+                    return;
+                }
 
-                // 更新配置文件
-                await this.updateConfigSenatorChannelId(client, guildId, channel.id);
+                // 获取服务器和相关资源
+                const guild = await client.guilds.fetch(guildId);
+                const [roles, members, category] = await Promise.all([
+                    guild.roles.fetch(),
+                    guild.members.fetch(),
+                    guild.channels.fetch(guildConfig.monitor.roleMonitorCategoryId)
+                ]);
 
-                logTime(`[监控服务] 已在服务器 ${guildId} 创建志愿者监控频道: ${channel.name}`);
-            }
-            // 如果频道存在但名称需要更新
-            else if (channel.name !== channelName) {
-                await channel.setName(channelName);
-                logTime(`[监控服务] 已更新服务器 ${guildId} 的志愿者监控频道名称: ${channelName}`);
-            }
+                const role = roles.get(volunteerRoleId);
+                if (!role) {
+                    throw new Error(`无法获取角色 ${volunteerRoleId}`);
+                }
 
-        } catch (error) {
-            logTime(`[监控服务] 监控志愿者人数失败 [服务器 ${guildId}]: ${error.message}`, true);
-        }
+                // 统计拥有志愿者身份组的成员数量
+                const memberCount = members.filter(
+                    member => member.roles.cache.has(volunteerRoleId) && !member.user.bot
+                ).size;
+
+                const channelName = `社区志愿者: ${memberCount}`;
+
+                // 获取或创建监控频道
+                let channel = null;
+                if (guildConfig.monitor.senatorRoleChannelId) {
+                    channel = await ErrorHandler.handleSilent(
+                        () => guild.channels.fetch(guildConfig.monitor.senatorRoleChannelId),
+                        "获取现有志愿者监控频道",
+                        null
+                    );
+                }
+
+                if (!channel) {
+                    // 创建新频道
+                    channel = await guild.channels.create({
+                        name: channelName,
+                        type: ChannelType.GuildVoice,
+                        parent: category.id,
+                        permissionOverwrites: [
+                            {
+                                id: guild.roles.everyone.id,
+                                allow: [PermissionFlagsBits.ViewChannel],
+                                deny: [PermissionFlagsBits.Connect, PermissionFlagsBits.SendMessages]
+                            },
+                            {
+                                id: client.user.id,
+                                allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ManageChannels]
+                            }
+                        ]
+                    });
+
+                    await this.updateConfigSenatorChannelId(client, guildId, channel.id);
+                    logTime(`[监控服务] 已在服务器 ${guildId} 创建志愿者监控频道: ${channel.name}`);
+                } else if (channel.name !== channelName) {
+                    // 更新频道名称
+                    await channel.setName(channelName);
+                    logTime(`[监控服务] 已更新服务器 ${guildId} 的志愿者监控频道名称: ${channelName}`);
+                }
+            },
+            `监控志愿者人数 [服务器 ${guildId}]`
+        );
     }
 }
 

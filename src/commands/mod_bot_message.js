@@ -86,14 +86,6 @@ export default {
         try {
             const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 
-            if (!guildConfig) {
-                await interaction.editReply({
-                    content: '❌ 无法获取服务器配置',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
             // 检查管理员权限
             if (!(await checkModeratorPermission(interaction, guildConfig))) {
                 return;

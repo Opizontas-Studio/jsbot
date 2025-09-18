@@ -53,14 +53,6 @@ export default {
             const channel = interaction.channel;
             const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
 
-            if (!guildConfig) {
-                await interaction.editReply({
-                    content: '❌ 无法获取服务器配置',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
-
             // 获取参数
             const title = interaction.options.getString('标题');
             const description = interaction.options.getString('内容');

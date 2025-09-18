@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
+import { formatPunishmentDuration } from '../utils/helper.js';
 
 /**
  * Embed工厂类

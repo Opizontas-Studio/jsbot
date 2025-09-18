@@ -2,8 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } fro
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
-import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
-import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
+import { checkModeratorPermission, formatPunishmentDuration, handleCommandError } from '../utils/helper.js';
 
 export default {
     cooldown: 5,

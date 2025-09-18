@@ -2,8 +2,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
+import { calculatePunishmentDuration } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
 import { handleDebateRolesAfterVote, manageRolesByGroups } from './roleApplication.js';
 

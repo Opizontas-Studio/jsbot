@@ -2,7 +2,7 @@ import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { logTime } from '../utils/logger.js';
-import { formatPunishmentDuration } from '../utils/punishmentHelper.js';
+import { formatPunishmentDuration } from '../utils/helper.js';
 import { BlacklistService } from './blacklistService.js';
 
 class PunishmentService {

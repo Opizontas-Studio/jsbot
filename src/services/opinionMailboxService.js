@@ -348,6 +348,208 @@ class OpinionMailboxService {
             false
         );
     }
+
+    /**
+     * 处理意见投稿提交的业务逻辑
+     * @param {Object} client - Discord客户端
+     * @param {string} guildId - 服务器ID
+     * @param {Object} user - 提交用户
+     * @param {string} title - 投稿标题
+     * @param {string} content - 投稿内容
+     * @param {string} type - 投稿类型
+     * @param {string} titlePrefix - 标题前缀
+     * @param {number} color - 嵌入消息颜色
+     * @returns {Promise<{success: boolean, message?: Object}>} 处理结果
+     */
+    async handleOpinionSubmission(client, guildId, user, title, content, type, titlePrefix, color) {
+        return await ErrorHandler.handleService(
+            async () => {
+                // 获取服务器配置（启动时已验证）
+                const guildConfig = client.guildManager.getGuildConfig(guildId);
+
+                // 创建嵌入消息
+                const messageEmbed = {
+                    color: color,
+                    title: `${titlePrefix}${title}`,
+                    description: content,
+                    author: {
+                        name: user.tag,
+                        icon_url: user.displayAvatarURL(),
+                    },
+                    timestamp: new Date(),
+                    footer: {
+                        text: '等待管理员审定'
+                    }
+                };
+
+                // 创建判定按钮
+                const buttons = [
+                    {
+                        type: 2,
+                        style: 3, // Success (绿色)
+                        label: '合理',
+                        custom_id: `approve_submission_${user.id}_${type}`,
+                        emoji: { name: '✅' }
+                    },
+                    {
+                        type: 2,
+                        style: 4, // Danger (红色)
+                        label: '不合理',
+                        custom_id: `reject_submission_${user.id}_${type}`,
+                        emoji: { name: '🚪' }
+                    }
+                ];
+
+                const actionRow = {
+                    type: 1,
+                    components: buttons
+                };
+
+                // 获取目标频道并发送消息
+                const targetChannel = await client.channels.fetch(guildConfig.opinionMailThreadId);
+                if (!targetChannel) {
+                    throw new Error('无法获取目标频道');
+                }
+
+                const message = await targetChannel.send({
+                    embeds: [messageEmbed],
+                    components: [actionRow]
+                });
+
+                logTime(`用户 ${user.tag} 提交了社区意见: "${title}"`);
+
+                return { success: true, message };
+            },
+            "处理意见投稿提交"
+        );
+    }
+
+    /**
+     * 处理投稿审核的业务逻辑
+     * @param {Object} client - Discord客户端
+     * @param {Object} interaction - Discord交互对象
+     * @param {boolean} isApproved - 是否批准
+     * @param {string} userId - 用户ID
+     * @param {string} submissionType - 投稿类型
+     * @param {string} messageId - 消息ID
+     * @param {string} adminReply - 管理员回复
+     * @returns {Promise<Object>} 处理结果
+     */
+    async handleSubmissionReview(client, interaction, isApproved, userId, submissionType, messageId, adminReply) {
+        return await ErrorHandler.handleService(
+            async () => {
+                // 通过消息ID获取原始消息（关键操作，失败就抛出）
+                const originalMessage = await interaction.channel.messages.fetch(messageId);
+                if (!originalMessage) {
+                    throw new Error('无法获取原始投稿消息');
+                }
+
+                // 从embed中提取投稿信息
+                const originalEmbed = originalMessage.embeds[0];
+                let submissionData = null;
+                let submissionTitle = '未知标题';
+
+                if (originalEmbed) {
+                    // 提取标题（去掉前缀）
+                    let title = originalEmbed.title || '未记录标题';
+                    if (title.startsWith('💬 社区意见：')) {
+                        title = title.replace('💬 社区意见：', '').trim();
+                    }
+                    submissionTitle = title;
+
+                    // 只有批准时才需要完整的投稿数据
+                    if (isApproved) {
+                        const content = originalEmbed.description || '未记录内容';
+                        submissionData = {
+                            title: title,
+                            content: content
+                        };
+                    }
+                }
+
+                // 根据处理结果更新消息的embed
+                const updatedEmbed = {
+                    ...originalEmbed.toJSON(),
+                    author: isApproved ? undefined : originalEmbed.author, // 批准时移除作者信息，拒绝时保留
+                    footer: {
+                        text: isApproved ? '审定有效' : '审定无效'
+                    }
+                };
+
+                // 移除按钮并更新消息
+                await originalMessage.edit({
+                    embeds: [updatedEmbed],
+                    components: []
+                });
+
+                // 如果是批准，需要更新意见记录
+                if (isApproved) {
+                    const result = await this.updateOpinionRecord(userId, submissionType, true, submissionData);
+                    if (!result.success) {
+                        throw new Error(result.message);
+                    }
+                }
+
+                // 获取目标用户信息（一次性获取，避免重复）
+                const targetUser = await ErrorHandler.handleSilent(
+                    () => client.users.fetch(userId),
+                    "获取用户信息"
+                );
+
+                // 发送私聊通知（可容错操作）
+                const dmSuccess = await ErrorHandler.handleSilent(
+                    async () => {
+                        if (!targetUser) return false;
+
+                        const dmEmbed = {
+                            color: isApproved ? 0x00ff00 : 0xff0000,
+                            title: isApproved ? '✅ 投稿审定通过' : '❌ 投稿暂时无法执行',
+                            description: [
+                                `**对您的投稿：${submissionTitle}，管理组回复为：**`,
+                                adminReply
+                            ].join('\n'),
+                            timestamp: new Date(),
+                            footer: {
+                                text: '感谢您投稿的社区意见',
+                            }
+                        };
+
+                        await targetUser.send({ embeds: [dmEmbed] });
+                        logTime(`已向用户 ${targetUser.tag} 发送投稿${isApproved ? '审定通过' : '拒绝'}通知`);
+                        return true;
+                    },
+                    "发送私聊通知",
+                    false
+                );
+
+                // 发送审核日志消息（可容错操作）
+                await ErrorHandler.handleSilent(
+                    async () => {
+                        const dmStatus = dmSuccess ? '发送成功' : '发送失败';
+                        const auditLogContent = [
+                            `### ${interaction.user.tag} ${isApproved ? '审定通过了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的社区意见`,
+                            `回复为（${dmStatus}）：${adminReply}`,
+                        ].join('\n');
+
+                        await originalMessage.reply({
+                            content: auditLogContent,
+                            allowedMentions: { users: [] }
+                        });
+                    },
+                    "发送审核日志"
+                );
+
+                logTime(`管理员 ${interaction.user.tag} ${isApproved ? '批准' : '拒绝'}了用户 ${userId} 的社区意见: "${submissionTitle}"`);
+
+                return {
+                    success: true,
+                    submissionTitle,
+                    isApproved
+                };
+            },
+            `${isApproved ? '审定通过' : '拒绝'}投稿`
+        );
+    }
 }
 
 // 创建全局单例

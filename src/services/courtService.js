@@ -4,6 +4,7 @@ import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { checkCooldown } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { setupDebateParticipantRoles } from '../services/roleApplication.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 import { revokePunishmentInGuilds } from '../utils/punishmentHelper.js';
 import { VoteService } from './voteService.js';
@@ -985,6 +986,133 @@ class CourtService {
         } catch (error) {
             logTime(`移除上诉按钮失败: ${error.message}`, true);
         }
+    }
+
+    /**
+     * 处理议事提交的业务逻辑
+     * @param {Object} client - Discord客户端
+     * @param {Object} interaction - Discord交互对象
+     * @param {string} title - 议事标题
+     * @param {string} reason - 提案原因
+     * @param {string} motion - 动议内容
+     * @param {string} implementation - 执行方案
+     * @param {string} voteTime - 投票时间
+     * @returns {Promise<Object>} 处理结果
+     */
+    static async handleDebateSubmission(client, interaction, title, reason, motion, implementation, voteTime) {
+        return await ErrorHandler.handleService(
+            async () => {
+                // 获取服务器配置（启动时已验证议事系统配置）
+                const guildConfig = client.guildManager.getGuildConfig(interaction.guildId);
+
+                // 如果voteTime不以"天"结尾，添加"天"字
+                if (!voteTime.endsWith('天')) {
+                    voteTime = voteTime + '天';
+                }
+
+                // 获取议事区频道
+                const courtChannel = await interaction.guild.channels.fetch(guildConfig.courtSystem.courtChannelId);
+                if (!courtChannel) {
+                    throw new Error('无法获取议事频道');
+                }
+
+                // 计算过期时间
+                const expireTime = new Date(Date.now() + guildConfig.courtSystem.summitDuration);
+
+                // 先创建议事流程（不含messageId）
+                const process = await ProcessModel.createCourtProcess({
+                    type: 'debate',
+                    targetId: interaction.user.id,
+                    executorId: interaction.user.id,
+                    // 暂不设置messageId
+                    expireAt: expireTime.getTime(),
+                    details: {
+                        title: title,
+                        reason: reason,
+                        motion: motion,
+                        implementation: implementation,
+                        voteTime: voteTime,
+                    },
+                });
+
+                // 发送包含完整信息的议事消息
+                const message = await courtChannel.send({
+                    embeds: [
+                        {
+                            color: 0x5865f2,
+                            title: title,
+                            description: `提案人：<@${interaction.user.id}>\n\n议事截止：<t:${Math.floor(
+                                expireTime.getTime() / 1000,
+                            )}:R>`,
+                            fields: [
+                                {
+                                    name: '📝 原因',
+                                    value: reason,
+                                },
+                                {
+                                    name: '📋 动议',
+                                    value: motion,
+                                },
+                                {
+                                    name: '🔧 执行方案',
+                                    value: implementation,
+                                },
+                                {
+                                    name: '🕰️ 投票时间',
+                                    value: voteTime,
+                                },
+                            ],
+                            timestamp: new Date(),
+                            footer: {
+                                text: `需 ${guildConfig.courtSystem.requiredSupports} 个支持，再次点击可撤销支持 | 流程ID: ${process.id}`,
+                            },
+                        },
+                    ],
+                    components: [
+                        {
+                            type: 1,
+                            components: [
+                                {
+                                    type: 2,
+                                    style: 3,
+                                    label: '支持',
+                                    custom_id: `support_debate_${interaction.user.id}_${interaction.user.id}`,
+                                    emoji: { name: '👍' },
+                                },
+                                {
+                                    type: 2,
+                                    style: 4,
+                                    label: '撤回提案',
+                                    custom_id: `revoke_process_${interaction.user.id}_debate`,
+                                    emoji: { name: '↩️' },
+                                },
+                            ],
+                        },
+                    ],
+                });
+
+                // 一次性更新流程记录
+                await ProcessModel.updateStatus(process.id, 'pending', {
+                    messageId: message.id,
+                    details: {
+                        ...process.details,
+                        embed: message.embeds[0].toJSON(),
+                    },
+                });
+
+                // 调度流程到期处理
+                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
+
+                logTime(`用户 ${interaction.user.tag} 提交了议事 "${title}"`);
+
+                return {
+                    success: true,
+                    message,
+                    title
+                };
+            },
+            "提交议事申请"
+        );
     }
 }
 

@@ -1,9 +1,11 @@
+import { ChannelType } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { checkCooldown } from '../handlers/buttons.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { opinionMailboxService } from './opinionMailboxService.js';
@@ -752,4 +754,153 @@ export async function addUserToBlacklistImmediately(userId) {
         logTime(`[黑名单] 立即添加用户到黑名单失败: ${error.message}`, true);
         return false;
     }
+}
+
+/**
+ * 处理创作者身份组申请的业务逻辑
+ * @param {Object} client - Discord客户端
+ * @param {Object} interaction - Discord交互对象
+ * @param {string} threadLink - 帖子链接
+ * @returns {Promise<Object>} 处理结果
+ */
+export async function handleCreatorRoleApplication(client, interaction, threadLink) {
+    return await ErrorHandler.handleService(
+        async () => {
+            const matches = threadLink.match(/channels\/(\d+)\/(?:\d+\/threads\/)?(\d+)/);
+            if (!matches) {
+                throw new Error('无效的帖子链接格式');
+            }
+
+            const [, linkGuildId, threadId] = matches;
+            const currentGuildConfig = client.guildManager.getGuildConfig(interaction.guildId);
+
+            // 检查链接所属服务器是否在配置中
+            const linkGuildConfig = client.guildManager.getGuildConfig(linkGuildId);
+            if (!linkGuildConfig) {
+                throw new Error('提供的帖子不在允许的服务器中');
+            }
+
+            // 使用队列处理申请逻辑
+            const result = await globalRequestQueue.add(async () => {
+                const thread = await client.channels.fetch(threadId);
+
+                if (!thread || !thread.isThread() || thread.parent?.type !== ChannelType.GuildForum) {
+                    throw new Error('提供的链接不是论坛帖子');
+                }
+
+                // 获取首条消息
+                const firstMessage = await thread.messages.fetch({ limit: 1, after: '0' });
+                const threadStarter = firstMessage.first();
+
+                if (!threadStarter || threadStarter.author.id !== interaction.user.id) {
+                    throw new Error('您不是该帖子的作者');
+                }
+
+                // 获取反应数最多的表情
+                let maxReactions = 0;
+                threadStarter.reactions.cache.forEach(reaction => {
+                    const count = reaction.count;
+                    if (count > maxReactions) {
+                        maxReactions = count;
+                    }
+                });
+
+                // 准备审核日志
+                const auditEmbed = {
+                    color: maxReactions >= 5 ? 0x00ff00 : 0xff0000,
+                    title: maxReactions >= 5 ? '✅ 创作者身份组申请通过' : '❌ 创作者身份组申请未通过',
+                    fields: [
+                        {
+                            name: '申请者',
+                            value: `<@${interaction.user.id}>`,
+                            inline: true,
+                        },
+                        {
+                            name: '作品链接',
+                            value: threadLink,
+                            inline: true,
+                        },
+                        {
+                            name: '最高反应数',
+                            value: `${maxReactions}`,
+                            inline: true,
+                        },
+                        {
+                            name: '作品所在服务器',
+                            value: thread.guild.name,
+                            inline: true,
+                        },
+                    ],
+                    timestamp: new Date(),
+                    footer: {
+                        text: '自动审核系统',
+                    },
+                };
+
+                if (maxReactions >= 5) {
+                    // 读取身份组同步配置（可容错操作）
+                    const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
+                    const roleSyncConfig = ErrorHandler.handleSilentSync(
+                        () => JSON.parse(readFileSync(roleSyncConfigPath, 'utf8')),
+                        "加载身份组同步配置",
+                        { syncGroups: [] }
+                    );
+
+                    const creatorSyncGroup = roleSyncConfig.syncGroups.find(group => group.name === '创作者');
+
+                    let successMessage = '';
+                    if (creatorSyncGroup) {
+                        // 使用manageRolesByGroups函数批量添加身份组
+                        const roleResult = await manageRolesByGroups(
+                            client,
+                            interaction.user.id,
+                            [creatorSyncGroup],
+                            '创作者身份组申请通过',
+                            false // 设置为添加操作
+                        );
+
+                        // 检查是否有成功的服务器
+                        if (roleResult.successfulServers.length > 0) {
+                            successMessage = `审核通过！已为您添加创作者身份组${
+                                roleResult.successfulServers.length > 1
+                                    ? `（已同步至：${roleResult.successfulServers.join('、')}）`
+                                    : ''
+                            }`;
+
+                            logTime(
+                                `[自动审核] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${roleResult.successfulServers.join('、')}`
+                            );
+                        } else {
+                            throw new Error('添加身份组时出现错误，请联系管理员');
+                        }
+                    } else {
+                        // 如果没有找到同步配置，只在当前服务器添加
+                        const member = await interaction.guild.members.fetch(interaction.user.id);
+                        await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
+                        successMessage = '审核通过，已为您添加创作者身份组。';
+                    }
+
+                    // 发送审核日志（可容错操作）
+                    await ErrorHandler.handleSilent(
+                        async () => {
+                            const moderationChannel = await client.channels.fetch(
+                                currentGuildConfig.roleApplication.logThreadId
+                            );
+                            if (moderationChannel) {
+                                await moderationChannel.send({ embeds: [auditEmbed] });
+                            }
+                        },
+                        "发送审核日志"
+                    );
+
+                    return { success: true, message: successMessage };
+                } else {
+                    return { success: false, message: '审核未通过，请获取足够正面反应后再申请。' };
+                }
+            }, 3); // 用户指令优先级
+
+            return result;
+        },
+        "处理创作者身份组申请"
+    );
 }

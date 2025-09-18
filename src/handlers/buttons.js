@@ -1,4 +1,3 @@
-import { Collection } from 'discord.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import CourtService from '../services/courtService.js';
 import {
@@ -15,79 +14,33 @@ import {
     validateVolunteerApplication
 } from '../services/roleApplication.js';
 import { VoteService } from '../services/voteService.js';
+import { globalRequestQueue } from '../utils/concurrency.js';
+import { globalCooldownManager } from '../utils/cooldownManager.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 import { handleInteractionError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-
-// 创建冷却时间集合
-const cooldowns = new Collection();
-
-/**
- * 检查并设置冷却时间
- * @param {string} type - 操作类型
- * @param {string} userId - 用户ID
- * @param {number} [duration=10000] - 冷却时间（毫秒）
- * @returns {number|null} 剩余冷却时间（秒），无冷却返回null
- */
-export function checkCooldown(type, userId, duration = 10000) {
-    const now = Date.now();
-    const cooldownKey = `${type}:${userId}`;
-    const cooldownTime = cooldowns.get(cooldownKey);
-
-    if (cooldownTime && now < cooldownTime) {
-        return Math.ceil((cooldownTime - now) / 1000);
-    }
-
-    // 设置冷却时间
-    cooldowns.set(cooldownKey, now + duration);
-    setTimeout(() => cooldowns.delete(cooldownKey), duration);
-    return null;
-}
 
 /**
  * 查找对应的按钮配置
  * @param {string} customId - 按钮的自定义ID
  * @returns {Object|null} - 按钮配置对象或null
  */
-function findButtonConfig(customId) {
-    // 1. 首先检查完整customId是否直接匹配
-    if (BUTTON_CONFIG.deferButtons[customId]) {
-        return {
-            needDefer: true,
-            handler: BUTTON_CONFIG.deferButtons[customId].handler,
-        };
+export function findButtonConfig(customId) {
+    // 1. 直接匹配
+    if (BUTTON_CONFIG[customId]) {
+        return BUTTON_CONFIG[customId];
     }
 
-    if (BUTTON_CONFIG.modalButtons[customId]) {
-        return {
-            needDefer: false,
-            handler: BUTTON_CONFIG.modalButtons[customId],
-        };
-    }
-
-    // 2. 检查前缀匹配（针对带有额外参数的按钮ID）
+    // 2. 前缀匹配（取前两个部分，如 "support_mute_123" -> "support_mute"）
     const buttonPrefix = customId.split('_').slice(0, 2).join('_');
-
-    if (BUTTON_CONFIG.deferButtons[buttonPrefix]) {
-        return {
-            needDefer: true,
-            handler: BUTTON_CONFIG.deferButtons[buttonPrefix].handler,
-        };
+    if (BUTTON_CONFIG[buttonPrefix]) {
+        return BUTTON_CONFIG[buttonPrefix];
     }
 
-    if (BUTTON_CONFIG.modalButtons[buttonPrefix]) {
-        return {
-            needDefer: false,
-            handler: BUTTON_CONFIG.modalButtons[buttonPrefix],
-        };
-    }
-
-    // 3. 处理特殊前缀匹配（如appeal_等需要部分匹配的情况）
-    for (const [prefix, handler] of Object.entries(BUTTON_CONFIG.modalButtons)) {
-        if (customId !== prefix && customId.startsWith(prefix)) {
-            return {
-                needDefer: false,
-                handler: handler,
-            };
+    // 3. 动态ID匹配（用于特殊按钮，如投稿审核）
+    for (const [key, config] of Object.entries(BUTTON_CONFIG)) {
+        if (customId !== key && customId.startsWith(key)) {
+            return config;
         }
     }
 
@@ -101,15 +54,6 @@ function findButtonConfig(customId) {
 export const buttonHandlers = {
     // 身份组申请按钮处理器
     apply_creator_role: async interaction => {
-        // 检查冷却时间
-        const cooldownLeft = checkCooldown('roleapply', interaction.user.id);
-        if (cooldownLeft) {
-            await interaction.reply({
-                content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
 
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
@@ -140,14 +84,6 @@ export const buttonHandlers = {
 
     // 志愿者身份组申请按钮处理器
     apply_volunteer_role: async interaction => {
-        // 检查冷却时间
-        const cooldownLeft = checkCooldown('volunteer_apply', interaction.user.id, 60000); // 1分钟冷却
-        if (cooldownLeft) {
-            await interaction.editReply({
-                content: `❌ 请等待 ${cooldownLeft} 秒后再次申请`,
-            });
-            return;
-        }
 
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
@@ -253,13 +189,6 @@ export const buttonHandlers = {
 
     // 身份组同步按钮处理器
     sync_roles: async interaction => {
-        // 检查冷却时间
-        const cooldownLeft = checkCooldown('role_sync', interaction.user.id, 60000); // 1分钟冷却
-        if (cooldownLeft) {
-            return await interaction.editReply({
-                content: `❌ 请等待 ${cooldownLeft} 秒后再次同步`,
-            });
-        }
 
         try {
             // 同步身份组
@@ -292,15 +221,6 @@ export const buttonHandlers = {
 
     // 提交议事按钮处理器
     start_debate: async interaction => {
-        // 检查冷却时间
-        const cooldownLeft = checkCooldown('start_debate', interaction.user.id);
-        if (cooldownLeft) {
-            await interaction.reply({
-                content: `❌ 请等待 ${cooldownLeft} 秒后再次提交`,
-                flags: ['Ephemeral'],
-            });
-            return;
-        }
 
         // 检查议事系统是否启用
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
@@ -386,15 +306,6 @@ export const buttonHandlers = {
     // 投稿社区意见按钮处理器
     submit_opinion: async interaction => {
         try {
-            // 检查冷却时间
-            const cooldownLeft = checkCooldown('opinion_submission', interaction.user.id, 30000); // 30秒冷却
-            if (cooldownLeft) {
-                await interaction.reply({
-                    content: `❌ 请等待 ${cooldownLeft} 秒后再次提交`,
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
 
             // 创建意见表单
             const modal = createOpinionSubmissionModal();
@@ -436,33 +347,34 @@ export const buttonHandlers = {
     },
 };
 
-// 按钮处理配置对象
+// 按钮配置对象
 const BUTTON_CONFIG = {
-    // 需要defer的按钮
-    deferButtons: {
-        exit_senator_role: { handler: buttonHandlers.exit_senator_role },
-        apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role },
-        exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role },
-        support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute') },
-        support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban') },
-        support_debate: { handler: interaction => CourtService.handleSupport(interaction, 'debate') },
-        support_impeach: { handler: interaction => CourtService.handleSupport(interaction, 'impeach') },
-        vote_red: { handler: interaction => VoteService.handleVoteButton(interaction, 'red') },
-        vote_blue: { handler: interaction => VoteService.handleVoteButton(interaction, 'blue') },
-        sync_roles: { handler: buttonHandlers.sync_roles },
-        revoke_process: { handler: buttonHandlers.revoke_process },
-    },
+    // 身份组相关
+    apply_creator_role: { handler: buttonHandlers.apply_creator_role, needDefer: false, cooldown: 10000 },
+    apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role, needDefer: true, cooldown: 60000 },
+    exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role, needDefer: true, cooldown: 60000 },
+    sync_roles: { handler: buttonHandlers.sync_roles, needDefer: true, cooldown: 60000 },
 
-    // 不需要defer的按钮
-    modalButtons: {
-        apply_creator_role: buttonHandlers.apply_creator_role,
-        start_debate: buttonHandlers.start_debate,
-        page_prev: buttonHandlers.page_prev,
-        page_next: buttonHandlers.page_next,
-        submit_opinion: buttonHandlers.submit_opinion,
-        approve_submission: buttonHandlers.approve_submission,
-        reject_submission: buttonHandlers.reject_submission,
-    },
+    // 议事系统相关
+    start_debate: { handler: buttonHandlers.start_debate, needDefer: false, cooldown: 10000 },
+    support_mute: { handler: interaction => CourtService.handleSupport(interaction, 'mute'), needDefer: true, cooldown: 10000 },
+    support_ban: { handler: interaction => CourtService.handleSupport(interaction, 'ban'), needDefer: true, cooldown: 10000 },
+    support_debate: { handler: interaction => CourtService.handleSupport(interaction, 'debate'), needDefer: true, cooldown: 10000 },
+    support_impeach: { handler: interaction => CourtService.handleSupport(interaction, 'impeach'), needDefer: true, cooldown: 10000 },
+    revoke_process: { handler: buttonHandlers.revoke_process, needDefer: true },
+
+    // 投票相关
+    vote_red: { handler: interaction => VoteService.handleVoteButton(interaction, 'red'), needDefer: true, cooldown: 60000 },
+    vote_blue: { handler: interaction => VoteService.handleVoteButton(interaction, 'blue'), needDefer: true, cooldown: 60000 },
+
+    // 翻页相关
+    page_prev: { handler: buttonHandlers.page_prev, needDefer: false },
+    page_next: { handler: buttonHandlers.page_next, needDefer: false },
+
+    // 投稿相关
+    submit_opinion: { handler: buttonHandlers.submit_opinion, needDefer: false, cooldown: 30000 },
+    approve_submission: { handler: buttonHandlers.approve_submission, needDefer: false },
+    reject_submission: { handler: buttonHandlers.reject_submission, needDefer: false },
 };
 
 /**
@@ -470,34 +382,57 @@ const BUTTON_CONFIG = {
  * @param {ButtonInteraction} interaction - Discord按钮交互对象
  */
 export async function handleButton(interaction) {
-    try {
-        // 1. 首先处理确认类按钮
-        if (interaction.customId.startsWith('confirm_')) {
+    // 1. 首先处理确认类按钮
+    if (interaction.customId.startsWith('confirm_')) {
+        return;
+    }
+
+    // 2. 查找匹配的按钮处理配置
+    const buttonConfig = findButtonConfig(interaction.customId);
+
+    if (!buttonConfig) {
+        logTime(`未找到按钮处理器: ${interaction.customId}`, true);
+        return;
+    }
+
+    // 3. 检查冷却时间
+    if (buttonConfig.cooldown) {
+        const cooldownCheck = await globalCooldownManager.checkCooldown(interaction, {
+            type: 'button',
+            key: interaction.customId.split('_')[0], // 使用按钮类型作为冷却键
+            duration: buttonConfig.cooldown
+        });
+
+        if (cooldownCheck.inCooldown) {
+            await cooldownCheck.reply();
             return;
         }
+    }
 
-        // 2. 查找匹配的按钮处理配置
-        const buttonConfig = findButtonConfig(interaction.customId);
+    // 4. 根据配置决定是否需要defer
+    if (buttonConfig.needDefer) {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+    }
 
-        if (!buttonConfig) {
-            logTime(`未找到按钮处理器: ${interaction.customId}`, true);
-            return;
-        }
+    // 5. 根据按钮类型决定是否需要队列处理
+    const buttonType = interaction.customId.split('_')[0];
+    const queuedButtonTypes = ['court', 'vote', 'support'];
 
-        // 3. 根据配置决定是否需要defer
-        if (buttonConfig.needDefer) {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-        }
+    if (queuedButtonTypes.includes(buttonType)) {
+        const priority = buttonType === 'appeal' ? 4 : 3;
 
-        // 4. 执行对应处理器
-        await buttonConfig.handler(interaction);
-    } catch (error) {
-        // 如果是已知的交互错误，不再重复处理
-        if (error.name === 'InteractionAlreadyReplied') {
-            logTime(`按钮交互已回复: ${interaction.customId}`, true);
-            return;
-        }
-
-        await handleInteractionError(interaction, error, 'button');
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => globalRequestQueue.add(() => buttonConfig.handler(interaction), priority),
+            '按钮交互处理',
+            { ephemeral: true }
+        );
+    } else {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => buttonConfig.handler(interaction),
+            '按钮交互处理',
+            { ephemeral: true }
+        );
     }
 }

@@ -1,7 +1,6 @@
 import { dbManager } from '../db/dbManager.js';
 import { ProcessModel } from '../db/models/processModel.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
-import { checkCooldown } from '../handlers/buttons.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { setupDebateParticipantRoles } from '../services/roleApplication.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -761,13 +760,6 @@ class CourtService {
      */
     static async handleSupport(interaction, type) {
         try {
-            // 检查冷却时间
-            const cooldownLeft = checkCooldown('court_support', interaction.user.id);
-            if (cooldownLeft) {
-                return await interaction.editReply({
-                    content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
-                });
-            }
 
             // 检查议事系统是否启用
             const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);

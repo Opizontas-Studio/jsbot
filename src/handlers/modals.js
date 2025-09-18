@@ -161,6 +161,9 @@ export const modalHandlers = {
  * @param {ModalSubmitInteraction} interaction - Discord模态框提交交互对象
  */
 export async function handleModal(interaction) {
+    // 模态框提交需要defer reply
+    await interaction.deferReply({ flags: ['Ephemeral'] });
+
     // 获取基础模态框ID
     const modalId = interaction.customId;
     let handler = modalHandlers[modalId];

@@ -2,7 +2,6 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { VoteModel } from '../db/models/voteModel.js';
-import { checkCooldown } from '../handlers/buttons.js';
 import { logTime } from '../utils/logger.js';
 import { calculatePunishmentDuration } from '../utils/punishmentHelper.js';
 import PunishmentService from './punishmentService.js';
@@ -1004,13 +1003,6 @@ class VoteService {
      */
     static async handleVoteButton(interaction, choice) {
         try {
-            // 检查冷却时间
-            const cooldownLeft = checkCooldown('vote', interaction.user.id, 60000); // 1分钟冷却
-            if (cooldownLeft) {
-                return await interaction.editReply({
-                    content: `❌ 请等待 ${cooldownLeft} 秒后再次投票`,
-                });
-            }
 
             // 获取服务器配置
             const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);

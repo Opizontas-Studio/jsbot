@@ -2,7 +2,6 @@ import { ChannelType } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
-import { checkCooldown } from '../handlers/buttons.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -469,15 +468,6 @@ export async function applyVolunteerRole(interaction) {
  */
 export async function exitVolunteerRole(interaction) {
     try {
-        // 检查冷却时间
-        const cooldownLeft = checkCooldown('volunteer_exit', interaction.user.id, 60000); // 1分钟冷却
-        if (cooldownLeft) {
-            await interaction.editReply({
-                content: `❌ 请等待 ${cooldownLeft} 秒后再次操作`,
-            });
-            return;
-        }
-
         // 获取服务器配置
         const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
         if (!guildConfig.roleApplication?.volunteerRoleId) {

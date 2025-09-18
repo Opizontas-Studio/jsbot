@@ -180,7 +180,7 @@ class CourtService {
         });
 
         // 调度投票状态更新
-        await globalTaskScheduler.getVoteScheduler().scheduleVote(vote, client);
+        await globalTaskScheduler.getScheduler('vote').scheduleVote(vote, client);
 
         // 发送@通知消息
         if (executor && target) {
@@ -933,7 +933,7 @@ class CourtService {
             });
 
             // 取消计时器
-            await globalTaskScheduler.getProcessScheduler().cancelProcess(process.id);
+            await globalTaskScheduler.getScheduler('process').cancelProcess(process.id);
 
             // 处理上诉特殊逻辑
             if (process.type === 'appeal' && originalMessageId && user) {
@@ -1093,7 +1093,7 @@ class CourtService {
                 });
 
                 // 调度流程到期处理
-                await globalTaskScheduler.getProcessScheduler().scheduleProcess(process, interaction.client);
+                await globalTaskScheduler.getScheduler('process').scheduleProcess(process, interaction.client);
 
                 logTime(`用户 ${interaction.user.tag} 提交了议事 "${title}"`);
 

@@ -1,8 +1,8 @@
 import { PunishmentModel } from '../db/models/punishmentModel.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { logTime } from '../utils/logger.js';
 import { formatPunishmentDuration } from '../utils/helper.js';
+import { logTime } from '../utils/logger.js';
 import { BlacklistService } from './blacklistService.js';
 
 class PunishmentService {
@@ -109,7 +109,7 @@ class PunishmentService {
             // 设置处罚到期定时器
             if (punishment.duration > 0 || punishment.warningDuration) {
                 try {
-                    await globalTaskScheduler.getPunishmentScheduler().schedulePunishment(punishment, client);
+                    await globalTaskScheduler.getScheduler('punishment').schedulePunishment(punishment, client);
                 } catch (error) {
                     logTime(`设置处罚到期定时器失败: ${error.message}`, true);
                     // 不抛出错误，继续执行

@@ -50,6 +50,24 @@ async function saveMessageIds(messageIds) {
 }
 
 /**
+ * 从messageIds配置中获取指定类型的频道ID
+ * @param {string} guildId - 服务器ID
+ * @param {string} type - 消息类型 (top10, statistics, monitor)
+ * @param {Object} messageIds - 消息ID配置对象
+ * @returns {string|null} 频道ID
+ */
+function getChannelIdFromMessageIds(guildId, type, messageIds) {
+    const guildData = messageIds[guildId];
+    if (!guildData || !guildData[type]) {
+        return null;
+    }
+
+    // 获取该类型下的第一个频道ID（messageIds结构是 {channelId: messageId}）
+    const channelIds = Object.keys(guildData[type]);
+    return channelIds.length > 0 ? channelIds[0] : null;
+}
+
+/**
  * 获取或创建用于发送报告的消息
  * @param {Object} channel - Discord频道对象
  * @param {string} type - 报告类型
@@ -270,7 +288,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
             }
         },
         null,
-        'members', 
+        'members',
     );
 
     const validThreads = basicInfoResults.filter(result => result !== null);
@@ -402,19 +420,23 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
     logTime(`开始分析服务器 ${guildId} 的子区活跃度`);
 
     try {
-        // 获取日志频道
-        const logChannelId = guildConfig.automation.logThreadId;
-        const logChannel = await client.channels.fetch(logChannelId);
-
         // 加载消息ID配置
         const messageIds = await loadMessageIds();
 
         // 收集数据
         const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
 
+        // 从messageIds获取top10频道ID，如果没有配置则使用默认的logThreadId
+        const top10ChannelId = getChannelIdFromMessageIds(guildId, 'top10', messageIds) || guildConfig.automation.logThreadId;
+        const top10Channel = await client.channels.fetch(top10ChannelId);
+
+        // 从messageIds获取statistics频道ID，如果没有配置则使用默认的logThreadId
+        const statisticsChannelId = getChannelIdFromMessageIds(guildId, 'statistics', messageIds) || guildConfig.automation.logThreadId;
+        const statisticsChannel = await client.channels.fetch(statisticsChannelId);
+
         // 生成报告
-        await sendQualifiedThreadsList(logChannel, guildId, validThreads, messageIds);
-        await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
+        await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
+        await sendStatisticsReport(statisticsChannel, guildId, statistics, failedOperations, messageIds);
 
         const executionTime = totalTimer();
         logTime(`活跃度分析完成 - 处理了 ${statistics.totalThreads} 个子区，用时: ${executionTime}秒`);
@@ -433,12 +455,12 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
     logTime(`[自动清理] 开始清理服务器 ${guildId} 的不活跃子区`);
 
     try {
-        // 获取日志频道
-        const logChannelId = guildConfig.automation.logThreadId;
-        const logChannel = await client.channels.fetch(logChannelId);
-
         // 加载消息ID配置
         const messageIds = await loadMessageIds();
+
+        // 从messageIds获取statistics频道ID，如果没有配置则使用默认的logThreadId
+        const statisticsChannelId = getChannelIdFromMessageIds(guildId, 'statistics', messageIds) || guildConfig.automation.logThreadId;
+        const logChannel = await client.channels.fetch(statisticsChannelId);
 
         // 收集数据
         const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);

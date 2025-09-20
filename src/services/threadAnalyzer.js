@@ -62,9 +62,26 @@ function getChannelIdFromMessageIds(guildId, type, messageIds) {
         return null;
     }
 
-    // 获取该类型下的第一个频道ID（messageIds结构是 {channelId: messageId}）
+    // 获取该类型下的所有频道ID
     const channelIds = Object.keys(guildData[type]);
-    return channelIds.length > 0 ? channelIds[0] : null;
+    if (channelIds.length === 0) {
+        return null;
+    }
+
+    // 如果只有一个频道，直接返回
+    if (channelIds.length === 1) {
+        return channelIds[0];
+    }
+
+    // 如果有多个频道，优先选择有消息ID的频道，如果都没有则选择第一个
+    for (const channelId of channelIds) {
+        if (guildData[type][channelId] && guildData[type][channelId].trim() !== '') {
+            return channelId;
+        }
+    }
+
+    // 如果都没有消息ID，返回第一个频道ID
+    return channelIds[0];
 }
 
 /**

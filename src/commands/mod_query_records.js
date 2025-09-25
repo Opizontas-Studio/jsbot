@@ -21,7 +21,8 @@ export default {
                     { name: '投票记录', value: 'vote' }
                 ),
         )
-        .addUserOption(option => option.setName('用户').setDescription('筛选特定用户（可选）').setRequired(false)),
+        .addUserOption(option => option.setName('用户').setDescription('筛选特定用户（可选）').setRequired(false))
+        .addStringOption(option => option.setName('id').setDescription('通过ID直接查询特定记录（可选）').setRequired(false)),
 
     async execute(interaction, guildConfig) {
         try {
@@ -32,16 +33,27 @@ export default {
 
             const type = interaction.options.getString('类型');
             const targetUser = interaction.options.getUser('用户');
+            const queryId = interaction.options.getString('id');
 
             if (type === 'punishment') {
-                // 查询处罚记录：全库只查活跃，个人查所有历史
-                const punishments = targetUser
-                    ? await PunishmentModel.getUserPunishments(targetUser.id, true) // 包含历史记录
-                    : await PunishmentModel.getAllPunishments(false); // 只显示活跃记录
+                // 根据ID精确查询或按条件查询
+                let punishments;
+                if (queryId) {
+                    // 通过ID精确查询
+                    const punishment = await PunishmentModel.getPunishmentById(queryId);
+                    punishments = punishment ? [punishment] : [];
+                } else {
+                    // 查询处罚记录：全库只查活跃，个人查所有历史
+                    punishments = targetUser
+                        ? await PunishmentModel.getUserPunishments(targetUser.id, true) // 包含历史记录
+                        : await PunishmentModel.getAllPunishments(false); // 只显示活跃记录
+                }
 
                 if (!punishments || punishments.length === 0) {
                     await interaction.editReply({
-                        content: targetUser
+                        content: queryId
+                            ? `❌ 找不到ID为 ${queryId} 的处罚记录`
+                            : targetUser
                             ? `✅ 用户 ${targetUser.tag} 没有任何处罚记录`
                             : '✅ 数据库中没有活跃的处罚记录',
                         flags: ['Ephemeral'],
@@ -103,9 +115,11 @@ export default {
                     pages.push({
                         embeds: [
                             {
-                                color: targetUser ? 0x3498db : 0x0099ff, // 用户查询使用不同颜色
+                                color: targetUser ? 0x3498db : queryId ? 0xe74c3c : 0x0099ff, // ID查询使用红色
                                 title: '处罚记录查询结果',
-                                description: targetUser
+                                description: queryId
+                                    ? `ID ${queryId} 的处罚记录`
+                                    : targetUser
                                     ? `用户 <@${targetUser.id}> 的处罚历史记录`
                                     : '当前活跃的处罚记录',
                                 fields,
@@ -136,14 +150,26 @@ export default {
                 interaction.client.pageCache.set(message.id, pages);
                 setTimeout(() => interaction.client.pageCache.delete(message.id), 5 * 60 * 1000);
             } else if (type === 'process') {
-                // 查询流程记录
-                const processes = targetUser
-                    ? await ProcessModel.getUserProcesses(targetUser.id, true) // 包含历史记录
-                    : await ProcessModel.getAllProcesses(false); // 只显示进行中和待处理的记录
+                // 根据ID精确查询或按条件查询
+                let processes;
+                if (queryId) {
+                    // 通过ID精确查询
+                    const process = await ProcessModel.getProcessById(queryId);
+                    processes = process ? [process] : [];
+                } else {
+                    // 查询流程记录
+                    processes = targetUser
+                        ? await ProcessModel.getUserProcesses(targetUser.id, true) // 包含历史记录
+                        : await ProcessModel.getAllProcesses(false); // 只显示进行中和待处理的记录
+                }
 
                 if (!processes || processes.length === 0) {
                     await interaction.editReply({
-                        content: targetUser ? `✅ 用户 ${targetUser.tag} 没有相关流程记录` : '✅ 数据库中没有流程记录',
+                        content: queryId
+                            ? `❌ 找不到ID为 ${queryId} 的流程记录`
+                            : targetUser
+                            ? `✅ 用户 ${targetUser.tag} 没有相关流程记录`
+                            : '✅ 数据库中没有流程记录',
                         flags: ['Ephemeral'],
                     });
                     return;
@@ -214,9 +240,11 @@ export default {
                     pages.push({
                         embeds: [
                             {
-                                color: 0x0099ff,
+                                color: queryId ? 0xe74c3c : 0x0099ff, // ID查询使用红色
                                 title: '流程记录查询结果',
-                                description: targetUser
+                                description: queryId
+                                    ? `ID ${queryId} 的流程记录`
+                                    : targetUser
                                     ? `用户 ${targetUser.tag} (${targetUser.id}) 的流程记录`
                                     : '全库流程记录',
                                 fields,
@@ -247,14 +275,24 @@ export default {
                 interaction.client.pageCache.set(message.id, pages);
                 setTimeout(() => interaction.client.pageCache.delete(message.id), 5 * 60 * 1000);
             } else if (type === 'vote') {
-                // 查询投票记录
-                const votes = targetUser
-                    ? await VoteModel.getUserVotes(targetUser.id, true) // 包含历史记录
-                    : await VoteModel.getAllVotes(false); // 全部记录
+                // 根据ID精确查询或按条件查询
+                let votes;
+                if (queryId) {
+                    // 通过ID精确查询
+                    const vote = await VoteModel.getVoteById(queryId);
+                    votes = vote ? [vote] : [];
+                } else {
+                    // 查询投票记录
+                    votes = targetUser
+                        ? await VoteModel.getUserVotes(targetUser.id, true) // 包含历史记录
+                        : await VoteModel.getAllVotes(false); // 全部记录
+                }
 
                 if (!votes || votes.length === 0) {
                     await interaction.editReply({
-                        content: targetUser
+                        content: queryId
+                            ? `❌ 找不到ID为 ${queryId} 的投票记录`
+                            : targetUser
                             ? `✅ 用户 ${targetUser.tag} 没有参与任何投票记录`
                             : '✅ 数据库中没有投票记录',
                         flags: ['Ephemeral'],
@@ -382,9 +420,11 @@ export default {
                     pages.push({
                         embeds: [
                             {
-                                color: 0x5865f2, // Discord蓝
+                                color: queryId ? 0xe74c3c : 0x5865f2, // ID查询使用红色，否则用Discord蓝
                                 title: '投票记录查询结果',
-                                description: targetUser
+                                description: queryId
+                                    ? `ID ${queryId} 的投票记录`
+                                    : targetUser
                                     ? `用户 ${targetUser.tag} 参与的投票记录`
                                     : '全库投票记录',
                                 fields,

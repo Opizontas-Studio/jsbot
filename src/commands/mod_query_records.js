@@ -85,7 +85,7 @@ export default {
                             // 格式化处罚信息
                             const punishmentInfo = [
                                 `**执行人:** ${executor ? `<@${executor.id}>` : '未知'}`,
-                                !targetUser ? `**处罚对象:** <@${p.targetId}>` : null,
+                                !targetUser ? `**处罚对象:** <@${p.targetId || p.userId}>` : null,
                                 `**原因:** ${p.reason}`,
                                 `**时长:** ${formatPunishmentDuration(p.duration)}`,
                                 p.warningDuration ? `**警告剩余时间:** <t:${Math.floor((p.createdAt + p.warningDuration) / 1000)}:R>` : null,

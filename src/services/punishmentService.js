@@ -352,6 +352,15 @@ class PunishmentService {
                                     if (!bans.has(target.id)) {
                                         if (punishment.type === 'softban') {
                                             logTime(`[处罚系统] 用户 ${target.tag} 在服务器 ${guild.name} 的软封锁已解除（正常情况）`);
+                                            // 软封锁未在封禁列表中，但仍需要处理警告身份组
+                                            const targetMember = await guild.members.fetch(target.id);
+                                            if (targetMember && guildData.roleApplication?.WarnedRoleId) {
+                                                await ErrorHandler.handleSilent(
+                                                    () => targetMember.roles.remove(guildData.roleApplication?.WarnedRoleId, reason),
+                                                    `移除用户 ${target.tag} 在服务器 ${guild.name} 的警告身份组`
+                                                );
+                                                logTime(`[处罚系统] 已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`);
+                                            }
                                             return true; // 软封锁未在封禁列表中视为成功
                                         } else {
                                             logTime(`[处罚系统] 用户 ${target.tag} 在服务器 ${guild.name} 未被封禁，跳过解除`, true);

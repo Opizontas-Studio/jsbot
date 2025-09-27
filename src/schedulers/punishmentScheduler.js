@@ -23,7 +23,11 @@ export class PunishmentScheduler {
                     'all',
                     `SELECT * FROM punishments
                     WHERE status = 'active'
-                    AND (duration > 0 OR warningDuration > 0)`,
+                    AND (
+                        duration > 0 OR
+                        warningDuration > 0 OR
+                        (type IN ('softban', 'warning') AND warningDuration IS NOT NULL)
+                    )`,
                     [],
                 );
 
@@ -60,10 +64,9 @@ export class PunishmentScheduler {
         await ErrorHandler.handleService(
             async () => {
                 // 计算到期时间
-                const expiryTime = new Date(Math.max(
-                    punishment.duration > 0 ? punishment.createdAt + punishment.duration : 0,
-                    punishment.warningDuration ? punishment.createdAt + punishment.warningDuration : 0
-                ));
+                const durationExpiry = punishment.duration > 0 ? punishment.createdAt + punishment.duration : 0;
+                const warningExpiry = punishment.warningDuration > 0 ? punishment.createdAt + punishment.warningDuration : 0;
+                const expiryTime = new Date(Math.max(durationExpiry, warningExpiry));
 
                 if (expiryTime.getTime() > 0) {
                     const job = schedule.scheduleJob(expiryTime, () => {

@@ -6,7 +6,7 @@ class PunishmentModel {
      * 创建新的处罚记录
      * @param {Object} data - 处罚数据
      * @param {string} data.userId - 被处罚用户ID
-     * @param {string} data.type - 处罚类型 (ban/mute/softban)
+     * @param {string} data.type - 处罚类型 (ban/mute/softban/warning)
      * @param {string} data.reason - 处罚原因
      * @param {number} data.duration - 处罚时长(毫秒)，永封为-1
      * @param {string} data.executorId - 执行者ID

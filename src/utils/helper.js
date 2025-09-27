@@ -455,3 +455,28 @@ export const formatPunishmentDuration = duration => {
 
     return parts.join('');
 };
+
+/**
+ * 验证警告时长并返回计算结果
+ * @param {string} warnTime - 警告时长字符串 (如 "30d")
+ * @param {number} [maxDays=90] - 最大允许天数，默认90天
+ * @returns {{isValid: boolean, duration: number|null, error: string|null}} 验证结果
+ */
+export const validateWarningDuration = (warnTime, maxDays = 90) => {
+    if (!warnTime) {
+        return { isValid: true, duration: null, error: null };
+    }
+
+    const duration = calculatePunishmentDuration(warnTime);
+    if (duration === -1) {
+        return { isValid: false, duration: null, error: '无效的警告时长格式' };
+    }
+
+    // 检查警告时长是否超过最大天数
+    const MAX_WARNING_TIME = maxDays * 24 * 60 * 60 * 1000;
+    if (duration > MAX_WARNING_TIME) {
+        return { isValid: false, duration: null, error: `警告时长不能超过${maxDays}天` };
+    }
+
+    return { isValid: true, duration, error: null };
+};

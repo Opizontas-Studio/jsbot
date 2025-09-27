@@ -1,7 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import PunishmentService from '../services/punishmentService.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { calculatePunishmentDuration, checkAndHandlePermission, formatPunishmentDuration, handleCommandError } from '../utils/helper.js';
+import { calculatePunishmentDuration, checkModeratorPermission, formatPunishmentDuration, handleCommandError, validateWarningDuration } from '../utils/helper.js';
 
 export default {
     cooldown: 5,
@@ -41,6 +41,14 @@ export default {
                 .addStringOption(option =>
                     option.setName('警告').setDescription('同时添加警告 (例如: 30d)').setRequired(false),
                 ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('警告')
+                .setDescription('对用户执行警告处罚')
+                .addUserOption(option => option.setName('用户').setDescription('要处罚的用户').setRequired(true))
+                .addStringOption(option => option.setName('时长').setDescription('警告时长 (例如: 30d)，最大90天').setRequired(true))
+                .addStringOption(option => option.setName('原因').setDescription('处罚原因（手机使用此命令建议小于60个汉字，否则有截断BUG）').setRequired(true))
         ),
 
     async execute(interaction, guildConfig) {
@@ -49,58 +57,44 @@ export default {
             const target = interaction.options.getUser('用户');
             const reason = interaction.options.getString('原因');
 
-            // 声明权限相关变量
-            let isQAerOnly = false;
-
-            // 根据子命令检查不同的权限
-            if (subcommand === '永封' || subcommand === '软封锁') {
-                // 永封和软封锁需要管理员权限
-                if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
-                    return;
-                }
-            } else if (subcommand === '禁言') {
-                // 检查基本权限（管理员、版主或QAer）
+            // 统一权限检查
+            if (subcommand === '永封') {
+                // 永封需要管理员权限
                 const hasAdminRole = interaction.member.roles.cache.some(role =>
                     guildConfig.AdministratorRoleIds.includes(role.id),
                 );
-                const hasModRole = interaction.member.roles.cache.some(role =>
-                    guildConfig.ModeratorRoleIds.includes(role.id),
-                );
-                const hasQAerRole = interaction.member.roles.cache.some(role =>
-                    role.id === guildConfig.roleApplication?.QAerRoleId,
-                );
-
-                if (!hasAdminRole && !hasModRole && !hasQAerRole) {
+                if (!hasAdminRole) {
                     await interaction.editReply({
-                        content: '你没有权限执行此操作。需要具有管理员、版主或答疑员身份组。',
+                        content: '你没有权限执行永封操作。需要具有管理员身份组。',
                         flags: ['Ephemeral'],
                     });
                     return;
                 }
-
-                // 对于仅有QAer权限的用户，需要进行额外检查
-                isQAerOnly = !hasAdminRole && !hasModRole && hasQAerRole;
+            } else if (subcommand === '禁言' || subcommand === '警告' || subcommand === '软封锁') {
+                // 检查基本权限
+                if (!(await checkModeratorPermission(interaction, guildConfig))) {
+                    return;
+                }
             }
 
             // 检查目标用户是否为管理员
-            let isAdmin = false;
             try {
                 const member = await interaction.guild.members.fetch(target.id);
-                isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) ||
-                         member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+                const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) ||
+                              member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+
+                if (isAdmin) {
+                    await interaction.editReply({
+                        content: '❌ 无法对管理员执行处罚',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
             } catch (error) {
                 // 如果用户不在服务器中，则跳过管理员检查
                 if (error.code !== 10007) { // 10007 是 Discord API 返回的"Unknown Member"错误码
                     throw error; // 如果是其他错误，则继续抛出
                 }
-            }
-
-            if (isAdmin) {
-                await interaction.editReply({
-                    content: '❌ 无法对管理员执行处罚',
-                    flags: ['Ephemeral'],
-                });
-                return;
             }
 
             if (subcommand === '永封') {
@@ -160,28 +154,16 @@ export default {
             } else if (subcommand === '软封锁') {
                 const warnTime = interaction.options.getString('警告');
 
-                // 如果提供了警告时长，验证格式和时长
-                let warningDuration = null;
-                if (warnTime) {
-                    warningDuration = calculatePunishmentDuration(warnTime);
-                    if (warningDuration === -1) {
-                        await interaction.editReply({
-                            content: '❌ 无效的警告时长格式',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    // 检查警告时长是否超过90天
-                    const MAX_WARNING_TIME = 90 * 24 * 60 * 60 * 1000;
-                    if (warningDuration > MAX_WARNING_TIME) {
-                        await interaction.editReply({
-                            content: '❌ 警告时长不能超过90天',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
+                // 验证警告时长
+                const warningValidation = validateWarningDuration(warnTime);
+                if (!warningValidation.isValid) {
+                    await interaction.editReply({
+                        content: `❌ ${warningValidation.error}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
                 }
+                const warningDuration = warningValidation.duration;
 
                 await handleConfirmationButton({
                     interaction,
@@ -263,40 +245,16 @@ export default {
                     return;
                 }
 
-                // 对于QAer身份组，限制禁言时长不能超过1天
-                if (isQAerOnly) {
-                    const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
-                    if (muteDuration > ONE_DAY_IN_MS) {
-                        await interaction.editReply({
-                            content: '❌ 答疑员身份组只能执行1天及以内的禁言',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
+                // 验证警告时长
+                const warningValidation = validateWarningDuration(warnTime);
+                if (!warningValidation.isValid) {
+                    await interaction.editReply({
+                        content: `❌ ${warningValidation.error}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
                 }
-
-                // 如果提供了警告时长，验证格式和时长
-                let warningDuration = null;
-                if (warnTime) {
-                    warningDuration = calculatePunishmentDuration(warnTime);
-                    if (warningDuration === -1) {
-                        await interaction.editReply({
-                            content: '❌ 无效的警告时长格式',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    // 检查警告时长是否超过90天
-                    const MAX_WARNING_TIME = 90 * 24 * 60 * 60 * 1000;
-                    if (warningDuration > MAX_WARNING_TIME) {
-                        await interaction.editReply({
-                            content: '❌ 警告时长不能超过90天',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-                }
+                const warningDuration = warningValidation.duration;
 
                 const muteData = {
                     type: 'mute',
@@ -318,6 +276,48 @@ export default {
                 const result = await PunishmentService.executePunishment(
                     interaction.client,
                     muteData,
+                    interaction.guildId
+                );
+
+                // 更新最终结果
+                await interaction.editReply({
+                    content: result.message,
+                    flags: ['Ephemeral'],
+                });
+            } else if (subcommand === '警告') {
+                const warnTime = interaction.options.getString('时长');
+
+                // 验证警告时长（纯警告必须提供时长）
+                const warningValidation = validateWarningDuration(warnTime);
+                if (!warningValidation.isValid) {
+                    await interaction.editReply({
+                        content: `❌ ${warningValidation.error}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+                const warningDuration = warningValidation.duration;
+
+                const warningData = {
+                    type: 'warning',
+                    userId: target.id,
+                    reason,
+                    duration: -1, // 纯警告不需要禁言时长
+                    executorId: interaction.user.id,
+                    channelId: interaction.channelId,
+                    warningDuration: warningDuration,
+                };
+
+                // 显示处理中消息
+                await interaction.editReply({
+                    content: '⏳ 正在执行警告...',
+                    flags: ['Ephemeral'],
+                });
+
+                // 执行处罚
+                const result = await PunishmentService.executePunishment(
+                    interaction.client,
+                    warningData,
                     interaction.guildId
                 );
 

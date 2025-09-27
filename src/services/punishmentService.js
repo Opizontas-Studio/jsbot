@@ -350,8 +350,13 @@ class PunishmentService {
                                     // 先检查用户是否被ban
                                     const bans = await guild.bans.fetch();
                                     if (!bans.has(target.id)) {
-                                        logTime(`[处罚系统] 用户 ${target.tag} 在服务器 ${guild.name} 未被封禁，跳过解除`, true);
-                                        return false;
+                                        if (punishment.type === 'softban') {
+                                            logTime(`[处罚系统] 用户 ${target.tag} 在服务器 ${guild.name} 的软封锁已解除（正常情况）`);
+                                            return true; // 软封锁未在封禁列表中视为成功
+                                        } else {
+                                            logTime(`[处罚系统] 用户 ${target.tag} 在服务器 ${guild.name} 未被封禁，跳过解除`, true);
+                                            return false;
+                                        }
                                     }
 
                                     // 解除封禁

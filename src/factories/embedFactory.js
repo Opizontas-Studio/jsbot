@@ -751,6 +751,17 @@ export class EmbedFactory {
     }
 
     /**
+     * 常用颜色常量
+     */
+    static Colors = {
+        SUCCESS: 0x5fa85f,
+        ERROR: 0xb85c5c,
+        INFO: 0x00aaff,
+        WARNING: 0xffcc00,
+        PRIMARY: 0x5865f2
+    };
+
+    /**
      * 常用emoji前缀
      */
     static Emojis = {

@@ -442,47 +442,81 @@ export class EmbedFactory {
     // 处罚系统相关embed
 
     /**
+     * 获取处罚类型的配置信息
+     * @param {string} type - 处罚类型
+     * @returns {Object} 配置对象
+     */
+    static getPunishmentConfig(type) {
+        const configs = {
+            ban: {
+                color: 0xff0000,      // 红色 - 永封
+                typeText: '永封'
+            },
+            softban: {
+                color: 0xff9900,      // 橙色 - 软封锁
+                typeText: '移出服务器'
+            },
+            mute: {
+                color: 0xff6600,      // 深橙色 - 禁言
+                typeText: '禁言'
+            },
+            warning: {
+                color: 0xffcc00,      // 黄色 - 警告
+                typeText: '警告'
+            }
+        };
+
+        return configs[type] || {
+            color: 0xff0000,
+            typeText: type
+        };
+    }
+
+    /**
+     * 获取用户头像URL
+     * @param {Object} user - 用户对象
+     * @returns {string} 头像URL
+     */
+    static getUserAvatarURL(user) {
+        return user.displayAvatarURL({
+            dynamic: true,
+            size: 64,
+        }) || user.defaultAvatarURL;
+    }
+
+    /**
+     * 获取处罚期限描述文本
+     * @param {Object} punishment - 处罚对象
+     * @returns {string} 期限描述
+     */
+    static getPunishmentDurationText(punishment) {
+        switch (punishment.type) {
+            case 'ban':
+                return '永久';
+            case 'softban':
+                return '移出服务器（消息已删除）';
+            case 'mute':
+                return punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久';
+            case 'warning':
+                return punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久';
+            default:
+                return '未知';
+        }
+    }
+
+    /**
      * 创建管理日志处罚通知embed
      * @param {Object} punishment - 处罚数据库记录
      * @param {Object} target - 目标用户对象
      * @returns {Object} 原始embed对象
      */
     static createModLogPunishmentEmbed(punishment, target) {
-        const targetAvatarURL = target.displayAvatarURL({
-            dynamic: true,
-            size: 64,
-        }) || target.defaultAvatarURL;
-
-        // 根据处罚类型设置不同的颜色
-        const getPunishmentColor = (type) => {
-            switch (type) {
-                case 'ban': return 0xff0000;      // 红色 - 永封
-                case 'softban': return 0xff9900;  // 橙色 - 软封锁
-                case 'mute': return 0xff6600;      // 深橙色 - 禁言
-                case 'warning': return 0xffcc00;  // 黄色 - 警告
-                default: return 0xff0000;
-            }
-        };
-
-        // 根据处罚类型获取期限描述
-        const getDurationText = (punishment) => {
-            switch (punishment.type) {
-                case 'ban':
-                    return '永久';
-                case 'softban':
-                    return '立即解除（消息已清理）';
-                case 'mute':
-                    return punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久';
-                case 'warning':
-                    return punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久';
-                default:
-                    return '未知';
-            }
-        };
+        const config = EmbedFactory.getPunishmentConfig(punishment.type);
+        const targetAvatarURL = EmbedFactory.getUserAvatarURL(target);
 
         const embed = {
-            color: getPunishmentColor(punishment.type),
-            title: `${target.username} 已被${EmbedFactory.getPunishmentTypeText(punishment.type)}`,
+            color: config.color,
+            title: `${target.username} 已被${config.typeText}`,
             thumbnail: {
                 url: targetAvatarURL,
             },
@@ -494,7 +528,7 @@ export class EmbedFactory {
                 },
                 {
                     name: '处罚期限',
-                    value: getDurationText(punishment),
+                    value: EmbedFactory.getPunishmentDurationText(punishment),
                     inline: true,
                 },
                 {
@@ -507,15 +541,9 @@ export class EmbedFactory {
         };
 
         // 根据处罚类型添加特定信息
-        if (punishment.type === 'mute' && punishment.warningDuration) {
+        if ((punishment.type === 'mute' || punishment.type === 'softban') && punishment.warningDuration) {
             embed.fields.push({
                 name: '附加警告',
-                value: formatPunishmentDuration(punishment.warningDuration),
-                inline: true,
-            });
-        } else if (punishment.type === 'softban' && punishment.warningDuration) {
-            embed.fields.push({
-                name: '警告时长',
                 value: formatPunishmentDuration(punishment.warningDuration),
                 inline: true,
             });
@@ -541,82 +569,49 @@ export class EmbedFactory {
      * @returns {Object} 原始embed对象
      */
     static createChannelPunishmentEmbed(punishment, target) {
-        const targetAvatarURL = target.displayAvatarURL({
-            dynamic: true,
-            size: 64,
-        }) || target.defaultAvatarURL;
+        const config = EmbedFactory.getPunishmentConfig(punishment.type);
+        const targetAvatarURL = EmbedFactory.getUserAvatarURL(target);
 
-        // 根据处罚类型设置不同的颜色
-        const getPunishmentColor = (type) => {
-            switch (type) {
-                case 'ban': return 0xff0000;      // 红色 - 永封
-                case 'softban': return 0xff9900;  // 橙色 - 软封锁
-                case 'mute': return 0xff6600;      // 深橙色 - 禁言
-                case 'warning': return 0xffcc00;  // 黄色 - 警告
-                default: return 0xff0000;
-            }
-        };
+        // 构建描述内容
+        let description = `<@${target.id}> 已被${config.typeText}`;
 
-        // 根据处罚类型获取期限描述
-        const getDurationText = (punishment) => {
-            switch (punishment.type) {
-                case 'ban':
-                    return '永久';
-                case 'softban':
-                    return '消息已清理';
-                case 'mute':
-                    return punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久';
-                case 'warning':
-                    return punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久';
-                default:
-                    return '未知';
-            }
-        };
+        switch (punishment.type) {
+            case 'ban':
+                description = `<@${target.id}> 已被永封`;
+                break;
+            case 'softban':
+                description = `<@${target.id}> 已被移出服务器，且近期发送的消息已删除`;
+                if (punishment.warningDuration) {
+                    description += `，附加警告${formatPunishmentDuration(punishment.warningDuration)}`;
+                }
+                break;
+            case 'mute':
+                const muteDuration = punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久';
+                description = `<@${target.id}> 已被禁言${muteDuration}`;
+                if (punishment.warningDuration) {
+                    description += `，且附加警告${formatPunishmentDuration(punishment.warningDuration)}`;
+                }
+                break;
+            case 'warning':
+                const warningDuration = punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久';
+                description = `<@${target.id}> 已被警告${warningDuration}`;
+                break;
+        }
 
-        const embed = {
-            color: getPunishmentColor(punishment.type),
-            title: `${EmbedFactory.getPunishmentTypeText(punishment.type)}处罚已执行`,
+        description += `。理由：${punishment.reason || '未提供原因'}`;
+
+        return {
+            color: config.color,
+            title: `${config.typeText}处罚已执行`,
+            description: description,
             thumbnail: {
                 url: targetAvatarURL,
             },
-            fields: [
-                {
-                    name: '处罚对象',
-                    value: `<@${target.id}>`,
-                    inline: true,
-                },
-                {
-                    name: '处罚期限',
-                    value: getDurationText(punishment),
-                    inline: true,
-                },
-                {
-                    name: '处罚理由',
-                    value: punishment.reason || '未提供原因',
-                },
-            ],
             footer: {
-                text: `如有异议，请联系服务器主或在任管理员。`,
+                text: `处罚ID: ${punishment.id} | 如有异议，请联系服务器主或在任管理员。`,
             },
             timestamp: new Date(),
         };
-
-        // 根据处罚类型添加特定信息
-        if (punishment.type === 'mute' && punishment.warningDuration) {
-            embed.fields.push({
-                name: '附加警告',
-                value: formatPunishmentDuration(punishment.warningDuration),
-                inline: true,
-            });
-        } else if (punishment.type === 'softban' && punishment.warningDuration) {
-            embed.fields.push({
-                name: '警告时长',
-                value: formatPunishmentDuration(punishment.warningDuration),
-                inline: true,
-            });
-        }
-
-        return embed;
     }
 
     /**
@@ -626,47 +621,10 @@ export class EmbedFactory {
      * @returns {Object} 原始embed对象
      */
     static createPunishmentDMEmbed(punishment) {
-        // 根据处罚类型设置不同的颜色和标题
-        const getPunishmentConfig = (type) => {
-            switch (type) {
-                case 'ban':
-                    return {
-                        color: 0xff0000,
-                        title: '⚠️ **永封通知**',
-                        typeText: '永久封禁'
-                    };
-                case 'softban':
-                    return {
-                        color: 0xff9900,
-                        title: '⚠️ **软封锁通知**',
-                        typeText: '软封锁'
-                    };
-                case 'mute':
-                    return {
-                        color: 0xff6600,
-                        title: '⚠️ **禁言通知**',
-                        typeText: '禁言'
-                    };
-                case 'warning':
-                    return {
-                        color: 0xffcc00,
-                        title: '⚠️ **警告通知**',
-                        typeText: '警告'
-                    };
-                default:
-                    return {
-                        color: 0xff0000,
-                        title: '⚠️ **处罚通知**',
-                        typeText: '处罚'
-                    };
-            }
-        };
-
-        const config = getPunishmentConfig(punishment.type);
+        const config = EmbedFactory.getPunishmentConfig(punishment.type);
         const baseDescription = [
             `您已在旅程ΟΡΙΖΟΝΤΑΣ被${config.typeText}：`,
-            `- ${config.typeText}原因：${punishment.reason || '未提供原因'}`,
-            `- 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
+            `- ${config.typeText === '移出服务器' ? '移出服务器原因' : config.typeText + '原因'}：${punishment.reason || '未提供原因'}`,
         ];
 
         // 根据处罚类型添加特定信息
@@ -676,14 +634,12 @@ export class EmbedFactory {
                 break;
 
             case 'softban':
-                baseDescription.push('', '**软封锁说明：**');
-                baseDescription.push('- 您在服务器内发送的7天内消息已被清理');
+                baseDescription.push('- 您7天内发送在服务器内的消息已被删除');
                 baseDescription.push('- 您可以通过以下邀请链接重新加入服务器');
-                baseDescription.push('', '**重新加入链接：**');
                 baseDescription.push('https://discord.gg/elysianhorizon');
 
                 if (punishment.warningDuration) {
-                    baseDescription.splice(3, 0, `- 警告时长：${formatPunishmentDuration(punishment.warningDuration)}`);
+                    baseDescription.splice(3, 0, `- 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`);
                 }
                 break;
 
@@ -702,27 +658,13 @@ export class EmbedFactory {
 
         return {
             color: config.color,
-            title: config.title,
+            title: `您已在旅程ΟΡΙΖΟΝΤΑΣ被${config.typeText}`,
             description: baseDescription.join('\n'),
             footer: {
                 text: `如有异议，请联系服务器主或在任管理员。`,
             },
             timestamp: new Date(),
         };
-    }
-
-    /**
-     * 获取处罚类型的中文描述
-     * @param {string} type - 处罚类型
-     * @returns {string} 中文描述
-     */
-    static getPunishmentTypeText(type) {
-        return ({
-            ban: '永封',
-            mute: '禁言',
-            softban: '软封锁',
-            warning: '警告',
-        }[type] || type);
     }
 
     /**

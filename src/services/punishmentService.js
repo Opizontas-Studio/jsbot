@@ -61,7 +61,7 @@ class PunishmentService {
                     async () => {
                         const embed = EmbedFactory.createPunishmentDMEmbed(punishment);
                         await target.send({ embeds: [embed] });
-                        logTime(`[处罚系统] 已向用户 ${target.tag} 发送${EmbedFactory.getPunishmentTypeText(punishment.type)}通知`);
+                        logTime(`[处罚系统] 已向用户 ${target.tag} 发送${EmbedFactory.getPunishmentConfig(punishment.type).typeText}通知`);
                     },
                     `发送私信通知给用户 ${target.tag}`
                 );

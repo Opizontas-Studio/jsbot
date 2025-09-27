@@ -108,13 +108,18 @@ class PunishmentService {
                 // 不影响处罚的执行，继续执行
             }
 
-            // 如果是永封或软封锁，标记为过期
+            // 如果是永封，标记为过期；如果是软封锁，根据是否有警告期决定
             if (punishment.type === 'ban') {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行永封');
                 logTime(`永封处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
             } else if (punishment.type === 'softban') {
-                await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行软封锁');
-                logTime(`软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
+                // 软封锁如果没有警告期，立即标记为过期；如果有警告期，保持活跃状态
+                if (!punishment.warningDuration) {
+                    await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行软封锁');
+                    logTime(`软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
+                } else {
+                    logTime(`软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，保持活跃状态（有警告期）`);
+                }
             }
 
             // 设置处罚到期定时器
@@ -271,7 +276,7 @@ class PunishmentService {
             }
 
             // 只有当禁言和警告都到期时，才更新状态为已过期
-            if ((muteExpired && punishment.type === 'mute') || warningExpired) {
+            if ((muteExpired && punishment.type === 'mute') || (warningExpired && punishment.type === 'softban')) {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '处罚已到期');
             }
         } catch (error) {

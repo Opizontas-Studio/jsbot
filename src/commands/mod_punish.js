@@ -24,7 +24,10 @@ export default {
                 .setName('软封锁')
                 .setDescription('软封锁用户（清理消息后立即解封，用户可重新加入）')
                 .addUserOption(option => option.setName('用户').setDescription('要处罚的用户').setRequired(true))
-                .addStringOption(option => option.setName('原因').setDescription('处罚原因（手机使用此命令建议小于60个汉字，否则有截断BUG）').setRequired(true)),
+                .addStringOption(option => option.setName('原因').setDescription('处罚原因（手机使用此命令建议小于60个汉字，否则有截断BUG）').setRequired(true))
+                .addStringOption(option =>
+                    option.setName('警告').setDescription('同时添加警告 (例如: 30d)').setRequired(false),
+                ),
         )
         .addSubcommand(subcommand =>
             subcommand
@@ -155,6 +158,31 @@ export default {
                     },
                 });
             } else if (subcommand === '软封锁') {
+                const warnTime = interaction.options.getString('警告');
+
+                // 如果提供了警告时长，验证格式和时长
+                let warningDuration = null;
+                if (warnTime) {
+                    warningDuration = calculatePunishmentDuration(warnTime);
+                    if (warningDuration === -1) {
+                        await interaction.editReply({
+                            content: '❌ 无效的警告时长格式',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    // 检查警告时长是否超过90天
+                    const MAX_WARNING_TIME = 90 * 24 * 60 * 60 * 1000;
+                    if (warningDuration > MAX_WARNING_TIME) {
+                        await interaction.editReply({
+                            content: '❌ 警告时长不能超过90天',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+                }
+
                 await handleConfirmationButton({
                     interaction,
                     customId: 'confirm_softban',
@@ -168,12 +196,14 @@ export default {
                             '**处罚详情：**',
                             `- 用户：${target.tag} (${target.id})`,
                             `- 原因：${reason}`,
+                            warningDuration ? `- 警告时长：${formatPunishmentDuration(warningDuration)}` : '- 警告时长：无',
                             '',
                             '**软封锁说明：**',
                             '- 用户将被临时封禁并清理消息',
                             '- 立即解除封禁，用户可重新加入服务器',
                             '- 用户将收到包含邀请链接的私信通知',
-                        ].join('\n'),
+                            warningDuration ? '- 用户将在再次加入时获得警告身份组' : '',
+                        ].filter(Boolean).join('\n'),
                     },
                     onConfirm: async confirmation => {
                         // 先更新交互消息
@@ -192,6 +222,7 @@ export default {
                             executorId: interaction.user.id,
                             keepMessages: false, // 软封锁总是删除消息
                             channelId: interaction.channelId,
+                            warningDuration: warningDuration,
                         };
 
                         const result = await PunishmentService.executePunishment(

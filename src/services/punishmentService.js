@@ -451,16 +451,36 @@ class PunishmentService {
                     break;
 
                 case 'softban':
-                    // 软封锁：先封禁（不保留消息），然后立即解封
-                    await guild.members.ban(punishment.userId, {
-                        deleteMessageSeconds: 7 * 24 * 60 * 60, // 删除7天消息
-                        reason,
-                    });
-                    logTime(`已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
+                    // 软封锁：检查是否已经执行过（通过检查用户是否在服务器中）
+                    const member = await guild.members.fetch(punishment.userId).catch(() => null);
 
-                    // 立即解除封禁
-                    await guild.bans.remove(punishment.userId, `软封锁解除 - ${reason}`);
-                    logTime(`已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
+                    if (!member) {
+                        // 用户不在服务器中，执行软封锁
+                        await guild.members.ban(punishment.userId, {
+                            deleteMessageSeconds: 7 * 24 * 60 * 60, // 删除7天消息
+                            reason,
+                        });
+                        logTime(`已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
+
+                        // 立即解除封禁
+                        await guild.bans.remove(punishment.userId, `软封锁解除 - ${reason}`);
+                        logTime(`已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
+                    } else {
+                        // 用户已在服务器中，只处理警告身份组
+                        if (punishment.warningDuration && guildConfig?.roleApplication?.WarnedRoleId) {
+                            // 检查警告是否仍然有效
+                            const warningExpiryTime = punishment.createdAt + punishment.warningDuration;
+                            if (warningExpiryTime > Date.now()) {
+                                await member.roles
+                                    .add(guildConfig.roleApplication?.WarnedRoleId, reason)
+                                    .then(() => {
+                                        logTime(`已为用户 ${member.user.tag} 添加警告身份组 (软封锁处罚ID: ${punishment.id})`);
+                                    })
+                                    .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
+                            }
+                        }
+                        logTime(`用户 ${member.user.tag} 已在服务器中，跳过软封锁执行，仅处理警告身份组`);
+                    }
                     break;
 
                 case 'mute':

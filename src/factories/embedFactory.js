@@ -467,7 +467,7 @@ export class EmbedFactory {
                 },
                 {
                     name: '处罚期限',
-                    value: formatPunishmentDuration(punishment.duration),
+                    value: punishment.type === 'softban' ? '无' : formatPunishmentDuration(punishment.duration),
                     inline: true,
                 },
                 {
@@ -527,7 +527,7 @@ export class EmbedFactory {
                 },
                 {
                     name: '处罚期限',
-                    value: punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久',
+                    value: punishment.type === 'softban' ? '无' : (punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久'),
                     inline: true,
                 },
                 {

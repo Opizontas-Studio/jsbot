@@ -132,15 +132,15 @@ export default {
 
                     await targetUser.send({ embeds: [dmEmbed] });
                 } catch (error) {
-                    logTime(`无法向 ${targetUser.tag} 发送答题处罚私信通知：${error.message}`, true);
+                    logTime(`[处罚系统] 无法向 ${targetUser.tag} 发送答题处罚私信通知：${error.message}`, true);
                 }
 
-                logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, false);
+                logTime(`[处罚系统] ${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行了重新答题处罚。理由：${reason}`, false);
             } else {
                 replyEmbed
                     .setDescription('❌ 处罚执行失败')
                     .setColor(0xff0000);
-                logTime(`${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行重新答题处罚失败`, true);
+                logTime(`[处罚系统] ${isQAerOperation ? '答疑员' : '管理员'} ${interaction.user.tag} 对 ${targetUser.tag} 执行重新答题处罚失败`, true);
             }
 
             await interaction.editReply({ embeds: [replyEmbed] });

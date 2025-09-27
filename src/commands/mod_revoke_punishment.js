@@ -94,15 +94,15 @@ export default {
 
                         await target
                             .send({ embeds: [dmEmbed] })
-                            .then(() => logTime(`已向用户 ${target.tag} 发送处罚撤销通知`))
+                            .then(() => logTime(`[处罚系统] 已向用户 ${target.tag} 发送处罚撤销通知`))
                             .catch(error =>
-                                logTime(`向用户 ${target.tag} 发送处罚撤销通知失败: ${error.message}`, true),
+                                logTime(`[处罚系统] 向用户 ${target.tag} 发送处罚撤销通知失败: ${error.message}`, true),
                             );
                     } catch (error) {
-                        logTime(`创建处罚撤销通知失败: ${error.message}`, true);
+                        logTime(`[处罚系统] 创建处罚撤销通知失败: ${error.message}`, true);
                     }
                 } else {
-                    logTime(`跳过向永封用户 ${target.tag} 发送处罚撤销通知`);
+                    logTime(`[处罚系统] 跳过向永封用户 ${target.tag} 发送处罚撤销通知`);
                 }
             }
 

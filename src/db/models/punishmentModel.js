@@ -41,7 +41,7 @@ class PunishmentModel {
 
             return this.getPunishmentById(result.lastID);
         } catch (error) {
-            logTime(`创建处罚记录失败: ${error.message}`, true);
+            logTime(`[处罚系统] 创建处罚记录失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -131,7 +131,7 @@ class PunishmentModel {
         }
 
         try {
-            logTime(`正在更新处罚状态: ID=${id}, 旧状态=${punishment.status}, 新状态=${status}`);
+            logTime(`[处罚系统] 正在更新处罚状态: ID=${id}, 旧状态=${punishment.status}, 新状态=${status}`);
 
             await dbManager.safeExecute(
                 'run',
@@ -147,7 +147,7 @@ class PunishmentModel {
 
             return this.getPunishmentById(id);
         } catch (error) {
-            logTime(`更新处罚状态失败: ${error.message}`, true);
+            logTime(`[处罚系统] 更新处罚状态失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -178,7 +178,7 @@ class PunishmentModel {
 
             return this.getPunishmentById(id);
         } catch (error) {
-            logTime(`更新处罚 ${id} 的同步状态失败: ${error.message}`, true);
+            logTime(`[处罚系统] 更新处罚 ${id} 的同步状态失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -223,7 +223,7 @@ class PunishmentModel {
                 targetId: p.userId,
             }));
         } catch (error) {
-            logTime(`获取全库处罚记录失败: ${error.message}`, true);
+            logTime(`[处罚系统] 获取全库处罚记录失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -247,7 +247,7 @@ class PunishmentModel {
 
             return true;
         } catch (error) {
-            logTime(`删除处罚记录失败: ${error.message}`, true);
+            logTime(`[处罚系统] 删除处罚记录失败: ${error.message}`, true);
             return false;
         }
     }
@@ -274,7 +274,7 @@ class PunishmentModel {
 
             return true;
         } catch (error) {
-            logTime(`更新处罚通知信息失败: ${error.message}`, true);
+            logTime(`[处罚系统] 更新处罚通知信息失败: ${error.message}`, true);
             return false;
         }
     }

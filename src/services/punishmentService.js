@@ -45,7 +45,7 @@ class PunishmentService {
 
                 // 记录基本信息
                 logTime(
-                    `处罚信息 - 处罚ID: ${punishment.id}, ` +
+                    `[处罚系统] 处罚ID: ${punishment.id}, ` +
                         `执行者: ${executor.tag}, ` +
                         `目标: ${target.tag}, ` +
                         `类型: ${punishment.type}, ` +
@@ -61,7 +61,7 @@ class PunishmentService {
                     async () => {
                         const embed = EmbedFactory.createPunishmentDMEmbed(punishment);
                         await target.send({ embeds: [embed] });
-                        logTime(`已向用户 ${target.tag} 发送${EmbedFactory.getPunishmentTypeText(punishment.type)}通知`);
+                        logTime(`[处罚系统] 已向用户 ${target.tag} 发送${EmbedFactory.getPunishmentTypeText(punishment.type)}通知`);
                     },
                     `发送私信通知给用户 ${target.tag}`
                 );
@@ -98,13 +98,13 @@ class PunishmentService {
                 // 7. 根据处罚类型更新状态
                 if (punishment.type === 'ban') {
                     await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行永封');
-                    logTime(`永封处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
+                    logTime(`[处罚系统] 永封处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
                 } else if (punishment.type === 'softban') {
                     if (!punishment.warningDuration) {
                         await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行软封锁');
-                        logTime(`软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
+                        logTime(`[处罚系统] 软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
                     } else {
-                        logTime(`软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，保持活跃状态（有警告期）`);
+                        logTime(`[处罚系统] 软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，保持活跃状态（有警告期）`);
                     }
                 }
 
@@ -159,9 +159,9 @@ class PunishmentService {
                 }
 
                 if (notificationResults.length > 0) {
-                    logTime(`通知发送情况 - 已发送: ${notificationResults.join(', ')}`);
+                    logTime(`[处罚系统] 通知发送情况 - 已发送: ${notificationResults.join(', ')}`);
                 } else {
-                    logTime('通知发送情况 - 无通知发送成功', true);
+                    logTime('[处罚系统] 通知发送情况 - 无通知发送成功', true);
                 }
 
                 return {
@@ -226,14 +226,14 @@ class PunishmentService {
                                     `移除用户 ${member.user.tag} 在服务器 ${guild.name} 的警告身份组`
                                 );
                                 logTime(
-                                    `已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`,
+                                    `[处罚系统] 已在服务器 ${guild.name} 移除用户 ${member.user.tag} 的警告身份组 (处罚ID: ${punishment.id}, 原因: ${punishment.reason})`,
                                 );
                             } else {
-                                logTime(`用户 ${member.user.tag} 在服务器 ${guild.name} 没有警告身份组，无需移除`);
+                                logTime(`[处罚系统] 用户 ${member.user.tag} 在服务器 ${guild.name} 没有警告身份组，无需移除`);
                             }
                         }
                     } else {
-                        logTime(`用户 ${punishment.userId} 还有其他活跃的警告处罚，保留警告身份组`);
+                        logTime(`[处罚系统] 用户 ${punishment.userId} 还有其他活跃的警告处罚，保留警告身份组`);
                     }
                 }
 
@@ -269,7 +269,7 @@ class PunishmentService {
             async () => {
                 // 更新处罚状态
                 await PunishmentModel.updateStatus(punishment.id, isAppeal ? 'appealed' : 'revoked', reason);
-                logTime(`处罚 ${punishment.id} 状态已更新为 ${isAppeal ? '上诉通过' : '已撤销'}`);
+                logTime(`[处罚系统] 处罚 ${punishment.id} 状态已更新为 ${isAppeal ? '上诉通过' : '已撤销'}`);
 
                 for (const guildData of allGuilds) {
                     if (!guildData?.id) continue;
@@ -298,7 +298,7 @@ class PunishmentService {
 
                                     // 解除禁言
                                     await targetMember.timeout(null, reason);
-                                    logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的禁言`);
+                                    logTime(`[处罚系统] 已在服务器 ${guild.name} 解除用户 ${target.tag} 的禁言`);
 
                                     // 移除警告身份组
                                     if (guildData.roleApplication?.WarnedRoleId) {
@@ -330,7 +330,7 @@ class PunishmentService {
                                             () => targetMember.roles.remove(guildData.roleApplication?.WarnedRoleId, reason),
                                             `移除用户 ${target.tag} 在服务器 ${guild.name} 的警告身份组`
                                         );
-                                        logTime(`已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`);
+                                        logTime(`[处罚系统] 已在服务器 ${guild.name} 移除用户 ${target.tag} 的警告身份组`);
                                     }
                                     return true;
                                 },
@@ -350,13 +350,13 @@ class PunishmentService {
                                     // 先检查用户是否被ban
                                     const bans = await guild.bans.fetch();
                                     if (!bans.has(target.id)) {
-                                        logTime(`用户 ${target.tag} 在服务器 ${guild.name} 未被封禁，跳过解除`, true);
+                                        logTime(`[处罚系统] 用户 ${target.tag} 在服务器 ${guild.name} 未被封禁，跳过解除`, true);
                                         return false;
                                     }
 
                                     // 解除封禁
                                     await guild.bans.remove(target.id, reason);
-                                    logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的${punishment.type === 'softban' ? '软封锁' : '封禁'}`);
+                                    logTime(`[处罚系统] 已在服务器 ${guild.name} 解除用户 ${target.tag} 的${punishment.type === 'softban' ? '软封锁' : '封禁'}`);
                                     return true;
                                 },
                                 `解除用户 ${target.tag} 在服务器 ${guild.name} 的${punishment.type === 'softban' ? '软封锁' : '封禁'}`
@@ -372,7 +372,7 @@ class PunishmentService {
 
                 // 记录执行结果
                 if (failedServers.length > 0) {
-                    logTime(`处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
+                    logTime(`[处罚系统] 处罚解除失败的服务器: ${failedServers.map(s => s.name).join(', ')}`, true);
                 }
 
                 return { success: true, successfulServers, failedServers };
@@ -421,20 +421,20 @@ class PunishmentService {
                             () => member.roles.add(guildConfig.roleApplication?.WarnedRoleId, reason),
                             `添加用户 ${member.user.tag} 在服务器 ${guild.name} 的警告身份组`
                         );
-                        logTime(`已为用户 ${member.user.tag} 添加警告身份组 (处罚ID: ${punishment.id})`);
+                        logTime(`[处罚系统] 已为用户 ${member.user.tag} 添加警告身份组 (处罚ID: ${punishment.id})`);
                     }
-                    logTime(`软封锁同步执行：为用户处理警告身份组 (处罚ID: ${punishment.id})`);
+                    logTime(`[处罚系统] 软封锁同步执行：为用户处理警告身份组 (处罚ID: ${punishment.id})`);
                 } else {
                     // 首次执行软封锁（封禁+解封）
                     await guild.members.ban(punishment.userId, {
                         deleteMessageSeconds: 7 * 24 * 60 * 60, // 删除7天消息
                         reason,
                     });
-                    logTime(`已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
+                    logTime(`[处罚系统] 已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
 
                     // 立即解除封禁
                     await guild.bans.remove(punishment.userId, `软封锁解除 - ${reason}`);
-                    logTime(`已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
+                    logTime(`[处罚系统] 已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
                 }
                 break;
 
@@ -446,7 +446,7 @@ class PunishmentService {
 
                 // 如果已经过期，不执行禁言
                 if (remainingDuration === 0) {
-                    logTime(`禁言处罚 ${punishment.id} 已过期，跳过执行`);
+                    logTime(`[处罚系统] 禁言处罚 ${punishment.id} 已过期，跳过执行`);
                     return true;
                 }
 
@@ -458,7 +458,7 @@ class PunishmentService {
                 );
 
                 if (!member) {
-                    logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`);
+                    logTime(`[处罚系统] 用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`);
                     return true;
                 }
 
@@ -482,7 +482,7 @@ class PunishmentService {
                 );
 
                 if (!warningMember) {
-                    logTime(`用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`);
+                    logTime(`[处罚系统] 用户 ${punishment.userId} 不在服务器 ${guild.name} 中，仅记录处罚`);
                     return true;
                 }
 
@@ -492,12 +492,12 @@ class PunishmentService {
                         () => warningMember.roles.add(guildConfig.roleApplication?.WarnedRoleId, reason),
                         `添加用户 ${warningMember.user.tag} 在服务器 ${guild.name} 的警告身份组`
                     );
-                    logTime(`已为用户 ${warningMember.user.tag} 添加警告身份组 (处罚ID: ${punishment.id})`);
+                    logTime(`[处罚系统] 已为用户 ${warningMember.user.tag} 添加警告身份组 (处罚ID: ${punishment.id})`);
                 }
                 break;
 
             default:
-                logTime(`未知的处罚类型: ${punishment.type}`, true);
+                logTime(`[处罚系统] 未知的处罚类型: ${punishment.type}`, true);
                 return false;
         }
 

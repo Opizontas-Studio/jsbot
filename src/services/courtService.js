@@ -561,7 +561,7 @@ class CourtService {
                         return { error: '找不到相关的处罚记录' };
                     }
 
-                    logTime(`处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
+                    logTime(`[处罚系统] 处罚记录状态: ID=${punishmentId}, status=${punishment.status}`);
 
                     // 检查处罚是否已过期
                     const now = Date.now();

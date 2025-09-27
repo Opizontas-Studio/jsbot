@@ -20,7 +20,7 @@ export default {
                         const newSyncedServers = [...punishment.syncedServers, member.guild.id];
                         await PunishmentModel.updateSyncStatus(punishment.id, newSyncedServers);
 
-                        logTime(`对加入用户 ${member.user.tag} 同步执行处罚 (处罚ID: ${punishment.id})`);
+                        logTime(`[处罚系统] 对加入用户 ${member.user.tag} 同步执行处罚 (处罚ID: ${punishment.id})`);
                     }
                 }
             }

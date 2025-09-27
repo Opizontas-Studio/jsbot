@@ -47,7 +47,7 @@ export class PunishmentScheduler {
         );
 
         if (result.success) {
-            logTime(`[定时任务] PunishmentScheduler 初始化完成，已加载 ${result.data} 个处罚`);
+            logTime(`[处罚系统] [定时任务] PunishmentScheduler 初始化完成，已加载 ${result.data} 个处罚`);
         }
     }
 
@@ -74,7 +74,7 @@ export class PunishmentScheduler {
                         );
                     });
 
-                    logTime(`[定时任务] 已调度处罚 ${punishment.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
+                    logTime(`[处罚系统] [定时任务] 已调度处罚 ${punishment.id} 的到期处理，将在 ${expiryTime.toLocaleString()} 执行`);
                     this.jobs.set(punishment.id, job);
                 }
             },
@@ -91,6 +91,6 @@ export class PunishmentScheduler {
             job.cancel();
         }
         this.jobs.clear();
-        logTime('[定时任务] 已清理所有处罚到期定时器');
+        logTime('[处罚系统] [定时任务] 已清理所有处罚到期定时器');
     }
 }

@@ -43,7 +43,7 @@ class PunishmentService {
                     }`,
             );
 
-            // 3. 如果是永封处罚，先发送私信通知
+            // 3. 如果是永封或软封锁处罚，先发送私信通知
             if (punishment.type === 'ban') {
                 try {
                     const embed = EmbedFactory.createBanNotificationEmbed(punishment);
@@ -51,6 +51,14 @@ class PunishmentService {
                     logTime(`已向用户 ${target.tag} 发送永封通知`);
                 } catch (error) {
                     logTime(`无法向用户 ${target.tag} 发送永封通知: ${error.message}`, true);
+                }
+            } else if (punishment.type === 'softban') {
+                try {
+                    const embed = EmbedFactory.createSoftbanNotificationEmbed(punishment);
+                    await target.send({ embeds: [embed] });
+                    logTime(`已向用户 ${target.tag} 发送软封锁通知`);
+                } catch (error) {
+                    logTime(`无法向用户 ${target.tag} 发送软封锁通知: ${error.message}`, true);
                 }
             }
 
@@ -100,10 +108,13 @@ class PunishmentService {
                 // 不影响处罚的执行，继续执行
             }
 
-            // 如果是永封，标记为过期
+            // 如果是永封或软封锁，标记为过期
             if (punishment.type === 'ban') {
                 await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行永封');
                 logTime(`永封处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
+            } else if (punishment.type === 'softban') {
+                await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行软封锁');
+                logTime(`软封锁处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
             }
 
             // 设置处罚到期定时器
@@ -350,6 +361,7 @@ class PunishmentService {
                             break;
 
                         case 'ban':
+                        case 'softban':
                             // 先检查用户是否被ban
                             bans = await guild.bans.fetch().catch(error => {
                                 logTime(`在服务器 ${guild.name} 获取封禁列表失败: ${error.message}`, true);
@@ -375,11 +387,11 @@ class PunishmentService {
                             await guild.bans
                                 .remove(target.id, reason)
                                 .then(() => {
-                                    logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的封禁`);
+                                    logTime(`已在服务器 ${guild.name} 解除用户 ${target.tag} 的${punishment.type === 'softban' ? '软封锁' : '封禁'}`);
                                     successfulServers.push(guild.name);
                                 })
                                 .catch(error => {
-                                    logTime(`在服务器 ${guild.name} 解除封禁失败: ${error.message}`, true);
+                                    logTime(`在服务器 ${guild.name} 解除${punishment.type === 'softban' ? '软封锁' : '封禁'}失败: ${error.message}`, true);
                                     failedServers.push({
                                         id: guild.id,
                                         name: guild.name,
@@ -431,6 +443,19 @@ class PunishmentService {
                         deleteMessageSeconds: punishment.keepMessages ? 0 : 7 * 24 * 60 * 60,
                         reason,
                     });
+                    break;
+
+                case 'softban':
+                    // 软封锁：先封禁（不保留消息），然后立即解封
+                    await guild.members.ban(punishment.userId, {
+                        deleteMessageSeconds: 7 * 24 * 60 * 60, // 删除7天消息
+                        reason,
+                    });
+                    logTime(`已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
+
+                    // 立即解除封禁
+                    await guild.bans.remove(punishment.userId, `软封锁解除 - ${reason}`);
+                    logTime(`已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
                     break;
 
                 case 'mute':

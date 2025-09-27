@@ -21,6 +21,13 @@ export default {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('软封锁')
+                .setDescription('软封锁用户（清理消息后立即解封，用户可重新加入）')
+                .addUserOption(option => option.setName('用户').setDescription('要处罚的用户').setRequired(true))
+                .addStringOption(option => option.setName('原因').setDescription('处罚原因（手机使用此命令建议小于60个汉字，否则有截断BUG）').setRequired(true)),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('禁言')
                 .setDescription('临时禁言用户')
                 .addUserOption(option => option.setName('用户').setDescription('要处罚的用户').setRequired(true))
@@ -43,8 +50,8 @@ export default {
             let isQAerOnly = false;
 
             // 根据子命令检查不同的权限
-            if (subcommand === '永封') {
-                // 永封需要管理员权限
+            if (subcommand === '永封' || subcommand === '软封锁') {
+                // 永封和软封锁需要管理员权限
                 if (!(await checkAndHandlePermission(interaction, guildConfig.AdministratorRoleIds))) {
                     return;
                 }
@@ -145,6 +152,60 @@ export default {
                     },
                     onError: async error => {
                         await handleCommandError(interaction, error, '永封');
+                    },
+                });
+            } else if (subcommand === '软封锁') {
+                await handleConfirmationButton({
+                    interaction,
+                    customId: 'confirm_softban',
+                    buttonLabel: '确认软封锁',
+                    embed: {
+                        color: 0xff9900,
+                        title: '⚠️ 软封锁确认',
+                        description: [
+                            `你确定要对用户 ${target.tag} 执行软封锁吗？`,
+                            '',
+                            '**处罚详情：**',
+                            `- 用户：${target.tag} (${target.id})`,
+                            `- 原因：${reason}`,
+                            '',
+                            '**软封锁说明：**',
+                            '- 用户将被临时封禁并清理消息',
+                            '- 立即解除封禁，用户可重新加入服务器',
+                            '- 用户将收到包含邀请链接的私信通知',
+                        ].join('\n'),
+                    },
+                    onConfirm: async confirmation => {
+                        // 先更新交互消息
+                        await confirmation.deferUpdate();
+                        await interaction.editReply({
+                            content: '⏳ 正在执行软封锁...',
+                            components: [],
+                            embeds: [],
+                        });
+
+                        const softbanData = {
+                            type: 'softban',
+                            userId: target.id,
+                            reason,
+                            duration: -1,
+                            executorId: interaction.user.id,
+                            keepMessages: false, // 软封锁总是删除消息
+                            channelId: interaction.channelId,
+                        };
+
+                        const result = await PunishmentService.executePunishment(
+                            interaction.client,
+                            softbanData,
+                            interaction.guildId
+                        );
+                        await interaction.editReply({
+                            content: result.message,
+                            flags: ['Ephemeral'],
+                        });
+                    },
+                    onError: async error => {
+                        await handleCommandError(interaction, error, '软封锁');
                     },
                 });
             } else if (subcommand === '禁言') {

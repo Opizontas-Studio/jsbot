@@ -601,6 +601,34 @@ export class EmbedFactory {
     }
 
     /**
+     * 创建软封锁私信通知embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @returns {Object} 原始embed对象
+     */
+    static createSoftbanNotificationEmbed(punishment) {
+        return {
+            color: 0xff9900,
+            title: '⚠️ **软封锁通知**',
+            description: [
+                '您已在旅程ΟΡΙΖΟΝΤΑΣ被软封锁：',
+                `- 处理原因：${punishment.reason || '未提供原因'}`,
+                `- 执行时间：<t:${Math.floor(Date.now() / 1000)}:F>`,
+                '',
+                '**软封锁说明：**',
+                '- 您在服务器内发送的7天内消息已被清理',
+                '- 您可以通过以下邀请链接重新加入服务器',
+                '',
+                '**重新加入链接：**',
+                'https://discord.gg/elysianhorizon',
+            ].join('\n'),
+            footer: {
+                text: `如有异议，请联系服务器主或在任管理员。`,
+            },
+            timestamp: new Date(),
+        };
+    }
+
+    /**
      * 获取处罚类型的中文描述
      * @param {string} type - 处罚类型
      * @returns {string} 中文描述
@@ -609,6 +637,7 @@ export class EmbedFactory {
         return ({
             ban: '永封',
             mute: '禁言',
+            softban: '软封锁',
             warn: '警告',
         }[type] || type);
     }

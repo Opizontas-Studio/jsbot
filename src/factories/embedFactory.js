@@ -668,15 +668,87 @@ export class EmbedFactory {
     }
 
     /**
-     * 常用颜色常量
+     * 创建处罚撤销私信通知embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @param {string} reason - 撤销原因
+     * @returns {Object} 原始embed对象
      */
-    static Colors = {
-        SUCCESS: 0x5fa85f,
-        ERROR: 0xb85c5c,
-        INFO: 0x00aaff,
-        WARNING: 0xffcc00,
-        PRIMARY: 0x5865f2
-    };
+    static createPunishmentRevokeDMEmbed(punishment, reason) {
+        const config = EmbedFactory.getPunishmentConfig(punishment.type);
+
+        return {
+            color: EmbedFactory.Colors.SUCCESS,
+            title: `您的${config.typeText}处罚已被撤销`,
+            description: [
+                `您的${config.typeText}处罚已被管理员撤销。`,
+                '',
+                '**处罚详情**',
+                `- 处罚ID：${punishment.id}`,
+                `- 原处罚原因：${punishment.reason}`,
+                `- 撤销原因：${reason}`,
+            ].join('\n'),
+            timestamp: new Date(),
+            footer: {
+                text: '如有疑问，请联系服务器主或在任管理员。',
+            }
+        };
+    }
+
+    /**
+     * 创建处罚撤销管理日志embed
+     * @param {Object} punishment - 处罚数据库记录
+     * @param {Object} target - 目标用户对象
+     * @param {string} reason - 撤销原因
+     * @param {Array<string>} successfulServers - 成功操作的服务器列表
+     * @param {Array<Object>} failedServers - 失败操作的服务器列表
+     * @returns {Object} 原始embed对象
+     */
+    static createPunishmentRevokeLogEmbed(punishment, target, reason, successfulServers = [], failedServers = []) {
+        const config = EmbedFactory.getPunishmentConfig(punishment.type);
+        const targetAvatarURL = EmbedFactory.getUserAvatarURL(target);
+
+        const embed = {
+            color: EmbedFactory.Colors.SUCCESS,
+            title: `${target.username} 的${config.typeText}处罚已被撤销`,
+            thumbnail: {
+                url: targetAvatarURL,
+            },
+            fields: [
+                {
+                    name: '处罚对象',
+                    value: `<@${target.id}>`,
+                    inline: true,
+                },
+                {
+                    name: '原处罚类型',
+                    value: config.typeText,
+                    inline: true,
+                },
+                {
+                    name: '撤销原因',
+                    value: reason,
+                },
+            ],
+            timestamp: new Date(),
+            footer: { text: `处罚ID: ${punishment.id}` },
+        };
+
+        if (successfulServers.length > 0) {
+            embed.fields.push({
+                name: '成功服务器',
+                value: successfulServers.join(', '),
+            });
+        }
+
+        if (failedServers.length > 0) {
+            embed.fields.push({
+                name: '失败服务器',
+                value: failedServers.map(s => s.name).join(', '),
+            });
+        }
+
+        return embed;
+    }
 
     /**
      * 常用emoji前缀

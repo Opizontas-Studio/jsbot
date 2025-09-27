@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { EmbedFactory } from '../factories/embedFactory.js';
 import PunishmentService from '../services/punishmentService.js';
 import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
@@ -78,19 +79,7 @@ export default {
                 // 发送私信通知，但跳过永封类型
                 if (punishment.type !== 'ban') {
                     try {
-                        const dmEmbed = {
-                            color: 0x00ff00,
-                            title: '处罚已被撤销',
-                            description: [
-                                `您的${punishment.type === 'ban' ? '永封' : '禁言'}处罚已被管理员撤销。`,
-                                '',
-                                '**处罚详情**',
-                                `- 处罚ID：${punishment.id}`,
-                                `- 原处罚原因：${punishment.reason}`,
-                                `- 撤销原因：${reason}`,
-                            ].join('\n'),
-                            timestamp: new Date(),
-                        };
+                        const dmEmbed = EmbedFactory.createPunishmentRevokeDMEmbed(punishment, reason);
 
                         await target
                             .send({ embeds: [dmEmbed] })
@@ -111,45 +100,13 @@ export default {
                 .fetch(guildConfig.moderationLogThreadId)
                 .catch(() => null);
             if (logChannel) {
-                const embed = {
-                    color: 0x00ff00,
-                    title: '处罚已撤销',
-                    fields: [
-                        {
-                            name: '处罚ID',
-                            value: `${punishment.id}`,
-                            inline: true,
-                        },
-                        {
-                            name: '处罚类型',
-                            value: punishment.type === 'ban' ? '永封' : '禁言',
-                            inline: true,
-                        },
-                        {
-                            name: '目标用户',
-                            value: `<@${target.id}>`,
-                            inline: true,
-                        },
-                        {
-                            name: '撤销原因',
-                            value: reason,
-                        },
-                    ],
-                    timestamp: new Date(),
-                };
-
-                if (successfulServers.length > 0) {
-                    embed.fields.push({
-                        name: '成功服务器',
-                        value: successfulServers.join(', '),
-                    });
-                }
-                if (failedServers.length > 0) {
-                    embed.fields.push({
-                        name: '失败服务器',
-                        value: failedServers.map(s => s.name).join(', '),
-                    });
-                }
+                const embed = EmbedFactory.createPunishmentRevokeLogEmbed(
+                    punishment,
+                    target,
+                    reason,
+                    successfulServers,
+                    failedServers
+                );
 
                 await logChannel.send({ embeds: [embed] });
             }

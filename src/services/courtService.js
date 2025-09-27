@@ -105,7 +105,7 @@ class CourtService {
                                 ? `解除对 <@${target?.id}> 的处罚`
                                 : process.type === 'court_impeach'
                                 ? `弹劾管理员 <@${target?.id}>`
-                                : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : '禁言'}`
+                                : `对 <@${target?.id}> 执行${process.type === 'court_ban' ? '永封' : process.type === 'court_mute' ? '禁言' : '处罚'}`
                         }`,
                         '',
                         `🔵 **蓝方诉求：** ${process.type === 'appeal' ? '维持原判' : '驳回处罚申请'}`,

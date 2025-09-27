@@ -70,9 +70,12 @@ export default {
                         pageRecords.map(async (p, index) => {
                             const executor = await interaction.client.users.fetch(p.executorId).catch(() => null);
 
+                            // 处罚类型和状态显示
                             const typeText = {
                                 ban: '永封',
                                 mute: '禁言',
+                                softban: '软封锁',
+                                warning: '警告',
                             };
 
                             const statusText = {
@@ -82,23 +85,17 @@ export default {
                                 revoked: '🔴 已撤销',
                             };
 
-                            // 格式化处罚信息
+                            // 处罚信息格式化
                             const punishmentInfo = [
                                 `**执行人:** ${executor ? `<@${executor.id}>` : '未知'}`,
                                 !targetUser ? `**处罚对象:** <@${p.targetId || p.userId}>` : null,
                                 `**原因:** ${p.reason}`,
                                 `**时长:** ${formatPunishmentDuration(p.duration)}`,
                                 p.warningDuration ? `**警告剩余时间:** <t:${Math.floor((p.createdAt + p.warningDuration) / 1000)}:R>` : null,
-                                p.status === 'active'
-                                    ? `**到期时间:** ${
-                                          p.duration === -1
-                                              ? '永久'
-                                              : `<t:${Math.floor((p.createdAt + p.duration) / 1000)}:R>`
-                                      }`
-                                    : `**禁言剩余时间:** <t:${Math.floor(p.updatedAt / 1000)}:R>`,
-                                p.status === 'revoked' ? `**撤销原因:** ${p.statusReason || '无'}` : null,
-                                p.status === 'expired' ? `**终止原因:** ${p.statusReason || '无'}` : null,
-                                p.status === 'appealed' ? `**上诉原因:** ${p.statusReason || '无'}` : null,
+                                p.status === 'active' && p.duration !== -1
+                                    ? `**到期时间:** <t:${Math.floor((p.createdAt + p.duration) / 1000)}:R>`
+                                    : null,
+                                p.status !== 'active' ? `**${statusText[p.status].split(' ')[1]}原因:** ${p.statusReason || '无'}` : null,
                                 `**处罚ID:** ${p.id}`,
                             ]
                                 .filter(Boolean)

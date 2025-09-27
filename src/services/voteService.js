@@ -758,7 +758,10 @@ class VoteService {
                 }
 
                 // 确定处罚类型文本
-                const punishmentTypeText = punishmentType === 'ban' ? '永封' : '禁言';
+                const punishmentTypeText = punishmentType === 'ban' ? '永封' :
+                                         punishmentType === 'mute' ? '禁言' :
+                                         punishmentType === 'softban' ? '软封锁' :
+                                         punishmentType === 'warning' ? '警告' : '处罚';
                 const resultText = result === 'red_win_partial' ?
                     `支持率在50%-60%之间，执行7天禁言+90天警告` :
                     `处罚已执行：${punishmentTypeText}`;

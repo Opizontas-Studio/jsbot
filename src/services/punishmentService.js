@@ -429,9 +429,10 @@ class PunishmentService {
      * 执行处罚操作
      * @param {Object} guild - Discord服务器对象
      * @param {Object} punishment - 处罚数据库记录
+     * @param {boolean} [isSync=false] - 是否为同步执行（用户重新加入时）
      * @returns {Promise<boolean>} 执行是否成功
      */
-    static async executePunishmentAction(guild, punishment) {
+    static async executePunishmentAction(guild, punishment, isSync = false) {
         try {
             if (!guild || !guild.members) {
                 logTime(`无效的服务器对象: ${JSON.stringify(guild)}`, true);
@@ -451,23 +452,10 @@ class PunishmentService {
                     break;
 
                 case 'softban':
-                    // 软封锁：检查是否已经执行过（通过检查用户是否在服务器中）
-                    const member = await guild.members.fetch(punishment.userId).catch(() => null);
-
-                    if (!member) {
-                        // 用户不在服务器中，执行软封锁
-                        await guild.members.ban(punishment.userId, {
-                            deleteMessageSeconds: 7 * 24 * 60 * 60, // 删除7天消息
-                            reason,
-                        });
-                        logTime(`已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
-
-                        // 立即解除封禁
-                        await guild.bans.remove(punishment.userId, `软封锁解除 - ${reason}`);
-                        logTime(`已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
-                    } else {
-                        // 用户已在服务器中，只处理警告身份组
-                        if (punishment.warningDuration && guildConfig?.roleApplication?.WarnedRoleId) {
+                    if (isSync) {
+                        // 用户重新加入时，只处理警告身份组
+                        const member = await guild.members.fetch(punishment.userId).catch(() => null);
+                        if (member && punishment.warningDuration && guildConfig?.roleApplication?.WarnedRoleId) {
                             // 检查警告是否仍然有效
                             const warningExpiryTime = punishment.createdAt + punishment.warningDuration;
                             if (warningExpiryTime > Date.now()) {
@@ -479,7 +467,18 @@ class PunishmentService {
                                     .catch(error => logTime(`添加警告身份组失败: ${error.message}`, true));
                             }
                         }
-                        logTime(`用户 ${member.user.tag} 已在服务器中，跳过软封锁执行，仅处理警告身份组`);
+                        logTime(`软封锁同步执行：为用户处理警告身份组 (处罚ID: ${punishment.id})`);
+                    } else {
+                        // 首次执行软封锁（封禁+解封）
+                        await guild.members.ban(punishment.userId, {
+                            deleteMessageSeconds: 7 * 24 * 60 * 60, // 删除7天消息
+                            reason,
+                        });
+                        logTime(`已对用户 ${punishment.userId} 执行软封锁第一步：封禁并删除消息`);
+
+                        // 立即解除封禁
+                        await guild.bans.remove(punishment.userId, `软封锁解除 - ${reason}`);
+                        logTime(`已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
                     }
                     break;
 

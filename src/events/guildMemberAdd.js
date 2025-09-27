@@ -1,8 +1,8 @@
 import { Events } from 'discord.js';
 import { PunishmentModel } from '../db/models/punishmentModel.js';
+import PunishmentService from '../services/punishmentService.js';
 import { syncMemberRoles } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';
-import PunishmentService from '../services/punishmentService.js';
 
 export default {
     name: Events.GuildMemberAdd,
@@ -13,7 +13,7 @@ export default {
             if (punishments && punishments.length > 0) {
                 for (const punishment of punishments) {
                     // 执行禁言和警告
-                    const success = await PunishmentService.executePunishmentAction(member.guild, punishment);
+                    const success = await PunishmentService.executePunishmentAction(member.guild, punishment, true);
 
                     if (success) {
                         // 更新同步状态

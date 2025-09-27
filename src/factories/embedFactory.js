@@ -480,7 +480,8 @@ export class EmbedFactory {
     static getUserAvatarURL(user) {
         return user.displayAvatarURL({
             dynamic: true,
-            size: 64,
+            size: 32,
+            extension: 'png',
         }) || user.defaultAvatarURL;
     }
 
@@ -494,7 +495,7 @@ export class EmbedFactory {
             case 'ban':
                 return '永久';
             case 'softban':
-                return '移出服务器（消息已删除）';
+                return '消息已删除';
             case 'mute':
                 return punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久';
             case 'warning':
@@ -623,7 +624,6 @@ export class EmbedFactory {
     static createPunishmentDMEmbed(punishment) {
         const config = EmbedFactory.getPunishmentConfig(punishment.type);
         const baseDescription = [
-            `您已在旅程ΟΡΙΖΟΝΤΑΣ被${config.typeText}：`,
             `- ${config.typeText === '移出服务器' ? '移出服务器原因' : config.typeText + '原因'}：${punishment.reason || '未提供原因'}`,
         ];
 
@@ -639,19 +639,19 @@ export class EmbedFactory {
                 baseDescription.push('https://discord.gg/elysianhorizon');
 
                 if (punishment.warningDuration) {
-                    baseDescription.splice(3, 0, `- 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`);
-                }
-                break;
-
-            case 'mute':
-                baseDescription.splice(1, 0, `- 禁言期限：${formatPunishmentDuration(punishment.duration)}`);
-                if (punishment.warningDuration) {
                     baseDescription.splice(2, 0, `- 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`);
                 }
                 break;
 
+            case 'mute':
+                baseDescription.splice(0, 0, `- 禁言期限：${formatPunishmentDuration(punishment.duration)}`);
+                if (punishment.warningDuration) {
+                    baseDescription.splice(1, 0, `- 附加警告：${formatPunishmentDuration(punishment.warningDuration)}`);
+                }
+                break;
+
             case 'warning':
-                baseDescription.splice(1, 0, `- 警告时长：${punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久'}`);
+                baseDescription.splice(0, 0, `- 警告时长：${punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久'}`);
                 baseDescription.push('- 请遵守服务器规则，避免进一步违规');
                 break;
         }

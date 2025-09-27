@@ -567,7 +567,8 @@ class VoteService {
                                 const targetAvatarURL =
                                     target.displayAvatarURL({
                                         dynamic: true,
-                                        size: 64,
+                                        size: 32,
+                                        extension: 'png',
                                     }) || target.defaultAvatarURL;
 
                                 const embed = {

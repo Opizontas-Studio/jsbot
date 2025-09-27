@@ -678,19 +678,12 @@ export class EmbedFactory {
 
         return {
             color: EmbedFactory.Colors.SUCCESS,
-            title: `您的${config.typeText}处罚已被撤销`,
+            title: `您在旅程ΟΡΙΖΟΝΤΑΣ的${config.typeText}处罚已被撤销`,
             description: [
-                `您的${config.typeText}处罚已被管理员撤销。`,
-                '',
-                '**处罚详情**',
-                `- 处罚ID：${punishment.id}`,
-                `- 原处罚原因：${punishment.reason}`,
+                `- 原${config.typeText === '移出服务器' ? '移出服务器原因' : config.typeText + '原因'}：${punishment.reason || '未提供原因'}`,
                 `- 撤销原因：${reason}`,
             ].join('\n'),
             timestamp: new Date(),
-            footer: {
-                text: '如有疑问，请联系服务器主或在任管理员。',
-            }
         };
     }
 

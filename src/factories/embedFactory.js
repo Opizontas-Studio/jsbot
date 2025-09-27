@@ -480,7 +480,7 @@ export class EmbedFactory {
     static getUserAvatarURL(user) {
         return user.displayAvatarURL({
             dynamic: true,
-            size: 32,
+            size: 64,
             extension: 'png',
         }) || user.defaultAvatarURL;
     }

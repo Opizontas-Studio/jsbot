@@ -34,5 +34,11 @@ export default {
             await handleCommand(interaction);
             return;
         }
+
+        // 处理上下文菜单命令
+        if (interaction.isContextMenuCommand()) {
+            await handleCommand(interaction);
+            return;
+        }
     },
 };

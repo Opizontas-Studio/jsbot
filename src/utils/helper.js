@@ -308,34 +308,51 @@ export const loadCommandFiles = async (commandsDir, excludeFiles = []) => {
     let errorCount = 0;
 
     try {
-        const files = readdirSync(commandsDir).filter(file => file.endsWith('.js') && !excludeFiles.includes(file));
+        // 递归加载所有子目录中的命令文件
+        const loadDirectory = async (dir) => {
+            const items = readdirSync(dir, { withFileTypes: true });
 
-        for (const file of files) {
-            try {
-                const commandPath = join(commandsDir, file);
-                // 转换为 file:// URL
-                const fileUrl = `file://${commandPath.replace(/\\/g, '/')}`;
-                const command = await import(fileUrl);
+            for (const item of items) {
+                const itemPath = join(dir, item.name);
 
-                if (!command.default?.data?.name || !command.default.execute) {
-                    logTime(`❌ 加载命令文件 ${file} 失败: 缺少必要的data.name或execute属性`);
-                    errorCount++;
-                    continue;
+                if (item.isDirectory()) {
+                    // 递归加载子目录
+                    await loadDirectory(itemPath);
+                } else if (item.isFile() && item.name.endsWith('.js') && !excludeFiles.includes(item.name)) {
+                    // 加载命令文件
+                    try {
+                        const fileUrl = `file://${itemPath.replace(/\\/g, '/')}`;
+                        const command = await import(fileUrl);
+
+                        // 处理单个命令或命令数组
+                        const commandList = Array.isArray(command.default) ? command.default : [command.default];
+
+                        for (const cmd of commandList) {
+                            if (!cmd?.data?.name || !cmd.execute) {
+                                logTime(`❌ 加载命令文件 ${item.name} 失败: 缺少必要的data.name或execute属性`);
+                                errorCount++;
+                                continue;
+                            }
+
+                            if (commands.has(cmd.data.name)) {
+                                logTime(`⚠️ 重复命令名称 "${cmd.data.name}" 在文件 ${item.name}`);
+                                errorCount++;
+                                continue;
+                            }
+
+                            commands.set(cmd.data.name, cmd);
+                        }
+                    } catch (error) {
+                        errorCount++;
+                        logTime(`❌ 加载命令文件 ${item.name} 失败:`, true);
+                        console.error(error.stack);
+                    }
                 }
-
-                if (commands.has(command.default.data.name)) {
-                    logTime(`⚠️ 重复命令名称 "${command.default.data.name}" 在文件 ${file}`);
-                    errorCount++;
-                    continue;
-                }
-
-                commands.set(command.default.data.name, command.default);
-            } catch (error) {
-                errorCount++;
-                logTime(`❌ 加载命令文件 ${file} 失败:`, true);
-                console.error(error.stack);
             }
-        }
+        };
+
+        await loadDirectory(commandsDir);
+
         logTime(`[系统启动] 命令加载完成，成功 ${commands.size} 个，失败 ${errorCount} 个`);
         return commands;
     } catch (error) {

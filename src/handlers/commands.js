@@ -21,8 +21,8 @@ function getPriorityByCommandName(commandName) {
 }
 
 /**
- * 处理斜杠命令交互
- * @param {ChatInputCommandInteraction} interaction - 命令交互对象
+ * 处理斜杠命令和上下文菜单命令交互
+ * @param {ChatInputCommandInteraction|ContextMenuCommandInteraction} interaction - 命令交互对象
  */
 export async function handleCommand(interaction) {
     const command = interaction.client.commands.get(interaction.commandName);

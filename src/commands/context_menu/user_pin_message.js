@@ -5,7 +5,7 @@ export default {
     cooldown: 5,
     ephemeral: true,
     data: new ContextMenuCommandBuilder()
-        .setName('自助标注')
+        .setName('自助标注或取消标注')
         .setType(ApplicationCommandType.Message),
 
     async execute(interaction, guildConfig) {
@@ -31,14 +31,25 @@ export default {
         }
 
         try {
-            await message.pin();
-            await interaction.editReply({
-                content: '✅ 消息已标注',
-            });
-            logTime(`[自助管理] 楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+            // 检查消息是否已标注
+            const isPinned = message.pinned;
+
+            if (isPinned) {
+                await message.unpin();
+                await interaction.editReply({
+                    content: '✅ 消息已取消标注',
+                });
+                logTime(`[自助管理] 楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+            } else {
+                await message.pin();
+                await interaction.editReply({
+                    content: '✅ 消息已标注',
+                });
+                logTime(`[自助管理] 楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+            }
         } catch (error) {
             await interaction.editReply({
-                content: `❌ 标注操作失败: ${error.message}`,
+                content: `❌ 操作失败: ${error.message}`,
             });
             throw error;
         }

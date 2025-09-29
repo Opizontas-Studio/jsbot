@@ -17,8 +17,15 @@ export default {
 
         try {
             const deployTimer = measureTime();
-            const commandsPath = join(dirname(fileURLToPath(import.meta.url)));
-            const localCommands = await loadCommandFiles(commandsPath);
+            const slashCommandsPath = join(dirname(fileURLToPath(import.meta.url)));
+            const contextMenuCommandsPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'context_menu');
+
+            // 加载斜杠命令和上下文菜单命令
+            const slashCommands = await loadCommandFiles(slashCommandsPath);
+            const contextMenuCommands = await loadCommandFiles(contextMenuCommandsPath);
+
+            // 合并所有命令
+            const localCommands = new Map([...slashCommands, ...contextMenuCommands]);
             const localCommandData = Array.from(localCommands.values()).map(cmd => cmd.data.toJSON());
 
             // 创建 REST 实例
@@ -70,9 +77,14 @@ export default {
                 );
             }
 
+            // 添加命令类型统计
+            const slashCount = slashCommands.size;
+            const contextMenuCount = contextMenuCommands.size;
+            statusReport.push(`本地命令统计: 斜杠命令 ${slashCount} 个, 上下文菜单命令 ${contextMenuCount} 个`);
+
             if (commandsToDelete.length === 0 && commandsToUpdate.length === 0) {
                 await interaction.editReply({
-                    content: '✅ 所有命令都已是最新状态，无需同步。',
+                    content: `✅ 所有命令都已是最新状态，无需同步。\n${statusReport.join('\n')}`,
                 });
                 return;
             }

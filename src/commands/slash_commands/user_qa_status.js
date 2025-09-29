@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { analyzeFastGPTLogs, createFastGPTStatsEmbed } from '../services/fastgptService.js';
-import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { analyzeFastGPTLogs, createFastGPTStatsEmbed } from '../../services/fastgptService.js';
+import { handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 3,

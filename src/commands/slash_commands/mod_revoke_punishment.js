@@ -1,9 +1,9 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import PunishmentService from '../services/punishmentService.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { PunishmentModel } from '../../db/models/punishmentModel.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import PunishmentService from '../../services/punishmentService.js';
+import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 5,

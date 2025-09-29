@@ -1,9 +1,9 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { getRoleSyncConfig } from '../services/roleApplication.js';
-import { delay } from '../utils/concurrency.js';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { getRoleSyncConfig } from '../../services/roleApplication.js';
+import { delay } from '../../utils/concurrency.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '1336734406609473720'];
 

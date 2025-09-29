@@ -1,8 +1,8 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { checkAndHandlePermission, handleCommandError, measureTime } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 30,

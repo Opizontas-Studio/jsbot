@@ -1,5 +1,5 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { checkModeratorPermission, handleCommandError, lockAndArchiveThread } from '../utils/helper.js';
+import { checkModeratorPermission, handleCommandError, lockAndArchiveThread } from '../../utils/helper.js';
 
 export default {
     cooldown: 10,

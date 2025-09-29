@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
-import { handleCommandError } from '../utils/helper.js';
+import { handleCommandError } from '../../utils/helper.js';
 
 export default {
     // 设置命令冷却时间为10秒

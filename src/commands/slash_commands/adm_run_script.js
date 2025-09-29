@@ -1,8 +1,8 @@
 import { AttachmentBuilder, SlashCommandBuilder } from 'discord.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 // 脚本目录路径
 const SCRIPT_DIR = path.join(process.cwd(), 'data', 'script');

@@ -1,8 +1,8 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport, updateThreadAutoCleanupSetting } from '../services/threadCleaner.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport, updateThreadAutoCleanupSetting } from '../../services/threadCleaner.js';
+import { globalRequestQueue } from '../../utils/concurrency.js';
+import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 /**
  * 清理子区不活跃用户命令

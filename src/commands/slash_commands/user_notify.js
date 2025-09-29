@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleCommandError, validateImageFile } from '../utils/helper.js';
+import { handleCommandError, validateImageFile } from '../../utils/helper.js';
 
 // 定义颜色映射
 const COLORS = {

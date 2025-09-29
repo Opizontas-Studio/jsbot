@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 // 使用已有的紧急处理身份组ID
 const EMERGENCY_ROLE_IDS = ['1289224017789583453', '1337441650137366705', '1336734406609473720'];

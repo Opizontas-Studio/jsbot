@@ -1,12 +1,12 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
 import {
     checkModeratorPermission,
     handleCommandError,
     sendModerationLog,
     sendThreadNotification,
-} from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+} from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 /**
  * 管理命令 - 管理论坛帖子

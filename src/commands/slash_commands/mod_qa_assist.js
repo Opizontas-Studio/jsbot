@@ -5,9 +5,9 @@ import {
     logQAResult,
     processResponseToAttachment,
     sendToFastGPT,
-} from '../services/fastgptService.js';
-import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+} from '../../services/fastgptService.js';
+import { handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 // 用于跟踪活动答疑会话的 Map，键是 guildId，值是当前活动会话数
 const activeQASessions = new Map();

@@ -1,9 +1,9 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { manageRolesByGroups } from '../services/roleApplication.js';
-import { handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { manageRolesByGroups } from '../../services/roleApplication.js';
+import { handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 

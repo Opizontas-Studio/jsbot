@@ -1,6 +1,6 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 /**
  * 管理命令 - 管理频道设置

@@ -1,8 +1,8 @@
 import { Collection, SlashCommandBuilder } from 'discord.js';
-import { delay, generateProgressReport, globalBatchProcessor } from '../utils/concurrency.js';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { checkAndHandlePermission, handleCommandError, measureTime } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { delay, generateProgressReport, globalBatchProcessor } from '../../utils/concurrency.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { checkAndHandlePermission, handleCommandError, measureTime } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 10,

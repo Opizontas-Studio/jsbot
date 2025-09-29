@@ -1,9 +1,9 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { checkModeratorPermission, handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { checkModeratorPermission, handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 5,

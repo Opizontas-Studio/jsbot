@@ -6,9 +6,9 @@ import {
     EmbedBuilder,
     SlashCommandBuilder,
 } from 'discord.js';
-import { opinionMailboxService } from '../services/opinionMailboxService.js';
-import { checkAndHandlePermission, handleCommandError } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { opinionMailboxService } from '../../services/opinionMailboxService.js';
+import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 5,

@@ -1,9 +1,9 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers, sendLogReport, updateThreadAutoCleanupSetting } from '../../../services/threadCleaner.js';
-import { delay, globalRequestQueue } from '../../../utils/concurrency.js';
-import { handleConfirmationButton } from '../../../utils/confirmationHelper.js';
-import { handleCommandError, lockAndArchiveThread } from '../../../utils/helper.js';
-import { logTime } from '../../../utils/logger.js';
+import { cleanThreadMembers, sendLogReport, updateThreadAutoCleanupSetting } from '../../services/threadCleaner.js';
+import { delay, globalRequestQueue } from '../../utils/concurrency.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { handleCommandError, lockAndArchiveThread } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 5,

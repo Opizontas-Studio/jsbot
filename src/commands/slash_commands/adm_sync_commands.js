@@ -1,8 +1,8 @@
 import { Collection, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkAndHandlePermission, handleCommandError, loadCommandFiles, measureTime } from '../../../utils/helper.js';
-import { logTime } from '../../../utils/logger.js';
+import { checkAndHandlePermission, handleCommandError, loadCommandFiles, measureTime } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 export default {
     cooldown: 60,

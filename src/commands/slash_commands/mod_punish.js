@@ -1,7 +1,7 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import PunishmentService from '../../../services/punishmentService.js';
-import { handleConfirmationButton } from '../../../utils/confirmationHelper.js';
-import { calculatePunishmentDuration, checkModeratorPermission, formatPunishmentDuration, handleCommandError, validateWarningDuration } from '../../../utils/helper.js';
+import PunishmentService from '../../services/punishmentService.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { calculatePunishmentDuration, checkModeratorPermission, formatPunishmentDuration, handleCommandError, validateWarningDuration } from '../../utils/helper.js';
 
 export default {
     cooldown: 5,

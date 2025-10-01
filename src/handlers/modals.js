@@ -183,9 +183,6 @@ export const modalHandlers = {
                         name: attachment.name,
                     })),
                 });
-
-                // 手动发送成功消息
-                await interaction.editReply('✅ Bot消息已成功编辑');
             },
             "编辑Bot消息",
             { successMessage: "Bot消息已成功编辑" }

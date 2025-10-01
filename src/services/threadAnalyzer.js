@@ -469,20 +469,20 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
         const cleanupResult = await cleanupThreads(validThreads, threshold);
 
         // 在清理完成后处理置顶子区
-        const pinnedThreads = validThreads.filter(thread => thread.isPinned);
-        let pinnedResult = null;
-        if (pinnedThreads.length > 0) {
-            pinnedResult = await processPinnedThreads(pinnedThreads);
-        }
+        // const pinnedThreads = validThreads.filter(thread => thread.isPinned);
+        // let pinnedResult = null;
+        // if (pinnedThreads.length > 0) {
+        //     pinnedResult = await processPinnedThreads(pinnedThreads);
+        // }
 
         // 合并统计结果
         Object.assign(statistics, cleanupResult.statistics);
         failedOperations.push(...cleanupResult.failedOperations);
 
         // 合并置顶子区处理结果
-        if (pinnedResult) {
-            failedOperations.push(...pinnedResult.failedOperations);
-        }
+        // if (pinnedResult) {
+        //     failedOperations.push(...pinnedResult.failedOperations);
+        // }
 
         // 从messageIds获取top10频道ID，如果没有配置则使用默认的logThreadId
         const top10ChannelId = getChannelIdFromMessageIds(guildId, 'top10', messageIds) || guildConfig.automation.logThreadId;

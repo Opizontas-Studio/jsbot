@@ -20,33 +20,21 @@ export default {
 
         // 检查消息是否由bot发送
         if (targetMessage.author.id !== interaction.client.user.id) {
-            await interaction.editReply({
-                content: '❌ 只能编辑由机器人发送的消息',
-                flags: ['Ephemeral'],
-            });
-            return;
+            throw new Error('只能编辑由机器人发送的消息');
         }
 
-        try {
-            // 获取当前消息内容
-            const currentContent = targetMessage.content || '';
+        // 获取当前消息内容
+        const currentContent = targetMessage.content || '';
 
-            // 创建编辑模态框
-            const editModal = ModalFactory.createEditBotMessageModal(
-                targetMessage.id,
-                currentContent
-            );
+        // 创建编辑模态框
+        const editModal = ModalFactory.createEditBotMessageModal(
+            targetMessage.id,
+            currentContent
+        );
 
-            // 显示模态框
-            await interaction.showModal(editModal);
+        // 显示模态框
+        await interaction.showModal(editModal);
 
-            logTime(`[编辑消息] 用户 ${interaction.user.tag} 开始编辑消息 ${targetMessage.id}`);
-        } catch (error) {
-            await interaction.editReply({
-                content: `❌ 创建编辑界面失败: ${error.message}`,
-                flags: ['Ephemeral'],
-            });
-            throw error;
-        }
+        logTime(`[编辑消息] 用户 ${interaction.user.tag} 开始编辑消息 ${targetMessage.id}`);
     },
 };

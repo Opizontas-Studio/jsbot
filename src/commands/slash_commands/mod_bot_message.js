@@ -16,12 +16,6 @@ export default {
         )
         .addStringOption(option =>
             option
-                .setName('消息id')
-                .setDescription('要修改的消息ID（如果要修改现有消息）')
-                .setRequired(false)
-        )
-        .addStringOption(option =>
-            option
                 .setName('文本内容')
                 .setDescription('要附带的文本内容')
                 .setRequired(false)
@@ -93,16 +87,15 @@ export default {
 
             // 获取参数
             const targetChannel = interaction.options.getChannel('频道');
-            const messageId = interaction.options.getString('消息id');
             const textContent = interaction.options.getString('文本内容');
 
-            // 确定目标频道：用户选择的频道 或 默认管理日志频道
-            if (!targetChannel && !guildConfig.moderationLogThreadId) {
-                await interaction.editReply({
-                    content: '❌ 请选择目标频道或确保服务器已配置管理日志频道',
-                    flags: ['Ephemeral'],
-                });
-                return;
+            // 确定目标频道：用户选择的频道 或 命令执行频道
+            let logChannel;
+            if (targetChannel) {
+                logChannel = targetChannel;
+            } else {
+                // 默认发送到命令执行的频道
+                logChannel = interaction.channel;
             }
 
             // 收集所有图片附件
@@ -135,21 +128,6 @@ export default {
                 }
             }
 
-            // 获取目标频道
-            let logChannel;
-            try {
-                if (targetChannel) {
-                    logChannel = targetChannel;
-                } else {
-                    logChannel = await interaction.client.channels.fetch(guildConfig.moderationLogThreadId);
-                }
-            } catch (error) {
-                await interaction.editReply({
-                    content: '❌ 无法访问目标频道',
-                    flags: ['Ephemeral'],
-                });
-                return;
-            }
 
             // 构建消息内容
             const messageContent = textContent || '';
@@ -158,66 +136,17 @@ export default {
                 name: attachment.name,
             }));
 
-            try {
-                if (messageId) {
-                    // 修改模式：尝试修改现有消息
-                    const targetMessage = await logChannel.messages.fetch(messageId);
+            // 发送新消息
+            await logChannel.send({
+                content: messageContent,
+                files: files,
+            });
 
-                    // 检查消息是否存在且是由bot发送的
-                    if (!targetMessage) {
-                        await interaction.editReply({
-                            content: '❌ 找不到指定的消息',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    if (targetMessage.author.id !== interaction.client.user.id) {
-                        await interaction.editReply({
-                            content: '❌ 只能修改由机器人发送的消息',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    // 修改消息
-                    await targetMessage.edit({
-                        content: messageContent,
-                        files: files,
-                    });
-
-                    await interaction.editReply({
-                        content: '✅ 证据消息已成功修改',
-                        flags: ['Ephemeral'],
-                    });
-                } else {
-                    // 发送模式：发送新消息
-                    await logChannel.send({
-                        content: messageContent,
-                        files: files,
-                    });
-
-                    const channelMention = targetChannel ? `<#${logChannel.id}>` : '管理日志频道';
-                    await interaction.editReply({
-                        content: `✅ 文本已成功提交到${channelMention}`,
-                        flags: ['Ephemeral'],
-                    });
-                }
-            } catch (error) {
-                if (error.code === 10008) { // Unknown Message
-                    await interaction.editReply({
-                        content: '❌ 找不到指定的消息ID',
-                        flags: ['Ephemeral'],
-                    });
-                } else if (error.code === 50035) { // Invalid Form Body
-                    await interaction.editReply({
-                        content: '❌ 消息内容或附件格式无效',
-                        flags: ['Ephemeral'],
-                    });
-                } else {
-                    throw error; // 其他错误继续抛出
-                }
-            }
+            const channelMention = targetChannel ? `<#${logChannel.id}>` : '当前频道';
+            await interaction.editReply({
+                content: `✅ 文本已成功提交到${channelMention}`,
+                flags: ['Ephemeral'],
+            });
         } catch (error) {
             await handleCommandError(interaction, error, '提交证据');
         }

@@ -186,4 +186,31 @@ export class ModalFactory {
 
         return modal;
     }
+
+    /**
+     * 创建编辑bot消息模态框
+     * @param {string} messageId - 要编辑的消息ID
+     * @param {string} currentContent - 当前消息内容
+     * @returns {ModalBuilder} 构建好的模态框
+     */
+    static createEditBotMessageModal(messageId, currentContent) {
+        const modal = new ModalBuilder()
+            .setCustomId(`edit_bot_message_modal_${messageId}`)
+            .setTitle('编辑Bot消息');
+
+        const contentInput = new TextInputBuilder()
+            .setCustomId('message_content')
+            .setLabel('消息内容')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('请输入新的消息内容...')
+            .setValue(currentContent || '')
+            .setMaxLength(2000)
+            .setRequired(true);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(contentInput),
+        );
+
+        return modal;
+    }
 }

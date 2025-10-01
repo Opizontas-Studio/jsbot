@@ -154,6 +154,43 @@ export const modalHandlers = {
     reject_submission_modal: async interaction => {
         await handleSubmissionReview(interaction, false);
     },
+
+    // 编辑bot消息模态框处理器
+    edit_bot_message_modal: async interaction => {
+        return await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 从modalId中解析消息ID
+                const modalIdParts = interaction.customId.split('_');
+                const messageId = modalIdParts[3];
+
+                // 获取用户输入的新内容
+                const newContent = interaction.fields.getTextInputValue('message_content');
+
+                // 获取目标消息
+                const targetMessage = await interaction.channel.messages.fetch(messageId);
+
+                // 再次验证消息是否由bot发送（防止在模态框提交期间消息被删除或替换）
+                if (!targetMessage || targetMessage.author.id !== interaction.client.user.id) {
+                    throw new Error('目标消息不存在');
+                }
+
+                // 编辑消息，保留原始附件
+                await targetMessage.edit({
+                    content: newContent,
+                    files: targetMessage.attachments.map(attachment => ({
+                        attachment: attachment.url,
+                        name: attachment.name,
+                    })),
+                });
+
+                // 手动发送成功消息
+                await interaction.editReply('✅ Bot消息已成功编辑');
+            },
+            "编辑Bot消息",
+            { successMessage: "Bot消息已成功编辑" }
+        );
+    },
 };
 
 /**
@@ -170,11 +207,12 @@ export async function handleModal(interaction) {
 
     // 如果没有找到精确匹配，尝试前缀匹配（用于动态ID的模态框）
     if (!handler) {
-        // 检查是否是批准或拒绝投稿的模态框
         if (modalId.startsWith('approve_submission_modal_')) {
             handler = modalHandlers.approve_submission_modal;
         } else if (modalId.startsWith('reject_submission_modal_')) {
             handler = modalHandlers.reject_submission_modal;
+        } else if (modalId.startsWith('edit_bot_message_modal_')) {
+            handler = modalHandlers.edit_bot_message_modal;
         }
     }
 

@@ -31,13 +31,19 @@ export async function handleCommand(interaction) {
         return;
     }
 
-    // 根据命令的ephemeral属性决定是否使用Ephemeral模式
-    const useEphemeral = command.ephemeral !== false;
+    // 检查是否是显示模态框的命令（不需要deferReply）
+    const modalCommands = ['编辑Bot消息'];
+    const isModalCommand = modalCommands.includes(command.data.name);
 
-    if (useEphemeral) {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-    } else {
-        await interaction.deferReply();
+    if (!isModalCommand) {
+        // 根据命令的ephemeral属性决定是否使用Ephemeral模式
+        const useEphemeral = command.ephemeral !== false;
+
+        if (useEphemeral) {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+        } else {
+            await interaction.deferReply();
+        }
     }
 
     await ErrorHandler.handleInteraction(
@@ -63,6 +69,6 @@ export async function handleCommand(interaction) {
             await globalRequestQueue.add(() => command.execute(interaction, guildConfig), priority);
         },
         `命令${interaction.commandName}`,
-        { ephemeral: useEphemeral }
+        { ephemeral: command.ephemeral !== false }
     );
 }

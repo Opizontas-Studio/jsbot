@@ -160,9 +160,8 @@ export const modalHandlers = {
         return await ErrorHandler.handleInteraction(
             interaction,
             async () => {
-                // 从modalId中解析消息ID
-                const modalIdParts = interaction.customId.split('_');
-                const messageId = modalIdParts[3];
+                // 从modalId中解析消息ID - 使用前缀匹配而不是split
+                const messageId = interaction.customId.replace('edit_bot_message_modal_', '');
 
                 // 获取用户输入的新内容
                 const newContent = interaction.fields.getTextInputValue('message_content');

@@ -136,13 +136,13 @@ export class TaskRegistry {
                 runImmediately: true
             });
 
-            // 议员监控任务
-            if (guildConfig.monitor?.roleMonitorCategoryId && guildConfig.roleApplication?.senatorRoleId) {
-                // 议员监控任务 - 每15分钟执行
+            // 角色监控任务
+            if (guildConfig.monitor?.roleMonitorCategoryId && guildConfig.monitor?.monitoredRoleId) {
+                // 角色监控任务 - 每15分钟执行
                 this.taskScheduler.addTask({
-                    taskId: `senator_monitor_${guildId}`,
+                    taskId: `role_monitor_${guildId}`,
                     interval: 15 * 60 * 1000, // 15分钟
-                    task: () => monitorService.monitorSenatorRole(client, guildId),
+                    task: () => monitorService.monitorRoleMembers(client, guildId),
                     runImmediately: true
                 });
             }

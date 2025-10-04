@@ -74,7 +74,9 @@ export class GuildManager {
                 monitor: {
                     enabled: guildConfig.monitor?.enabled || false,
                     roleMonitorCategoryId: guildConfig.monitor?.roleMonitorCategoryId || null,
-                    senatorRoleChannelId: guildConfig.monitor?.senatorRoleChannelId || null,
+                    monitorChannelId: guildConfig.monitor?.monitorChannelId || null,
+                    monitoredRoleId: guildConfig.monitor?.monitoredRoleId || null,
+                    roleDisplayName: guildConfig.monitor?.roleDisplayName || '角色',
                 },
             };
 
@@ -226,6 +228,9 @@ export class GuildManager {
             if (guildConfig.monitor?.enabled) {
                 if (!guildConfig.monitor.roleMonitorCategoryId) {
                     errors.push('启用监控系统但缺少 monitor.roleMonitorCategoryId 配置');
+                }
+                if (!guildConfig.monitor.monitoredRoleId) {
+                    errors.push('启用监控系统但缺少 monitor.monitoredRoleId 配置');
                 }
             }
 

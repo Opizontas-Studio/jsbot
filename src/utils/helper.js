@@ -19,6 +19,28 @@ export const measureTime = () => {
 };
 
 /**
+ * 超时控制工具函数
+ * @param {Promise} promise - 要执行的Promise
+ * @param {number} ms - 超时时间（毫秒），默认10秒
+ * @param {string} context - 操作上下文描述
+ * @returns {Promise} 返回结果或超时错误
+ */
+export const withTimeout = async (promise, ms = 10000, context = '') => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`操作超时: ${context}`)), ms);
+    });
+    try {
+        const result = await Promise.race([promise, timeoutPromise]);
+        clearTimeout(timeoutId);
+        return result;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
+
+/**
  * 处理Discord API错误
  * @param {Error} error - 错误对象
  * @returns {string} 格式化的错误信息

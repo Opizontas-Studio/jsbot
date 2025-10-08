@@ -3,25 +3,10 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { delay, globalBatchProcessor } from '../utils/concurrency.js';
-import { handleDiscordError, measureTime } from '../utils/helper.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
+import { handleDiscordError, measureTime, withTimeout } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { startQualifiedThreadsCarousel } from './carouselService.js';
-
-// 超时控制的工具函数
-const withTimeout = async (promise, ms = 10000, context = '') => {
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`操作超时: ${context}`)), ms);
-    });
-    try {
-        const result = await Promise.race([promise, timeoutPromise]);
-        clearTimeout(timeoutId);
-        return result;
-    } catch (error) {
-        clearTimeout(timeoutId);
-        throw error;
-    }
-};
 
 const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
 
@@ -30,15 +15,14 @@ const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
  * @returns {Object} 消息ID配置对象
  */
 async function loadMessageIds() {
-    try {
-        const data = await fs.readFile(MESSAGE_IDS_PATH, 'utf8');
-        const messageIds = JSON.parse(data);
-        return messageIds;
-    } catch (error) {
-        // 如果文件不存在或解析失败，创建新的配置
-        logTime(`加载消息ID配置失败，将创建新配置: ${error.message}`, true);
-        return {};
-    }
+    return await ErrorHandler.handleSilent(
+        async () => {
+            const data = await fs.readFile(MESSAGE_IDS_PATH, 'utf8');
+            return JSON.parse(data);
+        },
+        '加载消息ID配置',
+        {}
+    );
 }
 
 /**
@@ -46,7 +30,11 @@ async function loadMessageIds() {
  * @param {Object} messageIds - 消息ID配置对象
  */
 async function saveMessageIds(messageIds) {
-    await fs.writeFile(MESSAGE_IDS_PATH, JSON.stringify(messageIds, null, 2));
+    await ErrorHandler.handleService(
+        () => fs.writeFile(MESSAGE_IDS_PATH, JSON.stringify(messageIds, null, 2)),
+        '保存消息ID配置',
+        { throwOnError: true }
+    );
 }
 
 /**
@@ -163,13 +151,17 @@ async function sendStatisticsReport(channel, guildId, statistics, failedOperatio
  */
 const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
     if (!activeThreads) {
-        const guild = await client.guilds.fetch(guildId).catch(error => {
-            throw new Error(`获取服务器失败: ${handleDiscordError(error)}`);
-        });
+        const guild = await ErrorHandler.handleService(
+            () => client.guilds.fetch(guildId),
+            '获取服务器',
+            { throwOnError: true, userFriendly: false }
+        );
 
-        activeThreads = await guild.channels.fetchActiveThreads().catch(error => {
-            throw new Error(`获取活跃主题列表失败: ${handleDiscordError(error)}`);
-        });
+        activeThreads = await ErrorHandler.handleService(
+            () => guild.channels.fetchActiveThreads(),
+            '获取活跃主题列表',
+            { throwOnError: true, userFriendly: false }
+        );
     }
 
     const statistics = {
@@ -199,46 +191,46 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
             try {
 
                 // 获取子区消息
-                let lastMessage = null;
-                try {
-                    const messages = await withTimeout(
-                        thread.messages.fetch({ limit: 1 }),
-                        6000,
-                        `获取子区消息 ${thread.name}`,
-                    );
-                    lastMessage = messages.first();
-
-                    if (!lastMessage) {
-                        const moreMessages = await withTimeout(
-                            thread.messages.fetch({ limit: 3 }),
+                const lastMessage = await ErrorHandler.handleSilent(
+                    async () => {
+                        const messages = await withTimeout(
+                            thread.messages.fetch({ limit: 1 }),
                             6000,
-                            `获取更多子区消息 ${thread.name}`,
+                            `获取子区消息 ${thread.name}`
                         );
-                        lastMessage = moreMessages.find(msg => msg !== null);
-                    }
-                } catch (error) {
-                    logTime(`获取子区 ${thread.name} 消息失败: ${handleDiscordError(error)}`, true);
-                    // 使用子区创建时间作为备选
-                    lastMessage = null;
-                }
+                        const firstMessage = messages.first();
 
-                const lastActiveTime = lastMessage ? lastMessage.createdTimestamp : thread.createdTimestamp;
+                        if (!firstMessage) {
+                            const moreMessages = await withTimeout(
+                                thread.messages.fetch({ limit: 3 }),
+                                6000,
+                                `获取更多子区消息 ${thread.name}`
+                            );
+                            return moreMessages.find(msg => msg !== null);
+                        }
+                        return firstMessage;
+                    },
+                    `获取子区 ${thread.name} 消息`,
+                    null
+                );
+
+                const lastActiveTime = lastMessage?.createdTimestamp || thread.createdTimestamp;
                 const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
 
                 // 获取子区成员数量
-                let memberCount = 0;
-                try {
-                    const members = await withTimeout(
-                        thread.members.fetch(),
-                        5000,
-                        `获取子区成员 ${thread.name}`,
-                    );
-                    memberCount = members.size;
-                    // 增加延迟以避免API限制
-                    await delay(200);
-                } catch (error) {
-                    logTime(`获取子区 ${thread.name} 成员数量失败: ${handleDiscordError(error)}`, true);
-                }
+                const memberCount = await ErrorHandler.handleSilent(
+                    async () => {
+                        const members = await withTimeout(
+                            thread.members.fetch(),
+                            5000,
+                            `获取子区成员 ${thread.name}`
+                        );
+                        await delay(200); // 增加延迟以避免API限制
+                        return members.size;
+                    },
+                    `获取子区 ${thread.name} 成员数量`,
+                    0
+                );
 
                 const threadInfo = {
                     thread,
@@ -256,21 +248,28 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
 
                 // 仅对符合条件的子区（≥950关注）获取创作者信息
                 if (memberCount >= 950 && thread.ownerId) {
-                    try {
-                        const creator = await withTimeout(
-                            client.users.fetch(thread.ownerId),
-                            5000,
-                            `获取创作者信息 ${thread.name}`,
-                        );
-                        threadInfo.creatorTag = creator.displayName || creator.username || '未知用户';
-                        await delay(100);
-                    } catch (error) {
-                        logTime(`获取子区 ${thread.name} 创作者信息失败: ${handleDiscordError(error)}`, true);
+                    const creatorResult = await ErrorHandler.handleSilent(
+                        async () => {
+                            const creator = await withTimeout(
+                                client.users.fetch(thread.ownerId),
+                                5000,
+                                `获取创作者信息 ${thread.name}`
+                            );
+                            await delay(100);
+                            return creator.displayName || creator.username || '未知用户';
+                        },
+                        `获取子区 ${thread.name} 创作者信息`,
+                        null
+                    );
+
+                    if (creatorResult) {
+                        threadInfo.creatorTag = creatorResult;
+                    } else {
                         failedOperations.push({
                             threadId: thread.id,
                             threadName: thread.name,
                             operation: '获取创作者信息',
-                            error: handleDiscordError(error),
+                            error: '获取失败',
                         });
                     }
                 }
@@ -292,9 +291,6 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
     );
 
     const validThreads = basicInfoResults.filter(result => result !== null);
-
-    // 筛选出符合条件的子区（关注人数≥950）
-    const qualifiedThreads = validThreads.filter(thread => thread.memberCount >= 950);
 
     // 合并统计
     validThreads.forEach(thread => {
@@ -326,48 +322,6 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
     const sortedThreads = validThreads.sort((a, b) => b.inactiveHours - a.inactiveHours);
 
     return { statistics, failedOperations, validThreads: sortedThreads };
-};
-
-/**
- * 处理置顶子区的重新标注操作
- * @param {Array<Object>} pinnedThreads - 置顶子区列表
- * @returns {Object} 处理结果统计
- * @private
- */
-const processPinnedThreads = async (pinnedThreads) => {
-    const statistics = {
-        totalPinnedThreads: pinnedThreads.length,
-        processedSuccessfully: 0,
-        processedWithErrors: 0,
-    };
-    const failedOperations = [];
-
-    for (const threadInfo of pinnedThreads) {
-        try {
-            const { thread } = threadInfo;
-
-            // 无条件确保子区开启和标注
-            await thread.setArchived(true, '定时重归档');
-            await delay(300);
-            await thread.setArchived(false, '定时重归档');
-            await thread.pin('保持标注');
-
-            statistics.processedSuccessfully++;
-        } catch (error) {
-            const errorMsg = handleDiscordError(error);
-            logTime(`设置置顶子区 ${threadInfo.name} 状态失败: ${errorMsg}`, true);
-
-            failedOperations.push({
-                threadId: threadInfo.threadId,
-                threadName: threadInfo.name,
-                operation: '置顶子区重归档',
-                error: errorMsg,
-            });
-            statistics.processedWithErrors++;
-        }
-    }
-
-    return { statistics, failedOperations };
 };
 
 /**
@@ -419,32 +373,26 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
     const totalTimer = measureTime();
     logTime(`开始分析服务器 ${guildId} 的子区活跃度`);
 
-    try {
-        // 加载消息ID配置
-        const messageIds = await loadMessageIds();
+    // 加载消息ID配置
+    const messageIds = await loadMessageIds();
 
-        // 收集数据
-        const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
+    // 收集数据
+    const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
 
-        // 从messageIds获取top10频道ID，如果没有配置则使用默认的logThreadId
-        const top10ChannelId = getChannelIdFromMessageIds(guildId, 'top10', messageIds) || guildConfig.automation.logThreadId;
-        const top10Channel = await client.channels.fetch(top10ChannelId);
+    // 从messageIds获取频道ID，如果没有配置则使用默认的logThreadId
+    const top10ChannelId = getChannelIdFromMessageIds(guildId, 'top10', messageIds) || guildConfig.automation.logThreadId;
+    const statisticsChannelId = getChannelIdFromMessageIds(guildId, 'statistics', messageIds) || guildConfig.automation.logThreadId;
 
-        // 从messageIds获取statistics频道ID，如果没有配置则使用默认的logThreadId
-        const statisticsChannelId = getChannelIdFromMessageIds(guildId, 'statistics', messageIds) || guildConfig.automation.logThreadId;
-        const statisticsChannel = await client.channels.fetch(statisticsChannelId);
+    const top10Channel = await client.channels.fetch(top10ChannelId);
+    const statisticsChannel = await client.channels.fetch(statisticsChannelId);
 
-        // 生成报告
-        await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
-        await sendStatisticsReport(statisticsChannel, guildId, statistics, failedOperations, messageIds);
+    // 生成报告
+    await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
+    await sendStatisticsReport(statisticsChannel, guildId, statistics, failedOperations, messageIds);
 
-        const executionTime = totalTimer();
-        logTime(`活跃度分析完成 - 处理了 ${statistics.totalThreads} 个子区，用时: ${executionTime}秒`);
-        return { statistics, failedOperations, validThreads };
-    } catch (error) {
-        logTime(`服务器 ${guildId} 活跃度分析失败: ${error.message}`, true);
-        throw error;
-    }
+    const executionTime = totalTimer();
+    logTime(`活跃度分析完成 - 处理了 ${statistics.totalThreads} 个子区，用时: ${executionTime}秒`);
+    return { statistics, failedOperations, validThreads };
 };
 
 /**
@@ -454,64 +402,46 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
     const totalTimer = measureTime();
     logTime(`[自动清理] 开始清理服务器 ${guildId} 的不活跃子区`);
 
-    try {
-        // 加载消息ID配置
-        const messageIds = await loadMessageIds();
+    // 加载消息ID配置
+    const messageIds = await loadMessageIds();
 
-        // 从messageIds获取statistics频道ID，如果没有配置则使用默认的logThreadId
-        const statisticsChannelId = getChannelIdFromMessageIds(guildId, 'statistics', messageIds) || guildConfig.automation.logThreadId;
-        const logChannel = await client.channels.fetch(statisticsChannelId);
+    // 从messageIds获取频道ID，如果没有配置则使用默认的logThreadId
+    const statisticsChannelId = getChannelIdFromMessageIds(guildId, 'statistics', messageIds) || guildConfig.automation.logThreadId;
+    const top10ChannelId = getChannelIdFromMessageIds(guildId, 'top10', messageIds) || guildConfig.automation.logThreadId;
 
-        // 收集数据
-        const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
+    const logChannel = await client.channels.fetch(statisticsChannelId);
+    const top10Channel = await client.channels.fetch(top10ChannelId);
 
-        // 执行清理
-        const cleanupResult = await cleanupThreads(validThreads, threshold);
+    // 收集数据
+    const { statistics, failedOperations, validThreads } = await analyzeThreadsData(client, guildId, activeThreads);
 
-        // 在清理完成后处理置顶子区
-        // const pinnedThreads = validThreads.filter(thread => thread.isPinned);
-        // let pinnedResult = null;
-        // if (pinnedThreads.length > 0) {
-        //     pinnedResult = await processPinnedThreads(pinnedThreads);
-        // }
+    // 执行清理
+    const cleanupResult = await cleanupThreads(validThreads, threshold);
 
-        // 合并统计结果
-        Object.assign(statistics, cleanupResult.statistics);
-        failedOperations.push(...cleanupResult.failedOperations);
+    // 合并统计结果
+    Object.assign(statistics, cleanupResult.statistics);
+    failedOperations.push(...cleanupResult.failedOperations);
 
-        // 合并置顶子区处理结果
-        // if (pinnedResult) {
-        //     failedOperations.push(...pinnedResult.failedOperations);
-        // }
+    // 生成报告
+    await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
+    await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
 
-        // 从messageIds获取top10频道ID，如果没有配置则使用默认的logThreadId
-        const top10ChannelId = getChannelIdFromMessageIds(guildId, 'top10', messageIds) || guildConfig.automation.logThreadId;
-        const top10Channel = await client.channels.fetch(top10ChannelId);
+    // 输出清理结果日志
+    logTime(`[自动清理] 清理统计: 总活跃子区数 ${statistics.totalThreads}, 已清理子区数 ${cleanupResult.statistics.archivedThreads}, 跳过置顶子区 ${cleanupResult.statistics.skippedPinnedThreads}, 清理阈值 ${threshold}`);
 
-        // 生成报告
-        await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
-        await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
-
-        // 输出清理结果日志
-        logTime(`[自动清理] 清理统计: 总活跃子区数 ${statistics.totalThreads}, 已清理子区数 ${cleanupResult.statistics.archivedThreads}, 跳过置顶子区 ${cleanupResult.statistics.skippedPinnedThreads}, 清理阈值 ${threshold}`);
-
-        if (failedOperations.length > 0) {
-            logTime(`[自动清理] 清理失败记录: ${failedOperations.length}个操作失败`, true);
-            failedOperations.slice(0, 5).forEach(fail => {
-                logTime(`  - ${fail.threadName}: ${fail.operation} (${fail.error})`, true);
-            });
-            if (failedOperations.length > 5) {
-                logTime(`  - 以及其他 ${failedOperations.length - 5} 个错误...`, true);
-            }
+    if (failedOperations.length > 0) {
+        logTime(`[自动清理] 清理失败记录: ${failedOperations.length}个操作失败`, true);
+        failedOperations.slice(0, 5).forEach(fail => {
+            logTime(`  - ${fail.threadName}: ${fail.operation} (${fail.error})`, true);
+        });
+        if (failedOperations.length > 5) {
+            logTime(`  - 以及其他 ${failedOperations.length - 5} 个错误...`, true);
         }
-
-        const executionTime = totalTimer();
-        logTime(`[自动清理] 清理操作完成 - 清理了 ${cleanupResult.statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
-        return { statistics, failedOperations };
-    } catch (error) {
-        logTime(`服务器 ${guildId} 清理操作失败: ${error.message}`, true);
-        throw error;
     }
+
+    const executionTime = totalTimer();
+    logTime(`[自动清理] 清理操作完成 - 清理了 ${cleanupResult.statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
+    return { statistics, failedOperations };
 };
 
 /**
@@ -522,25 +452,21 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
  * @param {Object} activeThreads - 活跃子区列表（可选）
  */
 export const executeThreadManagement = async (client, guildConfig, guildId, activeThreads = null) => {
-    // 检查配置的模式
     const mode = guildConfig.automation.mode;
-    const threshold = guildConfig.automation.threshold;
 
     if (mode === 'disabled') {
         logTime(`服务器 ${guildId} 未启用子区自动管理`);
         return null;
     }
 
-    try {
-        if (mode === 'analysis') {
-            // 仅执行分析，不清理
-            return await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
-        } else if (mode === 'cleanup') {
-            // 分析并执行清理
-            return await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
-        }
-    } catch (error) {
-        logTime(`服务器 ${guildId} 子区管理操作失败: ${error.message}`, true);
-        throw error;
+    if (mode === 'analysis') {
+        // 仅执行分析，不清理
+        return await analyzeForumActivity(client, guildConfig, guildId, activeThreads);
+    }
+
+    if (mode === 'cleanup') {
+        // 分析并执行清理
+        const threshold = guildConfig.automation.threshold;
+        return await cleanupInactiveThreads(client, guildConfig, guildId, threshold, activeThreads);
     }
 };

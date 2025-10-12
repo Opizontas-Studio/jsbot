@@ -3,6 +3,7 @@ import { handleAutocomplete } from '../handlers/autocomplete.js';
 import { handleButton } from '../handlers/buttons.js';
 import { handleCommand } from '../handlers/commands.js';
 import { handleModal } from '../handlers/modals.js';
+import { handleSelectMenu } from '../handlers/selectMenus.js';
 
 /**
  * 处理Discord交互事件
@@ -14,6 +15,12 @@ export default {
         // 处理按钮交互
         if (interaction.isButton()) {
             await handleButton(interaction);
+            return;
+        }
+
+        // 处理选择菜单交互
+        if (interaction.isStringSelectMenu()) {
+            await handleSelectMenu(interaction);
             return;
         }
 

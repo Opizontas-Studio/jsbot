@@ -1,5 +1,6 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
 import { ModalFactory } from '../../factories/modalFactory.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
 import { checkModeratorPermission } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
 
@@ -20,21 +21,27 @@ export default {
 
         // 检查消息是否由bot发送
         if (targetMessage.author.id !== interaction.client.user.id) {
-            throw new Error('只能编辑由机器人发送的消息');
+            await interaction.reply({
+                content: '❌ 只能编辑由机器人发送的消息',
+                flags: ['Ephemeral'],
+            });
+            return;
         }
 
-        // 获取当前消息内容
-        const currentContent = targetMessage.content || '';
+        // 显示编辑模态框
+        await ErrorHandler.handleService(
+            async () => {
+                const currentContent = targetMessage.content || '';
+                const editModal = ModalFactory.createEditBotMessageModal(
+                    targetMessage.id,
+                    currentContent
+                );
 
-        // 创建编辑模态框
-        const editModal = ModalFactory.createEditBotMessageModal(
-            targetMessage.id,
-            currentContent
+                await interaction.showModal(editModal);
+                logTime(`[编辑消息] 用户 ${interaction.user.tag} 开始编辑消息 ${targetMessage.id}`);
+            },
+            '显示编辑模态框',
+            { throwOnError: true }
         );
-
-        // 显示模态框
-        await interaction.showModal(editModal);
-
-        logTime(`[编辑消息] 用户 ${interaction.user.tag} 开始编辑消息 ${targetMessage.id}`);
     },
 };

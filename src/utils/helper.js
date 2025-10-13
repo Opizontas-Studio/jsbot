@@ -167,6 +167,7 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
         title: options.isAdmin ? '管理员锁定并归档了此帖子' : '帖子已被锁定并归档',
         executorId: executor.id,
         reason: finalReason,
+        description: '💡 **如需解锁帖子：**\n右键点击本帖中任意消息 → APP → 自助解锁帖子',
     });
 
     // 如果是管理员操作，发送到管理日志
@@ -266,28 +267,34 @@ export const sendModerationLog = async (client, moderationChannelId, logData) =>
  * @param {string} notifyData.title - 通知标题
  * @param {string} notifyData.executorId - 执行者ID
  * @param {string} notifyData.reason - 操作原因
+ * @param {string} [notifyData.description] - 可选的额外描述信息
  */
 export const sendThreadNotification = async (thread, notifyData) => {
-    await thread.send({
-        embeds: [
+    const embed = {
+        color: 0xffcc00,
+        title: notifyData.title,
+        fields: [
             {
-                color: 0xffcc00,
-                title: notifyData.title,
-                fields: [
-                    {
-                        name: '操作人',
-                        value: `<@${notifyData.executorId}>`,
-                        inline: true,
-                    },
-                    {
-                        name: '原因',
-                        value: notifyData.reason,
-                        inline: true,
-                    },
-                ],
-                timestamp: new Date(),
+                name: '操作人',
+                value: `<@${notifyData.executorId}>`,
+                inline: true,
+            },
+            {
+                name: '原因',
+                value: notifyData.reason,
+                inline: true,
             },
         ],
+        timestamp: new Date(),
+    };
+
+    // 添加可选的描述信息
+    if (notifyData.description) {
+        embed.description = notifyData.description;
+    }
+
+    await thread.send({
+        embeds: [embed],
     });
 };
 

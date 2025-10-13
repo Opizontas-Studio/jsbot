@@ -20,24 +20,6 @@ export default {
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName('标注信息')
-                .setDescription('标注或取消标注一条消息')
-                .addStringOption(option =>
-                    option
-                        .setName('消息链接')
-                        .setDescription('要标注的消息链接')
-                        .setRequired(true),
-                )
-                .addStringOption(option =>
-                    option
-                        .setName('操作')
-                        .setDescription('选择标注或取消标注')
-                        .setRequired(true)
-                        .addChoices({ name: '标注', value: 'pin' }, { name: '取消标注', value: 'unpin' }),
-                ),
-        )
-        .addSubcommand(subcommand =>
-            subcommand
                 .setName('清理不活跃用户')
                 .setDescription('清理当前帖子中的不活跃用户')
                 .addIntegerOption(option =>
@@ -57,17 +39,6 @@ export default {
         )
         .addSubcommand(subcommand =>
             subcommand
-                .setName('删除消息')
-                .setDescription('删除当前帖子内指定的一条消息（可删除其他人发送的消息）')
-                .addStringOption(option =>
-                    option
-                        .setName('消息链接')
-                        .setDescription('要删除的消息链接')
-                        .setRequired(true),
-                ),
-        )
-        .addSubcommand(subcommand =>
-            subcommand
                 .setName('删除某用户全部消息')
                 .setDescription('删除某特定用户在当前帖子的所有消息并将其移出子区（注意：如果帖子消息数量很多，此操作可能需要较长时间）')
                 .addUserOption(option =>
@@ -75,19 +46,6 @@ export default {
                         .setName('目标用户')
                         .setDescription('要删除其消息的用户')
                         .setRequired(true),
-                ),
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('编辑标题')
-                .setDescription('修改当前帖子的标题')
-                .addStringOption(option =>
-                    option
-                        .setName('新标题')
-                        .setDescription('帖子的新标题')
-                        .setRequired(true)
-                        .setMinLength(1)
-                        .setMaxLength(100)
                 ),
         )
         .addSubcommand(subcommand =>
@@ -135,71 +93,6 @@ export default {
 
         // 使用switch处理不同的子命令
         switch (subcommand) {
-            case '标注信息':
-                try {
-                    const messageUrl = interaction.options.getString('消息链接');
-                    const action = interaction.options.getString('操作');
-
-                    const matches = messageUrl.match(/channels\/(\d+)\/(\d+)\/(\d+)/);
-                    if (!matches) {
-                        await interaction.editReply({
-                            content: '❌ 无效的消息链接格式',
-                        });
-                        return;
-                    }
-
-                    const [, guildId, channelId, messageId] = matches;
-
-                    // 验证消息是否在当前服务器
-                    if (guildId !== interaction.guildId) {
-                        await interaction.editReply({
-                            content: '❌ 只能标注当前服务器的消息',
-                        });
-                        return;
-                    }
-
-                    // 验证消息是否在当前帖子
-                    if (channelId !== interaction.channelId) {
-                        await interaction.editReply({
-                            content: '❌ 只能标注当前帖子内的消息',
-                        });
-                        return;
-                    }
-
-                    try {
-                        const message = await interaction.channel.messages.fetch(messageId);
-
-                        if (!message) {
-                            await interaction.editReply({
-                                content: '❌ 找不到指定的消息',
-                            });
-                            return;
-                        }
-
-                        if (action === 'pin') {
-                            await message.pin();
-                            await interaction.editReply({
-                                content: '✅ 消息已标注',
-                            });
-                            logTime(`[自助管理] 楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
-                        } else {
-                            await message.unpin();
-                            await interaction.editReply({
-                                content: '✅ 消息已取消标注',
-                            });
-                            logTime(`[自助管理] 楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
-                        }
-                    } catch (error) {
-                        await interaction.editReply({
-                            content: `❌ 标注操作失败: ${error.message}`,
-                        });
-                        throw error;
-                    }
-                } catch (error) {
-                    await handleCommandError(interaction, error, '标注消息');
-                }
-                break;
-
             case '删贴':
                 try {
                     await handleConfirmationButton({
@@ -517,66 +410,6 @@ export default {
                 }
                 break;
 
-            case '删除消息':
-                try {
-                    const messageUrl = interaction.options.getString('消息链接');
-                    const matches = messageUrl.match(/channels\/(\d+)\/(\d+)\/(\d+)/);
-
-                    if (!matches) {
-                        await interaction.editReply({
-                            content: '❌ 无效的消息链接格式',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    const [, guildId, channelId, messageId] = matches;
-
-                    // 验证消息是否在当前服务器和当前帖子
-                    if (guildId !== interaction.guildId || channelId !== interaction.channelId) {
-                        await interaction.editReply({
-                            content: '❌ 只能删除当前帖子内的消息',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    try {
-                        const message = await interaction.channel.messages.fetch(messageId);
-                        if (!message) {
-                            await interaction.editReply({
-                                content: '❌ 找不到指定的消息',
-                                flags: ['Ephemeral'],
-                            });
-                            return;
-                        }
-
-                        // 保存消息内容和发送者信息用于日志
-                        const messageContent = message.content;
-                        const messageAuthor = message.author;
-
-                        // 删除消息
-                        await message.delete();
-
-                        await interaction.editReply({
-                            content: `✅ 已删除 ${messageAuthor.tag} 发送的消息`,
-                            flags: ['Ephemeral'],
-                        });
-
-                        // 记录日志
-                        logTime(`[自助管理] 楼主 ${interaction.user.tag} 在帖子 ${thread.name} 中删除了 ${messageAuthor.tag} 发送的消息，内容：${messageContent}`);
-                    } catch (error) {
-                        await interaction.editReply({
-                            content: `❌ 删除消息失败: ${error.message}`,
-                            flags: ['Ephemeral'],
-                        });
-                        throw error;
-                    }
-                } catch (error) {
-                    await handleCommandError(interaction, error, '删除消息');
-                }
-                break;
-
             case '删除某用户全部消息':
                 try {
                     const targetUser = interaction.options.getUser('目标用户');
@@ -638,7 +471,7 @@ export default {
                                 embeds: [],
                             });
 
-                            const MAX_MESSAGES_TO_SCAN = 10000;
+                            const MAX_MESSAGES_TO_SCAN = 3000;
                             let lastId = null;
                             let messagesProcessed = 0;
                             let deletedCount = 0;
@@ -763,29 +596,6 @@ export default {
                     });
                 } catch (error) {
                     await handleCommandError(interaction, error, '删除用户全部消息');
-                }
-                break;
-
-            case '编辑标题':
-                try {
-                    const newTitle = interaction.options.getString('新标题');
-                    if (!newTitle || newTitle.length < 1 || newTitle.length > 100) {
-                        await interaction.editReply({
-                            content: '❌ 新标题长度必须在1到100个字符之间',
-                            flags: ['Ephemeral'],
-                        });
-                        return;
-                    }
-
-                    const oldTitle = thread.name;
-                    await thread.setName(newTitle);
-                    await interaction.editReply({
-                        content: '✅ 帖子标题已更新',
-                        flags: ['Ephemeral'],
-                    });
-                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 更新了帖子标题：${oldTitle} -> ${newTitle}`);
-                } catch (error) {
-                    await handleCommandError(interaction, error, '更新帖子标题');
                 }
                 break;
 

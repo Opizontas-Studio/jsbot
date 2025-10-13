@@ -743,6 +743,63 @@ export class EmbedFactory {
         return embed;
     }
 
+    // 解锁申请相关embed
+
+    /**
+     * 创建解锁申请审核消息的embed
+     * @param {Object} user - 申请用户
+     * @param {string} threadUrl - 子区链接
+     * @param {string} threadName - 子区名称
+     * @param {string} reason - 解锁理由
+     * @returns {Object} 原始embed对象
+     */
+    static createUnlockRequestEmbed(user, threadUrl, threadName, reason) {
+        return {
+            color: 0xffa500, // 橙色
+            title: '🔓 帖子解锁申请',
+            description: [
+                `**申请者：** <@${user.id}>`,
+                `**帖子：** [${threadName}](${threadUrl})`,
+                '',
+                '**解锁理由：**',
+                reason
+            ].join('\n'),
+            author: {
+                name: user.tag,
+                icon_url: user.displayAvatarURL(),
+            },
+            timestamp: new Date(),
+            footer: {
+                text: '等待管理员审核'
+            }
+        };
+    }
+
+    /**
+     * 创建解锁申请反馈embed
+     * @param {boolean} isApproved - 是否批准
+     * @param {string} threadName - 子区名称
+     * @param {string} threadUrl - 子区链接
+     * @param {string} [adminNote] - 管理员备注（可选）
+     * @returns {Object} 原始embed对象
+     */
+    static createUnlockFeedbackEmbed(isApproved, threadName, threadUrl, adminNote = null) {
+        return {
+            color: isApproved ? EmbedFactory.Colors.SUCCESS : EmbedFactory.Colors.ERROR,
+            title: isApproved ? '✅ 解锁申请已批准' : '❌ 解锁申请被拒绝',
+            description: [
+                `**子区：** [${threadName}](${threadUrl})`,
+                '',
+                isApproved ? '您的帖子已成功解锁。' : '您的解锁申请未获批准。',
+                adminNote ? `\n**管理员说明：** ${adminNote}` : ''
+            ].filter(Boolean).join('\n'),
+            timestamp: new Date(),
+            footer: {
+                text: '自助解锁系统'
+            }
+        };
+    }
+
     /**
      * 常用颜色常量
      */

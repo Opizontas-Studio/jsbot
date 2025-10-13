@@ -401,6 +401,153 @@ class OpinionMailboxService {
     }
 
     /**
+     * 处理解锁申请提交的业务逻辑
+     * @param {Object} client - Discord客户端
+     * @param {Object} user - 申请用户
+     * @param {Object} thread - 子区对象
+     * @param {string} unlockReason - 解锁理由
+     * @param {string} targetChannelId - 目标频道ID
+     * @returns {Promise<Object>} 处理结果
+     */
+    async handleUnlockRequest(client, user, thread, unlockReason, targetChannelId) {
+        return await ErrorHandler.handleService(
+            async () => {
+                // 创建解锁申请embed
+                const requestEmbed = EmbedFactory.createUnlockRequestEmbed(
+                    user,
+                    thread.url,
+                    thread.name,
+                    unlockReason
+                );
+
+                // 创建审核按钮
+                const buttons = [
+                    {
+                        type: 2,
+                        style: 3, // Success (绿色)
+                        label: '同意解锁',
+                        custom_id: `approve_unlock_${user.id}_${thread.id}`,
+                        emoji: { name: '✅' }
+                    },
+                    {
+                        type: 2,
+                        style: 4, // Danger (红色)
+                        label: '拒绝解锁',
+                        custom_id: `reject_unlock_${user.id}_${thread.id}`,
+                        emoji: { name: '❌' }
+                    }
+                ];
+
+                const actionRow = {
+                    type: 1,
+                    components: buttons
+                };
+
+                // 获取目标频道并发送消息
+                const targetChannel = await client.channels.fetch(targetChannelId);
+                if (!targetChannel) {
+                    throw new Error('无法获取目标频道');
+                }
+
+                const message = await targetChannel.send({
+                    embeds: [requestEmbed],
+                    components: [actionRow]
+                });
+
+                logTime(`用户 ${user.tag} 提交了子区解锁申请: "${thread.name}"`);
+
+                return { success: true, message };
+            },
+            "处理解锁申请提交"
+        );
+    }
+
+    /**
+     * 处理解锁审核的业务逻辑
+     * @param {Object} client - Discord客户端
+     * @param {Object} interaction - Discord交互对象
+     * @param {boolean} isApproved - 是否批准
+     * @param {string} userId - 用户ID
+     * @param {Object} thread - 子区对象
+     * @returns {Promise<Object>} 处理结果
+     */
+    async handleUnlockReview(client, interaction, isApproved, userId, thread) {
+        return await ErrorHandler.handleService(
+            async () => {
+                // 如果批准，执行解锁操作
+                if (isApproved) {
+                    await thread.setLocked(false, `管理员批准了 <@${userId}> 的解锁申请`);
+                    logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 对子区 ${thread.name} 的解锁申请`);
+                } else {
+                    logTime(`管理员 ${interaction.user.tag} 拒绝了用户 ${userId} 对子区 ${thread.name} 的解锁申请`);
+                }
+
+                // 更新原始消息的embed
+                const originalEmbed = interaction.message.embeds[0];
+                const updatedEmbed = {
+                    ...originalEmbed.toJSON(),
+                    color: isApproved ? EmbedFactory.Colors.SUCCESS : EmbedFactory.Colors.ERROR,
+                    footer: {
+                        text: isApproved ? '已批准' : '已拒绝'
+                    }
+                };
+
+                // 移除按钮并更新消息
+                await interaction.message.edit({
+                    embeds: [updatedEmbed],
+                    components: []
+                });
+
+                // 获取目标用户信息
+                const targetUser = await ErrorHandler.handleSilent(
+                    async () => await client.users.fetch(userId),
+                    "获取用户信息"
+                );
+
+                // 发送私聊通知
+                await ErrorHandler.handleSilent(
+                    async () => {
+                        if (!targetUser) return;
+
+                        const feedbackEmbed = EmbedFactory.createUnlockFeedbackEmbed(
+                            isApproved,
+                            thread.name,
+                            thread.url,
+                            null
+                        );
+
+                        await targetUser.send({ embeds: [feedbackEmbed] });
+                        logTime(`已向用户 ${targetUser.tag} 发送解锁申请${isApproved ? '批准' : '拒绝'}通知`);
+                    },
+                    "发送私聊通知"
+                );
+
+                // 发送审核日志消息
+                await ErrorHandler.handleSilent(
+                    async () => {
+                        const auditLogContent = [
+                            `### ${interaction.user.tag} ${isApproved ? '批准了' : '拒绝了'}用户 ${targetUser?.tag || `<@${userId}>`} 的解锁申请`,
+                            `子区：[${thread.name}](${thread.url})`,
+                        ].join('\n');
+
+                        await interaction.message.reply({
+                            content: auditLogContent,
+                            allowedMentions: { users: [] }
+                        });
+                    },
+                    "发送审核日志"
+                );
+
+                return {
+                    success: true,
+                    isApproved
+                };
+            },
+            `${isApproved ? '批准' : '拒绝'}解锁申请`
+        );
+    }
+
+    /**
      * 处理投稿审核的业务逻辑
      * @param {Object} client - Discord客户端
      * @param {Object} interaction - Discord交互对象

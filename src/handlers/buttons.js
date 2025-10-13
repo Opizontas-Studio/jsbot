@@ -1,6 +1,7 @@
 import { ProcessModel } from '../db/models/processModel.js';
 import { ModalFactory } from '../factories/modalFactory.js';
 import CourtService from '../services/courtService.js';
+import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import {
     applyVolunteerRole,
     exitVolunteerRole,
@@ -336,6 +337,83 @@ export const buttonHandlers = {
             { ephemeral: true }
         );
     },
+
+    // 批准解锁申请按钮处理器
+    approve_unlock: async interaction => {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 解析按钮ID获取用户ID、子区ID和消息ID
+                const [, , userId, threadId] = interaction.customId.split('_');
+
+                // 获取子区对象
+                const thread = await interaction.client.channels.fetch(threadId);
+                if (!thread || !thread.isThread()) {
+                    throw new Error('无法获取目标子区');
+                }
+
+                // 验证子区是否已锁定
+                if (!thread.locked) {
+                    throw new Error('此子区未被锁定');
+                }
+
+                // 调用服务层处理解锁审核
+                const result = await opinionMailboxService.handleUnlockReview(
+                    interaction.client,
+                    interaction,
+                    true,
+                    userId,
+                    thread
+                );
+
+                if (!result.success) {
+                    throw new Error(result.error || '处理解锁审核失败');
+                }
+
+                await interaction.editReply({
+                    content: '✅ 已批准解锁申请并解锁子区'
+                });
+            },
+            '批准解锁申请',
+            { ephemeral: true }
+        );
+    },
+
+    // 拒绝解锁申请按钮处理器
+    reject_unlock: async interaction => {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 解析按钮ID获取用户ID、子区ID和消息ID
+                const [, , userId, threadId] = interaction.customId.split('_');
+
+                // 获取子区对象
+                const thread = await interaction.client.channels.fetch(threadId);
+                if (!thread || !thread.isThread()) {
+                    throw new Error('无法获取目标子区');
+                }
+
+                // 调用服务层处理解锁审核
+                const result = await opinionMailboxService.handleUnlockReview(
+                    interaction.client,
+                    interaction,
+                    false,
+                    userId,
+                    thread
+                );
+
+                if (!result.success) {
+                    throw new Error(result.error || '处理解锁审核失败');
+                }
+
+                await interaction.editReply({
+                    content: '✅ 已拒绝解锁申请'
+                });
+            },
+            '拒绝解锁申请',
+            { ephemeral: true }
+        );
+    },
 };
 
 // 按钮配置对象
@@ -366,6 +444,10 @@ const BUTTON_CONFIG = {
     submit_opinion: { handler: buttonHandlers.submit_opinion, needDefer: false, cooldown: 30000 },
     approve_submission: { handler: buttonHandlers.approve_submission, needDefer: false },
     reject_submission: { handler: buttonHandlers.reject_submission, needDefer: false },
+
+    // 解锁申请相关
+    approve_unlock: { handler: buttonHandlers.approve_unlock, needDefer: true },
+    reject_unlock: { handler: buttonHandlers.reject_unlock, needDefer: true },
 };
 
 /**

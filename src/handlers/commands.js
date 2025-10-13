@@ -32,7 +32,7 @@ export async function handleCommand(interaction) {
     }
 
     // 检查是否是显示模态框的命令（不需要deferReply）
-    const modalCommands = ['编辑Bot消息'];
+    const modalCommands = ['编辑Bot消息', '自助申请解锁'];
     const isModalCommand = modalCommands.includes(command.data.name);
 
     if (!isModalCommand) {

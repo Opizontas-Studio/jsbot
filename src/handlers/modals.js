@@ -187,6 +187,44 @@ export const modalHandlers = {
             { successMessage: "Bot消息已成功编辑" }
         );
     },
+
+    // 解锁子区申请模态框处理器
+    unlock_thread_modal: async interaction => {
+        return await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 从modalId中解析子区ID
+                const threadId = interaction.customId.replace('unlock_thread_modal_', '');
+
+                // 获取用户输入的解锁理由
+                const unlockReason = interaction.fields.getTextInputValue('unlock_reason');
+
+                // 获取子区对象
+                const thread = await interaction.client.channels.fetch(threadId);
+                if (!thread || !thread.isThread()) {
+                    throw new Error('无法获取目标子区');
+                }
+
+                // 获取服务器配置
+                const guildConfig = interaction.client.guildManager.getGuildConfig(interaction.guildId);
+
+                // 调用服务层处理业务逻辑
+                const result = await opinionMailboxService.handleUnlockRequest(
+                    interaction.client,
+                    interaction.user,
+                    thread,
+                    unlockReason,
+                    guildConfig.opinionMailThreadId
+                );
+
+                if (!result.success) {
+                    throw new Error(result.error || '提交解锁申请失败');
+                }
+            },
+            "提交解锁申请",
+            { successMessage: "解锁申请已提交，请等待管理员审核" }
+        );
+    },
 };
 
 /**
@@ -209,6 +247,8 @@ export async function handleModal(interaction) {
             handler = modalHandlers.reject_submission_modal;
         } else if (modalId.startsWith('edit_bot_message_modal_')) {
             handler = modalHandlers.edit_bot_message_modal;
+        } else if (modalId.startsWith('unlock_thread_modal_')) {
+            handler = modalHandlers.unlock_thread_modal;
         }
     }
 

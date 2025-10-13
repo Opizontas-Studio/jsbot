@@ -213,4 +213,30 @@ export class ModalFactory {
 
         return modal;
     }
+
+    /**
+     * 创建解锁子区申请模态框
+     * @param {string} threadId - 要解锁的子区ID
+     * @returns {ModalBuilder} 构建好的模态框
+     */
+    static createUnlockThreadModal(threadId) {
+        const modal = new ModalBuilder()
+            .setCustomId(`unlock_thread_modal_${threadId}`)
+            .setTitle('申请解锁子区');
+
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('unlock_reason')
+            .setLabel('解锁理由')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('请简单说明为什么需要解锁此帖子...')
+            .setMinLength(10)
+            .setMaxLength(500)
+            .setRequired(true);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(reasonInput),
+        );
+
+        return modal;
+    }
 }

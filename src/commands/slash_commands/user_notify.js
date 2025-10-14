@@ -1,5 +1,6 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { handleCommandError, validateImageFile } from '../../utils/helper.js';
+import { logTime } from '../../utils/helper.js';
 
 // 定义颜色映射
 const COLORS = {

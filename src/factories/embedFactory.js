@@ -7,6 +7,31 @@ import { formatPunishmentDuration } from '../utils/helper.js';
  */
 export class EmbedFactory {
 
+    /**
+     * 常用颜色常量
+     */
+    static Colors = {
+        SUCCESS: 0x5fa85f,
+        ERROR: 0xb85c5c,
+        INFO: 0x00aaff,
+        WARNING: 0xffcc00,
+        PRIMARY: 0x5865f2,
+        DANGER: 0xff0000,
+        TIMEOUT: 0x808080
+    };
+
+    /**
+     * 常用emoji前缀
+     */
+    static Emojis = {
+        MAILBOX: '📮',
+        SUCCESS: '✅',
+        ERROR: '❌',
+        INFO: 'ℹ️',
+        WARNING: '⚠️',
+        OPINION: '💬'
+    };
+
     // 意见信箱相关embed
 
     /**
@@ -327,6 +352,41 @@ export class EmbedFactory {
                 text: '自动审核系统',
             },
         };
+    }
+
+    /**
+     * 创建创作者身份组申请成功的欢迎embed
+     * @param {Array<string>} syncedServers - 同步成功的服务器列表
+     * @param {number} totalCreators - 当前创作者总数
+     * @returns {EmbedBuilder} 构建好的embed
+     */
+    static createCreatorRoleSuccessEmbed(syncedServers, totalCreators = 0) {
+        const syncInfo = syncedServers.length > 1
+            ? `\n\n✨ **已同步至：**${syncedServers.join('、')}`
+            : '';
+
+        const creatorNumberInfo = totalCreators > 0
+            ? `\n\n🎊 **您是第 ${totalCreators} 位创作者！**`
+            : '';
+
+        return new EmbedBuilder()
+            .setTitle('🎨 欢迎加入旅程社区创作者的大家庭！')
+            .setDescription(
+                [
+                    creatorNumberInfo,
+                    '',
+                    '### 📢 作品更新的通知',
+                    '您现在可以使用 `/发送通知` 命令通知您的作品的关注者自己有更新哦。',
+                    '',
+                    '### 🎭 暖暖装扮身份组',
+                    '现在还可以到 [旅程暖暖](https://discord.com/channels/1291925535324110879/1390230760077791232) 切换装扮身份组啦。',
+                    '',
+                    '### 📚 帖子管理指南',
+                    '最后记得到 [BOT说明书](https://discord.com/channels/1291925535324110879/1338165171432194118) 学习一下如何管理自己的帖子！',
+                ].join('\n')
+            )
+            .setColor(EmbedFactory.Colors.SUCCESS)
+            .setTimestamp();
     }
 
     // 子区清理相关embed
@@ -799,31 +859,6 @@ export class EmbedFactory {
             }
         };
     }
-
-    /**
-     * 常用颜色常量
-     */
-    static Colors = {
-        SUCCESS: 0x5fa85f,
-        ERROR: 0xb85c5c,
-        INFO: 0x00aaff,
-        WARNING: 0xffcc00,
-        PRIMARY: 0x5865f2,
-        DANGER: 0xff0000,
-        TIMEOUT: 0x808080
-    };
-
-    /**
-     * 常用emoji前缀
-     */
-    static Emojis = {
-        MAILBOX: '📮',
-        SUCCESS: '✅',
-        ERROR: '❌',
-        INFO: 'ℹ️',
-        WARNING: '⚠️',
-        OPINION: '💬'
-    };
 
     // 自助管理相关embed
 

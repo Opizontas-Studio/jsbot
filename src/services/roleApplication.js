@@ -633,7 +633,6 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                     const syncGroups = Array.isArray(roleSyncConfig?.syncGroups) ? roleSyncConfig.syncGroups : [];
                     const creatorSyncGroup = syncGroups.find(group => group.name === '创作者');
 
-                    let successMessage = '';
                     let syncedServers = [];
 
                     if (creatorSyncGroup) {
@@ -649,11 +648,6 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                         // 检查是否有成功的服务器
                         if (roleResult.successfulServers.length > 0) {
                             syncedServers = roleResult.successfulServers;
-                            successMessage = `审核通过！已为您添加创作者身份组${
-                                roleResult.successfulServers.length > 1
-                                    ? `（已同步至：${roleResult.successfulServers.join('、')}）`
-                                    : ''
-                            }`;
                         } else {
                             throw new Error('添加身份组时出现错误，请联系管理员');
                         }
@@ -662,11 +656,28 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                         const member = await interaction.guild.members.fetch(interaction.user.id);
                         await member.roles.add(currentGuildConfig.roleApplication.creatorRoleId);
                         syncedServers = [interaction.guild.name];
-                        successMessage = '审核通过，已为您添加创作者身份组。';
                     }
 
                     logTime(
                         `[自动审核] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${syncedServers.join('、')}`
+                    );
+
+                    // 统计创作者总数（使用主服务器的创作者身份组）
+                    let totalCreators = 0;
+                    await ErrorHandler.handleSilent(
+                        async () => {
+                            const mainGuild = await client.guilds.fetch(currentGuildConfig.id);
+                            const creatorRoleId = currentGuildConfig.roleApplication?.creatorRoleId;
+
+                            if (creatorRoleId) {
+                                // 获取拥有创作者身份组的成员
+                                const role = await mainGuild.roles.fetch(creatorRoleId);
+                                if (role) {
+                                    totalCreators = role.members.size;
+                                }
+                            }
+                        },
+                        "统计创作者总数"
                     );
 
                     // 发送审核日志（可容错操作）
@@ -682,7 +693,19 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                         "发送审核日志"
                     );
 
-                    return { success: true, message: successMessage };
+                    // 创建成功的欢迎embed
+                    const successEmbed = EmbedFactory.createCreatorRoleSuccessEmbed(syncedServers, totalCreators);
+
+                    // 同时发送到用户私聊
+                    await ErrorHandler.handleSilent(
+                        async () => {
+                            await interaction.user.send({ embeds: [successEmbed] });
+                            logTime(`[身份同步] 已向用户 ${interaction.user.tag} 发送创作者欢迎消息`);
+                        },
+                        "发送创作者欢迎私聊消息"
+                    );
+
+                    return { success: true, embed: successEmbed };
                 } else {
                     return { success: false, message: '审核未通过，请获取足够正面反应后再申请。' };
                 }

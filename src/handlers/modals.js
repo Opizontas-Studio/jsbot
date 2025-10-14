@@ -100,8 +100,10 @@ export const modalHandlers = {
                     throw new Error(result.error || result.message || '处理申请失败');
                 }
 
-                // 手动发送成功消息
-                await interaction.editReply(`✅ ${result.data.message}`);
+                // 发送成功消息embed
+                await interaction.editReply({
+                    embeds: [result.data.embed]
+                });
             },
             "处理创作者身份组申请"
         );

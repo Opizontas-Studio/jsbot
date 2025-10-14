@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { handleCommandError, validateImageFile } from '../../utils/helper.js';
 
 // 定义颜色映射
@@ -46,6 +46,12 @@ export default {
                     { name: '黄色', value: '黄色' },
                     { name: '灰色', value: '灰色' },
                 ),
+        )
+        .addBooleanOption(option =>
+            option
+                .setName('通知所有关注者')
+                .setDescription('是否通知所有关注者（仅限在自己的论坛作品中使用）')
+                .setRequired(true),
         ),
 
     async execute(interaction) {
@@ -58,6 +64,7 @@ export default {
             const description = interaction.options.getString('内容');
             const imageAttachment = interaction.options.getAttachment('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
+            const notifyFollowers = interaction.options.getBoolean('通知所有关注者') ?? false;
 
             // 验证图片附件
             if (imageAttachment) {
@@ -65,6 +72,27 @@ export default {
                 if (!isValid) {
                     await interaction.editReply({
                         content: `❌ ${error}`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+            }
+
+            // 如果需要通知所有关注者，检查权限
+            if (notifyFollowers) {
+                // 检查是否在论坛帖子中使用
+                if (!channel.isThread() || channel.parent?.type !== ChannelType.GuildForum) {
+                    await interaction.editReply({
+                        content: '❌ 你只能在自己的作品中通知所有关注者',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 检查是否为帖子作者
+                if (channel.ownerId !== interaction.user.id) {
+                    await interaction.editReply({
+                        content: '❌ 你只能在自己的作品中通知所有关注者',
                         flags: ['Ephemeral'],
                     });
                     return;
@@ -93,7 +121,13 @@ export default {
                 embed.image = { url: imageAttachment.url };
             }
 
-            await channel.send({ embeds: [embed] });
+            // 构建发送消息的选项
+            const sendOptions = { embeds: [embed] };
+            if (notifyFollowers) {
+                sendOptions.content = '@everyone';
+            }
+
+            await channel.send(sendOptions);
 
             await interaction.editReply({
                 content: '✅ 通知已发送',

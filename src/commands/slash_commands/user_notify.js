@@ -49,7 +49,7 @@ export default {
         )
         .addBooleanOption(option =>
             option
-                .setName('通知所有关注者')
+                .setName('@所有关注者')
                 .setDescription('是否通知所有关注者（仅限在自己的论坛作品中使用）')
                 .setRequired(true),
         ),
@@ -64,7 +64,7 @@ export default {
             const description = interaction.options.getString('内容');
             const imageAttachment = interaction.options.getAttachment('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
-            const notifyFollowers = interaction.options.getBoolean('通知所有关注者') ?? false;
+            const notifyFollowers = interaction.options.getBoolean('@所有关注者') ?? false;
 
             // 验证图片附件
             if (imageAttachment) {

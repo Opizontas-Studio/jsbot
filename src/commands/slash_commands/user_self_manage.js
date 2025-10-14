@@ -1,4 +1,4 @@
-import { ChannelType, SlashCommandBuilder } from 'discord.js';
+import { ActionRowBuilder, ChannelType, SlashCommandBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { cleanThreadMembers, sendLogReport, updateThreadAutoCleanupSetting } from '../../services/threadCleaner.js';
 import { delay, globalRequestQueue } from '../../utils/concurrency.js';
 import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
@@ -66,6 +66,11 @@ export default {
                             { name: '1分钟', value: '60' }
                         )
                 ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('移除帖子反应')
+                .setDescription('移除你的帖子首楼消息上的反应，切记谨慎操作！')
         ),
 
     async execute(interaction, guildConfig) {
@@ -620,6 +625,69 @@ export default {
                     logTime(`[自助管理] 楼主 ${interaction.user.tag} 更新了帖子 ${thread.name} 的慢速模式：${oldSlowMode}秒 -> ${newSlowMode}秒`);
                 } catch (error) {
                     await handleCommandError(interaction, error, '更新帖子慢速模式');
+                }
+                break;
+
+            case '移除帖子反应':
+                try {
+                    // 获取帖子首楼消息
+                    const starterMessage = await thread.fetchStarterMessage();
+
+                    if (!starterMessage) {
+                        await interaction.editReply({
+                            content: '❌ 无法获取帖子首楼消息',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    // 检查消息是否有反应
+                    if (starterMessage.reactions.cache.size === 0) {
+                        await interaction.editReply({
+                            content: '❌ 帖子首楼没有任何反应',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+
+                    // 构建选择菜单选项
+                    const options = [
+                        {
+                            label: '全部',
+                            description: '移除所有反应',
+                            value: 'all',
+                            emoji: '🗑️',
+                        }
+                    ];
+
+                    // 添加每个单独的反应选项
+                    for (const [emoji, reaction] of starterMessage.reactions.cache) {
+                        options.push({
+                            label: `${reaction.emoji.name || emoji}`,
+                            description: `${reaction.count} 个反应`,
+                            value: emoji,
+                            emoji: reaction.emoji.id ? { id: reaction.emoji.id } : reaction.emoji.name,
+                        });
+                    }
+
+                    // 创建选择菜单
+                    const selectMenu = new StringSelectMenuBuilder()
+                        .setCustomId(`remove_reaction_${starterMessage.id}_${interaction.user.id}`)
+                        .setPlaceholder('选择要移除的反应')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+                    // 回复用户
+                    await interaction.editReply({
+                        content: '请选择要移除的反应：',
+                        components: [row],
+                        flags: ['Ephemeral'],
+                    });
+
+                    logTime(`[自助管理] 楼主 ${interaction.user.tag} 请求移除帖子 ${thread.name} 首楼的反应`);
+                } catch (error) {
+                    await handleCommandError(interaction, error, '移除帖子反应');
                 }
                 break;
         }

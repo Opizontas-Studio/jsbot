@@ -1,3 +1,4 @@
+import { handleRemoveReaction } from '../services/selfManageService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
@@ -33,53 +34,7 @@ export const selectMenuHandlers = {
         const [, , messageId, userId] = interaction.customId.split('_');
         const selectedValue = interaction.values[0];
 
-        try {
-            // 获取消息对象
-            const message = await interaction.channel.messages.fetch(messageId);
-
-            if (!message) {
-                await interaction.editReply({
-                    content: '❌ 找不到该消息',
-                });
-                return;
-            }
-
-            // 再次验证消息所有权
-            if (message.author.id !== userId) {
-                await interaction.editReply({
-                    content: '❌ 你只能移除自己消息上的反应',
-                });
-                return;
-            }
-
-            // 如果选择"全部"，移除所有反应
-            if (selectedValue === 'all') {
-                await message.reactions.removeAll();
-                await interaction.editReply({
-                    content: '✅ 已移除消息的所有反应',
-                });
-                logTime(`[移除反应] ${interaction.user.tag} 移除了消息 ${messageId} 的所有反应`);
-            } else {
-                // 移除特定反应
-                const reaction = message.reactions.cache.get(selectedValue);
-                if (reaction) {
-                    await reaction.remove();
-                    await interaction.editReply({
-                        content: `✅ 已移除反应 ${selectedValue}`,
-                    });
-                    logTime(`[移除反应] ${interaction.user.tag} 移除了消息 ${messageId} 的反应 ${selectedValue}`);
-                } else {
-                    await interaction.editReply({
-                        content: '❌ 该反应已不存在',
-                    });
-                }
-            }
-        } catch (error) {
-            await interaction.editReply({
-                content: `❌ 移除反应失败: ${error.message}`,
-            });
-            throw error;
-        }
+        await handleRemoveReaction(interaction, messageId, userId, selectedValue);
     },
 };
 

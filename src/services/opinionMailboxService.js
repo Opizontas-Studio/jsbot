@@ -476,6 +476,7 @@ class OpinionMailboxService {
             async () => {
                 // 如果批准，执行解锁操作
                 if (isApproved) {
+                    await thread.setArchived(false);
                     await thread.setLocked(false, `管理员批准了 <@${userId}> 的解锁申请`);
                     logTime(`管理员 ${interaction.user.tag} 批准了用户 ${userId} 对子区 ${thread.name} 的解锁申请`);
                 } else {

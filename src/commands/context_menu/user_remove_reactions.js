@@ -1,9 +1,6 @@
-import {
-    ActionRowBuilder,
-    ApplicationCommandType,
-    ContextMenuCommandBuilder,
-    StringSelectMenuBuilder
-} from 'discord.js';
+import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
+import { SelectMenuFactory } from '../../factories/selectMenuFactory.js';
+import { validateMessageOwner } from '../../services/selfManageService.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export default {
@@ -17,9 +14,10 @@ export default {
         const message = interaction.targetMessage;
 
         // 检查消息是否为用户自己发送的
-        if (message.author.id !== interaction.user.id) {
+        const ownerValidation = validateMessageOwner(message, interaction.user.id);
+        if (!ownerValidation.isValid) {
             await interaction.editReply({
-                content: '❌ 你只能移除自己消息上的反应',
+                content: ownerValidation.error,
                 flags: ['Ephemeral'],
             });
             return;
@@ -38,33 +36,7 @@ export default {
         await ErrorHandler.handleInteraction(
             interaction,
             async () => {
-                // 构建选择菜单选项
-                const options = [
-                    {
-                        label: '全部',
-                        description: '移除所有反应',
-                        value: 'all',
-                        emoji: '🗑️',
-                    }
-                ];
-
-                // 添加每个单独的反应选项
-                for (const [emoji, reaction] of message.reactions.cache) {
-                    options.push({
-                        label: `${reaction.emoji.name || emoji}`,
-                        description: `${reaction.count} 个反应`,
-                        value: emoji,
-                        emoji: reaction.emoji.id ? { id: reaction.emoji.id } : reaction.emoji.name,
-                    });
-                }
-
-                // 创建选择菜单
-                const selectMenu = new StringSelectMenuBuilder()
-                    .setCustomId(`remove_reaction_${message.id}_${interaction.user.id}`)
-                    .setPlaceholder('选择要移除的反应')
-                    .addOptions(options);
-
-                const row = new ActionRowBuilder().addComponents(selectMenu);
+                const row = SelectMenuFactory.createReactionRemovalMenu(message, interaction.user.id);
 
                 // 直接编辑回复，不通过handleInteraction的successMessage
                 await interaction.editReply({

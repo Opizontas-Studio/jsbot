@@ -808,7 +808,9 @@ export class EmbedFactory {
         ERROR: 0xb85c5c,
         INFO: 0x00aaff,
         WARNING: 0xffcc00,
-        PRIMARY: 0x5865f2
+        PRIMARY: 0x5865f2,
+        DANGER: 0xff0000,
+        TIMEOUT: 0x808080
     };
 
     /**
@@ -822,4 +824,156 @@ export class EmbedFactory {
         WARNING: '⚠️',
         OPINION: '💬'
     };
+
+    // 自助管理相关embed
+
+    /**
+     * 创建删除帖子确认embed
+     * @param {Object} thread - 帖子对象
+     * @returns {Object} embed配置对象
+     */
+    static createDeleteThreadConfirmEmbed(thread) {
+        return {
+            color: EmbedFactory.Colors.DANGER,
+            title: '⚠️ 删除确认',
+            description: `你确定要删除帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：此操作不可撤销！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}`,
+        };
+    }
+
+    /**
+     * 创建锁定帖子确认embed
+     * @param {Object} thread - 帖子对象
+     * @param {string} reason - 锁定原因
+     * @returns {Object} embed配置对象
+     */
+    static createLockThreadConfirmEmbed(thread, reason) {
+        return {
+            color: EmbedFactory.Colors.DANGER,
+            title: '⚠️ 锁定确认',
+            description: `你确定要锁定并关闭帖子 "${thread.name}" 吗？\n\n**⚠️ 警告：锁定后其他人将无法回复！**\n\n创建时间：${thread.createdAt.toLocaleString()}\n回复数量：${thread.messageCount}\n锁定原因：${reason || '未提供'}`,
+        };
+    }
+
+    /**
+     * 创建清理不活跃用户确认embed
+     * @param {Object} thread - 帖子对象
+     * @param {number} memberCount - 当前成员数
+     * @param {number} threshold - 清理阈值
+     * @param {boolean} enableAutoCleanup - 是否启用自动清理
+     * @returns {Object} embed配置对象
+     */
+    static createCleanInactiveUsersConfirmEmbed(thread, memberCount, threshold, enableAutoCleanup) {
+        return {
+            color: EmbedFactory.Colors.DANGER,
+            title: '⚠️ 清理确认',
+            description: [
+                `你确定要清理帖子 "${thread.name}" 中的不活跃用户吗？`,
+                '',
+                `⚠️ 此操作将：至少清理：${memberCount - threshold} 人`,
+                '- 优先移除未发言成员，若不足则会移除上次发言较早的成员',
+                '- 被移除的成员可以随时重新加入讨论',
+                '',
+                `🤖 自动清理：${enableAutoCleanup ? '启用' : '禁用'}`,
+                enableAutoCleanup
+                    ? '- 系统将在帖子达到990人时自动清理至设定阈值'
+                    : '- 系统将不会对此帖子进行自动清理',
+            ].join('\n'),
+        };
+    }
+
+    /**
+     * 创建删除用户消息确认embed
+     * @param {Object} targetUser - 目标用户
+     * @param {string} threadName - 帖子名称
+     * @returns {Object} embed配置对象
+     */
+    static createDeleteUserMessagesConfirmEmbed(targetUser, threadName) {
+        return {
+            color: EmbedFactory.Colors.DANGER,
+            title: '⚠️ 删除确认',
+            description: [
+                `你确定要删除用户 **${targetUser.tag}** 在帖子 "${threadName}" 中的所有消息吗？`,
+                '',
+                '**⚠️ 警告：**',
+                '- 此操作不可撤销，将删除该用户的所有消息并将其移出子区。',
+                '- 如果帖子消息数量很多，此操作可能需要较长时间，最大扫描上限为3000条。'
+            ].join('\n'),
+        };
+    }
+
+    /**
+     * 创建操作超时embed
+     * @param {string} operationName - 操作名称
+     * @returns {Object} embed配置对象
+     */
+    static createOperationTimeoutEmbed(operationName) {
+        return {
+            color: EmbedFactory.Colors.TIMEOUT,
+            title: '❌ 确认已超时',
+            description: `${operationName}操作已超时。如需继续请重新执行命令。`,
+        };
+    }
+
+    /**
+     * 创建清理不活跃用户的阈值提醒embed
+     * @param {number} memberCount - 当前成员数
+     * @param {number} threshold - 阈值
+     * @param {boolean} enableAutoCleanup - 是否启用自动清理
+     * @returns {Object} embed配置对象
+     */
+    static createCleanupThresholdWarningEmbed(memberCount, threshold, enableAutoCleanup) {
+        return {
+            color: EmbedFactory.Colors.WARNING,
+            title: '⚠️ 阈值提醒',
+            description: [
+                `当前帖子人数(${memberCount})未达到清理阈值(${threshold})`,
+                `自动清理：${enableAutoCleanup ? '启用' : '禁用'}`,
+                '此外，当前阈值大于990，因此不会应用到自动清理配置中',
+                enableAutoCleanup
+                    ? '- 系统将在帖子达到990人时自动清理'
+                    : '- 系统将不会对此帖子进行自动清理',
+            ].join('\n'),
+        };
+    }
+
+    /**
+     * 创建无需清理embed
+     * @param {number} memberCount - 当前成员数
+     * @param {number} threshold - 阈值
+     * @param {boolean} enableAutoCleanup - 是否启用自动清理
+     * @returns {Object} embed配置对象
+     */
+    static createNoCleanupNeededEmbed(memberCount, threshold, enableAutoCleanup) {
+        return {
+            color: EmbedFactory.Colors.TIMEOUT,
+            title: '❌ 无需清理',
+            description: [
+                `当前帖子人数(${memberCount})未达到清理阈值(${threshold})`,
+                `自动清理：${enableAutoCleanup ? '启用' : '禁用'}`,
+                enableAutoCleanup
+                    ? `- 系统将在帖子达到990人时自动清理至当前设定的阈值(${threshold})`
+                    : '- 系统将不会对此帖子进行自动清理',
+            ].join('\n'),
+        };
+    }
+
+    /**
+     * 创建清理任务提交成功embed
+     * @param {boolean} enableAutoCleanup - 是否启用自动清理
+     * @returns {Object} embed配置对象
+     */
+    static createCleanupTaskSubmittedEmbed(enableAutoCleanup) {
+        return {
+            color: EmbedFactory.Colors.SUCCESS,
+            title: '✅ 任务已提交成功',
+            description: [
+                '清理任务已添加到后台队列，由于DC API限制，初次执行耗时可能很长，且开始不会有反馈，请耐心等候。',
+                `**🤖 自动清理状态：${enableAutoCleanup ? '已启用' : '已禁用'}**`,
+                enableAutoCleanup
+                    ? '• 系统将在帖子达到990人时自动清理至你设定的阈值'
+                    : '• 系统将不会对此帖子进行自动清理',
+            ].join('\n'),
+            timestamp: new Date()
+        };
+    }
 }

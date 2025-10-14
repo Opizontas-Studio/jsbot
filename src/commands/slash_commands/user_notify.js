@@ -25,6 +25,12 @@ export default {
         .addStringOption(
             option => option.setName('内容').setDescription('通知的具体内容').setRequired(true).setMaxLength(4096), // Discord embed描述最大长度
         )
+        .addBooleanOption(option =>
+            option
+                .setName('at所有关注者')
+                .setDescription('是否通知所有关注者（仅限在自己的论坛作品中使用）')
+                .setRequired(true),
+        )
         .addAttachmentOption(option =>
             option
                 .setName('图片')
@@ -46,12 +52,6 @@ export default {
                     { name: '黄色', value: '黄色' },
                     { name: '灰色', value: '灰色' },
                 ),
-        )
-        .addBooleanOption(option =>
-            option
-                .setName('@所有关注者')
-                .setDescription('是否通知所有关注者（仅限在自己的论坛作品中使用）')
-                .setRequired(true),
         ),
 
     async execute(interaction) {
@@ -64,7 +64,7 @@ export default {
             const description = interaction.options.getString('内容');
             const imageAttachment = interaction.options.getAttachment('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
-            const notifyFollowers = interaction.options.getBoolean('@所有关注者') ?? false;
+            const notifyFollowers = interaction.options.getBoolean('at所有关注者') ?? false;
 
             // 验证图片附件
             if (imageAttachment) {

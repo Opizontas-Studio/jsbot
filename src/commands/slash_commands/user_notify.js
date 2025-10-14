@@ -26,11 +26,16 @@ export default {
         .addStringOption(
             option => option.setName('内容').setDescription('通知的具体内容').setRequired(true).setMaxLength(4096), // Discord embed描述最大长度
         )
-        .addBooleanOption(option =>
+        .addStringOption(option =>
             option
-                .setName('at所有关注者')
-                .setDescription('是否通知所有关注者（仅限在自己的论坛作品中使用）')
-                .setRequired(true),
+                .setName('通知类型')
+                .setDescription('选择通知的类型（仅限在自己的论坛作品中使用@功能）')
+                .setRequired(true)
+                .addChoices(
+                    { name: '无', value: 'none' },
+                    { name: '在线关注者', value: 'here' },
+                    { name: '所有关注者', value: 'everyone' },
+                ),
         )
         .addAttachmentOption(option =>
             option
@@ -65,7 +70,7 @@ export default {
             const description = interaction.options.getString('内容');
             const imageAttachment = interaction.options.getAttachment('图片');
             const selectedColor = interaction.options.getString('颜色') ?? '蓝色';
-            const notifyFollowers = interaction.options.getBoolean('at所有关注者') ?? false;
+            const notifyType = interaction.options.getString('通知类型') ?? 'none';
 
             // 验证图片附件
             if (imageAttachment) {
@@ -79,12 +84,12 @@ export default {
                 }
             }
 
-            // 如果需要通知所有关注者，检查权限
-            if (notifyFollowers) {
+            // 如果需要通知关注者，检查权限
+            if (notifyType === 'here' || notifyType === 'everyone') {
                 // 检查是否在论坛帖子中使用
                 if (!channel.isThread() || channel.parent?.type !== ChannelType.GuildForum) {
                     await interaction.editReply({
-                        content: '❌ 你只能在自己的作品中通知所有关注者',
+                        content: '❌ 你只能在自己的作品中通知关注者',
                         flags: ['Ephemeral'],
                     });
                     return;
@@ -93,7 +98,7 @@ export default {
                 // 检查是否为帖子作者
                 if (channel.ownerId !== interaction.user.id) {
                     await interaction.editReply({
-                        content: '❌ 你只能在自己的作品中通知所有关注者',
+                        content: '❌ 你只能在自己的作品中通知关注者',
                         flags: ['Ephemeral'],
                     });
                     return;
@@ -124,9 +129,12 @@ export default {
 
             // 构建发送消息的选项
             const sendOptions = { embeds: [embed] };
-            if (notifyFollowers) {
+            if (notifyType === 'everyone') {
                 sendOptions.content = '@everyone';
                 logTime(`[发送通知] ${interaction.user.tag} 在 ${channel.name} 通知了所有关注者`);
+            } else if (notifyType === 'here') {
+                sendOptions.content = '@here';
+                logTime(`[发送通知] ${interaction.user.tag} 在 ${channel.name} 通知了在线关注者`);
             }
 
             await channel.send(sendOptions);

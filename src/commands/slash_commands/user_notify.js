@@ -125,6 +125,7 @@ export default {
             const sendOptions = { embeds: [embed] };
             if (notifyFollowers) {
                 sendOptions.content = '@everyone';
+                logTime(`[发送通知] ${interaction.user.tag} 在 ${channel.name} 通知了所有关注者`);
             }
 
             await channel.send(sendOptions);

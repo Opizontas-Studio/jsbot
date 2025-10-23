@@ -78,6 +78,24 @@ export default {
             subcommand
                 .setName('移除帖子反应')
                 .setDescription('移除你的帖子首楼消息上的反应，切记谨慎操作！')
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('标注信息')
+                .setDescription('标注或取消标注一条消息，注意此功能现在推荐通过上下文菜单进行！')
+                .addStringOption(option =>
+                    option
+                        .setName('消息链接')
+                        .setDescription('要标注的消息链接')
+                        .setRequired(true),
+                )
+                .addStringOption(option =>
+                    option
+                        .setName('操作')
+                        .setDescription('选择标注或取消标注')
+                        .setRequired(true)
+                        .addChoices({ name: '标注', value: 'pin' }, { name: '取消标注', value: 'unpin' }),
+                ),
         ),
 
     async execute(interaction, guildConfig) {
@@ -193,6 +211,70 @@ export default {
                     '移除帖子反应',
                     { ephemeral: true }
                 );
+                break;
+            case '标注信息':
+                try {
+                    const messageUrl = interaction.options.getString('消息链接');
+                    const action = interaction.options.getString('操作');
+
+                    const matches = messageUrl.match(/channels\/(\d+)\/(\d+)\/(\d+)/);
+                    if (!matches) {
+                        await interaction.editReply({
+                            content: '❌ 无效的消息链接格式',
+                        });
+                        return;
+                    }
+
+                    const [, guildId, channelId, messageId] = matches;
+
+                    // 验证消息是否在当前服务器
+                    if (guildId !== interaction.guildId) {
+                        await interaction.editReply({
+                            content: '❌ 只能标注当前服务器的消息',
+                        });
+                        return;
+                    }
+
+                    // 验证消息是否在当前帖子
+                    if (channelId !== interaction.channelId) {
+                        await interaction.editReply({
+                            content: '❌ 只能标注当前帖子内的消息',
+                        });
+                        return;
+                    }
+
+                    try {
+                        const message = await interaction.channel.messages.fetch(messageId);
+
+                        if (!message) {
+                            await interaction.editReply({
+                                content: '❌ 找不到指定的消息',
+                            });
+                            return;
+                        }
+
+                        if (action === 'pin') {
+                            await message.pin();
+                            await interaction.editReply({
+                                content: '✅ 消息已标注，注意此功能现在推荐通过上下文菜单更加方便快捷，请点击这里了解如何使用：https://discord.com/channels/1291925535324110879/1338165171432194118',
+                            });
+                            logTime(`[自助管理] 楼主 ${interaction.user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+                        } else {
+                            await message.unpin();
+                            await interaction.editReply({
+                                content: '✅ 消息已取消标注，注意此功能现在推荐通过上下文菜单更加方便快捷，请点击这里了解如何使用：https://discord.com/channels/1291925535324110879/1338165171432194118',
+                            });
+                            logTime(`[自助管理] 楼主 ${interaction.user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+                        }
+                    } catch (error) {
+                        await interaction.editReply({
+                            content: `❌ 标注操作失败: ${error.message}`,
+                        });
+                        throw error;
+                    }
+                } catch (error) {
+                    await handleCommandError(interaction, error, '标注消息');
+                }
                 break;
         }
     },

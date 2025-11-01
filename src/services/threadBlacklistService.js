@@ -200,7 +200,7 @@ export class ThreadBlacklistService {
             // 立即保存（拉黑操作需要立即持久化）
             ThreadBlacklistService.saveToFile();
 
-            logTime(`[用户拉黑] 用户 ${ownerId} 已全局拉黑用户 ${targetUserId}`);
+            // logTime(`[用户拉黑] 用户 ${ownerId} 已全局拉黑用户 ${targetUserId}`);
             return true;
         } catch (error) {
             logTime(`[用户拉黑] 添加拉黑记录失败: ${error.message}`, true);
@@ -232,7 +232,7 @@ export class ThreadBlacklistService {
             // 立即保存（解除拉黑操作需要立即持久化）
             ThreadBlacklistService.saveToFile();
 
-            logTime(`[用户拉黑] 用户 ${ownerId} 已解除对用户 ${targetUserId} 的拉黑`);
+            // logTime(`[用户拉黑] 用户 ${ownerId} 已解除对用户 ${targetUserId} 的拉黑`);
             return true;
         } catch (error) {
             logTime(`[用户拉黑] 移除拉黑记录失败: ${error.message}`, true);

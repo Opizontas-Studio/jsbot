@@ -136,8 +136,8 @@ class PunishmentService {
                     if (channelResult) notificationResults.push(channelResult);
                 }
 
-                // 发送管理日志
-                if (guildData.moderationLogThreadId) {
+                // 发送管理日志（警告处罚除外）
+                if (guildData.moderationLogThreadId && punishment.type !== 'warning') {
                     const logResult = await ErrorHandler.handleSilent(
                         async () => {
                             const logChannel = await client.channels.fetch(guildData.moderationLogThreadId).catch(() => null);

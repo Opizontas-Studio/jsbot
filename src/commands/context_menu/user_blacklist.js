@@ -149,19 +149,12 @@ export default {
                         }
                     }
 
-                    // 移出用户
-                    try {
-                        await channel.members.remove(targetUser.id);
-                    } catch (error) {
-                        logTime(`[帖子拉黑] 移出用户失败: ${error.message}`, true);
-                    }
-
                     // 添加到全局拉黑列表
                     ThreadBlacklistService.addUserToBlacklist(blacklistOwnerId, targetUser.id);
 
                     const ownerText = channel.ownerId === interaction.user.id ? '你' : '帖子作者';
                     await interaction.editReply({
-                        content: `✅ 已全局拉黑用户 ${targetUser.tag}\n- 扫描了 ${totalScanned} 条消息\n- 删除了 ${totalDeleted} 条该用户的消息\n- 已将用户移出子区\n\n⚠️ 该用户将无法在${ownerText}的所有帖子中发言`,
+                        content: `✅ 已全局拉黑用户 ${targetUser.tag}\n- 扫描了 ${totalScanned} 条消息\n- 删除了 ${totalDeleted} 条该用户的消息\n⚠️ 该用户将无法在${ownerText}的所有帖子中发言`,
                         flags: ['Ephemeral'],
                     });
 

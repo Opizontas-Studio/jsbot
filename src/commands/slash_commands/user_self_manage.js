@@ -3,7 +3,6 @@ import { SelectMenuFactory } from '../../factories/selectMenuFactory.js';
 import {
     handleCleanInactiveUsers,
     handleDeleteThread,
-    handleDeleteUserMessages,
     handleLockThread,
     updateSlowMode,
     validateForumThread,
@@ -42,17 +41,6 @@ export default {
                         .setName('启用自动清理')
                         .setDescription('是否启用自动清理功能（默认为是）')
                         .setRequired(false),
-                ),
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('删除某用户全部消息')
-                .setDescription('删除某特定用户在当前帖子的所有消息并将其移出子区（注意：如果帖子消息数量很多，此操作可能需要较长时间）')
-                .addUserOption(option =>
-                    option
-                        .setName('目标用户')
-                        .setDescription('要删除其消息的用户')
-                        .setRequired(true),
                 ),
         )
         .addSubcommand(subcommand =>
@@ -147,18 +135,6 @@ export default {
                     async () => await handleCleanInactiveUsers(interaction, thread, guildConfig, threshold, enableAutoCleanup),
                     '清理不活跃用户处理'
                 );
-                break;
-
-            case '删除某用户全部消息':
-                const targetUser = interaction.options.getUser('目标用户');
-
-                const result = await handleDeleteUserMessages(interaction, thread, guildConfig, targetUser);
-                if (!result.success) {
-                    await interaction.editReply({
-                        content: result.error,
-                        flags: ['Ephemeral'],
-                    });
-                }
                 break;
 
             case '编辑慢速模式':

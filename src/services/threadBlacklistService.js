@@ -272,11 +272,11 @@ export class ThreadBlacklistService {
             // 违规计数批量保存，提高性能
             ThreadBlacklistService.scheduleSave(5000);
 
-            logTime(
-                `[用户拉黑] 用户 ${targetUserId} 违规次数增加：` +
-                `总计 ${record.totalViolations} 次，` +
-                `在帖子 ${threadId} 中 ${record.threads[threadId].violationCount} 次`
-            );
+            // logTime(
+            //    `[用户拉黑] 用户 ${targetUserId} 违规次数增加：` +
+            //    `总计 ${record.totalViolations} 次，` +
+            //    `在帖子 ${threadId} 中 ${record.threads[threadId].violationCount} 次`
+            //);
 
             return {
                 total: record.totalViolations,

@@ -1137,14 +1137,20 @@ export class EmbedFactory {
         if (isRepeatViolation) {
             return {
                 color: EmbedFactory.Colors.DANGER,
-                description: `<@${user.id}> 已被拉黑，并因多次尝试发送消息被禁言 ${muteDuration}`,
-                timestamp: new Date()
+                description: `<@${user.id}> 已被拉黑，并因在当前帖子多次尝试发送消息被禁言 ${muteDuration}`,
+                timestamp: new Date(),
+                footer: {
+                text: '自助管理系统'
+            }
             };
         } else {
             return {
                 color: EmbedFactory.Colors.WARNING,
-                description: `<@${user.id}> 已被拉黑，再次尝试发送可能会被长期禁言`,
-                timestamp: new Date()
+                description: `<@${user.id}> 已被拉黑，再次在当前帖子发送消息可能会被长期禁言`,
+                timestamp: new Date(),
+                footer: {
+                text: '自助管理系统'
+            }
             };
         }
     }
@@ -1161,17 +1167,17 @@ export class EmbedFactory {
 
         return {
             color: EmbedFactory.Colors.WARNING,
-            title: '⚠️ 拉黑用户违规通知',
+            title: '⚠️ 拉黑用户屡犯警告',
             description: [
                 `**用户：** <@${user.id}> (${user.tag})`,
                 `**帖子：** [${thread.name}](${threadUrl})`,
                 '',
-                `该用户在被拉黑后多次尝试在帖子中发送消息。`,
+                `该用户在被拉黑后多次在当前帖子尝试发送消息。`,
                 `已自动删除消息并禁言 ${muteDuration}。`
             ].join('\n'),
             timestamp: new Date(),
             footer: {
-                text: '帖子拉黑系统'
+                text: '自助管理系统'
             }
         };
     }

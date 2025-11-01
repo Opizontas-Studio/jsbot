@@ -34,6 +34,7 @@ export class GuildManager {
                 moderationLogThreadId: guildConfig.moderationLogThreadId, // string - 管理日志频道ID
                 threadLogThreadId: guildConfig.threadLogThreadId, // string - 帖子操作日志频道ID
                 opinionMailThreadId: guildConfig.opinionMailThreadId, // string - 意见信箱频道ID
+                punishmentConfirmationChannelId: guildConfig.punishmentConfirmationChannelId || null, // string | null - 处罚确认频道ID
                 AdministratorRoleIds: guildConfig.AdministratorRoleIds || [], // string[] - 管理员角色ID数组
                 ModeratorRoleIds: guildConfig.ModeratorRoleIds || [], // string[] - 版主角色ID数组
                 eventsCategoryId: guildConfig.eventsCategoryId, // 赛事分类ID

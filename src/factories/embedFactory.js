@@ -748,6 +748,123 @@ export class EmbedFactory {
     }
 
     /**
+     * 创建处罚确认请求embed
+     * @param {Object} options - 配置选项
+     * @param {string} options.punishmentType - 处罚类型
+     * @param {Object} options.target - 目标用户对象
+     * @param {Object} options.submitter - 提交者对象
+     * @param {string} options.reason - 处罚原因
+     * @param {Object} options.punishmentData - 处罚详细数据
+     * @returns {Object} 原始embed对象
+     */
+    static createPunishmentConfirmationEmbed({ punishmentType, target, submitter, reason, punishmentData }) {
+        const config = EmbedFactory.getPunishmentConfig(punishmentType);
+        const targetAvatarURL = EmbedFactory.getUserAvatarURL(target);
+
+        // 构建处罚详情
+        const fields = [
+            {
+                name: '提交人',
+                value: `<@${submitter.id}> (${submitter.tag})`,
+                inline: true,
+            },
+            {
+                name: '处罚类型',
+                value: config.typeText,
+                inline: true,
+            },
+            {
+                name: '目标用户',
+                value: `<@${target.id}> (${target.tag})`,
+                inline: false,
+            },
+            {
+                name: '处罚原因',
+                value: reason,
+                inline: false,
+            }
+        ];
+
+        // 根据处罚类型添加特定字段
+        switch (punishmentType) {
+            case 'ban':
+                fields.push({
+                    name: '消息处理',
+                    value: punishmentData.keepMessages ? '保留用户消息' : '删除7天内消息',
+                    inline: true,
+                });
+                break;
+
+            case 'mute':
+                fields.push({
+                    name: '禁言时长',
+                    value: formatPunishmentDuration(punishmentData.duration),
+                    inline: true,
+                });
+                if (punishmentData.warningDuration) {
+                    fields.push({
+                        name: '附加警告时长',
+                        value: formatPunishmentDuration(punishmentData.warningDuration),
+                        inline: true,
+                    });
+                }
+                break;
+
+            case 'softban':
+                if (punishmentData.warningDuration) {
+                    fields.push({
+                        name: '警告时长',
+                        value: formatPunishmentDuration(punishmentData.warningDuration),
+                        inline: true,
+                    });
+                }
+                break;
+
+            case 'warning':
+                fields.push({
+                    name: '警告时长',
+                    value: formatPunishmentDuration(punishmentData.warningDuration),
+                    inline: true,
+                });
+                break;
+        }
+
+        // 添加注意事项
+        let description = '**⚠️ 确认前请注意：**\n';
+        description += '• 请确认已查看相关截图证据\n';
+        description += '• 请确认处罚理由正确无误\n';
+        description += '• 请确认处罚类型和时长合理\n\n';
+
+        // 根据处罚类型添加特殊提示
+        switch (punishmentType) {
+            case 'ban':
+                description += '⚠️ **永封为最严厉处罚，必须由他人确认！**';
+                break;
+            case 'softban':
+                description += '⚠️ **软封锁需要他人确认，或提交者等待1分钟后自行确认。**';
+                break;
+            case 'mute':
+            case 'warning':
+                description += 'ℹ️ 有权限的管理人员可以即时确认此处罚。';
+                break;
+        }
+
+        return {
+            color: config.color,
+            title: `${config.typeText}处罚确认请求`,
+            description,
+            thumbnail: {
+                url: targetAvatarURL,
+            },
+            fields,
+            timestamp: new Date(),
+            footer: {
+                text: '请在30分钟内确认或驳回'
+            }
+        };
+    }
+
+    /**
      * 创建处罚撤销管理日志embed
      * @param {Object} punishment - 处罚数据库记录
      * @param {Object} target - 目标用户对象

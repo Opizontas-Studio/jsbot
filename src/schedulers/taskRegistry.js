@@ -7,6 +7,7 @@ import { executeThreadManagement } from '../services/threadAnalyzer.js';
 import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
+import { punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';
 
 /**
  * 任务注册器 - 负责注册各种业务定时任务
@@ -26,6 +27,7 @@ export class TaskRegistry {
         this.registerMonitorTasks(client);
         this.registerOpinionMailboxTasks(client);
         this.registerCachedThreadCleanupTasks(client);
+        this.registerPunishmentConfirmationTasks(client);
     }
 
     /**
@@ -206,5 +208,18 @@ export class TaskRegistry {
                 }
             }, 0);
         }
+    }
+
+    /**
+     * 注册处罚确认清理任务
+     * @param {Object} client - Discord客户端
+     */
+    registerPunishmentConfirmationTasks(client) {
+        // 每小时清理一次过期的确认数据（保险机制，主要依赖 setTimeout）
+        this.taskScheduler.addTask({
+            taskId: 'cleanup_expired_punishment_confirmations',
+            interval: 60 * 60 * 1000, // 1小时
+            task: () => punishmentConfirmationStore.cleanupExpired(client)
+        });
     }
 }

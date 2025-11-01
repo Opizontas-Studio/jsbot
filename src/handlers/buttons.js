@@ -1,7 +1,9 @@
 import { ProcessModel } from '../db/models/processModel.js';
+import { EmbedFactory } from '../factories/embedFactory.js';
 import { ModalFactory } from '../factories/modalFactory.js';
 import CourtService from '../services/courtService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
+import PunishmentService from '../services/punishmentService.js';
 import {
     applyVolunteerRole,
     exitVolunteerRole,
@@ -13,6 +15,7 @@ import { globalRequestQueue } from '../utils/concurrency.js';
 import { globalCooldownManager } from '../utils/cooldownManager.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
+import { checkConfirmationPermission, punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';
 
 /**
  * 查找对应的按钮配置
@@ -414,6 +417,138 @@ export const buttonHandlers = {
             { ephemeral: true }
         );
     },
+
+    // 处罚确认按钮处理器（统一处理通过和驳回）
+    punishment_confirm_handler: async interaction => {
+        // 判断是通过还是驳回（在外部判断，用于确定操作名称）
+        const isApprove = interaction.customId.endsWith('_approve');
+
+        await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+
+                // 获取待确认的处罚数据
+                const confirmationData = punishmentConfirmationStore.get(interaction.message.id);
+                if (!confirmationData) {
+                    // 数据已过期，移除按钮
+                    const originalEmbed = interaction.message.embeds[0]?.toJSON();
+                    if (originalEmbed) {
+                        originalEmbed.footer = { text: '⏰ 确认已过期' };
+                        originalEmbed.color = 0x808080; // 灰色
+
+                        await interaction.message.edit({
+                            embeds: [originalEmbed],
+                            components: []
+                        }).catch(() => {}); // 静默失败
+                    }
+
+                    throw new Error('确认数据已过期或不存在');
+                }
+
+                // 获取服务器配置
+                const guildConfig = interaction.client.guildManager.getGuildConfig(confirmationData.guildId);
+                if (!guildConfig) {
+                    throw new Error('无法获取服务器配置');
+                }
+
+                // 检查权限
+                const member = await interaction.guild.members.fetch(interaction.user.id);
+
+                if (isApprove) {
+                    // 通过：需要检查特殊权限规则
+                    const permissionCheck = checkConfirmationPermission({
+                        member,
+                        guildConfig,
+                        punishmentType: confirmationData.punishmentType,
+                        submitterId: confirmationData.submitterId,
+                        submissionTime: confirmationData.timestamp
+                    });
+
+                    if (!permissionCheck.allowed) {
+                        throw new Error(permissionCheck.reason);
+                    }
+
+                    // 执行处罚
+                    await interaction.editReply({
+                        content: '⏳ 正在执行处罚...',
+                    });
+
+                    const result = await PunishmentService.executePunishment(
+                        interaction.client,
+                        confirmationData.punishmentData,
+                        confirmationData.guildId
+                    );
+
+                    // 更新原确认消息
+                    const originalEmbed = interaction.message.embeds[0].toJSON();
+                    originalEmbed.fields.push({
+                        name: '✅ 确认执行人',
+                        value: `<@${interaction.user.id}> (${interaction.user.tag})`,
+                        inline: false
+                    });
+                    originalEmbed.footer = {
+                        text: '处罚已执行'
+                    };
+                    originalEmbed.color = EmbedFactory.Colors.SUCCESS;
+
+                    await interaction.message.edit({
+                        embeds: [originalEmbed],
+                        components: []
+                    });
+
+                    // 清除确认数据
+                    punishmentConfirmationStore.delete(interaction.message.id);
+
+                    await interaction.editReply({
+                        content: `✅ ${result.message}\n确认执行人: ${interaction.user.tag}`,
+                    });
+
+                    logTime(`[处罚确认] ${interaction.user.tag} 确认执行了 ${confirmationData.punishmentType} 处罚，目标: ${confirmationData.target.tag}`);
+                } else {
+                    // 驳回：只需要基本的管理权限
+                    const hasAdminRole = member.roles.cache.some(role =>
+                        guildConfig.AdministratorRoleIds.includes(role.id)
+                    );
+                    const hasModRole = member.roles.cache.some(role =>
+                        guildConfig.ModeratorRoleIds.includes(role.id) ||
+                        (guildConfig.roleApplication?.QAerRoleId && role.id === guildConfig.roleApplication.QAerRoleId)
+                    );
+
+                    if (!hasAdminRole && !hasModRole) {
+                        throw new Error('你没有权限驳回处罚。需要具有管理员身份组。');
+                    }
+
+                    // 更新原确认消息
+                    const originalEmbed = interaction.message.embeds[0].toJSON();
+                    originalEmbed.fields.push({
+                        name: '❌ 驳回人',
+                        value: `<@${interaction.user.id}> (${interaction.user.tag})`,
+                        inline: false
+                    });
+                    originalEmbed.footer = {
+                        text: '处罚已驳回'
+                    };
+                    originalEmbed.color = EmbedFactory.Colors.ERROR;
+
+                    await interaction.message.edit({
+                        embeds: [originalEmbed],
+                        components: []
+                    });
+
+                    // 清除确认数据
+                    punishmentConfirmationStore.delete(interaction.message.id);
+
+                    await interaction.editReply({
+                        content: `✅ 已驳回处罚请求\n驳回人: ${interaction.user.tag}`,
+                    });
+
+                    logTime(`[处罚确认] ${interaction.user.tag} 驳回了 ${confirmationData.punishmentType} 处罚，目标: ${confirmationData.target.tag}`);
+                }
+            },
+            isApprove ? '处罚确认通过' : '处罚确认驳回',
+            { ephemeral: true }
+        );
+    },
 };
 
 // 按钮配置对象
@@ -448,6 +583,9 @@ const BUTTON_CONFIG = {
     // 解锁申请相关
     approve_unlock: { handler: buttonHandlers.approve_unlock, needDefer: true },
     reject_unlock: { handler: buttonHandlers.reject_unlock, needDefer: true },
+
+    // 处罚确认相关
+    punishment_confirm: { handler: buttonHandlers.punishment_confirm_handler, needDefer: true },
 };
 
 /**

@@ -1,7 +1,6 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import PunishmentService from '../../services/punishmentService.js';
-import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
-import { calculatePunishmentDuration, checkModeratorPermission, formatPunishmentDuration, handleCommandError, validateWarningDuration } from '../../utils/helper.js';
+import { calculatePunishmentDuration, checkModeratorPermission, handleCommandError, validateWarningDuration } from '../../utils/helper.js';
+import { sendPunishmentConfirmation } from '../../utils/punishmentConfirmationHelper.js';
 
 export default {
     cooldown: 5,
@@ -77,6 +76,15 @@ export default {
                 }
             }
 
+            // 统一检查确认频道配置
+            if (!guildConfig.punishmentConfirmationChannelId) {
+                await interaction.editReply({
+                    content: '❌ 服务器未配置处罚确认频道，无法执行处罚',
+                    flags: ['Ephemeral'],
+                });
+                return;
+            }
+
             // 检查目标用户是否为管理员
             try {
                 const member = await interaction.guild.members.fetch(target.id);
@@ -100,56 +108,25 @@ export default {
             if (subcommand === '永封') {
                 const keepMessages = interaction.options.getBoolean('保留消息');
 
-                await handleConfirmationButton({
+                const banData = {
+                    type: 'ban',
+                    userId: target.id,
+                    reason,
+                    duration: -1,
+                    executorId: interaction.user.id,
+                    keepMessages: keepMessages,
+                    channelId: interaction.channelId,
+                };
+
+                // 发送确认请求
+                await sendPunishmentConfirmation({
+                    client: interaction.client,
+                    channelId: guildConfig.punishmentConfirmationChannelId,
                     interaction,
-                    customId: 'confirm_ban',
-                    buttonLabel: '确认永封',
-                    embed: {
-                        color: 0xff0000,
-                        title: '⚠️ 永封确认',
-                        description: [
-                            `你确定要永久封禁用户 ${target.tag} 吗？`,
-                            '',
-                            '**处罚详情：**',
-                            `- 用户：${target.tag} (${target.id})`,
-                            `- 原因：${reason}`,
-                            `- ${keepMessages ? '保留' : '删除'}用户消息`,
-                            '',
-                            '**⚠️ 警告：此操作不可撤销！**',
-                        ].join('\n'),
-                    },
-                    onConfirm: async confirmation => {
-                        // 先更新交互消息
-                        await confirmation.deferUpdate();
-                        await interaction.editReply({
-                            content: '⏳ 正在执行永封...',
-                            components: [],
-                            embeds: [],
-                        });
-
-                        const banData = {
-                            type: 'ban',
-                            userId: target.id,
-                            reason,
-                            duration: -1,
-                            executorId: interaction.user.id,
-                            keepMessages: keepMessages,
-                            channelId: interaction.channelId,
-                        };
-
-                        const result = await PunishmentService.executePunishment(
-                            interaction.client,
-                            banData,
-                            interaction.guildId
-                        );
-                        await interaction.editReply({
-                            content: result.message,
-                            flags: ['Ephemeral'],
-                        });
-                    },
-                    onError: async error => {
-                        await handleCommandError(interaction, error, '永封');
-                    },
+                    punishmentData: banData,
+                    punishmentType: 'ban',
+                    target,
+                    reason
                 });
             } else if (subcommand === '软封锁') {
                 const warnTime = interaction.options.getString('警告');
@@ -165,61 +142,26 @@ export default {
                 }
                 const warningDuration = warningValidation.duration;
 
-                await handleConfirmationButton({
+                const softbanData = {
+                    type: 'softban',
+                    userId: target.id,
+                    reason,
+                    duration: -1,
+                    executorId: interaction.user.id,
+                    keepMessages: false, // 软封锁总是删除消息
+                    channelId: interaction.channelId,
+                    warningDuration: warningDuration,
+                };
+
+                // 发送确认请求
+                await sendPunishmentConfirmation({
+                    client: interaction.client,
+                    channelId: guildConfig.punishmentConfirmationChannelId,
                     interaction,
-                    customId: 'confirm_softban',
-                    buttonLabel: '确认软封锁',
-                    embed: {
-                        color: 0xff9900,
-                        title: '⚠️ 软封锁确认',
-                        description: [
-                            `你确定要对用户 ${target.tag} 执行软封锁吗？`,
-                            '',
-                            '**处罚详情：**',
-                            `- 用户：${target.tag} (${target.id})`,
-                            `- 原因：${reason}`,
-                            warningDuration ? `- 警告时长：${formatPunishmentDuration(warningDuration)}` : '- 警告时长：无',
-                            '',
-                            '**软封锁说明：**',
-                            '- 用户将被临时封禁并清理消息',
-                            '- 立即解除封禁，用户可重新加入服务器',
-                            '- 用户将收到包含邀请链接的私信通知',
-                            warningDuration ? '- 用户将在再次加入时获得警告身份组' : '',
-                        ].filter(Boolean).join('\n'),
-                    },
-                    onConfirm: async confirmation => {
-                        // 先更新交互消息
-                        await confirmation.deferUpdate();
-                        await interaction.editReply({
-                            content: '⏳ 正在执行软封锁...',
-                            components: [],
-                            embeds: [],
-                        });
-
-                        const softbanData = {
-                            type: 'softban',
-                            userId: target.id,
-                            reason,
-                            duration: -1,
-                            executorId: interaction.user.id,
-                            keepMessages: false, // 软封锁总是删除消息
-                            channelId: interaction.channelId,
-                            warningDuration: warningDuration,
-                        };
-
-                        const result = await PunishmentService.executePunishment(
-                            interaction.client,
-                            softbanData,
-                            interaction.guildId
-                        );
-                        await interaction.editReply({
-                            content: result.message,
-                            flags: ['Ephemeral'],
-                        });
-                    },
-                    onError: async error => {
-                        await handleCommandError(interaction, error, '软封锁');
-                    },
+                    punishmentData: softbanData,
+                    punishmentType: 'softban',
+                    target,
+                    reason
                 });
             } else if (subcommand === '禁言') {
                 const muteTime = interaction.options.getString('时长');
@@ -266,23 +208,15 @@ export default {
                     warningDuration: warningDuration,
                 };
 
-                // 显示处理中消息
-                await interaction.editReply({
-                    content: '⏳ 正在执行禁言...',
-                    flags: ['Ephemeral'],
-                });
-
-                // 执行处罚
-                const result = await PunishmentService.executePunishment(
-                    interaction.client,
-                    muteData,
-                    interaction.guildId
-                );
-
-                // 更新最终结果
-                await interaction.editReply({
-                    content: result.message,
-                    flags: ['Ephemeral'],
+                // 发送确认请求
+                await sendPunishmentConfirmation({
+                    client: interaction.client,
+                    channelId: guildConfig.punishmentConfirmationChannelId,
+                    interaction,
+                    punishmentData: muteData,
+                    punishmentType: 'mute',
+                    target,
+                    reason
                 });
             } else if (subcommand === '警告') {
                 const warnTime = interaction.options.getString('时长');
@@ -308,23 +242,15 @@ export default {
                     warningDuration: warningDuration,
                 };
 
-                // 显示处理中消息
-                await interaction.editReply({
-                    content: '⏳ 正在执行警告...',
-                    flags: ['Ephemeral'],
-                });
-
-                // 执行处罚
-                const result = await PunishmentService.executePunishment(
-                    interaction.client,
-                    warningData,
-                    interaction.guildId
-                );
-
-                // 更新最终结果
-                await interaction.editReply({
-                    content: result.message,
-                    flags: ['Ephemeral'],
+                // 发送确认请求
+                await sendPunishmentConfirmation({
+                    client: interaction.client,
+                    channelId: guildConfig.punishmentConfirmationChannelId,
+                    interaction,
+                    punishmentData: warningData,
+                    punishmentType: 'warning',
+                    target,
+                    reason
                 });
             }
         } catch (error) {

@@ -769,11 +769,6 @@ export class EmbedFactory {
                 inline: true,
             },
             {
-                name: '处罚类型',
-                value: config.typeText,
-                inline: true,
-            },
-            {
                 name: '目标用户',
                 value: `<@${target.id}> (${target.tag})`,
                 inline: false,
@@ -830,10 +825,9 @@ export class EmbedFactory {
         }
 
         // 添加注意事项
-        let description = '**⚠️ 确认前请注意：**\n';
-        description += '• 请确认已查看相关截图证据\n';
-        description += '• 请确认处罚理由正确无误\n';
-        description += '• 请确认处罚类型和时长合理\n\n';
+        let description = '**⚠️ 注意：**\n';
+        description += '- 请确认已保存了截图证据\n';
+        description += '- 请确认处罚理由有法可依\n';
 
         // 根据处罚类型添加特殊提示
         switch (punishmentType) {
@@ -851,7 +845,7 @@ export class EmbedFactory {
 
         return {
             color: config.color,
-            title: `${config.typeText}处罚确认请求`,
+            title: `${config.typeText}处罚确认`,
             description,
             thumbnail: {
                 url: targetAvatarURL,

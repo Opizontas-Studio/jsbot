@@ -517,7 +517,12 @@ export async function exitVolunteerRole(interaction) {
                 customId: `confirm_exit_volunteer_${interaction.user.id}`,
                 buttonLabel: '确认退出',
                 onConfirm: async confirmation => {
-                    await confirmation.deferUpdate();
+                    try {
+                        await confirmation.deferUpdate();
+                    } catch (error) {
+                        logTime(`[退出志愿者确认] deferUpdate失败: ${error.message}`, true);
+                        return;
+                    }
 
                     // 使用ErrorHandler处理退出操作
                     const result = await ErrorHandler.handleService(

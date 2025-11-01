@@ -39,10 +39,15 @@ export async function handleCommand(interaction) {
         // 根据命令的ephemeral属性决定是否使用Ephemeral模式
         const useEphemeral = command.ephemeral !== false;
 
-        if (useEphemeral) {
-            await interaction.deferReply({ flags: ['Ephemeral'] });
-        } else {
-            await interaction.deferReply();
+        try {
+            if (useEphemeral) {
+                await interaction.deferReply({ flags: ['Ephemeral'] });
+            } else {
+                await interaction.deferReply();
+            }
+        } catch (error) {
+            logTime(`[命令${interaction.commandName}] deferReply失败: ${error.message}`, true);
+            return;
         }
     }
 

@@ -61,7 +61,12 @@ export async function handleSelectMenu(interaction) {
 
     // 根据配置决定是否需要defer
     if (selectMenuConfig.needDefer) {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
+        try {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+        } catch (error) {
+            logTime(`[选择菜单${interaction.customId}] deferReply失败: ${error.message}`, true);
+            return;
+        }
     }
 
     await ErrorHandler.handleInteraction(

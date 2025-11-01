@@ -67,7 +67,12 @@ export default {
                     ],
                 },
                 onConfirm: async confirmation => {
-                    await confirmation.deferUpdate();
+                    try {
+                        await confirmation.deferUpdate();
+                    } catch (error) {
+                        logTime(`[封锁模式确认] deferUpdate失败: ${error.message}`, true);
+                        return;
+                    }
                     await interaction.editReply({
                         content: '⏳ 正在处理...',
                         components: [],

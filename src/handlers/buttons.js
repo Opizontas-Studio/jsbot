@@ -622,7 +622,12 @@ export async function handleButton(interaction) {
 
     // 4. 根据配置决定是否需要defer
     if (buttonConfig.needDefer) {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
+        try {
+            await interaction.deferReply({ flags: ['Ephemeral'] });
+        } catch (error) {
+            logTime(`[按钮${interaction.customId}] deferReply失败: ${error.message}`, true);
+            return;
+        }
     }
 
     // 5. 根据按钮类型决定是否需要队列处理

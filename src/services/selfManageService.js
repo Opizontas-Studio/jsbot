@@ -122,7 +122,12 @@ export async function handleLockThread(interaction, thread, reason) {
         embed: EmbedFactory.createLockThreadConfirmEmbed(thread, reason),
         operationName: '锁定帖子',
         onConfirm: async confirmation => {
-            await confirmation.deferUpdate();
+            try {
+                await confirmation.deferUpdate();
+            } catch (error) {
+                logTime(`[锁定帖子确认] deferUpdate失败: ${error.message}`, true);
+                return;
+            }
             await interaction.editReply({
                 content: '⏳ 正在锁定帖子...',
                 components: [],
@@ -190,7 +195,12 @@ export async function handleCleanInactiveUsers(interaction, thread, guildConfig,
         embed: EmbedFactory.createCleanInactiveUsersConfirmEmbed(thread, memberCount, threshold, enableAutoCleanup),
         operationName: '清理不活跃用户',
         onConfirm: async confirmation => {
-            await confirmation.deferUpdate();
+            try {
+                await confirmation.deferUpdate();
+            } catch (error) {
+                logTime(`[清理不活跃用户确认] deferUpdate失败: ${error.message}`, true);
+                return;
+            }
 
             await ErrorHandler.handleService(
                 async () => {
@@ -287,7 +297,12 @@ export async function handleDeleteUserMessages(interaction, thread, guildConfig,
         embed: EmbedFactory.createDeleteUserMessagesConfirmEmbed(targetUser, thread.name),
         operationName: '删除用户全部消息',
         onConfirm: async confirmation => {
-            await confirmation.deferUpdate();
+            try {
+                await confirmation.deferUpdate();
+            } catch (error) {
+                logTime(`[删除用户全部消息确认] deferUpdate失败: ${error.message}`, true);
+                return;
+            }
             await interaction.editReply({
                 content: '⏳ 正在扫描消息...',
                 components: [],

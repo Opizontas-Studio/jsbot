@@ -138,7 +138,12 @@ export default {
                     ],
                 },
                 onConfirm: async confirmation => {
-                    await confirmation.deferUpdate();
+                    try {
+                        await confirmation.deferUpdate();
+                    } catch (error) {
+                        logTime(`[批量添加身份组确认] deferUpdate失败: ${error.message}`, true);
+                        return;
+                    }
                     await interaction.editReply({
                         content: `⏳ 开始处理 ${actualCount} 个成员...`,
                         components: [],

@@ -235,7 +235,12 @@ export const modalHandlers = {
  */
 export async function handleModal(interaction) {
     // 模态框提交需要defer reply
-    await interaction.deferReply({ flags: ['Ephemeral'] });
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+    } catch (error) {
+        logTime(`[模态框${interaction.customId}] deferReply失败: ${error.message}`, true);
+        return;
+    }
 
     // 获取基础模态框ID
     const modalId = interaction.customId;
@@ -259,5 +264,11 @@ export async function handleModal(interaction) {
         return;
     }
 
-    await handler(interaction);
+    // 使用ErrorHandler统一处理错误
+    await ErrorHandler.handleInteraction(
+        interaction,
+        () => handler(interaction),
+        `模态框${interaction.customId}`,
+        { ephemeral: true }
+    );
 }

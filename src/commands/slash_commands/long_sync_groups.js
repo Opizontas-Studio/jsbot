@@ -201,7 +201,12 @@ export default {
                     ],
                 },
                 onConfirm: async confirmation => {
-                    await confirmation.deferUpdate();
+                    try {
+                        await confirmation.deferUpdate();
+                    } catch (error) {
+                        logTime(`[同步身份组确认] deferUpdate失败: ${error.message}`, true);
+                        return;
+                    }
                     await interaction.editReply({
                         content: `⏳ 开始同步 "${syncGroupName}" 同步组的成员...`,
                         components: [],

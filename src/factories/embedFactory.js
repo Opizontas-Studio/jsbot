@@ -1122,4 +1122,57 @@ export class EmbedFactory {
             timestamp: new Date()
         };
     }
+
+    // 帖子拉黑相关embed
+
+    /**
+     * 创建拉黑违规提示embed
+     * @param {Object} user - 违规用户对象
+     * @param {Object} thread - 帖子对象
+     * @param {string} muteDuration - 禁言时长文本
+     * @param {boolean} isRepeatViolation - 是否为重复违规
+     * @returns {Object} embed配置对象
+     */
+    static createBlacklistViolationEmbed(user, thread, muteDuration, isRepeatViolation) {
+        if (isRepeatViolation) {
+            return {
+                color: EmbedFactory.Colors.DANGER,
+                description: `<@${user.id}> 已被拉黑，并因多次尝试发送消息被禁言 ${muteDuration}`,
+                timestamp: new Date()
+            };
+        } else {
+            return {
+                color: EmbedFactory.Colors.WARNING,
+                description: `<@${user.id}> 已被拉黑，再次尝试发送可能会被长期禁言`,
+                timestamp: new Date()
+            };
+        }
+    }
+
+    /**
+     * 创建拉黑违规管理通知embed
+     * @param {Object} user - 违规用户对象
+     * @param {Object} thread - 帖子对象
+     * @param {string} muteDuration - 禁言时长文本
+     * @returns {Object} embed配置对象
+     */
+    static createBlacklistAdminNotificationEmbed(user, thread, muteDuration) {
+        const threadUrl = `https://discord.com/channels/${thread.guild.id}/${thread.id}`;
+
+        return {
+            color: EmbedFactory.Colors.WARNING,
+            title: '⚠️ 拉黑用户违规通知',
+            description: [
+                `**用户：** <@${user.id}> (${user.tag})`,
+                `**帖子：** [${thread.name}](${threadUrl})`,
+                '',
+                `该用户在被拉黑后多次尝试在帖子中发送消息。`,
+                `已自动删除消息并禁言 ${muteDuration}。`
+            ].join('\n'),
+            timestamp: new Date(),
+            footer: {
+                text: '帖子拉黑系统'
+            }
+        };
+    }
 }

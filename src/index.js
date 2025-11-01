@@ -15,6 +15,7 @@ import { logTime } from './utils/logger.js';
 // 本地功能模块
 import { dbManager } from './db/dbManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
+import { ThreadBlacklistService } from './services/threadBlacklistService.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
 import { globalLockManager } from './utils/lockManager.js';
 
@@ -154,6 +155,9 @@ const gracefulShutdown = async (client, signal) => {
             globalLockManager.cleanup();
         }
 
+        // 强制保存帖子拉黑数据
+        ThreadBlacklistService.forceSave();
+
         // 关闭数据库连接
         if (dbManager && dbManager.getConnectionStatus()) {
             await dbManager.disconnect();
@@ -212,6 +216,9 @@ async function main() {
 
         // 初始化配置管理器
         client.guildManager.initialize(config);
+
+        // 加载帖子拉黑数据
+        ThreadBlacklistService.loadBlacklistData();
 
         // 登录
         try {

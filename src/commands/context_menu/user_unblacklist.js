@@ -9,12 +9,11 @@ export default {
     ephemeral: true,
     data: new ContextMenuCommandBuilder()
         .setName('解除拉黑')
-        .setType(ApplicationCommandType.Message),
+        .setType(ApplicationCommandType.User),
 
     async execute(interaction, guildConfig) {
         const thread = interaction.channel;
-        const message = interaction.targetMessage;
-        const targetUser = message.author;
+        const targetUser = interaction.targetUser;
 
         // 检查是否在论坛帖子中使用
         const forumValidation = validateForumThread(thread);

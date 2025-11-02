@@ -295,13 +295,7 @@ export class ChannelCarousel extends BaseCarouselService {
             timestamp: new Date(),
         };
 
-        // 添加页码信息到描述
-        let description = config.description || '';
-        if (totalPages > 1) {
-            description += `\n\n📄 第 ${currentPage + 1}/${totalPages} 页 (共 ${items.length} 条，每 ${config.updateInterval} 秒切换)`;
-        } else if (items.length > 0) {
-            description += `\n\n📊 共 ${items.length} 条`;
-        }
+        const description = config.description || '';
 
         // 根据排版方式构建内容
         if (config.layout.startsWith('md-')) {
@@ -315,7 +309,7 @@ export class ChannelCarousel extends BaseCarouselService {
                 }
             }).join('\n');
 
-            embed.description = description + '\n\n' + itemsText;
+            embed.description = description ? description + '\n\n' + itemsText : itemsText;
         } else {
             // Field格式
             embed.description = description;
@@ -338,9 +332,24 @@ export class ChannelCarousel extends BaseCarouselService {
             });
         }
 
-        // 添加页脚
+        // 构建页脚：分页信息 + 自定义页脚
+        const footerParts = [];
+
+        // 添加分页统计信息
+        if (totalPages > 1) {
+            footerParts.push(`第 ${currentPage + 1}/${totalPages} 页 · 共 ${items.length} 条`);
+        } else if (items.length > 0) {
+            footerParts.push(`共 ${items.length} 条`);
+        }
+
+        // 添加自定义页脚
         if (config.footer) {
-            embed.footer = { text: config.footer };
+            footerParts.push(config.footer);
+        }
+
+        // 组合页脚
+        if (footerParts.length > 0) {
+            embed.footer = { text: footerParts.join(' | ') };
         }
 
         return embed;

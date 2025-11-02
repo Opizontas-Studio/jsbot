@@ -84,10 +84,17 @@ export const checkAndHandlePermission = async (interaction, roleIds, options = {
     const hasPermission = interaction.member.roles.cache.some(role => roleIds.includes(role.id));
 
     if (!hasPermission) {
-        await interaction.editReply({
+        const errorContent = {
             content: options.errorMessage || '你没有权限使用此命令。需要具有指定的身份组。',
             flags: ['Ephemeral'],
-        });
+        };
+
+        // 根据交互状态选择正确的响应方法
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(errorContent);
+        } else {
+            await interaction.reply(errorContent);
+        }
     }
 
     return hasPermission;
@@ -129,10 +136,17 @@ export const checkModeratorPermission = async (interaction, guildConfig, options
             ? '你没有权限执行此操作。需要具有管理员身份组或（恰当身份组+该论坛的消息管理权限）。'
             : '你没有权限执行此操作。需要具有管理员或恰当身份组。';
 
-        await interaction.editReply({
+        const errorContent = {
             content: options.customErrorMessage || defaultError,
             flags: ['Ephemeral'],
-        });
+        };
+
+        // 根据交互状态选择正确的响应方法
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(errorContent);
+        } else {
+            await interaction.reply(errorContent);
+        }
     }
 
     return hasPermission;

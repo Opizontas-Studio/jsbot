@@ -8,6 +8,21 @@ import { BaseCarouselService } from './BaseCarouselService.js';
 const CONFIG_PATH = join(process.cwd(), 'data', 'carouselConfig.json');
 const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
 
+// Emoji数字映射
+const EMOJI_NUMBERS = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
+
+/**
+ * 将数字转换为emoji数字
+ * @param {number} num - 要转换的数字
+ * @returns {string} emoji数字字符串
+ */
+function numberToEmoji(num) {
+    return String(num)
+        .split('')
+        .map(digit => EMOJI_NUMBERS[parseInt(digit)])
+        .join('');
+}
+
 /**
  * 频道轮播服务 - 用于持续公告展示
  */
@@ -320,11 +335,23 @@ export class ChannelCarousel extends BaseCarouselService {
                 let name, value;
                 if (lines.length === 1) {
                     // 单行：只有标题，内容为空
-                    name = config.layout === 'field-numbered' ? `${globalIndex}. ${lines[0]}` : lines[0];
+                    if (config.layout === 'field-numbered') {
+                        name = `${globalIndex}. ${lines[0]}`;
+                    } else if (config.layout === 'field-emoji') {
+                        name = `${numberToEmoji(globalIndex)} ${lines[0]}`;
+                    } else {
+                        name = lines[0];
+                    }
                     value = '\u200B'; // 零宽空格
                 } else {
                     // 多行：第一行为标题，其余为内容
-                    name = config.layout === 'field-numbered' ? `${globalIndex}. ${lines[0]}` : lines[0];
+                    if (config.layout === 'field-numbered') {
+                        name = `${globalIndex}. ${lines[0]}`;
+                    } else if (config.layout === 'field-emoji') {
+                        name = `${numberToEmoji(globalIndex)} ${lines[0]}`;
+                    } else {
+                        name = lines[0];
+                    }
                     value = lines.slice(1).join('\n');
                 }
 

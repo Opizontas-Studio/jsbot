@@ -343,7 +343,7 @@ export const modalHandlers = {
                 await channelCarousel.startChannelCarousel(channel, guildId, channelId);
             },
             operationType === 'add' ? "新增条目" : "编辑条目",
-            { successMessage: `✅ 条目已${operationType === 'add' ? '新增' : '编辑'}` }
+            { successMessage: `条目已${operationType === 'add' ? '新增' : '编辑'}` }
         );
     },
 };

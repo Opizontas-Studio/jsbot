@@ -20,6 +20,7 @@ const LAYOUT_OPTIONS = [
     { name: 'Markdown无编号', value: 'md-plain' },
     { name: 'Field数字编号', value: 'field-numbered' },
     { name: 'Field无编号', value: 'field-plain' },
+    { name: 'FieldEmoji数字', value: 'field-emoji' },
 ];
 
 export default {

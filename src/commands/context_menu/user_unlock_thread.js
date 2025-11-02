@@ -6,6 +6,7 @@ import { ErrorHandler } from '../../utils/errorHandler.js';
 export default {
     cooldown: 30,
     ephemeral: true,
+    shouldDefer: false, // 此命令会显示 modal，不需要 defer
     data: new ContextMenuCommandBuilder()
         .setName('自助解锁帖子')
         .setType(ApplicationCommandType.Message),

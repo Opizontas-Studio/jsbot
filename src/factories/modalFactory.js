@@ -239,4 +239,92 @@ export class ModalFactory {
 
         return modal;
     }
+
+    /**
+     * 创建频道轮播配置模态框
+     * @param {string} channelId - 频道ID
+     * @param {string} operationType - 操作类型（create或edit）
+     * @param {Object} existingConfig - 现有配置（编辑时）
+     * @returns {ModalBuilder} 构建好的模态框
+     */
+    static createChannelCarouselConfigModal(channelId, operationType, existingConfig = null) {
+        const isEdit = operationType === 'edit';
+        const modal = new ModalBuilder()
+            .setCustomId(`channel_carousel_config_${operationType}_${channelId}`)
+            .setTitle(isEdit ? '编辑频道轮播配置' : '创建频道轮播配置');
+
+        const titleInput = new TextInputBuilder()
+            .setCustomId('carousel_title')
+            .setLabel('轮播标题')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('例如：重要公告')
+            .setMaxLength(100)
+            .setRequired(true);
+
+        const descriptionInput = new TextInputBuilder()
+            .setCustomId('carousel_description')
+            .setLabel('轮播描述')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('可选，用于描述此轮播的用途')
+            .setMaxLength(1000)
+            .setRequired(false);
+
+        const footerInput = new TextInputBuilder()
+            .setCustomId('carousel_footer')
+            .setLabel('轮播页脚')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('可选，显示在轮播底部的文字')
+            .setMaxLength(100)
+            .setRequired(false);
+
+        // 如果是编辑模式，预填充现有值
+        if (isEdit && existingConfig) {
+            if (existingConfig.title) titleInput.setValue(existingConfig.title);
+            if (existingConfig.description) descriptionInput.setValue(existingConfig.description);
+            if (existingConfig.footer) footerInput.setValue(existingConfig.footer);
+        }
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(descriptionInput),
+            new ActionRowBuilder().addComponents(footerInput),
+        );
+
+        return modal;
+    }
+
+    /**
+     * 创建频道轮播条目模态框
+     * @param {string} channelId - 频道ID
+     * @param {string} operationType - 操作类型（add或edit）
+     * @param {string} itemId - 条目ID（编辑时）
+     * @param {string} existingContent - 现有内容（编辑时）
+     * @returns {ModalBuilder} 构建好的模态框
+     */
+    static createChannelCarouselItemModal(channelId, operationType, itemId = null, existingContent = '') {
+        const isEdit = operationType === 'edit';
+        const modal = new ModalBuilder()
+            .setCustomId(`channel_carousel_item_${operationType}_${channelId}${itemId ? `_${itemId}` : ''}`)
+            .setTitle(isEdit ? '编辑轮播条目' : '新增轮播条目');
+
+        const contentInput = new TextInputBuilder()
+            .setCustomId('item_content')
+            .setLabel('条目内容')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('支持Markdown格式，多行时第一行作为标题\n例如：\n重要更新\n我们将在本周末进行系统维护...')
+            .setMinLength(1)
+            .setMaxLength(400)
+            .setRequired(true);
+
+        // 如果是编辑模式，预填充现有内容
+        if (isEdit && existingContent) {
+            contentInput.setValue(existingContent);
+        }
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(contentInput),
+        );
+
+        return modal;
+    }
 }

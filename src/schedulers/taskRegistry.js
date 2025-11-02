@@ -1,6 +1,7 @@
 import schedule from 'node-schedule';
 import { dbManager } from '../db/dbManager.js';
 import { BlacklistService } from '../services/blacklistService.js';
+import { carouselServiceManager } from '../services/carouselService.js';
 import { monitorService } from '../services/monitorService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';
@@ -28,6 +29,7 @@ export class TaskRegistry {
         this.registerOpinionMailboxTasks(client);
         this.registerCachedThreadCleanupTasks(client);
         this.registerPunishmentConfirmationTasks(client);
+        this.registerChannelCarouselTasks(client);
     }
 
     /**
@@ -221,5 +223,38 @@ export class TaskRegistry {
             interval: 60 * 60 * 1000, // 1小时
             task: () => punishmentConfirmationStore.cleanupExpired(client)
         });
+    }
+
+    /**
+     * 注册频道轮播任务
+     * @param {Object} client - Discord客户端
+     */
+    async registerChannelCarouselTasks(client) {
+        // 加载并启动所有已配置的频道轮播
+        const channelCarousel = carouselServiceManager.getChannelCarousel();
+        const config = await channelCarousel.loadConfig();
+
+        if (!config.channelCarousels) {
+            return;
+        }
+
+        let totalCarousels = 0;
+        for (const [guildId, channelsConfig] of Object.entries(config.channelCarousels)) {
+            for (const [channelId, carouselConfig] of Object.entries(channelsConfig)) {
+                try {
+                    const channel = await client.channels.fetch(channelId);
+                    if (channel && carouselConfig.items && carouselConfig.items.length > 0) {
+                        await channelCarousel.startChannelCarousel(channel, guildId, channelId);
+                        totalCarousels++;
+                    }
+                } catch (error) {
+                    logTime(`[频道轮播] 无法加载频道 ${channelId} 的轮播: ${error.message}`, true);
+                }
+            }
+        }
+
+        if (totalCarousels > 0) {
+            logTime(`[频道轮播] 已启动 ${totalCarousels} 个频道轮播`);
+        }
     }
 }

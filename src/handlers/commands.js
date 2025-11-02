@@ -21,6 +21,27 @@ function getPriorityByCommandName(commandName) {
 }
 
 /**
+ * 判断命令是否需要 defer
+ * @param {Object} command - 命令对象
+ * @param {Interaction} interaction - 交互对象
+ * @returns {boolean} 是否需要 defer
+ */
+function shouldDeferCommand(command, interaction) {
+    // 如果命令配置了 shouldDefer 函数，使用它来判断
+    if (typeof command.shouldDefer === 'function') {
+        return command.shouldDefer(interaction);
+    }
+
+    // 如果配置了 shouldDefer 布尔值，直接返回
+    if (typeof command.shouldDefer === 'boolean') {
+        return command.shouldDefer;
+    }
+
+    // 默认需要 defer
+    return true;
+}
+
+/**
  * 处理斜杠命令和上下文菜单命令交互
  * @param {ChatInputCommandInteraction|ContextMenuCommandInteraction} interaction - 命令交互对象
  */
@@ -31,11 +52,10 @@ export async function handleCommand(interaction) {
         return;
     }
 
-    // 检查是否是显示模态框的命令（不需要deferReply）
-    const modalCommands = ['编辑Bot消息', '自助解锁帖子'];
-    const isModalCommand = modalCommands.includes(command.data.name);
+    // 判断是否需要 defer
+    const needsDefer = shouldDeferCommand(command, interaction);
 
-    if (!isModalCommand) {
+    if (needsDefer) {
         // 根据命令的ephemeral属性决定是否使用Ephemeral模式
         const useEphemeral = command.ephemeral !== false;
 

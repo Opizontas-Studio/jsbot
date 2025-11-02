@@ -1,3 +1,4 @@
+import { carouselServiceManager } from '../services/carouselService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import { handleCreatorRoleApplication } from '../services/roleApplication.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -227,6 +228,120 @@ export const modalHandlers = {
             { successMessage: "解锁申请已提交，请等待管理员审核" }
         );
     },
+
+    // 频道轮播配置模态框处理器
+    channel_carousel_config: async interaction => {
+        return await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 从modalId中解析tempKey和操作类型
+                const parts = interaction.customId.split('_');
+                const operationType = parts[3]; // create or edit
+                const tempKey = parts.slice(4).join('_');
+
+                // 获取临时配置
+                const tempConfig = interaction.client.tempCarouselConfigs?.get(tempKey);
+                if (!tempConfig) {
+                    throw new Error('配置已过期，请重新操作');
+                }
+
+                // 清理临时配置
+                interaction.client.tempCarouselConfigs.delete(tempKey);
+
+                // 提取guildId和channelId
+                const [guildId, channelId] = tempKey.split('-').slice(0, 2);
+
+                // 获取用户输入
+                const title = interaction.fields.getTextInputValue('carousel_title');
+                const description = interaction.fields.getTextInputValue('carousel_description');
+                const footer = interaction.fields.getTextInputValue('carousel_footer');
+
+                // 构建完整配置
+                const config = {
+                    ...tempConfig,
+                    title,
+                    description: description || '',
+                    footer: footer || '',
+                };
+
+                // 保存配置
+                const channelCarousel = carouselServiceManager.getChannelCarousel();
+                await channelCarousel.saveChannelCarouselConfig(guildId, channelId, config);
+
+                logTime(`[频道轮播] 用户 ${interaction.user.tag} ${operationType === 'create' ? '创建' : '编辑'}了频道 ${channelId} 的轮播配置`);
+
+                // 如果有条目，启动轮播
+                if (config.items && config.items.length > 0) {
+                    const channel = await interaction.client.channels.fetch(channelId);
+                    await channelCarousel.startChannelCarousel(channel, guildId, channelId);
+                }
+            },
+            "保存轮播配置",
+            { successMessage: "✅ 轮播配置已保存" }
+        );
+    },
+
+    // 频道轮播条目模态框处理器
+    channel_carousel_item: async interaction => {
+        return await ErrorHandler.handleInteraction(
+            interaction,
+            async () => {
+                // 从modalId中解析操作类型、channelId和itemId/customId
+                const parts = interaction.customId.split('_');
+                const operationType = parts[3]; // add or edit
+                const channelIdPart = parts[4];
+
+                // channelIdPart可能是 "channelId" 或 "channelId_customId"
+                const channelIdAndCustomId = channelIdPart.split('_');
+                const channelId = channelIdAndCustomId[0];
+                const customId = channelIdAndCustomId[1] ? parseInt(channelIdAndCustomId[1]) : null;
+
+                const itemId = parts[5] ? parseInt(parts[5]) : null;
+
+                const guildId = interaction.guildId;
+
+                // 获取用户输入
+                const content = interaction.fields.getTextInputValue('item_content');
+
+                // 获取现有配置
+                const channelCarousel = carouselServiceManager.getChannelCarousel();
+                const config = await channelCarousel.getChannelCarouselConfig(guildId, channelId);
+                if (!config) {
+                    throw new Error('轮播配置不存在');
+                }
+
+                if (operationType === 'add') {
+                    // 新增条目，使用自定义ID或生成下一个ID
+                    const nextId = customId || (config.items.length > 0
+                        ? Math.max(...config.items.map(i => i.id)) + 1
+                        : 1);
+                    const newItem = {
+                        id: nextId,
+                        content,
+                    };
+                    config.items.push(newItem);
+                    logTime(`[频道轮播] 用户 ${interaction.user.tag} 新增了频道 ${channelId} 的轮播条目 ID ${nextId}`);
+                } else if (operationType === 'edit') {
+                    // 编辑条目
+                    const item = config.items.find(i => i.id === itemId);
+                    if (!item) {
+                        throw new Error('条目不存在');
+                    }
+                    item.content = content;
+                    logTime(`[频道轮播] 用户 ${interaction.user.tag} 编辑了频道 ${channelId} 的轮播条目 ID ${itemId}`);
+                }
+
+                // 保存配置
+                await channelCarousel.saveChannelCarouselConfig(guildId, channelId, config);
+
+                // 重启轮播
+                const channel = await interaction.client.channels.fetch(channelId);
+                await channelCarousel.startChannelCarousel(channel, guildId, channelId);
+            },
+            operationType === 'add' ? "新增条目" : "编辑条目",
+            { successMessage: `✅ 条目已${operationType === 'add' ? '新增' : '编辑'}` }
+        );
+    },
 };
 
 /**
@@ -256,6 +371,10 @@ export async function handleModal(interaction) {
             handler = modalHandlers.edit_bot_message_modal;
         } else if (modalId.startsWith('unlock_thread_modal_')) {
             handler = modalHandlers.unlock_thread_modal;
+        } else if (modalId.startsWith('channel_carousel_config_')) {
+            handler = modalHandlers.channel_carousel_config;
+        } else if (modalId.startsWith('channel_carousel_item_')) {
+            handler = modalHandlers.channel_carousel_item;
         }
     }
 

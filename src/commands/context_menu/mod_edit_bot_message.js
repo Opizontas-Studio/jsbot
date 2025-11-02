@@ -7,6 +7,7 @@ import { logTime } from '../../utils/logger.js';
 export default {
     cooldown: 5,
     ephemeral: true,
+    shouldDefer: false, // 此命令会显示 modal，不需要 defer
     data: new ContextMenuCommandBuilder()
         .setName('编辑Bot消息')
         .setType(ApplicationCommandType.Message),

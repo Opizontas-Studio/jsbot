@@ -3,7 +3,7 @@ import { ProcessScheduler } from '../schedulers/processScheduler.js';
 import { PunishmentScheduler } from '../schedulers/punishmentScheduler.js';
 import { TaskRegistry } from '../schedulers/taskRegistry.js';
 import { VoteScheduler } from '../schedulers/voteScheduler.js';
-import { carouselService } from '../services/carouselService.js';
+import { carouselServiceManager } from '../services/carouselService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
@@ -322,7 +322,7 @@ class TaskScheduler {
         }
 
         // 停止所有轮播
-        carouselService.stopAll();
+        carouselServiceManager.stopAll();
 
         if (taskCount > 0) {
             logTime(`[定时任务] 已停止 ${taskCount} 个定时任务`);

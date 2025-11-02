@@ -173,16 +173,24 @@ export default {
     },
 
     async execute(interaction, guildConfig) {
-        // 检查用户是否有执行权限（版主或QAer）
-        const allowedRoles = [...(guildConfig.ModeratorRoleIds || []), ...(guildConfig.QAerRoleIds || [])];
-        if (!(await checkAndHandlePermission(interaction, allowedRoles))) {
-            return;
-        }
-
         const subcommand = interaction.options.getSubcommand();
         const channelCarousel = carouselServiceManager.getChannelCarousel();
         const channelId = interaction.channelId;
         const guildId = interaction.guildId;
+
+        // 根据子命令类型检查权限
+        let allowedRoles;
+        if (subcommand === '配置') {
+            // 配置子命令只允许管理员执行
+            allowedRoles = guildConfig.ModeratorRoleIds || [];
+        } else {
+            // 条目相关子命令也允许QAer执行
+            allowedRoles = [...(guildConfig.ModeratorRoleIds || []), ...(guildConfig.QAerRoleIds || [])];
+        }
+
+        if (!(await checkAndHandlePermission(interaction, allowedRoles))) {
+            return;
+        }
 
         try {
             switch (subcommand) {

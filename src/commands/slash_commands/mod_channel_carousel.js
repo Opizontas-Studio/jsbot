@@ -239,15 +239,17 @@ async function handleConfigSubcommand(interaction, channelCarousel, guildId, cha
     }
 
     if (operationType === 'edit' && !existingConfig) {
-        await interaction.editReply({
+        await interaction.reply({
             content: '❌ 当前频道没有轮播配置，请先创建',
+            ephemeral: true,
         });
         return;
     }
 
     if (operationType === 'create' && existingConfig) {
-        await interaction.editReply({
+        await interaction.reply({
             content: '❌ 当前频道已有轮播配置，请使用编辑功能或先删除现有配置',
+            ephemeral: true,
         });
         return;
     }
@@ -260,8 +262,9 @@ async function handleConfigSubcommand(interaction, channelCarousel, guildId, cha
         checkInterval = existingConfig?.checkInterval ?? -1;
     }
     if (checkInterval !== -1 && checkInterval < 120) {
-        await interaction.editReply({
+        await interaction.reply({
             content: '❌ 检查周期最短为120秒',
+            ephemeral: true,
         });
         return;
     }
@@ -275,8 +278,9 @@ async function handleConfigSubcommand(interaction, channelCarousel, guildId, cha
     if (colorOption === 'custom' && customColorOption) {
         // 验证hex颜色格式
         if (!/^0x[0-9A-Fa-f]{6}$/.test(customColorOption)) {
-            await interaction.editReply({
+            await interaction.reply({
                 content: '❌ 自定义颜色格式错误，应为hex码（例如：0xff5733）',
+                ephemeral: true,
             });
             return;
         }
@@ -318,8 +322,9 @@ async function handleConfigSubcommand(interaction, channelCarousel, guildId, cha
 async function handleAddItemSubcommand(interaction, channelCarousel, guildId, channelId) {
     const config = await channelCarousel.getChannelCarouselConfig(guildId, channelId);
     if (!config) {
-        await interaction.editReply({
+        await interaction.reply({
             content: '❌ 当前频道没有轮播配置，请先创建配置',
+            ephemeral: true,
         });
         return;
     }
@@ -328,8 +333,9 @@ async function handleAddItemSubcommand(interaction, channelCarousel, guildId, ch
 
     // 如果指定了ID，检查是否已存在
     if (customId && config.items.some(item => item.id === customId)) {
-        await interaction.editReply({
+        await interaction.reply({
             content: `❌ ID ${customId} 已存在，请选择其他ID或不指定ID自动生成`,
+            ephemeral: true,
         });
         return;
     }
@@ -346,8 +352,9 @@ async function handleAddItemSubcommand(interaction, channelCarousel, guildId, ch
 async function handleEditItemSubcommand(interaction, channelCarousel, guildId, channelId) {
     const config = await channelCarousel.getChannelCarouselConfig(guildId, channelId);
     if (!config) {
-        await interaction.editReply({
+        await interaction.reply({
             content: '❌ 当前频道没有轮播配置',
+            ephemeral: true,
         });
         return;
     }
@@ -355,8 +362,9 @@ async function handleEditItemSubcommand(interaction, channelCarousel, guildId, c
     const itemId = interaction.options.getInteger('id');
     const item = config.items.find(i => i.id === itemId);
     if (!item) {
-        await interaction.editReply({
+        await interaction.reply({
             content: '❌ 找不到指定的条目',
+            ephemeral: true,
         });
         return;
     }

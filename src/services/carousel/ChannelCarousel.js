@@ -347,6 +347,58 @@ export class ChannelCarousel extends BaseCarouselService {
     }
 
     /**
+     * 创建空轮播消息（当没有条目时）
+     * @param {Object} channel - Discord频道对象
+     * @param {string} guildId - 服务器ID
+     * @param {string} channelId - 频道ID
+     * @param {Object} config - 轮播配置
+     */
+    async createEmptyCarouselMessage(channel, guildId, channelId, config) {
+        const messageIds = await this.loadMessageIds();
+
+        // 构建空状态的Embed
+        const embed = {
+            color: config.color,
+            title: config.title,
+            description: config.description + '\n\n📊 暂无条目，请使用 `/管理频道轮播 新增条目` 添加内容',
+            timestamp: new Date(),
+        };
+
+        if (config.footer) {
+            embed.footer = { text: config.footer };
+        }
+
+        // 创建或更新消息
+        const existingMessageId = messageIds[guildId]?.channelCarousel?.[channelId];
+
+        try {
+            if (existingMessageId) {
+                // 尝试更新现有消息
+                const existingMessage = await channel.messages.fetch(existingMessageId);
+                await existingMessage.edit({ embeds: [embed] });
+                logTime(`[频道轮播] 已更新空轮播消息 [${guildId}-${channelId}]`);
+            } else {
+                throw new Error('需要创建新消息');
+            }
+        } catch (error) {
+            // 创建新消息
+            const newMessage = await channel.send({ embeds: [embed] });
+
+            // 保存消息ID
+            if (!messageIds[guildId]) {
+                messageIds[guildId] = {};
+            }
+            if (!messageIds[guildId].channelCarousel) {
+                messageIds[guildId].channelCarousel = {};
+            }
+            messageIds[guildId].channelCarousel[channelId] = newMessage.id;
+            await this.saveMessageIds(messageIds);
+
+            logTime(`[频道轮播] 已创建空轮播消息 [${guildId}-${channelId}]`);
+        }
+    }
+
+    /**
      * 停止指定频道轮播
      * @param {string} guildId - 服务器ID
      * @param {string} channelId - 频道ID

@@ -270,25 +270,29 @@ export const modalHandlers = {
 
                 logTime(`[频道轮播] 用户 ${interaction.user.tag} ${operationType === 'create' ? '创建' : '编辑'}了频道 ${channelId} 的轮播配置`);
 
-                // 如果有条目，启动轮播
+                // 启动轮播（如果有条目）或创建空消息（如果没有条目）
+                const channel = await interaction.client.channels.fetch(channelId);
                 if (config.items && config.items.length > 0) {
-                    const channel = await interaction.client.channels.fetch(channelId);
                     await channelCarousel.startChannelCarousel(channel, guildId, channelId);
+                } else {
+                    // 创建一个提示消息
+                    await channelCarousel.createEmptyCarouselMessage(channel, guildId, channelId, config);
                 }
             },
             "保存轮播配置",
-            { successMessage: "✅ 轮播配置已保存" }
+            { successMessage: "轮播配置已保存，请添加条目后轮播将自动启动" }
         );
     },
 
     // 频道轮播条目模态框处理器
     channel_carousel_item: async interaction => {
+        // 解析操作类型
+        const parts = interaction.customId.split('_');
+        const operationType = parts[3]; // add or edit
+
         return await ErrorHandler.handleInteraction(
             interaction,
             async () => {
-                // 从modalId中解析操作类型、channelId和itemId/customId
-                const parts = interaction.customId.split('_');
-                const operationType = parts[3]; // add or edit
                 const channelIdPart = parts[4];
 
                 // channelIdPart可能是 "channelId" 或 "channelId_customId"

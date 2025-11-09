@@ -181,7 +181,7 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
         title: options.isAdmin ? '管理员锁定并归档了此帖子' : '帖子已被锁定并归档',
         executorId: executor.id,
         reason: finalReason,
-        description: '💡 **如需解锁帖子：**\n右键点击本帖中任意消息 → APP → 自助解锁帖子',
+        description: '💡 **如需解锁帖子请使用 /申请解锁帖子 命令**',
     });
 
     // 如果是管理员操作，发送到管理日志

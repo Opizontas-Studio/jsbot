@@ -105,7 +105,6 @@ export default {
                     });
 
                     // 扫描并删除消息（分10批，每批100条）
-                    const MAX_MESSAGES = 1000;
                     const BATCH_SIZE = 100;
                     const BATCHES = 10;
                     let totalScanned = 0;

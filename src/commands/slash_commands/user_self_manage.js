@@ -8,6 +8,8 @@ import {
     validateForumThread,
     validateThreadOwner
 } from '../../services/selfManageService.js';
+import { ThreadBlacklistService } from '../../services/threadBlacklistService.js';
+import { delay } from '../../utils/concurrency.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
 
@@ -83,6 +85,17 @@ export default {
                         .setDescription('选择标注或取消标注')
                         .setRequired(true)
                         .addChoices({ name: '标注', value: 'pin' }, { name: '取消标注', value: 'unpin' }),
+                ),
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('拉黑用户')
+                .setDescription('全局拉黑指定用户，该用户将无法在你的所有帖子中发言')
+                .addUserOption(option =>
+                    option
+                        .setName('目标用户')
+                        .setDescription('要拉黑的用户')
+                        .setRequired(true),
                 ),
         ),
 
@@ -251,6 +264,117 @@ export default {
                 } catch (error) {
                     await handleCommandError(interaction, error, '标注消息');
                 }
+                break;
+
+            case '拉黑用户':
+                const targetUser = interaction.options.getUser('目标用户');
+
+                // 检查目标用户
+                if (targetUser.id === interaction.user.id) {
+                    await interaction.editReply({
+                        content: '❌ 不能拉黑自己',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                if (targetUser.bot) {
+                    await interaction.editReply({
+                        content: '❌ 不能拉黑机器人',
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 检查目标用户是否为管理员
+                const moderatorRoles = guildConfig.ModeratorRoleIds || [];
+                const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                if (targetMember) {
+                    const hasModRole = targetMember.roles.cache.some(role => moderatorRoles.includes(role.id));
+                    if (hasModRole) {
+                        await interaction.editReply({
+                            content: '❌ 不能拉黑管理员',
+                            flags: ['Ephemeral'],
+                        });
+                        return;
+                    }
+                }
+
+                // 检查是否已经在拉黑列表中
+                if (ThreadBlacklistService.isUserBlacklisted(thread.ownerId, targetUser.id)) {
+                    await interaction.editReply({
+                        content: `⚠️ 用户 ${targetUser.tag} 已被你全局拉黑`,
+                        flags: ['Ephemeral'],
+                    });
+                    return;
+                }
+
+                // 执行拉黑操作
+                await ErrorHandler.handleInteraction(
+                    interaction,
+                    async () => {
+                        await interaction.editReply({
+                            content: `⏳ 正在处理拉黑 ${targetUser.tag}...\n正在扫描消息...`,
+                            flags: ['Ephemeral'],
+                        });
+
+                        // 扫描并删除消息（分10批，每批100条）
+                        const BATCH_SIZE = 100;
+                        const BATCHES = 10;
+                        let totalScanned = 0;
+                        let totalDeleted = 0;
+                        let lastMessageId = null;
+
+                        for (let batch = 0; batch < BATCHES; batch++) {
+                            // 获取消息
+                            const options = { limit: BATCH_SIZE };
+                            if (lastMessageId) options.before = lastMessageId;
+
+                            const messages = await thread.messages.fetch(options);
+                            if (messages.size === 0) break;
+
+                            totalScanned += messages.size;
+                            lastMessageId = messages.last().id;
+
+                            // 筛选目标用户的消息
+                            const targetMessages = messages.filter(msg => msg.author.id === targetUser.id);
+
+                            // 删除消息（每条间隔1秒）
+                            for (const msg of targetMessages.values()) {
+                                try {
+                                    await msg.delete();
+                                    totalDeleted++;
+                                    await delay(1000);
+                                } catch (error) {
+                                    logTime(`[帖子拉黑] 删除消息失败: ${error.message}`, true);
+                                }
+                            }
+
+                            // 更新进度
+                            await interaction.editReply({
+                                content: `⏳ 正在处理拉黑 ${targetUser.tag}...\n已扫描 ${totalScanned} 条消息，已删除 ${totalDeleted} 条`,
+                                flags: ['Ephemeral'],
+                            });
+
+                            // 批次间延迟1秒
+                            if (batch < BATCHES - 1) {
+                                await delay(1000);
+                            }
+                        }
+
+                        // 添加到全局拉黑列表
+                        ThreadBlacklistService.addUserToBlacklist(thread.ownerId, targetUser.id);
+
+                        await interaction.editReply({
+                            content: `✅ 已全局拉黑用户 ${targetUser.tag}\n- 扫描了 ${totalScanned} 条消息\n- 删除了 ${totalDeleted} 条该用户的消息\n⚠️ 该用户将无法在你的所有帖子中发言`,
+                            flags: ['Ephemeral'],
+                        });
+
+                        logTime(`[自助管理] ${interaction.user.tag} 全局拉黑了 ${targetUser.tag}，在帖子 ${thread.name} 中删除了 ${totalDeleted} 条消息`);
+                    },
+                    '拉黑用户',
+                    { ephemeral: true }
+                );
                 break;
         }
     },

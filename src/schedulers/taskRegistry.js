@@ -30,6 +30,7 @@ export class TaskRegistry {
         this.registerCachedThreadCleanupTasks(client);
         this.registerPunishmentConfirmationTasks(client);
         this.registerChannelCarouselTasks(client);
+        this.registerAutoDeleteChannelCleanupTasks(client);
     }
 
     /**
@@ -255,6 +256,76 @@ export class TaskRegistry {
 
         if (totalCarousels > 0) {
             logTime(`[频道轮播] 已启动 ${totalCarousels} 个频道轮播`);
+        }
+    }
+
+    /**
+     * 注册自动删除频道清理任务
+     * @param {Object} client - Discord客户端
+     */
+    registerAutoDeleteChannelCleanupTasks(client) {
+        // 每5分钟执行的固定间隔任务
+        this.taskScheduler.addTask({
+            taskId: 'auto_delete_channel_cleanup',
+            interval: 5 * 60 * 1000, // 5分钟
+            task: () => this._executeAutoDeleteChannelCleanup(client)
+        });
+    }
+
+    /**
+     * 执行自动删除频道清理
+     * @private
+     */
+    async _executeAutoDeleteChannelCleanup(client) {
+        let totalDeleted = 0;
+
+        for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
+            const autoDeleteChannels = guildConfig.autoDeleteChannels || [];
+            if (autoDeleteChannels.length === 0) continue;
+
+            for (const channelId of autoDeleteChannels) {
+                try {
+                    const channel = await client.channels.fetch(channelId);
+                    if (!channel) continue;
+
+                    // 获取最近100条消息
+                    const messages = await channel.messages.fetch({ limit: 100 });
+
+                    // 过滤需要删除的消息：非bot且非管理员的消息
+                    const messagesToDelete = messages.filter(msg => {
+                        // 保留bot消息
+                        if (msg.author.bot) return false;
+
+                        // 检查是否是管理员
+                        const member = msg.member;
+                        const isAdmin = member?.roles.cache.some(role =>
+                            guildConfig.AdministratorRoleIds?.includes(role.id) ||
+                            guildConfig.ModeratorRoleIds?.includes(role.id)
+                        );
+
+                        // 只删除非管理员的消息
+                        return !isAdmin;
+                    });
+
+                    if (messagesToDelete.size === 0) continue;
+
+                    // 删除消息
+                    for (const msg of messagesToDelete.values()) {
+                        try {
+                            await msg.delete();
+                            totalDeleted++;
+                        } catch (error) {
+                            // 静默处理单条消息删除失败
+                        }
+                    }
+                } catch (error) {
+                    logTime(`[定时任务] 清理频道 ${channelId} 消息失败: ${error.message}`, true);
+                }
+            }
+        }
+
+        if (totalDeleted > 0) {
+            logTime(`[定时任务] 自动删除频道清理完成，共删除 ${totalDeleted} 条消息`);
         }
     }
 }

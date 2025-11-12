@@ -79,6 +79,7 @@ export class GuildManager {
                     monitoredRoleId: guildConfig.monitor?.monitoredRoleId || null,
                     roleDisplayName: guildConfig.monitor?.roleDisplayName || '角色',
                 },
+                autoDeleteChannels: guildConfig.autoDeleteChannels || [], // string[] - 需要自动删除所有消息的频道ID数组
             };
 
             // FastGPT配置处理（移到初始化后单独处理）

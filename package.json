@@ -17,10 +17,10 @@
         ]
     },
     "dependencies": {
-        "@discordjs/rest": "^2.4.2",
+        "@discordjs/rest": "^2.6.0",
         "axios": "^1.6.7",
-        "discord-api-types": "^0.37.117",
-        "discord.js": "^14.19.3",
+        "discord-api-types": "^0.38.33",
+        "discord.js": "^14.24.2",
         "marked": "^9.1.5",
         "node-cron": "^3.0.3",
         "node-html-to-image": "^4.0.0",

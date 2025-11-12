@@ -63,7 +63,10 @@
                 "monitorChannelId": "string | null",
                 "monitoredRoleId": "string | null",
                 "roleDisplayName": "string (default: '角色')"
-            }
+            },
+            "autoDeleteChannels": [
+                "string (Discord channel IDs where all messages should be auto-deleted)"
+            ]
         }
     }
 }

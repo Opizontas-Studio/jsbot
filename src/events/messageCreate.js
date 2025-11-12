@@ -15,6 +15,27 @@ export default {
         // 忽略机器人消息
         if (message.author.bot) return;
 
+        // 检查是否在需要自动删除消息的频道中
+        const guildConfig = message.client.guildManager?.getGuildConfig(message.guild?.id);
+        const autoDeleteChannels = guildConfig?.autoDeleteChannels || [];
+        if (autoDeleteChannels.includes(message.channel.id)) {
+            // 检查发送者是否有管理权限（管理员或版主）
+            const member = message.member;
+            const isAdmin = member?.roles.cache.some(role =>
+                guildConfig.AdministratorRoleIds?.includes(role.id) ||
+                guildConfig.ModeratorRoleIds?.includes(role.id)
+            );
+
+            // 如果是管理员，则不删除消息
+            if (isAdmin) return;
+
+            await ErrorHandler.handleSilent(
+                () => message.delete(),
+                '自动删除频道消息'
+            );
+            return;
+        }
+
         // 检查是否在论坛帖子中
         if (!message.channel.isThread() || message.channel.parent?.type !== ChannelType.GuildForum) {
             return;

@@ -11,7 +11,10 @@ class PunishmentConfirmationStore {
     constructor() {
         // messageId -> confirmationData
         this.pendingConfirmations = new Map();
+        // messageId -> { userId, timestamp } 用于跟踪正在处理的请求
+        this.processingLocks = new Map();
         this.EXPIRY_TIME = 30 * 60 * 1000; // 30分钟
+        this.LOCK_TIMEOUT = 60 * 1000; // 锁超时时间：60秒（防止死锁）
     }
 
     /**
@@ -25,11 +28,12 @@ class PunishmentConfirmationStore {
         // 设置30分钟后自动清理
         setTimeout(() => {
             this.pendingConfirmations.delete(messageId);
+            this.processingLocks.delete(messageId); // 同时清理锁
         }, this.EXPIRY_TIME);
     }
 
     /**
-     * 获取待确认的处罚数据
+     * 获取待确认的处罚数据（不加锁，仅供查询）
      * @param {string} messageId - 确认消息ID
      * @returns {Object|null}
      */
@@ -39,6 +43,7 @@ class PunishmentConfirmationStore {
         // 双重检查：即使 setTimeout 失败，也通过时间戳验证
         if (data && Date.now() - data.timestamp > this.EXPIRY_TIME) {
             this.pendingConfirmations.delete(messageId);
+            this.processingLocks.delete(messageId);
             return null;
         }
 
@@ -46,11 +51,72 @@ class PunishmentConfirmationStore {
     }
 
     /**
-     * 删除待确认的处罚
+     * 原子性地获取并锁定待确认的处罚数据（用于处理按钮点击）
+     * @param {string} messageId - 确认消息ID
+     * @param {string} userId - 处理用户ID
+     * @returns {Object|null} 返回数据，如果已被锁定或不存在则返回 null
+     */
+    getAndLock(messageId, userId) {
+        // 检查是否已被锁定
+        const lock = this.processingLocks.get(messageId);
+        if (lock) {
+            // 检查锁是否超时
+            if (Date.now() - lock.timestamp < this.LOCK_TIMEOUT) {
+                // 锁仍然有效，拒绝此请求
+                return null;
+            }
+            // 锁已超时，可以强制解锁并继续
+            logTime(`[处罚确认] 检测到超时的锁，messageId: ${messageId}，强制解锁`, true);
+        }
+
+        // 获取数据
+        const data = this.get(messageId);
+        if (!data) {
+            return null;
+        }
+
+        // 加锁
+        this.processingLocks.set(messageId, {
+            userId,
+            timestamp: Date.now()
+        });
+
+        return data;
+    }
+
+    /**
+     * 释放锁（处理完成或失败时调用）
+     * @param {string} messageId - 确认消息ID
+     */
+    unlock(messageId) {
+        this.processingLocks.delete(messageId);
+    }
+
+    /**
+     * 检查是否被锁定
+     * @param {string} messageId - 确认消息ID
+     * @returns {boolean}
+     */
+    isLocked(messageId) {
+        const lock = this.processingLocks.get(messageId);
+        if (!lock) return false;
+
+        // 检查锁是否超时
+        if (Date.now() - lock.timestamp >= this.LOCK_TIMEOUT) {
+            this.processingLocks.delete(messageId);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * 删除待确认的处罚（同时清理锁）
      * @param {string} messageId - 确认消息ID
      */
     delete(messageId) {
         this.pendingConfirmations.delete(messageId);
+        this.processingLocks.delete(messageId);
     }
 
     /**
@@ -99,8 +165,8 @@ class PunishmentConfirmationStore {
                 false
             );
 
-            // 无论是否成功更新消息，都删除内存数据
-            this.pendingConfirmations.delete(messageId);
+            // 无论是否成功更新消息，都删除内存数据（使用 delete 方法同时清理锁）
+            this.delete(messageId);
             cleanedCount++;
 
             if (updated) {

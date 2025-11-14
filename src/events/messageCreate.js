@@ -72,11 +72,15 @@ export default {
                 let shouldNotifyAdmin = false;
 
                 if (threadViolations === 0) {
-                    // 首次违规：禁言5分钟
-                    muteDuration = 5 * 60 * 1000;
-                    muteText = '5分钟';
+                    // 第一次违规：禁言1分钟
+                    muteDuration = 1 * 60 * 1000;
+                    muteText = '1分钟';
+                } else if (threadViolations === 1) {
+                    // 第二次违规：禁言10分钟
+                    muteDuration = 10 * 60 * 1000;
+                    muteText = '10分钟';
                 } else {
-                    // 再次违规：禁言1天
+                    // 第三次及以上违规：禁言1天并通知管理
                     muteDuration = 24 * 60 * 60 * 1000;
                     muteText = '1天';
                     shouldNotifyAdmin = true;

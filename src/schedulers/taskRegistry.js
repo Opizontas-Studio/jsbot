@@ -291,20 +291,34 @@ export class TaskRegistry {
                     // 获取最近100条消息
                     const messages = await channel.messages.fetch({ limit: 100 });
 
-                    // 过滤需要删除的消息：非bot且非管理员的消息
+                    // 过滤需要删除的消息, 保守化处理
                     const messagesToDelete = messages.filter(msg => {
-                        // 保留bot消息
+                        // 1. 保留bot消息
                         if (msg.author.bot) return false;
 
-                        // 检查是否是管理员
-                        const member = msg.member;
-                        const isAdmin = member?.roles.cache.some(role =>
-                            guildConfig.AdministratorRoleIds?.includes(role.id) ||
-                            guildConfig.ModeratorRoleIds?.includes(role.id)
-                        );
+                        // 2. 保留置顶消息
+                        if (msg.pinned) return false;
 
-                        // 只删除非管理员的消息
-                        return !isAdmin;
+                        // 3. 只删除10分钟内的消息
+                        const messageAge = Date.now() - msg.createdTimestamp;
+                        if (messageAge > 10 * 60 * 1000) return false;
+
+                        // 4. 如果member不存在，不删除
+                        const member = msg.member;
+                        if (!member) return false;
+
+                        // 5. 检查是否是管理员（如果检查失败则不删除）
+                        try {
+                            const isAdmin = member.roles.cache.some(role =>
+                                guildConfig.AdministratorRoleIds?.includes(role.id) ||
+                                guildConfig.ModeratorRoleIds?.includes(role.id)
+                            );
+                            // 只删除非管理员的消息
+                            return !isAdmin;
+                        } catch (error) {
+                            // 权限检查失败，保守不删除
+                            return false;
+                        }
                     });
 
                     if (messagesToDelete.size === 0) continue;
@@ -314,6 +328,7 @@ export class TaskRegistry {
                         try {
                             await msg.delete();
                             totalDeleted++;
+                            await delay(1000);
                         } catch (error) {
                             // 静默处理单条消息删除失败
                         }

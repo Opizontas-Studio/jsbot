@@ -88,12 +88,11 @@ export default {
             // 检查目标用户是否为管理员
             try {
                 const member = await interaction.guild.members.fetch(target.id);
-                const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator) ||
-                              member.roles.cache.some(role => guildConfig.AdministratorRoleIds.includes(role.id));
+                const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
 
                 if (isAdmin) {
                     await interaction.editReply({
-                        content: '❌ 无法对管理员执行处罚',
+                        content: '❌ DC无法对admin执行处罚',
                         flags: ['Ephemeral'],
                     });
                     return;

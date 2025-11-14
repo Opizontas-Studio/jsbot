@@ -7,6 +7,7 @@ import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';
 import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
+import { delay } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import { punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';
 

@@ -10,11 +10,21 @@ import { autoGrantCreatorRole } from '../role/creatorRoleService.js';
  * 渐进式同步帖子成员关系到 post_members 表
  */
 class PostMembersSyncService {
-    constructor() {
+    /**
+     * @param {Object} options - 配置选项
+     * @param {number} options.batchSize - 每批次处理的帖子数量
+     * @param {number} options.delayBetweenThreads - 每个帖子处理后的延迟毫秒数
+     * @param {number} options.cacheTimeout - 缓存过期时间毫秒数
+     */
+    constructor(options = {}) {
         this.isProcessing = false;
         this.processedCount = 0;
         this.cachedMembersData = new Map(); // 缓存从 threadCleaner 获取的数据
-        this.cacheTimeout = 30 * 60 * 1000; // 30分钟过期
+        
+        // 同步速率相关参数
+        this.batchSize = options.batchSize ?? 100; // 每批次处理的帖子数量
+        this.delayBetweenThreads = options.delayBetweenThreads ?? 100; // 每个帖子处理后的延迟(ms)
+        this.cacheTimeout = options.cacheTimeout ?? (30 * 60 * 1000); // 缓存过期时间（默认30分钟）
     }
 
     /**
@@ -37,7 +47,7 @@ class PostMembersSyncService {
                     }
 
                     // 获取待同步的帖子列表
-                    const threadIds = await PgSyncStateModel.getThreadsToSync(45);
+                    const threadIds = await PgSyncStateModel.getThreadsToSync(this.batchSize);
                     
                     if (threadIds.length === 0) {
                         // 所有帖子都已更新，清理过期错误并重置
@@ -62,7 +72,7 @@ class PostMembersSyncService {
                             processed++;
                             
                             // 控制速率，避免过快
-                            await delay(100);
+                            await delay(this.delayBetweenThreads);
                         } catch (error) {
                             logTime(`[帖子成员同步] 帖子 ${threadId} 同步失败: ${error.message}`, true);
                             await PgSyncStateModel.updateThreadState(threadId, {

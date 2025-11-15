@@ -4,6 +4,7 @@ import { RESTJSONErrorCodes } from 'discord-api-types/v10';
 import { readFileSync } from 'fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { EmbedFactory } from '../factories/embedFactory.js';
 import { logTime } from './logger.js';
 
 /**
@@ -194,6 +195,24 @@ export const lockAndArchiveThread = async (thread, executor, reason, options = {
             reason: finalReason,
             additionalInfo: thread.ownerId ? `帖子作者: <@${thread.ownerId}>` : undefined,
         });
+
+        // 向帖子作者发送私聊通知
+        if (thread.ownerId) {
+            try {
+                const threadOwner = await thread.client.users.fetch(thread.ownerId);
+                const dmEmbed = EmbedFactory.createThreadLockDMEmbed(
+                    executor.id,
+                    thread.name,
+                    thread.url,
+                    finalReason
+                );
+
+                await threadOwner.send({ embeds: [dmEmbed] });
+                logTime(`已向帖子作者 ${threadOwner.tag} 发送锁定通知私信`);
+            } catch (error) {
+                logTime(`无法向帖子作者发送私信通知：${error.message}`, true);
+            }
+        }
     }
 
     // 执行锁定和归档操作

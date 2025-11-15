@@ -39,5 +39,7 @@ Thumbs.db
 *.swo
 *~
 
-# 内置docs
+# 测试工具
 docs/
+tests/
+scripts/

@@ -74,7 +74,7 @@ class PostMembersSyncService {
                             // 控制速率，避免过快
                             await delay(this.delayBetweenThreads);
                         } catch (error) {
-                            logTime(`[帖子成员同步] 帖子 ${threadId} 同步失败: ${error.message}`, true);
+                            // ErrorHandler已经记录了错误，这里只需要更新状态
                             await PgSyncStateModel.updateThreadState(threadId, {
                                 success: false,
                                 error: error.message
@@ -109,7 +109,7 @@ class PostMembersSyncService {
                 const members = await thread.members.fetch();
                 await this._syncThreadMembers(threadId, members, client);
             },
-            `Fetch并同步帖子 ${threadId}`,
+            `Fetch帖子 ${threadId}`,
             { throwOnError: true }
         );
     }

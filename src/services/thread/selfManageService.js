@@ -84,7 +84,7 @@ export async function handleDeleteThread(interaction, thread) {
             await ErrorHandler.handleService(
                 async () => {
                     await thread.delete('作者自行删除');
-                    logTime(`[自助管理] 楼主 ${userTag} 删除了自己的帖子 ${threadName}`);
+                    logTime(`[自助管理] 楼主 ${userTag} 删除了自己的帖子 ${threadName} (id:${thread.id})`);
                 },
                 '删除帖子',
                 { throwOnError: true }

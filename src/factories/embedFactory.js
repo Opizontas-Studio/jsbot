@@ -1224,4 +1224,35 @@ export class EmbedFactory {
             }
         };
     }
+
+    // 帖子锁定相关embed
+
+    /**
+     * 创建管理员锁定帖子的私信通知embed
+     * @param {string} executorId - 执行操作的管理员ID
+     * @param {string} threadName - 帖子名称
+     * @param {string} threadUrl - 帖子链接
+     * @param {string} reason - 锁定原因
+     * @returns {Object} embed配置对象
+     */
+    static createThreadLockDMEmbed(executorId, threadName, threadUrl, reason) {
+        return {
+            color: EmbedFactory.Colors.WARNING,
+            title: '管理员锁定了您的帖子',
+            fields: [
+                {
+                    name: '帖子',
+                    value: `[${threadName}](${threadUrl})`,
+                    inline: true,
+                },
+                {
+                    name: '原因',
+                    value: reason,
+                    inline: false,
+                },
+            ],
+            description: '💡 **如需解锁帖子请使用 /申请解锁帖子 命令**',
+            timestamp: new Date(),
+        };
+    }
 }

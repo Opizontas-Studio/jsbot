@@ -206,6 +206,15 @@ export class TaskRegistry {
                     });
 
                     const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
+                    
+                    // 批量同步缓存的成员数据
+                    if (cleanupResults.qualifiedThreads > 0) {
+                        const syncResult = await pgSyncScheduler.flushCachedData();
+                        if (syncResult.success > 0 || syncResult.failed > 0) {
+                            logTime(`[定时任务] 成员数据同步完成 - 成功: ${syncResult.success}, 失败: ${syncResult.failed}`);
+                        }
+                    }
+                    
                     if (cleanupResults.qualifiedThreads > 0) {
                         logTime(`[定时任务] 服务器 ${guildId} 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
                     }

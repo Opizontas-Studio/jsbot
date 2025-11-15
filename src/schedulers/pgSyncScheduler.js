@@ -52,13 +52,20 @@ export class PgSyncScheduler {
     }
 
     /**
-     * 接收来自 threadCleaner 的成员数据
+     * 接收来自 threadCleaner 的成员数据（仅缓存）
      * @param {string} threadId - 帖子ID
      * @param {Collection} members - 成员集合
      * @param {Object} client - Discord客户端（可选）
      */
     async receiveMemberData(threadId, members, client = null) {
         await postMembersSyncService.receiveMemberData(threadId, members, client);
+    }
+
+    /**
+     * 批量同步所有缓存的成员数据
+     */
+    async flushCachedData() {
+        return await postMembersSyncService.flushCachedData();
     }
 
     /**

@@ -3,6 +3,7 @@ import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport, up
 import { globalRequestQueue } from '../../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
+import pgSyncScheduler from '../../schedulers/pgSyncScheduler.js';
 
 /**
  * 清理子区不活跃用户命令
@@ -97,6 +98,15 @@ async function handleAllThreads(interaction, guildConfig) {
             interaction.guildId,
             activeThreadsMap
         );
+
+        // 批量同步缓存的成员数据
+        if (cleanupResults.qualifiedThreads > 0) {
+            await interaction.editReply({ content: '⏳ 正在同步成员数据到数据库...' });
+            const syncResult = await pgSyncScheduler.flushCachedData();
+            if (syncResult.success > 0 || syncResult.failed > 0) {
+                logTime(`[long_prune] 成员数据同步完成 - 成功: ${syncResult.success}, 失败: ${syncResult.failed}`);
+            }
+        }
 
         // 根据结果显示不同的信息
         if (cleanupResults.totalChecked === 0) {
@@ -195,59 +205,6 @@ async function handleAllThreads(interaction, guildConfig) {
     } catch (error) {
         await handleCommandError(interaction, error, '全服缓存子区清理');
     }
-}
-
-/**
- * 发送全服清理总结报告
- */
-async function sendSummaryReport(interaction, results, threshold, guildConfig) {
-    // 发送自动化日志
-    const logChannel = await interaction.client.channels.fetch(guildConfig.automation.logThreadId);
-    await logChannel.send({
-        embeds: [
-            {
-                color: 0x0099ff,
-                title: '全服子区清理报告',
-                description: `已完成所有超过 ${threshold} 人的子区清理：`,
-                fields: results.map(result => ({
-                    name: result.name,
-                    value: [
-                        `[跳转到子区](${result.url})`,
-                        `原始人数: ${result.originalCount}`,
-                        `移除人数: ${result.removedCount}`,
-                        `当前人数: ${result.originalCount - result.removedCount}`,
-                        result.lowActivityCount > 0 ? `(包含 ${result.lowActivityCount} 个低活跃度成员)` : '',
-                    ]
-                        .filter(Boolean)
-                        .join('\n'),
-                    inline: false,
-                })),
-                timestamp: new Date(),
-                footer: { text: '论坛自动化系统' },
-            },
-        ],
-    });
-
-    // 计算总结数据
-    const summary = results.reduce(
-        (acc, curr) => ({
-            totalOriginal: acc.totalOriginal + curr.originalCount,
-            totalRemoved: acc.totalRemoved + curr.removedCount,
-        }),
-        { totalOriginal: 0, totalRemoved: 0 },
-    );
-
-    // 发送执行结果
-    await interaction.editReply({
-        content: [
-            '✅ 全服子区清理完成！',
-            `📊 目标阈值: ${threshold}`,
-            `📊 处理子区数: ${results.length}`,
-            `👥 原始总人数: ${summary.totalOriginal}`,
-            `🚫 总移除人数: ${summary.totalRemoved}`,
-        ].join('\n'),
-        flags: ['Ephemeral'],
-    });
 }
 
 /**

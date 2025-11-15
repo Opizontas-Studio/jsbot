@@ -3,7 +3,7 @@ import path from 'path';
 import { EmbedFactory } from '../../factories/embedFactory.js';
 import { delay, globalBatchProcessor, globalRequestQueue } from '../../utils/concurrency.js';
 import { logTime } from '../../utils/logger.js';
-import { pgSyncScheduler } from '../../schedulers/pgSyncScheduler.js';
+import pgSyncScheduler from '../../schedulers/pgSyncScheduler.js';
 
 const noop = () => undefined;
 
@@ -636,8 +636,7 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
                 const members = await thread.members.fetch();
                 const memberCount = members.size;
 
-                // 将成员数据共享给 postMembersSyncService
-                const { pgSyncScheduler } = await import('../../schedulers/pgSyncScheduler.js');
+                // 缓存成员数据
                 if (pgSyncScheduler.isEnabled()) {
                     await pgSyncScheduler.receiveMemberData(threadId, members, client);
                 }

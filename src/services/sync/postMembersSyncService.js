@@ -233,27 +233,64 @@ class PostMembersSyncService {
     }
 
     /**
-     * 接收来自 threadCleaner 的成员数据
+     * 接收来自 threadCleaner 的成员数据（仅缓存，不立即同步）
      * @param {string} threadId - 帖子ID
      * @param {Collection} members - 成员集合
      * @param {Object} client - Discord客户端（可选）
      */
     async receiveMemberData(threadId, members, client = null) {
-        await ErrorHandler.handleSilent(
-            async () => {
-                this.cachedMembersData.set(threadId, {
-                    members,
-                    timestamp: Date.now()
-                });
+        // 只缓存，不同步
+        this.cachedMembersData.set(threadId, {
+            members,
+            client,
+            timestamp: Date.now()
+        });
+    }
 
-                // 直接使用缓存数据同步
-                await this._syncThreadMembers(threadId, members, client);
+    /**
+     * 批量同步所有缓存的成员数据
+     */
+    async flushCachedData() {
+        if (this.cachedMembersData.size === 0) {
+            return { success: 0, failed: 0 };
+        }
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (const [threadId, data] of this.cachedMembersData.entries()) {
+            try {
+                await this._syncThreadMembers(threadId, data.members, data.client);
                 
-                // 清理过期缓存
-                this._cleanupExpiredCache();
-            },
-            `接收并缓存帖子 ${threadId} 的成员数据`
-        );
+                // 同步成功后，更新 sqlite 状态
+                await PgSyncStateModel.updateThreadState(threadId, {
+                    success: true,
+                    error: null
+                });
+                
+                successCount++;
+
+                // 控制速率
+                if (successCount % 10 === 0) {
+                    await delay(100);
+                }
+            } catch (error) {
+                failedCount++;
+                logTime(`[批量同步] 同步帖子 ${threadId} 失败: ${error.message}`, true);
+                
+                // 同步失败也要更新状态
+                await PgSyncStateModel.updateThreadState(threadId, {
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+
+        // 清空缓存
+        this.cachedMembersData.clear();
+
+        logTime(`[批量同步] 完成 - 成功: ${successCount}, 失败: ${failedCount}`);
+        return { success: successCount, failed: failedCount };
     }
 
     /**

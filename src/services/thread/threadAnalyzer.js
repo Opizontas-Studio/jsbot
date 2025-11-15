@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { EmbedFactory } from '../../factories/embedFactory.js';
 import { delay, globalBatchProcessor } from '../../utils/concurrency.js';
+import { pgSyncScheduler } from '../../schedulers/pgSyncScheduler.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { handleDiscordError, measureTime, withTimeout } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
@@ -222,12 +223,11 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                     async () => {
                         const members = await withTimeout(
                             thread.members.fetch(),
-                            5000,
+                            10000, // 增加到10秒，减少超时
                             `获取子区成员 ${thread.name}`
                         );
 
-                        // 将成员数据共享给 postMembersSyncService
-                        const { pgSyncScheduler } = await import('../../schedulers/pgSyncScheduler.js');
+                        // 缓存成员数据（不立即同步到数据库）
                         if (pgSyncScheduler.isEnabled()) {
                             await pgSyncScheduler.receiveMemberData(thread.id, members, client);
                         }
@@ -294,7 +294,7 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
             }
         },
         null,
-        'members',
+        'threadMembers', // 使用专门的子区成员限制器
     );
 
     const validThreads = basicInfoResults.filter(result => result !== null);
@@ -397,6 +397,9 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
     await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
     await sendStatisticsReport(statisticsChannel, guildId, statistics, failedOperations, messageIds);
 
+    // 批量同步缓存的成员数据到数据库
+    await flushPgMemberDataIfEnabled('[活跃度分析]');
+
     const executionTime = totalTimer();
     logTime(`活跃度分析完成 - 处理了 ${statistics.totalThreads} 个子区，用时: ${executionTime}秒`);
     return { statistics, failedOperations, validThreads };
@@ -429,6 +432,9 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
     Object.assign(statistics, cleanupResult.statistics);
     failedOperations.push(...cleanupResult.failedOperations);
 
+    // 批量同步缓存的成员数据到数据库
+    await flushPgMemberDataIfEnabled('[自动清理]');
+
     // 生成报告
     await sendQualifiedThreadsList(top10Channel, guildId, validThreads, messageIds);
     await sendStatisticsReport(logChannel, guildId, statistics, failedOperations, messageIds);
@@ -450,6 +456,19 @@ export const cleanupInactiveThreads = async (client, guildConfig, guildId, thres
     logTime(`[自动清理] 清理操作完成 - 清理了 ${cleanupResult.statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
     return { statistics, failedOperations };
 };
+
+/**
+ * 批量同步PG成员数据
+ * @param {string} context - 上下文描述
+ */
+async function flushPgMemberDataIfEnabled(context) {
+    if (pgSyncScheduler.isEnabled()) {
+        const syncResult = await pgSyncScheduler.flushCachedData();
+        if (syncResult.success > 0 || syncResult.failed > 0) {
+            logTime(`${context} 成员数据同步完成 - 成功: ${syncResult.success}, 失败: ${syncResult.failed}`);
+        }
+    }
+}
 
 /**
  * 根据配置模式执行子区管理操作

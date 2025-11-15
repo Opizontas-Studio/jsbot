@@ -59,11 +59,7 @@ export class RequestQueue {
                     const timeoutPromise = new Promise((_, reject) => {
                         setTimeout(() => reject(new Error('任务执行超时')), this.taskTimeout);
                     });
-                    try {
-                        return await Promise.race([task(), timeoutPromise]);
-                    } catch (error) {
-                        throw error;
-                    }
+                    return await Promise.race([task(), timeoutPromise]);
                 },
                 priority,
                 resolve,
@@ -439,8 +435,15 @@ class RateLimitedBatchProcessor {
                 requests: [],
                 concurrency: 1,
             },
-            // 成员相关操作 - 1次/秒
+            // 成员相关操作（身份组变动等） - 1次/秒
             members: {
+                maxRequests: 1,
+                windowMs: 1050, // 预留50ms延迟
+                requests: [],
+                concurrency: 1,
+            },
+            // 获取子区成员 - 2次/秒
+            threadMembers: {
                 maxRequests: 1,
                 windowMs: 1050, // 预留50ms延迟
                 requests: [],
@@ -484,6 +487,8 @@ class RateLimitedBatchProcessor {
                 return this.routeLimits.messages;
             case 'memberRemove':
                 return this.routeLimits.members;
+            case 'threadMembers':
+                return this.routeLimits.threadMembers;
             default:
                 return this.routeLimits.default;
         }

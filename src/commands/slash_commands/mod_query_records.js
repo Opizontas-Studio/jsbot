@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
-import { ProcessModel } from '../../db/models/processModel.js';
-import { PunishmentModel } from '../../db/models/punishmentModel.js';
-import { VoteModel } from '../../db/models/voteModel.js';
+import { ProcessModel } from '../../sqlite/models/processModel.js';
+import { PunishmentModel } from '../../sqlite/models/punishmentModel.js';
+import { VoteModel } from '../../sqlite/models/voteModel.js';
 import { checkModeratorPermission, formatPunishmentDuration, handleCommandError } from '../../utils/helper.js';
 
 export default {

@@ -1,6 +1,6 @@
 import schedule from 'node-schedule';
-import { dbManager } from '../db/dbManager.js';
-import { VoteModel } from '../db/models/voteModel.js';
+import { dbManager } from '../sqlite/dbManager.js';
+import { VoteModel } from '../sqlite/models/voteModel.js';
 import { VoteService } from '../services/voteService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';

@@ -1,7 +1,20 @@
 import { logTime } from '../../utils/logger.js';
 import { dbManager } from '../dbManager.js';
+import { BaseModel } from './BaseModel.js';
 
-class VoteModel {
+class VoteModel extends BaseModel {
+    static get tableName() {
+        return 'votes';
+    }
+
+    static get jsonFields() {
+        return ['details'];
+    }
+
+    static get arrayFields() {
+        return ['redVoters', 'blueVoters'];
+    }
+
     /**
      * 创建投票
      * @param {Object} data - 投票数据
@@ -58,20 +71,7 @@ class VoteModel {
      * @returns {Promise<Object|null>} 投票记录
      */
     static async getVoteById(id) {
-        const cacheKey = `vote_${id}`;
-        const cached = dbManager.getCache(cacheKey);
-        if (cached) {
-            return cached;
-        }
-
-        const vote = await dbManager.safeExecute('get', 'SELECT * FROM votes WHERE id = ?', [id]);
-        if (vote) {
-            const parsedVote = this._parseVoteJSON(vote);
-            dbManager.setCache(cacheKey, parsedVote);
-            return parsedVote;
-        }
-
-        return null;
+        return this.findById(id);
     }
 
     /**
@@ -80,20 +80,8 @@ class VoteModel {
      * @returns {Promise<Object|null>} 投票记录
      */
     static async getVoteByProcessId(processId) {
-        const cacheKey = `vote_process_${processId}`;
-        const cached = dbManager.getCache(cacheKey);
-        if (cached) {
-            return cached;
-        }
-
-        const vote = await dbManager.safeExecute('get', 'SELECT * FROM votes WHERE processId = ?', [processId]);
-        if (vote) {
-            const parsedVote = this._parseVoteJSON(vote);
-            dbManager.setCache(cacheKey, parsedVote);
-            return parsedVote;
-        }
-
-        return null;
+        const cacheKey = this.getCacheKey(`process_${processId}`);
+        return await this.findOne('processId = ?', [processId], cacheKey);
     }
 
     /**
@@ -187,69 +175,21 @@ class VoteModel {
     }
 
     /**
-     * 解析投票记录的JSON字段
-     * @private
-     * @param {Object} vote - 投票记录
-     * @returns {Object} 处理后的投票记录
-     */
-    static _parseVoteJSON(vote) {
-        if (!vote) return null;
-
-        try {
-            // 添加类型检查
-            const redVoters =
-                typeof vote.redVoters === 'string'
-                    ? JSON.parse(vote.redVoters)
-                    : Array.isArray(vote.redVoters)
-                    ? vote.redVoters
-                    : [];
-
-            const blueVoters =
-                typeof vote.blueVoters === 'string'
-                    ? JSON.parse(vote.blueVoters)
-                    : Array.isArray(vote.blueVoters)
-                    ? vote.blueVoters
-                    : [];
-
-            const details =
-                typeof vote.details === 'string'
-                    ? JSON.parse(vote.details)
-                    : typeof vote.details === 'object'
-                    ? vote.details
-                    : {};
-
-            return {
-                ...vote,
-                redVoters,
-                blueVoters,
-                details,
-            };
-        } catch (error) {
-            logTime(`解析投票数据失败 [ID: ${vote.id}]: ${error.message}`, true);
-            // 返回安全的默认值
-            return {
-                ...vote,
-                redVoters: [],
-                blueVoters: [],
-                details: {},
-            };
-        }
-    }
-
-    /**
      * 清除相关缓存
      * @private
      * @param {number} voteId - 投票ID
      */
     static _clearRelatedCache(voteId) {
-        dbManager.clearCache(`vote_${voteId}`);
+        this.clearCache(this.getCacheKey(voteId));
+        
         // 获取processId并清除相关缓存
         this.getVoteById(voteId).then(vote => {
             if (vote?.processId) {
-                dbManager.clearCache(`vote_process_${vote.processId}`);
-                // 添加对相关消息的缓存清理
-                dbManager.clearCache(`vote_message_${vote.messageId}`);
+                this.clearCache(this.getCacheKey(`process_${vote.processId}`));
+                this.clearCache(this.getCacheKey(`message_${vote.messageId}`));
             }
+        }).catch(() => {
+            // 忽略错误，这只是缓存清理
         });
     }
 
@@ -260,12 +200,8 @@ class VoteModel {
      */
     static async getAllVotes(activeOnly = true) {
         try {
-            const query = activeOnly
-                ? 'SELECT * FROM votes WHERE status = "in_progress" ORDER BY updatedAt DESC'
-                : 'SELECT * FROM votes ORDER BY updatedAt DESC';
-
-            const votes = await dbManager.safeExecute('all', query);
-            return votes ? votes.map(vote => this._parseVoteJSON(vote)) : [];
+            const where = activeOnly ? `status = 'in_progress'` : '';
+            return await this.findAll(where);
         } catch (error) {
             logTime(`获取所有投票记录失败: ${error.message}`, true);
             throw error;
@@ -285,15 +221,15 @@ class VoteModel {
 
             const query = `
                 SELECT * FROM votes
-                WHERE (redVoters LIKE ? OR blueVoters LIKE ?)  -- 用户作为投票者
-                   OR (details LIKE ? OR details LIKE ?)      -- 用户作为目标或发起人
+                WHERE (redVoters LIKE ? OR blueVoters LIKE ?)
+                   OR (details LIKE ? OR details LIKE ?)
                 ${statusClause}
                 ORDER BY createdAt DESC
             `;
 
-            const targetPattern = `%"targetId":"${userId}"%`; // 作为目标用户
-            const executorPattern = `%"executorId":"${userId}"%`; // 作为发起人
-            const voterPattern = `%"${userId}"%`; // 作为投票者
+            const targetPattern = `%"targetId":"${userId}"%`;
+            const executorPattern = `%"executorId":"${userId}"%`;
+            const voterPattern = `%"${userId}"%`;
 
             const votes = await dbManager.safeExecute('all', query, [
                 voterPattern,
@@ -302,7 +238,7 @@ class VoteModel {
                 executorPattern,
             ]);
 
-            return votes ? votes.map(vote => this._parseVoteJSON(vote)) : [];
+            return votes ? votes.map(vote => this.parseRecord(vote)) : [];
         } catch (error) {
             logTime(`获取用户投票记录失败: ${error.message}`, true);
             throw error;

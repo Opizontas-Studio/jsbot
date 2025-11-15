@@ -1,4 +1,4 @@
-import { ProcessModel } from '../db/models/processModel.js';
+import { ProcessModel } from '../sqlite/models/processModel.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { ModalFactory } from '../factories/modalFactory.js';
 import CourtService from '../services/courtService.js';

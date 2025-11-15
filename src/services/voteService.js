@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
-import { VoteModel } from '../db/models/voteModel.js';
+import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
+import { VoteModel } from '../sqlite/models/voteModel.js';
 import { calculatePunishmentDuration } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
 import PunishmentService from './punishmentService.js';
@@ -939,24 +939,22 @@ class VoteService {
             } else if (redCount === blueCount) {
                 result = 'blue_win';
                 message = '投票持平，执行蓝方诉求';
-            } else {
+            } else if (type === 'court_ban') {
                 // 永封投票使用阶段判定逻辑
-                if (type === 'court_ban') {
-                    if (redSupportRate >= 0.6) {
-                        result = 'red_win';
-                        message = '红方获胜，支持率达到60%以上，执行永封';
-                    } else if (redSupportRate > 0.5) {
-                        result = 'red_win_partial';
-                        message = '红方获胜，支持率在50%-60%之间，执行7天禁言+90天警告';
-                    } else {
-                        result = 'blue_win';
-                        message = '红方支持率不足50%，执行蓝方诉求';
-                    }
+                if (redSupportRate >= 0.6) {
+                    result = 'red_win';
+                    message = '红方获胜，支持率达到60%以上，执行永封';
+                } else if (redSupportRate > 0.5) {
+                    result = 'red_win_partial';
+                    message = '红方获胜，支持率在50%-60%之间，执行7天禁言+90天警告';
                 } else {
-                    // 其他类型投票保持原有逻辑
-                    result = redCount > blueCount ? 'red_win' : 'blue_win';
-                    message = `${result === 'red_win' ? '红方' : '蓝方'}获胜`;
+                    result = 'blue_win';
+                    message = '红方支持率不足50%，执行蓝方诉求';
                 }
+            } else {
+                // 其他类型投票保持原有逻辑
+                result = redCount > blueCount ? 'red_win' : 'blue_win';
+                message = `${result === 'red_win' ? '红方' : '蓝方'}获胜`;
             }
 
             // 处理器映射表
@@ -969,7 +967,7 @@ class VoteService {
 
             // 根据投票类型选择对应的处理器
             const handler = resultHandlers[type];
-            let resultMessage = await handler.call(this, latestVote, result, client);
+            const resultMessage = await handler.call(this, latestVote, result, client);
 
             // 构建完整结果消息
             message += resultMessage;

@@ -1,6 +1,6 @@
-import { dbManager } from '../db/dbManager.js';
-import { ProcessModel } from '../db/models/processModel.js';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { dbManager } from '../sqlite/dbManager.js';
+import { ProcessModel } from '../sqlite/models/processModel.js';
+import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { setupDebateParticipantRoles } from '../services/roleApplication.js';
 import { ErrorHandler } from '../utils/errorHandler.js';

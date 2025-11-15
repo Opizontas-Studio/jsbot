@@ -1,4 +1,4 @@
-import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
@@ -290,7 +290,7 @@ class PunishmentService {
 
                     // 根据处罚类型执行不同的解除操作
                     switch (punishment.type) {
-                        case 'mute':
+                        case 'mute': {
                             const muteResult = await ErrorHandler.handleSilent(
                                 async () => {
                                     const targetMember = await guild.members.fetch(target.id);
@@ -317,8 +317,9 @@ class PunishmentService {
                                 failedServers.push({ id: guild.id, name: guild.name });
                             }
                             break;
+                        }
 
-                        case 'warning':
+                        case 'warning': {
                             const warningResult = await ErrorHandler.handleSilent(
                                 async () => {
                                     const targetMember = await guild.members.fetch(target.id);
@@ -342,9 +343,10 @@ class PunishmentService {
                                 failedServers.push({ id: guild.id, name: guild.name });
                             }
                             break;
+                        }
 
                         case 'ban':
-                        case 'softban':
+                        case 'softban': {
                             const banResult = await ErrorHandler.handleSilent(
                                 async () => {
                                     // 先检查用户是否被ban
@@ -381,6 +383,7 @@ class PunishmentService {
                                 failedServers.push({ id: guild.id, name: guild.name });
                             }
                             break;
+                        }
                     }
                 }
 
@@ -421,7 +424,7 @@ class PunishmentService {
                 });
                 break;
 
-            case 'softban':
+            case 'softban': {
                 if (isSync) {
                     // 用户重新加入时，只处理警告身份组
                     const member = await ErrorHandler.handleSilent(
@@ -451,8 +454,9 @@ class PunishmentService {
                     logTime(`[处罚系统] 已对用户 ${punishment.userId} 执行软封锁第二步：立即解除封禁`);
                 }
                 break;
+            }
 
-            case 'mute':
+            case 'mute': {
                 // 计算剩余禁言时长
                 const now = Date.now();
                 const expiryTime = punishment.createdAt + punishment.duration;
@@ -487,8 +491,9 @@ class PunishmentService {
                     );
                 }
                 break;
+            }
 
-            case 'warning':
+            case 'warning': {
                 const warningMember = await ErrorHandler.handleSilent(
                     () => guild.members.fetch(punishment.userId),
                     `获取用户 ${punishment.userId} 在服务器 ${guild.name}`,
@@ -509,6 +514,7 @@ class PunishmentService {
                     logTime(`[处罚系统] 已为用户 ${warningMember.user.tag} 添加警告身份组 (处罚ID: ${punishment.id})`);
                 }
                 break;
+            }
 
             default:
                 logTime(`[处罚系统] 未知的处罚类型: ${punishment.type}`, true);

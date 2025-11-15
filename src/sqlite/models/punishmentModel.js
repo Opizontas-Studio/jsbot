@@ -1,7 +1,24 @@
 import { logTime } from '../../utils/logger.js';
 import { dbManager } from '../dbManager.js';
+import { BaseModel } from './BaseModel.js';
 
-class PunishmentModel {
+class PunishmentModel extends BaseModel {
+    static get tableName() {
+        return 'punishments';
+    }
+
+    static get arrayFields() {
+        return ['syncedServers'];
+    }
+
+    static get booleanFields() {
+        return ['keepMessages'];
+    }
+
+    static get numberFields() {
+        return ['duration', 'warningDuration'];
+    }
+
     /**
      * 创建新的处罚记录
      * @param {Object} data - 处罚数据
@@ -30,12 +47,10 @@ class PunishmentModel {
         try {
             const result = await dbManager.safeExecute(
                 'run',
-                `
-	            INSERT INTO punishments (
-	                userId, type, reason, duration, warningDuration,
-	                executorId, status, keepMessages, channelId
-	            ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
-	        `,
+                `INSERT INTO punishments (
+                    userId, type, reason, duration, warningDuration,
+                    executorId, status, keepMessages, channelId
+                ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
                 [userId, type, reason, duration, warningDuration, executorId, keepMessages ? 1 : 0, channelId],
             );
 
@@ -52,24 +67,7 @@ class PunishmentModel {
      * @returns {Promise<Object>} 处罚记录
      */
     static async getPunishmentById(id) {
-        const cacheKey = `punishment_${id}`;
-        const cached = dbManager.getCache(cacheKey);
-        if (cached) {
-            return cached;
-        }
-
-        const punishment = await dbManager.safeExecute('get', 'SELECT * FROM punishments WHERE id = ?', [id]);
-
-        if (punishment) {
-            punishment.keepMessages = Boolean(punishment.keepMessages);
-            punishment.duration = Number(punishment.duration);
-            punishment.warningDuration = punishment.warningDuration ? Number(punishment.warningDuration) : null;
-            punishment.syncedServers = JSON.parse(punishment.syncedServers);
-
-            dbManager.setCache(cacheKey, punishment);
-        }
-
-        return punishment;
+        return this.findById(id);
     }
 
     /**
@@ -79,42 +77,23 @@ class PunishmentModel {
      * @returns {Promise<Array>} 处罚记录列表
      */
     static async getUserPunishments(userId, includeExpired = false) {
-        const cacheKey = `user_punishments_${userId}_${includeExpired}`;
-        const cached = dbManager.getCache(cacheKey);
+        const cacheKey = this.getCacheKey(`user_${userId}_${includeExpired}`);
+        const cached = this.getCache(cacheKey);
         if (cached) {
             return cached;
         }
 
         const now = Date.now();
-        const query = `
-            SELECT * FROM punishments
-            WHERE userId = ?
-            ${
-                !includeExpired
-                    ? `
-                AND status = 'active'
-                AND (duration = -1 OR createdAt + duration > ?)
-            `
-                    : ''
-            }
-            ORDER BY createdAt DESC
-        `;
-
+        let where = 'userId = ?';
         const params = [userId];
+
         if (!includeExpired) {
+            where += ` AND status = 'active' AND (duration = -1 OR createdAt + duration > ?)`;
             params.push(now);
         }
 
-        const punishments = await dbManager.safeExecute('all', query, params);
-
-        const processedPunishments = punishments.map(p => ({
-            ...p,
-            syncedServers: JSON.parse(p.syncedServers),
-            keepMessages: Boolean(p.keepMessages),
-        }));
-
-        dbManager.setCache(cacheKey, processedPunishments);
-        return processedPunishments;
+        const punishments = await this.findAll(where, params, { cacheKey });
+        return punishments;
     }
 
     /**
@@ -133,18 +112,21 @@ class PunishmentModel {
         try {
             logTime(`[处罚系统] 正在更新处罚状态: ID=${id}, 旧状态=${punishment.status}, 新状态=${status}`);
 
+            const updates = { status, updatedAt: Date.now() };
+            if (reason) {
+                updates.statusReason = reason;
+            }
+
             await dbManager.safeExecute(
                 'run',
                 `UPDATE punishments
-	            SET status = ?, statusReason = CASE WHEN ? IS NOT NULL THEN ? ELSE statusReason END,
-	            updatedAt = ?
-	            WHERE id = ?`,
+                SET status = ?, statusReason = CASE WHEN ? IS NOT NULL THEN ? ELSE statusReason END,
+                updatedAt = ?
+                WHERE id = ?`,
                 [status, reason, reason, Date.now(), id],
             );
 
-            // 使用修改后的清除缓存函数
             this._clearRelatedCache(punishment.userId, id);
-
             return this.getPunishmentById(id);
         } catch (error) {
             logTime(`[处罚系统] 更新处罚状态失败: ${error.message}`, true);
@@ -165,17 +147,11 @@ class PunishmentModel {
         }
 
         try {
-            await dbManager.safeExecute(
-                'run',
-                `UPDATE punishments
-                SET syncedServers = ?, updatedAt = ?
-                WHERE id = ?`,
-                [JSON.stringify(syncedServers), Date.now(), id],
-            );
+            await this.update(id, {
+                syncedServers: JSON.stringify(syncedServers),
+            });
 
-            // 使用修改后的清除缓存函数
             this._clearRelatedCache(punishment.userId, id);
-
             return this.getPunishmentById(id);
         } catch (error) {
             logTime(`[处罚系统] 更新处罚 ${id} 的同步状态失败: ${error.message}`, true);
@@ -191,13 +167,13 @@ class PunishmentModel {
      */
     static _clearRelatedCache(userId, punishmentId = null) {
         // 清除用户相关的所有缓存
-        dbManager.clearCache(`active_punishment_${userId}`);
-        dbManager.clearCache(`user_punishments_${userId}_true`);
-        dbManager.clearCache(`user_punishments_${userId}_false`);
+        this.clearCache(this.getCacheKey(`active_${userId}`));
+        this.clearCache(this.getCacheKey(`user_${userId}_true`));
+        this.clearCache(this.getCacheKey(`user_${userId}_false`));
 
         // 如果提供了处罚ID，清除特定处罚的缓存
         if (punishmentId) {
-            dbManager.clearCache(`punishment_${punishmentId}`);
+            this.clearCache(this.getCacheKey(punishmentId));
         }
     }
 
@@ -208,18 +184,12 @@ class PunishmentModel {
      */
     static async getAllPunishments(includeExpired = false) {
         try {
-            const query = `
-                SELECT * FROM punishments
-                ${!includeExpired ? `WHERE status = 'active'` : ''}
-                ORDER BY createdAt DESC
-            `;
+            const where = includeExpired ? '' : `status = 'active'`;
+            const punishments = await this.findAll(where);
 
-            const punishments = await dbManager.safeExecute('all', query, []);
-
+            // 添加 targetId 别名以兼容旧代码
             return punishments.map(p => ({
                 ...p,
-                syncedServers: JSON.parse(p.syncedServers),
-                keepMessages: Boolean(p.keepMessages),
                 targetId: p.userId,
             }));
         } catch (error) {
@@ -240,12 +210,13 @@ class PunishmentModel {
                 throw new Error('处罚记录不存在');
             }
 
-            await dbManager.safeExecute('run', 'DELETE FROM punishments WHERE id = ?', [id]);
+            const success = await this.delete(id);
 
-            // 清除相关缓存
-            this._clearRelatedCache(punishment.userId, id);
+            if (success) {
+                this._clearRelatedCache(punishment.userId, id);
+            }
 
-            return true;
+            return success;
         } catch (error) {
             logTime(`[处罚系统] 删除处罚记录失败: ${error.message}`, true);
             return false;
@@ -261,17 +232,12 @@ class PunishmentModel {
      */
     static async updateNotificationInfo(id, messageId, guildId) {
         try {
-            await dbManager.safeExecute(
-                'run',
-                `UPDATE punishments
-                SET notificationMessageId = ?, notificationGuildId = ?, updatedAt = ?
-                WHERE id = ?`,
-                [messageId, guildId, Date.now(), id],
-            );
+            await this.update(id, {
+                notificationMessageId: messageId,
+                notificationGuildId: guildId,
+            });
 
-            // 清除相关缓存
             this._clearRelatedCache(null, id);
-
             return true;
         } catch (error) {
             logTime(`[处罚系统] 更新处罚通知信息失败: ${error.message}`, true);

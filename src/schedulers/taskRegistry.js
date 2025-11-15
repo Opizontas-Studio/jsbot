@@ -1,5 +1,5 @@
 import schedule from 'node-schedule';
-import { dbManager } from '../db/dbManager.js';
+import { dbManager } from '../sqlite/dbManager.js';
 import { BlacklistService } from '../services/blacklistService.js';
 import { carouselServiceManager } from '../services/carouselService.js';
 import { monitorService } from '../services/monitorService.js';

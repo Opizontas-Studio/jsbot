@@ -1,28 +1,27 @@
 import { logTime } from '../../utils/logger.js';
 import { dbManager } from '../dbManager.js';
+import { BaseModel } from './BaseModel.js';
 
-class ProcessModel {
+class ProcessModel extends BaseModel {
+    static get tableName() {
+        return 'processes';
+    }
+
+    static get jsonFields() {
+        return ['details'];
+    }
+
+    static get arrayFields() {
+        return ['supporters'];
+    }
+
     /**
      * 获取流程记录
      * @param {number} id - 流程ID
      * @returns {Promise<Object>} 流程记录
      */
     static async getProcessById(id) {
-        const cacheKey = `process_${id}`;
-        const cached = dbManager.getCache(cacheKey);
-        if (cached) {
-            return cached;
-        }
-
-        const process = await dbManager.safeExecute('get', 'SELECT * FROM processes WHERE id = ?', [id]);
-
-        if (process) {
-            const parsedProcess = this._parseProcessJSON(process);
-            dbManager.setCache(cacheKey, parsedProcess);
-            return parsedProcess;
-        }
-
-        return null;
+        return this.findById(id);
     }
 
     /**
@@ -76,9 +75,7 @@ class ProcessModel {
                 ],
             );
 
-            // 使用修改后的清除缓存函数
             this._clearRelatedCache(process.targetId, process.executorId, id, options.messageId || process.messageId);
-
             return this.getProcessById(id);
         } catch (error) {
             logTime(`更新流程状态失败: ${error.message}`, true);
@@ -97,20 +94,20 @@ class ProcessModel {
     static _clearRelatedCache(targetId, executorId, processId = null, messageId = null) {
         // 清除用户相关的所有缓存（目标用户和执行者）
         ['true', 'false'].forEach(includeCompleted => {
-            dbManager.clearCache(`user_processes_${targetId}_${includeCompleted}`);
+            this.clearCache(this.getCacheKey(`user_${targetId}_${includeCompleted}`));
             if (executorId !== targetId) {
-                dbManager.clearCache(`user_processes_${executorId}_${includeCompleted}`);
+                this.clearCache(this.getCacheKey(`user_${executorId}_${includeCompleted}`));
             }
         });
 
         // 如果提供了流程ID，清除特定流程的缓存
         if (processId) {
-            dbManager.clearCache(`process_${processId}`);
+            this.clearCache(this.getCacheKey(processId));
         }
 
         // 如果提供了消息ID，清除消息相关的缓存
         if (messageId) {
-            dbManager.clearCache(`process_msg_${messageId}`);
+            this.clearCache(this.getCacheKey(`msg_${messageId}`));
         }
     }
 
@@ -122,12 +119,9 @@ class ProcessModel {
         const now = Date.now();
 
         try {
-            const expiredProcesses = await dbManager.safeExecute(
-                'all',
-                `SELECT * FROM processes
-	            WHERE status IN ('pending', 'in_progress')
-	            AND expireAt <= ?`,
-                [now],
+            const expiredProcesses = await this.findAll(
+                `status IN ('pending', 'in_progress') AND expireAt <= ?`,
+                [now]
             );
 
             for (const process of expiredProcesses) {
@@ -151,29 +145,24 @@ class ProcessModel {
      * @returns {Promise<Array>} 流程记录列表
      */
     static async getUserProcesses(userId, includeCompleted = false) {
+        const cacheKey = this.getCacheKey(`user_${userId}_${includeCompleted}`);
+        const cached = this.getCache(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
         try {
             const now = Date.now();
-            const query = `
-	            SELECT * FROM processes
-	            WHERE (targetId = ? OR executorId = ?)
-	            ${
-                    !includeCompleted
-                        ? `
-	                AND status IN ('pending', 'in_progress')
-	                AND expireAt > ?
-	            `
-                        : ''
-                }
-	            ORDER BY createdAt DESC
-	        `;
+            let where = '(targetId = ? OR executorId = ?)';
+            const params = [userId, userId];
 
-            const processes = await dbManager.safeExecute(
-                'all',
-                query,
-                !includeCompleted ? [userId, userId, now] : [userId, userId],
-            );
+            if (!includeCompleted) {
+                where += ` AND status IN ('pending', 'in_progress') AND expireAt > ?`;
+                params.push(now);
+            }
 
-            return processes.map(p => this._parseProcessJSON(p));
+            const processes = await this.findAll(where, params, { cacheKey });
+            return processes;
         } catch (error) {
             logTime(`获取用户流程记录失败: ${error.message}`, true);
             throw error;
@@ -187,21 +176,8 @@ class ProcessModel {
      */
     static async getAllProcesses(includeCompleted = false) {
         try {
-            const query = `
-	            SELECT * FROM processes
-	            ${
-                    !includeCompleted
-                        ? `
-	                WHERE status IN ('pending', 'in_progress')
-	            `
-                        : ''
-                }
-	            ORDER BY createdAt DESC
-	        `;
-
-            const processes = await dbManager.safeExecute('all', query, !includeCompleted ? [] : []);
-
-            return processes.map(p => this._parseProcessJSON(p));
+            const where = includeCompleted ? '' : `status IN ('pending', 'in_progress')`;
+            return await this.findAll(where);
         } catch (error) {
             logTime(`获取全库流程记录失败: ${error.message}`, true);
             throw error;
@@ -234,13 +210,11 @@ class ProcessModel {
 
             const result = await dbManager.safeExecute(
                 'run',
-                `
-	            INSERT INTO processes (
-	                type, targetId, executorId,
-	                messageId, expireAt, status,
-	                details, supporters, statusMessageId
-	            ) VALUES (?, ?, ?, ?, ?, 'pending', ?, '[]', ?)
-	        `,
+                `INSERT INTO processes (
+                    type, targetId, executorId,
+                    messageId, expireAt, status,
+                    details, supporters, statusMessageId
+                ) VALUES (?, ?, ?, ?, ?, 'pending', ?, '[]', ?)`,
                 [
                     type,
                     targetId,
@@ -268,55 +242,8 @@ class ProcessModel {
      * @returns {Promise<Object>} 流程记录
      */
     static async getProcessByMessageId(messageId) {
-        const cacheKey = `process_msg_${messageId}`;
-        const cached = dbManager.getCache(cacheKey);
-        if (cached) {
-            return cached;
-        }
-
-        const process = await dbManager.safeExecute('get', 'SELECT * FROM processes WHERE messageId = ?', [messageId]);
-
-        if (process) {
-            const parsedProcess = this._parseProcessJSON(process);
-            dbManager.setCache(cacheKey, parsedProcess);
-            return parsedProcess;
-        }
-
-        return null;
-    }
-
-    /**
-     * 尝试解析JSON字符串，确保返回有效对象
-     * @param {string|Object} data - 要解析的数据
-     * @param {string} defaultValue - 解析失败时的默认值
-     * @param {string} [context='unknown'] - 错误日志的上下文
-     * @returns {Object} 解析后的对象
-     */
-    static tryParseJSON(data, defaultValue = '{}', context = 'unknown') {
-        try {
-            return typeof data === 'string' ? JSON.parse(data || defaultValue) : data || JSON.parse(defaultValue);
-        } catch (error) {
-            logTime(`JSON解析失败 [${context}]: ${error.message}`, true);
-            return JSON.parse(defaultValue);
-        }
-    }
-
-    /**
-     * 解析流程记录的JSON字段
-     * @private
-     * @param {Object} process - 流程记录
-     * @returns {Object} 处理后的流程记录
-     */
-    static _parseProcessJSON(process) {
-        if (!process) {
-            return null;
-        }
-
-        return {
-            ...process,
-            details: this.tryParseJSON(process.details, '{}', 'details'),
-            supporters: this.tryParseJSON(process.supporters, '[]', 'supporters'),
-        };
+        const cacheKey = this.getCacheKey(`msg_${messageId}`);
+        return await this.findOne('messageId = ?', [messageId], cacheKey);
     }
 }
 

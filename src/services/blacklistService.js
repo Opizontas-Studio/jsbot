@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 

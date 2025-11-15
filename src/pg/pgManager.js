@@ -1,19 +1,17 @@
 import fs from 'fs';
 import path from 'path';
-import pg from 'pg';
+import { Sequelize } from 'sequelize';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
-const { Pool } = pg;
-
 /**
  * PostgreSQL数据库管理器
- * 用于连接和管理外部PostgreSQL数据库
+ * 使用Sequelize ORM管理外部PostgreSQL数据库
  * 与内置SQLite数据库（dbManager.js）隔离
  */
 class PgManager {
     constructor() {
-        this.pool = null;
+        this.sequelize = null;
         this.config = null;
         this.cache = new Map();
         this.cacheTimeout = 5 * 60 * 1000; // 5分钟过期
@@ -49,10 +47,10 @@ class PgManager {
     }
 
     /**
-     * 初始化PostgreSQL连接池
+     * 初始化PostgreSQL连接
      */
     async connect() {
-        if (this.pool) {
+        if (this.sequelize) {
             return;
         }
 
@@ -60,39 +58,37 @@ class PgManager {
             // 加载配置
             this._loadConfig();
 
-            // 创建连接池
-            this.pool = new Pool({
+            // 创建Sequelize实例
+            this.sequelize = new Sequelize({
+                dialect: 'postgres',
                 host: this.config.host,
                 port: this.config.port,
                 database: this.config.database,
-                user: this.config.user,
+                username: this.config.user,
                 password: this.config.password,
-                max: this.config.max || 20,
-                idleTimeoutMillis: this.config.idleTimeoutMillis || 30000,
-                connectionTimeoutMillis: this.config.connectionTimeoutMillis || 5000,
+                pool: {
+                    max: this.config.max || 20,
+                    min: this.config.min || 0,
+                    acquire: this.config.connectionTimeoutMillis || 30000,
+                    idle: this.config.idleTimeoutMillis || 10000,
+                },
+                logging: (msg) => {
+                    if (this.config.logging !== false) {
+                        logTime(`[数据库] PostgreSQL: ${msg}`);
+                    }
+                },
+                define: {
+                    timestamps: true,
+                    underscored: true,
+                },
             });
 
             // 测试连接
-            const client = await this.pool.connect();
-            const result = await client.query('SELECT NOW()');
-            client.release();
-
-            logTime(`[数据库] PostgreSQL连接成功 - 服务器时间: ${result.rows[0].now}`);
-
-            // 设置连接池事件监听
-            this.pool.on('error', (err) => {
-                logTime(`[数据库] PostgreSQL连接池错误: ${err.message}`, true);
-            });
-
-            this.pool.on('connect', () => {
-                logTime('[数据库] PostgreSQL新客户端已连接');
-            });
-
-            this.pool.on('remove', () => {
-                logTime('[数据库] PostgreSQL客户端已断开');
-            });
+            await this.sequelize.authenticate();
+            const [results] = await this.sequelize.query('SELECT NOW()');
+            logTime(`[数据库] PostgreSQL连接成功 - 服务器时间: ${results[0].now}`);
         } catch (error) {
-            this.pool = null;
+            this.sequelize = null;
             logTime(`[数据库] PostgreSQL连接失败: ${error.message}`, true);
             console.error('PostgreSQL连接错误详情:', error);
             throw error;
@@ -100,19 +96,22 @@ class PgManager {
     }
 
     /**
-     * 执行SQL查询
+     * 执行原始SQL查询
      * @param {string} query - SQL查询语句
-     * @param {Array} params - 查询参数
-     * @returns {Promise<Object>} 查询结果
+     * @param {Object} options - 查询选项
+     * @returns {Promise<Array>} 查询结果
      */
-    async query(query, params = []) {
-        if (!this.pool) {
+    async query(query, options = {}) {
+        if (!this.sequelize) {
             throw new Error('[数据库] PostgreSQL数据库未连接');
         }
 
         return await ErrorHandler.handleService(
             async () => {
-                return await this.pool.query(query, params);
+                return await this.sequelize.query(query, {
+                    type: Sequelize.QueryTypes.SELECT,
+                    ...options,
+                });
             },
             'PostgreSQL查询',
             { throwOnError: true }
@@ -125,25 +124,15 @@ class PgManager {
      * @returns {Promise<any>} 事务结果
      */
     async transaction(callback) {
-        if (!this.pool) {
+        if (!this.sequelize) {
             throw new Error('[数据库] PostgreSQL数据库未连接');
         }
 
         return await ErrorHandler.handleService(
             async () => {
-                const client = await this.pool.connect();
-                try {
-                    await client.query('BEGIN');
-                    const result = await callback(client);
-                    await client.query('COMMIT');
-                    return result;
-                } catch (error) {
-                    await client.query('ROLLBACK');
-                    logTime(`[数据库] PostgreSQL事务回滚: ${error.message}`, true);
-                    throw error;
-                } finally {
-                    client.release();
-                }
+                return await this.sequelize.transaction(async (t) => {
+                    return await callback(t);
+                });
             },
             'PostgreSQL事务',
             { throwOnError: true }
@@ -192,20 +181,20 @@ class PgManager {
     }
 
     /**
-     * 关闭连接池
+     * 关闭连接
      */
     async disconnect() {
-        if (!this.pool) {
+        if (!this.sequelize) {
             return;
         }
 
         try {
-            await this.pool.end();
-            this.pool = null;
+            await this.sequelize.close();
+            this.sequelize = null;
             this.cache.clear();
-            logTime('[数据库] PostgreSQL连接池已关闭');
+            logTime('[数据库] PostgreSQL连接已关闭');
         } catch (error) {
-            logTime(`[数据库] 关闭PostgreSQL连接池时出错: ${error.message}`, true);
+            logTime(`[数据库] 关闭PostgreSQL连接时出错: ${error.message}`, true);
             throw error;
         }
     }
@@ -215,33 +204,35 @@ class PgManager {
      * @returns {boolean} 连接状态
      */
     getConnectionStatus() {
-        return this.pool !== null;
+        return this.sequelize !== null;
     }
 
     /**
-     * 获取连接池实例
-     * @returns {Pool} 连接池实例
+     * 获取Sequelize实例
+     * @returns {Sequelize} Sequelize实例
      */
-    getPool() {
-        if (!this.pool) {
+    getSequelize() {
+        if (!this.sequelize) {
             throw new Error('[数据库] PostgreSQL数据库未连接');
         }
-        return this.pool;
+        return this.sequelize;
     }
 
     /**
      * 获取连接池状态信息
-     * @returns {Object} 连接池状态
+     * @returns {Object|null} 连接池状态
      */
     getPoolStatus() {
-        if (!this.pool) {
+        if (!this.sequelize) {
             return null;
         }
 
+        const pool = this.sequelize.connectionManager.pool;
         return {
-            totalCount: this.pool.totalCount,
-            idleCount: this.pool.idleCount,
-            waitingCount: this.pool.waitingCount,
+            size: pool.size,
+            available: pool.available,
+            using: pool.using,
+            waiting: pool.waiting,
         };
     }
 }

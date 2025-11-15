@@ -13,8 +13,8 @@ import { getVersionInfo, handleDiscordError, loadCommandFiles } from './utils/he
 import { logTime } from './utils/logger.js';
 
 // 本地功能模块
-import { dbManager } from './db/dbManager.js';
-import { pgManager } from './db/pgManager.js';
+import { dbManager } from './sqlite/dbManager.js';
+import { pgManager } from './pg/pgManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
 import { ThreadBlacklistService } from './services/threadBlacklistService.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';

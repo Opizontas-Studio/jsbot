@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { PunishmentModel } from '../db/models/punishmentModel.js';
+import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
 import PunishmentService from '../services/punishmentService.js';
 import { syncMemberRoles } from '../services/roleApplication.js';
 import { logTime } from '../utils/logger.js';

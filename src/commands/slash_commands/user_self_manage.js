@@ -203,6 +203,7 @@ export default {
                 break;
             }
             case '标注信息': {
+                // 已过时的命令
                 try {
                     const messageUrl = interaction.options.getString('消息链接');
                     const action = interaction.options.getString('操作');
@@ -215,15 +216,7 @@ export default {
                         return;
                     }
 
-                    const [, guildId, channelId, messageId] = matches;
-
-                    // 验证消息是否在当前服务器
-                    if (guildId !== interaction.guildId) {
-                        await interaction.editReply({
-                            content: '❌ 只能标注当前服务器的消息',
-                        });
-                        return;
-                    }
+                    const [, channelId, messageId] = matches;
 
                     // 验证消息是否在当前帖子
                     if (channelId !== interaction.channelId) {

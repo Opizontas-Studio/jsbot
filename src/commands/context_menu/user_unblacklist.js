@@ -1,6 +1,6 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
 import { validateForumThread } from '../../services/selfManageService.js';
-import { ThreadBlacklistService } from '../../services/threadBlacklistService.js';
+import { UserBlacklistService } from '../../services/userBlacklistService.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
 
@@ -44,7 +44,7 @@ export default {
         // 在其他地方，任何人都可以使用（解除自己和目标用户的拉黑关系）
 
         // 检查目标用户是否在拉黑列表中
-        const blacklistRecord = ThreadBlacklistService.isUserBlacklisted(blacklistOwnerId, targetUser.id);
+        const blacklistRecord = UserBlacklistService.isUserBlacklisted(blacklistOwnerId, targetUser.id);
         if (!blacklistRecord) {
             const ownerText = isInForumThread ? '帖子作者' : '你';
             await interaction.editReply({
@@ -58,7 +58,7 @@ export default {
         await ErrorHandler.handleInteraction(
             interaction,
             async () => {
-                const success = ThreadBlacklistService.removeUserFromBlacklist(blacklistOwnerId, targetUser.id);
+                const success = UserBlacklistService.removeUserFromBlacklist(blacklistOwnerId, targetUser.id);
 
                 if (success) {
                     // 获取违规统计信息（仅在论坛帖子中显示）

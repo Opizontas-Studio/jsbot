@@ -4,7 +4,6 @@ import { globalTaskScheduler } from '../handlers/scheduler.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { formatPunishmentDuration } from '../utils/helper.js';
 import { logTime } from '../utils/logger.js';
-import { BlacklistService } from './blacklistService.js';
 
 class PunishmentService {
     /**
@@ -89,13 +88,7 @@ class PunishmentService {
                 // 5. 更新同步状态
                 await PunishmentModel.updateSyncStatus(punishment.id, [executingGuildId]);
 
-                // 6. 将用户添加到黑名单（可容错）
-                await ErrorHandler.handleSilent(
-                    () => BlacklistService.addUserToBlacklistImmediately(punishment.userId),
-                    `添加用户 ${punishment.userId} 到黑名单`
-                );
-
-                // 7. 根据处罚类型更新状态
+                // 6. 根据处罚类型更新状态
                 if (punishment.type === 'ban') {
                     await PunishmentModel.updateStatus(punishment.id, 'expired', '已在指定服务器执行永封');
                     logTime(`[处罚系统] 永封处罚 ${punishment.id} 已在服务器 ${guild.name} 执行完毕，标记为过期`);
@@ -108,7 +101,7 @@ class PunishmentService {
                     }
                 }
 
-                // 8. 设置处罚到期定时器（可容错）
+                // 7. 设置处罚到期定时器（可容错）
                 if (punishment.duration > 0 || punishment.warningDuration) {
                     await ErrorHandler.handleSilent(
                         () => globalTaskScheduler.getScheduler('punishment').schedulePunishment(punishment, client),
@@ -116,7 +109,7 @@ class PunishmentService {
                     );
                 }
 
-                // 9. 发送通知（可容错）
+                // 8. 发送通知（可容错）
                 const notificationResults = [];
 
                 // 发送频道通知

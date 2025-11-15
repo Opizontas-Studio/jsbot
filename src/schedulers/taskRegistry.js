@@ -1,6 +1,5 @@
 import schedule from 'node-schedule';
 import { dbManager } from '../sqlite/dbManager.js';
-import { BlacklistService } from '../services/blacklistService.js';
 import { carouselServiceManager } from '../services/carousel/carouselManager.js';
 import { monitorService } from '../services/monitorService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
@@ -48,19 +47,6 @@ export class TaskRegistry {
             task: async () => {
                 await dbManager.backup();
                 logTime('[定时任务] 数据库备份完成');
-            }
-        });
-
-        // 黑名单更新任务 - 每天早上4点执行
-        this.taskScheduler.addDailyTask({
-            taskId: 'blacklistUpdate',
-            hour: 4,
-            minute: 0,
-            task: async () => {
-                const result = await BlacklistService.updateBlacklistFromPunishments(client);
-                if (result.success) {
-                    logTime(`[定时任务] 黑名单更新完成，新增 ${result.addedCount} 个用户，总计 ${result.totalCount} 个用户`);
-                }
             }
         });
 

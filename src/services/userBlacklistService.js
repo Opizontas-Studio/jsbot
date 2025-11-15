@@ -3,27 +3,14 @@ import { join } from 'path';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
-const blacklistPath = join(process.cwd(), 'data', 'thread_blacklist.json');
+const blacklistPath = join(process.cwd(), 'data', 'user_blacklist.json');
 
 /**
  * 用户拉黑服务类
  * 负责管理用户之间的全局拉黑功能（owner拉黑target，在owner的所有帖子中生效）
  *
- * 数据结构：
- * cache.blacklists = {
- *     "ownerId": {
- *         "targetUserId": {
- *             addedAt: timestamp,
- *             addedBy: "ownerId",
- *             totalViolations: 5,
- *             threads: {
- *                 "threadId": { violationCount: 2, lastViolation: timestamp }
- *             }
- *         }
- *     }
- * }
  */
-export class ThreadBlacklistService {
+export class UserBlacklistService {
     /**
      * 内存缓存（owner -> target 全局拉黑）
      * @private
@@ -66,14 +53,14 @@ export class ThreadBlacklistService {
      */
     static loadBlacklistData() {
         try {
-            const data = ThreadBlacklistService.readBlacklistFile();
-            ThreadBlacklistService.cache.blacklists = data.blacklists || {};
+            const data = UserBlacklistService.readBlacklistFile();
+            UserBlacklistService.cache.blacklists = data.blacklists || {};
 
             // 统计数据
             let totalOwners = 0;
             let totalBlacklists = 0;
 
-            for (const [ownerId, targets] of Object.entries(ThreadBlacklistService.cache.blacklists)) {
+            for (const [ownerId, targets] of Object.entries(UserBlacklistService.cache.blacklists)) {
                 totalOwners++;
                 totalBlacklists += Object.keys(targets).length;
             }
@@ -81,7 +68,7 @@ export class ThreadBlacklistService {
             logTime(`[用户拉黑] 已加载拉黑数据：${totalOwners} 个用户创建了 ${totalBlacklists} 条拉黑记录`);
         } catch (error) {
             logTime(`[用户拉黑] 加载拉黑数据失败: ${error.message}`, true);
-            ThreadBlacklistService.cache.blacklists = {};
+            UserBlacklistService.cache.blacklists = {};
         }
     }
 
@@ -91,10 +78,10 @@ export class ThreadBlacklistService {
      */
     static saveToFile() {
         const data = {
-            blacklists: ThreadBlacklistService.cache.blacklists
+            blacklists: UserBlacklistService.cache.blacklists
         };
-        ThreadBlacklistService.saveBlacklistFile(data);
-        ThreadBlacklistService.cache.dirty = false;
+        UserBlacklistService.saveBlacklistFile(data);
+        UserBlacklistService.cache.dirty = false;
     }
 
     /**
@@ -103,20 +90,20 @@ export class ThreadBlacklistService {
      * @param {number} delay - 延迟时间（毫秒），默认5秒
      */
     static scheduleSave(delay = 5000) {
-        ThreadBlacklistService.cache.dirty = true;
+        UserBlacklistService.cache.dirty = true;
 
         // 清除现有的定时器
-        if (ThreadBlacklistService.cache.saveTimer) {
-            clearTimeout(ThreadBlacklistService.cache.saveTimer);
+        if (UserBlacklistService.cache.saveTimer) {
+            clearTimeout(UserBlacklistService.cache.saveTimer);
         }
 
         // 设置新的定时器
-        ThreadBlacklistService.cache.saveTimer = setTimeout(() => {
-            if (ThreadBlacklistService.cache.dirty) {
-                ThreadBlacklistService.saveToFile();
+        UserBlacklistService.cache.saveTimer = setTimeout(() => {
+            if (UserBlacklistService.cache.dirty) {
+                UserBlacklistService.saveToFile();
                 logTime('[帖子拉黑] 延迟保存已执行');
             }
-            ThreadBlacklistService.cache.saveTimer = null;
+            UserBlacklistService.cache.saveTimer = null;
         }, delay);
     }
 
@@ -124,12 +111,12 @@ export class ThreadBlacklistService {
      * 强制立即保存（用于bot关闭时）
      */
     static forceSave() {
-        if (ThreadBlacklistService.cache.saveTimer) {
-            clearTimeout(ThreadBlacklistService.cache.saveTimer);
-            ThreadBlacklistService.cache.saveTimer = null;
+        if (UserBlacklistService.cache.saveTimer) {
+            clearTimeout(UserBlacklistService.cache.saveTimer);
+            UserBlacklistService.cache.saveTimer = null;
         }
-        if (ThreadBlacklistService.cache.dirty) {
-            ThreadBlacklistService.saveToFile();
+        if (UserBlacklistService.cache.dirty) {
+            UserBlacklistService.saveToFile();
             logTime('[帖子拉黑] 强制保存已执行');
         }
     }
@@ -141,7 +128,7 @@ export class ThreadBlacklistService {
      * @returns {Object|null} 拉黑记录，如果不存在则返回null
      */
     static isUserBlacklisted(ownerId, targetUserId) {
-        const ownerBlacklist = ThreadBlacklistService.cache.blacklists[ownerId];
+        const ownerBlacklist = UserBlacklistService.cache.blacklists[ownerId];
         if (!ownerBlacklist) return null;
 
         const record = ownerBlacklist[targetUserId];
@@ -154,7 +141,7 @@ export class ThreadBlacklistService {
      * @returns {Array} 拉黑记录数组
      */
     static getUserBlacklist(ownerId) {
-        const ownerBlacklist = ThreadBlacklistService.cache.blacklists[ownerId];
+        const ownerBlacklist = UserBlacklistService.cache.blacklists[ownerId];
         if (!ownerBlacklist) return [];
 
         return Object.entries(ownerBlacklist).map(([targetUserId, record]) => ({
@@ -168,7 +155,7 @@ export class ThreadBlacklistService {
      * @returns {Set<string>} 用户ID集合
      */
     static getOwnersWithBlacklist() {
-        return new Set(Object.keys(ThreadBlacklistService.cache.blacklists));
+        return new Set(Object.keys(UserBlacklistService.cache.blacklists));
     }
 
     /**
@@ -180,17 +167,17 @@ export class ThreadBlacklistService {
     static addUserToBlacklist(ownerId, targetUserId) {
         try {
             // 检查是否已存在
-            if (ThreadBlacklistService.isUserBlacklisted(ownerId, targetUserId)) {
+            if (UserBlacklistService.isUserBlacklisted(ownerId, targetUserId)) {
                 return false;
             }
 
             // 初始化用户拉黑列表
-            if (!ThreadBlacklistService.cache.blacklists[ownerId]) {
-                ThreadBlacklistService.cache.blacklists[ownerId] = {};
+            if (!UserBlacklistService.cache.blacklists[ownerId]) {
+                UserBlacklistService.cache.blacklists[ownerId] = {};
             }
 
             // 添加拉黑记录
-            ThreadBlacklistService.cache.blacklists[ownerId][targetUserId] = {
+            UserBlacklistService.cache.blacklists[ownerId][targetUserId] = {
                 addedAt: Date.now(),
                 addedBy: ownerId,
                 totalViolations: 0,
@@ -198,7 +185,7 @@ export class ThreadBlacklistService {
             };
 
             // 立即保存（拉黑操作需要立即持久化）
-            ThreadBlacklistService.saveToFile();
+            UserBlacklistService.saveToFile();
 
             // logTime(`[用户拉黑] 用户 ${ownerId} 已全局拉黑用户 ${targetUserId}`);
             return true;
@@ -216,7 +203,7 @@ export class ThreadBlacklistService {
      */
     static removeUserFromBlacklist(ownerId, targetUserId) {
         try {
-            const ownerBlacklist = ThreadBlacklistService.cache.blacklists[ownerId];
+            const ownerBlacklist = UserBlacklistService.cache.blacklists[ownerId];
             if (!ownerBlacklist) return false;
 
             if (!ownerBlacklist[targetUserId]) return false;
@@ -226,11 +213,11 @@ export class ThreadBlacklistService {
 
             // 如果该用户的拉黑列表为空，删除整个键
             if (Object.keys(ownerBlacklist).length === 0) {
-                delete ThreadBlacklistService.cache.blacklists[ownerId];
+                delete UserBlacklistService.cache.blacklists[ownerId];
             }
 
             // 立即保存（解除拉黑操作需要立即持久化）
-            ThreadBlacklistService.saveToFile();
+            UserBlacklistService.saveToFile();
 
             // logTime(`[用户拉黑] 用户 ${ownerId} 已解除对用户 ${targetUserId} 的拉黑`);
             return true;
@@ -249,7 +236,7 @@ export class ThreadBlacklistService {
      */
     static incrementViolationCount(ownerId, targetUserId, threadId) {
         try {
-            const ownerBlacklist = ThreadBlacklistService.cache.blacklists[ownerId];
+            const ownerBlacklist = UserBlacklistService.cache.blacklists[ownerId];
             if (!ownerBlacklist) return null;
 
             const record = ownerBlacklist[targetUserId];
@@ -270,7 +257,7 @@ export class ThreadBlacklistService {
             record.threads[threadId].lastViolation = Date.now();
 
             // 违规计数批量保存，提高性能
-            ThreadBlacklistService.scheduleSave(5000);
+            UserBlacklistService.scheduleSave(5000);
 
             // logTime(
             //    `[用户拉黑] 用户 ${targetUserId} 违规次数增加：` +

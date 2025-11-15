@@ -1,5 +1,5 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
-import { ThreadBlacklistService } from '../../services/threadBlacklistService.js';
+import { UserBlacklistService } from '../../services/userBlacklistService.js';
 import { handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
 
@@ -13,7 +13,7 @@ export default {
     async execute(interaction, guildConfig) {
         try {
             const userId = interaction.user.id;
-            const blacklist = ThreadBlacklistService.getUserBlacklist(userId);
+            const blacklist = UserBlacklistService.getUserBlacklist(userId);
 
             if (blacklist.length === 0) {
                 await interaction.editReply({

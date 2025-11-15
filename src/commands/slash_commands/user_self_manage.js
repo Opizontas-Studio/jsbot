@@ -8,7 +8,7 @@ import {
     validateForumThread,
     validateThreadOwner
 } from '../../services/selfManageService.js';
-import { ThreadBlacklistService } from '../../services/threadBlacklistService.js';
+import { UserBlacklistService } from '../../services/userBlacklistService.js';
 import { delay } from '../../utils/concurrency.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
@@ -301,7 +301,7 @@ export default {
                 }
 
                 // 检查是否已经在拉黑列表中
-                if (ThreadBlacklistService.isUserBlacklisted(thread.ownerId, targetUser.id)) {
+                if (UserBlacklistService.isUserBlacklisted(thread.ownerId, targetUser.id)) {
                     await interaction.editReply({
                         content: `⚠️ 用户 ${targetUser.tag} 已被你全局拉黑`,
                         flags: ['Ephemeral'],
@@ -363,7 +363,7 @@ export default {
                         }
 
                         // 添加到全局拉黑列表
-                        ThreadBlacklistService.addUserToBlacklist(thread.ownerId, targetUser.id);
+                        UserBlacklistService.addUserToBlacklist(thread.ownerId, targetUser.id);
 
                         await interaction.editReply({
                             content: `✅ 已全局拉黑用户 ${targetUser.tag}\n- 扫描了 ${totalScanned} 条消息\n- 删除了 ${totalDeleted} 条该用户的消息\n⚠️ 该用户将无法在你的所有帖子中发言`,

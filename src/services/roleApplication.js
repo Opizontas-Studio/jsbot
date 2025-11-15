@@ -6,7 +6,6 @@ import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { handleConfirmationButton } from '../utils/confirmationHelper.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
-import { BlacklistService } from './blacklistService.js';
 import { opinionMailboxService } from './opinionMailboxService.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
@@ -375,15 +374,7 @@ export const handleDebateRolesAfterVote = async (client, executorId, targetId) =
 export async function validateVolunteerApplication(member, guildConfig) {
     const result = await ErrorHandler.handleService(
         async () => {
-            // 1. 检查是否受到过处罚
-            if (BlacklistService.isUserBlacklisted(member.user.id)) {
-                return {
-                    isValid: false,
-                    reason: '您没有资格申请志愿者身份组',
-                };
-            }
-
-            // 2. 检查加入时间（至少一个月）
+            // 1. 检查加入时间（至少一个月）
             const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
             if (member.joinedTimestamp > oneMonthAgo) {
                 return {
@@ -392,7 +383,7 @@ export async function validateVolunteerApplication(member, guildConfig) {
                 };
             }
 
-            // 3. 检查是否为创作者（推荐条件）
+            // 2. 检查是否为创作者（推荐条件）
             const hasCreatorRole = guildConfig.roleApplication?.creatorRoleId &&
                                   member.roles.cache.has(guildConfig.roleApplication.creatorRoleId);
 
@@ -402,7 +393,7 @@ export async function validateVolunteerApplication(member, guildConfig) {
                 };
             }
 
-            // 4. 检查是否有有效的投稿记录
+            // 3. 检查是否有有效的投稿记录
             const hasValidSubmission = opinionMailboxService.hasValidSubmissionRecord(member.user.id);
 
             if (hasValidSubmission) {

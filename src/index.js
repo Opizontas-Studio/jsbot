@@ -16,7 +16,7 @@ import { logTime } from './utils/logger.js';
 import { dbManager } from './sqlite/dbManager.js';
 import { pgManager } from './pg/pgManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
-import { ThreadBlacklistService } from './services/threadBlacklistService.js';
+import { UserBlacklistService } from './services/userBlacklistService.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
 import { globalLockManager } from './utils/lockManager.js';
 
@@ -157,7 +157,7 @@ const gracefulShutdown = async (client, signal) => {
         }
 
         // 强制保存帖子拉黑数据
-        ThreadBlacklistService.forceSave();
+        UserBlacklistService.forceSave();
 
         // 关闭SqLite数据库连接
         if (dbManager && dbManager.getConnectionStatus()) {
@@ -233,7 +233,7 @@ async function main() {
         client.guildManager.initialize(config);
 
         // 加载帖子拉黑数据
-        ThreadBlacklistService.loadBlacklistData();
+        UserBlacklistService.loadBlacklistData();
 
         // 登录
         try {

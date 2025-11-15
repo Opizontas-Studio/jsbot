@@ -1,6 +1,6 @@
 import { ChannelType, Events } from 'discord.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
-import { ThreadBlacklistService } from '../services/threadBlacklistService.js';
+import { UserBlacklistService } from '../services/userBlacklistService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
@@ -46,13 +46,13 @@ export default {
         const senderId = message.author.id;
 
         // 检查该帖子所有者是否有拉黑记录
-        const ownersWithBlacklist = ThreadBlacklistService.getOwnersWithBlacklist();
+        const ownersWithBlacklist = UserBlacklistService.getOwnersWithBlacklist();
         if (!ownersWithBlacklist.has(ownerId)) {
             return;
         }
 
         // 检查发送者是否被帖子所有者拉黑
-        const blacklistRecord = ThreadBlacklistService.isUserBlacklisted(ownerId, senderId);
+        const blacklistRecord = UserBlacklistService.isUserBlacklisted(ownerId, senderId);
         if (!blacklistRecord) {
             return;
         }
@@ -131,7 +131,7 @@ export default {
                 }
 
                 // 8. 增加违规次数
-                const newCounts = ThreadBlacklistService.incrementViolationCount(ownerId, senderId, thread.id);
+                const newCounts = UserBlacklistService.incrementViolationCount(ownerId, senderId, thread.id);
 
                 logTime(
                     `[用户拉黑] 用户 ${message.author.tag} 在帖子 ${thread.name} 中被拉黑后尝试发言，` +

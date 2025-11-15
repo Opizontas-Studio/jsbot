@@ -1,6 +1,6 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
 import { validateForumThread } from '../../services/selfManageService.js';
-import { ThreadBlacklistService } from '../../services/threadBlacklistService.js';
+import { UserBlacklistService } from '../../services/userBlacklistService.js';
 import { delay } from '../../utils/concurrency.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
@@ -84,7 +84,7 @@ export default {
         }
 
         // 检查是否已经在拉黑列表中
-        if (ThreadBlacklistService.isUserBlacklisted(blacklistOwnerId, targetUser.id)) {
+        if (UserBlacklistService.isUserBlacklisted(blacklistOwnerId, targetUser.id)) {
             const ownerText = isInForumThread ? '帖子作者' : '你';
             await interaction.editReply({
                 content: `⚠️ 用户 ${targetUser.tag} 已被${ownerText}全局拉黑`,
@@ -149,7 +149,7 @@ export default {
                     }
 
                     // 添加到全局拉黑列表
-                    ThreadBlacklistService.addUserToBlacklist(blacklistOwnerId, targetUser.id);
+                    UserBlacklistService.addUserToBlacklist(blacklistOwnerId, targetUser.id);
 
                     const ownerText = channel.ownerId === interaction.user.id ? '你' : '帖子作者';
                     await interaction.editReply({
@@ -160,7 +160,7 @@ export default {
                     logTime(`[用户拉黑] ${interaction.user.tag} 为 ${channel.ownerId === interaction.user.id ? '自己' : '帖子作者'} 全局拉黑了 ${targetUser.tag}，在帖子 ${channel.name} 中删除了 ${totalDeleted} 条消息`);
                 } else {
                     // 在其他地方，只添加拉黑关系，不扫描消息
-                    ThreadBlacklistService.addUserToBlacklist(blacklistOwnerId, targetUser.id);
+                    UserBlacklistService.addUserToBlacklist(blacklistOwnerId, targetUser.id);
 
                     await interaction.editReply({
                         content: `✅ 已全局拉黑用户 ${targetUser.tag}\n\n⚠️ 该用户将无法在你的所有帖子中发言`,

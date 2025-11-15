@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { ErrorHandler } from '../../utils/errorHandler.js';
-import { getOrCreateMessage } from '../threadAnalyzer.js';
+import { getOrCreateMessage } from '../thread/threadAnalyzer.js';
 import { BaseCarouselService } from './BaseCarouselService.js';
 
 const CONFIG_PATH = join(process.cwd(), 'data', 'carouselConfig.json');

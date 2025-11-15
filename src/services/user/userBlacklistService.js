@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { logTime } from '../utils/logger.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { logTime } from '../../utils/logger.js';
 
 const blacklistPath = join(process.cwd(), 'data', 'user_blacklist.json');
 

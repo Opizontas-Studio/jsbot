@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { ModalFactory } from '../../factories/modalFactory.js';
-import { validateForumThread, validateThreadOwner } from '../../services/selfManageService.js';
+import { validateForumThread, validateThreadOwner } from '../../services/thread/selfManageService.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export default {

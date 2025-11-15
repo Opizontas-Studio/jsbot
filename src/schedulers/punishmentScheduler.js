@@ -1,6 +1,6 @@
 import schedule from 'node-schedule';
 import { dbManager } from '../sqlite/dbManager.js';
-import PunishmentService from '../services/punishmentService.js';
+import PunishmentService from '../services/moderation/punishmentService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 

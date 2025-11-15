@@ -1,12 +1,12 @@
 import { ChannelType } from 'discord.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'path';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { delay, globalRequestQueue } from '../utils/concurrency.js';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { logTime } from '../utils/logger.js';
-import { opinionMailboxService } from './opinionMailboxService.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { delay, globalRequestQueue } from '../../utils/concurrency.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { logTime } from '../../utils/logger.js';
+import { opinionMailboxService } from '../user/opinionMailboxService.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 

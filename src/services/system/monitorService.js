@@ -3,11 +3,11 @@ import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { globalRequestQueue } from '../utils/concurrency.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { logTime } from '../utils/logger.js';
-import { pgSyncScheduler } from '../schedulers/pgSyncScheduler.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { globalRequestQueue } from '../../utils/concurrency.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { logTime } from '../../utils/logger.js';
+import { pgSyncScheduler } from '../../schedulers/pgSyncScheduler.js';
 
 const execAsync = promisify(exec);
 

@@ -1,10 +1,10 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { delay } from '../utils/concurrency.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { logTime } from '../utils/logger.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { delay } from '../../utils/concurrency.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { logTime } from '../../utils/logger.js';
 
 const messageIdsPath = join(process.cwd(), 'data', 'messageIds.json');
 const opinionRecordsPath = join(process.cwd(), 'data', 'opinionRecords.json');

@@ -16,7 +16,7 @@ import { logTime } from './utils/logger.js';
 import { dbManager } from './sqlite/dbManager.js';
 import { pgManager } from './pg/pgManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
-import { UserBlacklistService } from './services/userBlacklistService.js';
+import { UserBlacklistService } from './services/user/userBlacklistService.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
 import { globalLockManager } from './utils/lockManager.js';
 

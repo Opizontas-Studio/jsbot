@@ -1,11 +1,11 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
-import { VoteModel } from '../sqlite/models/voteModel.js';
-import { calculatePunishmentDuration } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { PunishmentModel } from '../../sqlite/models/punishmentModel.js';
+import { VoteModel } from '../../sqlite/models/voteModel.js';
+import { calculatePunishmentDuration } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 import PunishmentService from './punishmentService.js';
-import { handleDebateRolesAfterVote, manageRolesByGroups } from './roleApplication.js';
+import { handleDebateRolesAfterVote, manageRolesByGroups } from '../role/roleApplication.js';
 
 const roleSyncConfigPath = join(process.cwd(), 'data', 'roleSyncConfig.json');
 

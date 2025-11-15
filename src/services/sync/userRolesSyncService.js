@@ -46,7 +46,10 @@ class UserRolesSyncService {
             async () => {
                 // 获取服务器成员
                 const guild = await client.guilds.fetch(guildId);
-                const members = await guild.members.fetch();
+                const members = await guild.members.fetch({
+                    time: 180000, // 3分钟超时
+                    force: true // 强制从 API 获取，不使用缓存
+                });
 
                 // 过滤出拥有创作者身份的成员
                 const currentCreators = members

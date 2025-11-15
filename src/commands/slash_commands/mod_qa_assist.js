@@ -5,7 +5,7 @@ import {
     logQAResult,
     processResponseToAttachment,
     sendToFastGPT,
-} from '../../services/fastgptService.js';
+} from '../../services/user/fastgptService.js';
 import { handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
 

@@ -1,6 +1,6 @@
 import schedule from 'node-schedule';
 import { ProcessModel } from '../sqlite/models/processModel.js';
-import CourtService from '../services/courtService.js';
+import CourtService from '../services/moderation/courtService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 

@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport, updateThreadAutoCleanupSetting } from '../../services/threadCleaner.js';
+import { cleanThreadMembers, cleanupCachedThreadsSequentially, sendLogReport, updateThreadAutoCleanupSetting } from '../../services/thread/threadCleaner.js';
 import { globalRequestQueue } from '../../utils/concurrency.js';
 import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';

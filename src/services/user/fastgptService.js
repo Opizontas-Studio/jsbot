@@ -4,7 +4,7 @@ import { existsSync, promises as fs, mkdirSync } from 'fs';
 import { marked } from 'marked';
 import nodeHtmlToImage from 'node-html-to-image';
 import path from 'path';
-import { logTime } from '../utils/logger.js';
+import { logTime } from '../../utils/logger.js';
 
 // 用于记录每个服务器最近使用的端点 (guildId => endpointUrl)
 const lastUsedEndpoints = new Map();

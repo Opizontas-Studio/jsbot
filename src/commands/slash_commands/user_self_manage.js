@@ -7,8 +7,8 @@ import {
     updateSlowMode,
     validateForumThread,
     validateThreadOwner
-} from '../../services/selfManageService.js';
-import { UserBlacklistService } from '../../services/userBlacklistService.js';
+} from '../../services/thread/selfManageService.js';
+import { UserBlacklistService } from '../../services/user/userBlacklistService.js';
 import { delay } from '../../utils/concurrency.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
@@ -132,15 +132,15 @@ export default {
                 );
                 break;
 
-            case '锁定并关闭':
+            case '锁定并关闭': {
                 const reason = interaction.options.getString('理由');
                 await ErrorHandler.handleSilent(
                     async () => await handleLockThread(interaction, thread, reason),
                     '锁定帖子处理'
                 );
                 break;
-
-            case '清理不活跃用户':
+            }
+            case '清理不活跃用户': {
                 const threshold = interaction.options.getInteger('阈值') || 950;
                 const enableAutoCleanup = interaction.options.getBoolean('启用自动清理') ?? true;
 
@@ -149,8 +149,8 @@ export default {
                     '清理不活跃用户处理'
                 );
                 break;
-
-            case '编辑慢速模式':
+            }
+            case '编辑慢速模式': {
                 const speed = interaction.options.getString('速度');
                 if (!speed || !['0', '5', '10', '15', '30', '60'].includes(speed)) {
                     await interaction.editReply({
@@ -172,8 +172,8 @@ export default {
                     }
                 );
                 break;
-
-            case '移除帖子反应':
+            }
+            case '移除帖子反应': {
                 await ErrorHandler.handleInteraction(
                     interaction,
                     async () => {
@@ -201,7 +201,8 @@ export default {
                     { ephemeral: true }
                 );
                 break;
-            case '标注信息':
+            }
+            case '标注信息': {
                 try {
                     const messageUrl = interaction.options.getString('消息链接');
                     const action = interaction.options.getString('操作');
@@ -265,8 +266,8 @@ export default {
                     await handleCommandError(interaction, error, '标注消息');
                 }
                 break;
-
-            case '拉黑用户':
+            }
+            case '拉黑用户': {
                 const targetUser = interaction.options.getUser('目标用户');
 
                 // 检查目标用户
@@ -376,6 +377,7 @@ export default {
                     { ephemeral: true }
                 );
                 break;
+            }
         }
     },
 };

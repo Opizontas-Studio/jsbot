@@ -1,10 +1,10 @@
-import { dbManager } from '../sqlite/dbManager.js';
-import { ProcessModel } from '../sqlite/models/processModel.js';
-import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
-import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { setupDebateParticipantRoles } from '../services/roleApplication.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { logTime } from '../utils/logger.js';
+import { dbManager } from '../../sqlite/dbManager.js';
+import { ProcessModel } from '../../sqlite/models/processModel.js';
+import { PunishmentModel } from '../../sqlite/models/punishmentModel.js';
+import { globalTaskScheduler } from '../../handlers/scheduler.js';
+import { setupDebateParticipantRoles } from '../role/roleApplication.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { logTime } from '../../utils/logger.js';
 import PunishmentService from './punishmentService.js';
 import { VoteService } from './voteService.js';
 

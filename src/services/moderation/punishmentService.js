@@ -1,9 +1,9 @@
-import { PunishmentModel } from '../sqlite/models/punishmentModel.js';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { globalTaskScheduler } from '../handlers/scheduler.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { formatPunishmentDuration } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { PunishmentModel } from '../../sqlite/models/punishmentModel.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { globalTaskScheduler } from '../../handlers/scheduler.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { formatPunishmentDuration } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 
 class PunishmentService {
     /**

@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import CourtService from '../../services/courtService.js';
+import CourtService from '../../services/moderation/courtService.js';
 import { handleCommandError } from '../../utils/helper.js';
 
 // 使用已有的紧急处理身份组ID

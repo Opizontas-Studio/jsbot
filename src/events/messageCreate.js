@@ -1,6 +1,6 @@
 import { ChannelType, Events } from 'discord.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
-import { UserBlacklistService } from '../services/userBlacklistService.js';
+import { UserBlacklistService } from '../services/user/userBlacklistService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 

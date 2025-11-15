@@ -1,5 +1,5 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
-import { togglePinMessage, validateForumThread, validateThreadOwner } from '../../services/selfManageService.js';
+import { togglePinMessage, validateForumThread, validateThreadOwner } from '../../services/thread/selfManageService.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export default {

@@ -1,6 +1,6 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
 import { SelectMenuFactory } from '../../factories/selectMenuFactory.js';
-import { validateMessageOwner } from '../../services/selfManageService.js';
+import { validateMessageOwner } from '../../services/thread/selfManageService.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export default {

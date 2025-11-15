@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { getRoleSyncConfig } from '../../services/roleApplication.js';
+import { getRoleSyncConfig } from '../../services/role/roleApplication.js';
 import { delay } from '../../utils/concurrency.js';
 import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
 import { handleCommandError } from '../../utils/helper.js';

@@ -1,9 +1,9 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { delay, globalBatchProcessor, globalRequestQueue } from '../utils/concurrency.js';
-import { logTime } from '../utils/logger.js';
-import { pgSyncScheduler } from '../schedulers/pgSyncScheduler.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { delay, globalBatchProcessor, globalRequestQueue } from '../../utils/concurrency.js';
+import { logTime } from '../../utils/logger.js';
+import { pgSyncScheduler } from '../../schedulers/pgSyncScheduler.js';
 
 const noop = () => undefined;
 

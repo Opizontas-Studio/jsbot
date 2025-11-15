@@ -1,4 +1,4 @@
-import { handleRemoveReaction } from '../services/selfManageService.js';
+import { handleRemoveReaction } from '../services/thread/selfManageService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 

@@ -1,5 +1,5 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
-import { UserBlacklistService } from '../../services/userBlacklistService.js';
+import { UserBlacklistService } from '../../services/user/userBlacklistService.js';
 import { handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
 

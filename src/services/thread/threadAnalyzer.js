@@ -1,12 +1,12 @@
 import { ChannelFlags } from 'discord.js';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { delay, globalBatchProcessor } from '../utils/concurrency.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { handleDiscordError, measureTime, withTimeout } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
-import { startQualifiedThreadsCarousel } from './carousel/carouselManager.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { delay, globalBatchProcessor } from '../../utils/concurrency.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { handleDiscordError, measureTime, withTimeout } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
+import { startQualifiedThreadsCarousel } from '../carousel/carouselManager.js';
 
 const MESSAGE_IDS_PATH = join(process.cwd(), 'data', 'messageIds.json');
 

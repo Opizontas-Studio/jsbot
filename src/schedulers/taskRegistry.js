@@ -1,10 +1,10 @@
 import schedule from 'node-schedule';
 import { dbManager } from '../sqlite/dbManager.js';
 import { carouselServiceManager } from '../services/carousel/carouselManager.js';
-import { monitorService } from '../services/monitorService.js';
-import { opinionMailboxService } from '../services/opinionMailboxService.js';
-import { executeThreadManagement } from '../services/threadAnalyzer.js';
-import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
+import { monitorService } from '../services/system/monitorService.js';
+import { opinionMailboxService } from '../services/user/opinionMailboxService.js';
+import { executeThreadManagement } from '../services/thread/threadAnalyzer.js';
+import { cleanupCachedThreadsSequentially } from '../services/thread/threadCleaner.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 import { punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';

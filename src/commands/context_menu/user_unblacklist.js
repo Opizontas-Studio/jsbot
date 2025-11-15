@@ -1,6 +1,6 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
-import { validateForumThread } from '../../services/selfManageService.js';
-import { UserBlacklistService } from '../../services/userBlacklistService.js';
+import { validateForumThread } from '../../services/thread/selfManageService.js';
+import { UserBlacklistService } from '../../services/user/userBlacklistService.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
 

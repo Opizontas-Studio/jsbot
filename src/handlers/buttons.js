@@ -1,16 +1,16 @@
 import { ProcessModel } from '../sqlite/models/processModel.js';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { ModalFactory } from '../factories/modalFactory.js';
-import CourtService from '../services/courtService.js';
-import { opinionMailboxService } from '../services/opinionMailboxService.js';
-import PunishmentService from '../services/punishmentService.js';
+import CourtService from '../services/moderation/courtService.js';
+import { opinionMailboxService } from '../services/user/opinionMailboxService.js';
+import PunishmentService from '../services/moderation/punishmentService.js';
 import {
     applyVolunteerRole,
     exitVolunteerRole,
     syncMemberRoles,
     validateVolunteerApplication
-} from '../services/roleApplication.js';
-import { VoteService } from '../services/voteService.js';
+} from '../services/role/roleApplication.js';
+import { VoteService } from '../services/moderation/voteService.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { globalCooldownManager } from '../utils/cooldownManager.js';
 import { ErrorHandler } from '../utils/errorHandler.js';

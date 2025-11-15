@@ -1,10 +1,10 @@
 import { ChannelType } from 'discord.js';
-import { EmbedFactory } from '../factories/embedFactory.js';
-import { delay, globalRequestQueue } from '../utils/concurrency.js';
-import { handleConfirmationButton } from '../utils/confirmationHelper.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
-import { lockAndArchiveThread } from '../utils/helper.js';
-import { logTime } from '../utils/logger.js';
+import { EmbedFactory } from '../../factories/embedFactory.js';
+import { delay, globalRequestQueue } from '../../utils/concurrency.js';
+import { handleConfirmationButton } from '../../utils/confirmationHelper.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { lockAndArchiveThread } from '../../utils/helper.js';
+import { logTime } from '../../utils/logger.js';
 import { cleanThreadMembers, sendLogReport, updateThreadAutoCleanupSetting } from './threadCleaner.js';
 
 /**

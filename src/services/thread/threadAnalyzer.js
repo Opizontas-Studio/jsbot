@@ -225,6 +225,13 @@ const analyzeThreadsData = async (client, guildId, activeThreads = null) => {
                             5000,
                             `获取子区成员 ${thread.name}`
                         );
+
+                        // 将成员数据共享给 postMembersSyncService
+                        const { pgSyncScheduler } = await import('../../schedulers/pgSyncScheduler.js');
+                        if (pgSyncScheduler.isEnabled()) {
+                            await pgSyncScheduler.receiveMemberData(thread.id, members, client);
+                        }
+
                         await delay(200); // 增加延迟以避免API限制
                         return members.size;
                     },

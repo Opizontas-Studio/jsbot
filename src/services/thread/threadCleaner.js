@@ -636,6 +636,12 @@ export async function cleanupCachedThreadsSequentially(client, guildId, activeTh
                 const members = await thread.members.fetch();
                 const memberCount = members.size;
 
+                // 将成员数据共享给 postMembersSyncService
+                const { pgSyncScheduler } = await import('../../schedulers/pgSyncScheduler.js');
+                if (pgSyncScheduler.isEnabled()) {
+                    await pgSyncScheduler.receiveMemberData(threadId, members, client);
+                }
+
                 // logTime(`[缓存清理] 子区 ${thread.name} 当前成员数: ${memberCount}`);
 
                 // 检查是否达到990人阈值

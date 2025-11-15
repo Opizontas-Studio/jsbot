@@ -351,8 +351,8 @@ class PostMembersSyncService {
 }
 
 export const postMembersSyncService = new PostMembersSyncService({
-    batchSize: 100,
-    delayBetweenThreads: 200,
+    batchSize: 60,
+    delayBetweenThreads: 500,
     cacheTimeout: 30 * 60 * 1000
 });
 export default postMembersSyncService;

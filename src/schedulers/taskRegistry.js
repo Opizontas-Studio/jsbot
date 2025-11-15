@@ -104,13 +104,21 @@ export class TaskRegistry {
      * @private
      */
     async _executeThreadManagement(client, guildConfig, guildId) {
-        await globalRequestQueue.add(async () => {
-            const guild = await client.guilds.fetch(guildId);
-            const activeThreads = await guild.channels.fetchActiveThreads();
-            await executeThreadManagement(client, guildConfig, guildId, activeThreads);
-        }, 0);
+        // 通知 pgSyncScheduler 清理任务开始
+        pgSyncScheduler.setThreadCleanupRunning(true);
 
-        logTime(`[定时任务] 完成服务器 ${guildId} 的子区管理任务`);
+        try {
+            await globalRequestQueue.add(async () => {
+                const guild = await client.guilds.fetch(guildId);
+                const activeThreads = await guild.channels.fetchActiveThreads();
+                await executeThreadManagement(client, guildConfig, guildId, activeThreads);
+            }, 0);
+
+            logTime(`[定时任务] 完成服务器 ${guildId} 的子区管理任务`);
+        } finally {
+            // 确保无论成功还是失败，都要恢复同步任务
+            pgSyncScheduler.setThreadCleanupRunning(false);
+        }
     }
 
     /**
@@ -183,21 +191,29 @@ export class TaskRegistry {
     async _executeCachedThreadCleanup(client, managedGuilds) {
         logTime('[定时任务] 开始执行缓存子区清理任务');
 
-        for (const guildId of managedGuilds) {
-            await globalRequestQueue.add(async () => {
-                const guild = await client.guilds.fetch(guildId);
-                const activeThreads = await guild.channels.fetchActiveThreads();
+        // 通知 pgSyncScheduler 清理任务开始
+        pgSyncScheduler.setThreadCleanupRunning(true);
 
-                const activeThreadsMap = new Map();
-                activeThreads.threads.forEach(thread => {
-                    activeThreadsMap.set(thread.id, thread);
-                });
+        try {
+            for (const guildId of managedGuilds) {
+                await globalRequestQueue.add(async () => {
+                    const guild = await client.guilds.fetch(guildId);
+                    const activeThreads = await guild.channels.fetchActiveThreads();
 
-                const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
-                if (cleanupResults.qualifiedThreads > 0) {
-                    logTime(`[定时任务] 服务器 ${guildId} 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
-                }
-            }, 0);
+                    const activeThreadsMap = new Map();
+                    activeThreads.threads.forEach(thread => {
+                        activeThreadsMap.set(thread.id, thread);
+                    });
+
+                    const cleanupResults = await cleanupCachedThreadsSequentially(client, guildId, activeThreadsMap);
+                    if (cleanupResults.qualifiedThreads > 0) {
+                        logTime(`[定时任务] 服务器 ${guildId} 缓存子区清理完成 - 符合条件: ${cleanupResults.qualifiedThreads}, 已清理: ${cleanupResults.cleanedThreads}`);
+                    }
+                }, 0);
+            }
+        } finally {
+            // 确保无论成功还是失败，都要恢复同步任务
+            pgSyncScheduler.setThreadCleanupRunning(false);
         }
     }
 

@@ -14,6 +14,7 @@ import { logTime } from './utils/logger.js';
 
 // 本地功能模块
 import { dbManager } from './db/dbManager.js';
+import { pgManager } from './db/pgManager.js';
 import { globalTaskScheduler } from './handlers/scheduler.js';
 import { ThreadBlacklistService } from './services/threadBlacklistService.js';
 import { delay, globalRequestQueue } from './utils/concurrency.js';
@@ -158,9 +159,14 @@ const gracefulShutdown = async (client, signal) => {
         // 强制保存帖子拉黑数据
         ThreadBlacklistService.forceSave();
 
-        // 关闭数据库连接
+        // 关闭SqLite数据库连接
         if (dbManager && dbManager.getConnectionStatus()) {
             await dbManager.disconnect();
+        }
+
+        // 关闭PostgreSQL数据库连接
+        if (pgManager && pgManager.getConnectionStatus()) {
+            await pgManager.disconnect();
         }
 
         // 等待一小段时间
@@ -185,7 +191,7 @@ const gracefulShutdown = async (client, signal) => {
 // 进程事件处理
 const setupProcessHandlers = client => {
     process.on('uncaughtException', error => handleProcessError(error, 'uncaughtException'));
-    process.on('unhandledRejection', (reason, promise) => handleProcessError(reason, 'unhandledRejection'));
+    process.on('unhandledRejection', (reason) => handleProcessError(reason, 'unhandledRejection'));
     process.on('SIGINT', () => gracefulShutdown(client, '退出'));
     process.on('SIGTERM', () => gracefulShutdown(client, '终止'));
 };
@@ -202,7 +208,7 @@ async function main() {
         // 初始化进程事件调度器
         setupProcessHandlers(client);
 
-        // 初始化数据库连接
+        // 初始化SQLite数据库连接
         try {
             await dbManager.connect();
         } catch (error) {
@@ -212,6 +218,15 @@ async function main() {
                 console.error('额外信息:', error.details);
             }
             process.exit(1);
+        }
+
+        // 初始化PostgreSQL数据库连接
+        try {
+            await pgManager.connect();
+        } catch (error) {
+            logTime('[数据库] PostgreSQL初始化失败（非致命错误）:', true);
+            console.error('错误详情:', error);
+            // PostgreSQL连接失败不会导致程序退出
         }
 
         // 初始化配置管理器
@@ -254,6 +269,11 @@ async function main() {
         // 发生错误时也正确断开数据库
         if (dbManager && dbManager.getConnectionStatus()) {
             await dbManager.disconnect();
+        }
+
+        // 断开PostgreSQL数据库连接
+        if (pgManager && pgManager.getConnectionStatus()) {
+            await pgManager.disconnect();
         }
 
         process.exit(1);

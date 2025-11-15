@@ -3,10 +3,11 @@ import path from 'path';
 import { Database, open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import { logTime } from '../utils/logger.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 function assertIsDatabase(database) {
     if (!(database instanceof Database)) {
-        throw new Error('未连接数据库!');
+        throw new Error('未连接SQLite数据库!');
     }
 }
 
@@ -64,7 +65,6 @@ class DatabaseManager {
 
             // 创建数据库表
             await this._createTables();
-            await this._updateTables();
 
             // 验证外键约束是否启用
             const foreignKeysEnabled = await this.safeExecute('get', 'PRAGMA foreign_keys');
@@ -186,82 +186,6 @@ class DatabaseManager {
 	    `);
     }
 
-    async _updateTables() {
-        assertIsDatabase(this.db);
-
-        // 确保外键约束已启用
-        await this.db.exec('PRAGMA foreign_keys = ON');
-
-        // 检查并添加新列
-        const columns = await this.db.all(`PRAGMA table_info(punishments)`);
-        const columnNames = columns.map(col => col.name);
-
-        // 需要添加的新列
-        const newColumns = [
-            {
-                name: 'notificationMessageId',
-                type: 'TEXT',
-                default: 'NULL',
-            },
-            {
-                name: 'notificationGuildId',
-                type: 'TEXT',
-                default: 'NULL',
-            },
-            {
-                name: 'statusReason',
-                type: 'TEXT',
-                default: 'NULL',
-            },
-        ];
-
-        // 安全地添加新列
-        for (const column of newColumns) {
-            if (!columnNames.includes(column.name)) {
-                await this.db.exec(
-                    `ALTER TABLE punishments
-                    ADD COLUMN ${column.name} ${column.type} DEFAULT ${column.default}`,
-                );
-                logTime(`[数据库] 已添加数据库列: ${column.name}`);
-            }
-        }
-
-        // 检查投票表索引是否存在
-        const indexCheck = await this.db.get("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_votes_process'");
-
-        if (!indexCheck) {
-            // 创建缺失的索引
-            await this.db.exec(`
-                CREATE INDEX IF NOT EXISTS idx_votes_process ON votes(processId);
-                CREATE INDEX IF NOT EXISTS idx_votes_message ON votes(messageId);
-                CREATE INDEX IF NOT EXISTS idx_votes_thread ON votes(threadId);
-                CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
-                CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
-            `);
-            logTime('[数据库] 已添加缺失的投票表索引');
-        }
-
-        // 验证外键的完整性
-        try {
-            const foreignKeyIssues = await this.db.all('PRAGMA foreign_key_check');
-            if (foreignKeyIssues && foreignKeyIssues.length > 0) {
-                logTime(`[数据库] 检测到外键完整性问题: ${foreignKeyIssues.length}条违规记录`, true);
-
-                // 删除有问题的投票记录
-                await this.transaction(async db => {
-                    for (const issue of foreignKeyIssues) {
-                        if (issue.table === 'votes') {
-                            await db.exec(`DELETE FROM votes WHERE rowid = ${issue.rowid}`);
-                            logTime(`[数据库] 已删除无效的投票记录: rowid=${issue.rowid}`);
-                        }
-                    }
-                });
-            }
-        } catch (error) {
-            logTime(`外键检查失败: ${error.message}`, true);
-        }
-    }
-
     /**
      * 安全执行数据库操作
      * @param {string} operation - 操作类型 ('run', 'get', 'all' 等)
@@ -271,22 +195,24 @@ class DatabaseManager {
      */
     async safeExecute(operation, query, params = []) {
         if (!this.db) {
-            throw new Error('[数据库] 数据库未连接');
+            throw new Error('[数据库] SQLite数据库未连接');
         }
 
-        try {
-            // 确保每次操作前外键约束都是启用的
-            if ((operation === 'run' || operation === 'exec') &&
-                (query.toUpperCase().includes('INSERT') ||
-                 query.toUpperCase().includes('DELETE') ||
-                 query.toUpperCase().includes('UPDATE'))) {
-                await this.db.exec('PRAGMA foreign_keys = ON');
-            }
+        return ErrorHandler.handleService(
+            async () => {
+                // 确保每次操作前外键约束都是启用的
+                if ((operation === 'run' || operation === 'exec') &&
+                    (query.toUpperCase().includes('INSERT') ||
+                     query.toUpperCase().includes('DELETE') ||
+                     query.toUpperCase().includes('UPDATE'))) {
+                    await this.db.exec('PRAGMA foreign_keys = ON');
+                }
 
-            return await this.db[operation](query, params);
-        } catch (error) {
-            throw error;
-        }
+                return await this.db[operation](query, params);
+            },
+            `数据库操作-${operation}`,
+            { throwOnError: true, userFriendly: false }
+        );
     }
 
     /**
@@ -296,7 +222,7 @@ class DatabaseManager {
      */
     async transaction(callback) {
         if (!this.db) {
-            throw new Error('[数据库] 数据库未连接');
+            throw new Error('[数据库] SQLite数据库未连接');
         }
 
         // 确保外键约束已启用
@@ -349,7 +275,7 @@ class DatabaseManager {
         if (key) {
             this.cache.delete(key);
         } else {
-            logTime('[数据库] 清除所有缓存');
+            logTime('[数据库] 清除所有SQLite缓存');
             this.cache.clear();
         }
     }
@@ -379,9 +305,9 @@ class DatabaseManager {
             // 复制数据库文件
             copyFileSync(path.join('data', 'database.sqlite'), backupPath);
 
-            logTime(`[数据库] 已备份到: ${backupPath}`);
+            logTime(`[数据库] SQLite已备份到: ${backupPath}`);
         } catch (error) {
-            logTime(`[数据库] 备份失败: ${error.message}`, true);
+            logTime(`[数据库] SQLite备份失败: ${error.message}`, true);
             throw error;
         }
     }
@@ -399,9 +325,9 @@ class DatabaseManager {
             this.db = undefined;
             // 修改清除缓存的方法
             this.cache.clear();
-            logTime('[数据库] 数据库连接已关闭');
+            logTime('[数据库] SQLite数据库连接已关闭');
         } catch (error) {
-            logTime(`[数据库] 关闭数据库连接时出错: ${error.message}`, true);
+            logTime(`[数据库] 关闭SQLite数据库连接时出错: ${error.message}`, true);
             throw error;
         }
     }
@@ -420,7 +346,7 @@ class DatabaseManager {
      */
     getDb() {
         if (!this.db) {
-            throw new Error('数据库未连接');
+            throw new Error('SQLite数据库未连接');
         }
         return this.db;
     }
@@ -439,44 +365,46 @@ class DatabaseManager {
             .join(' AND ');
         const whereValues = Object.values(where);
 
-        try {
-            // 获取当前记录
-            const record = await this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
+        return ErrorHandler.handleService(
+            async () => {
+                // 获取当前记录
+                const record = await this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
 
-            if (!record) {
-                throw new Error('记录不存在');
-            }
+                if (!record) {
+                    throw new Error('记录不存在');
+                }
 
-            // 解析当前数组
-            let currentArray = [];
-            try {
-                currentArray = JSON.parse(record[field] || '[]');
-            } catch (error) {
-                logTime(`解析${field}失败，使用空数组: ${error.message}`, true);
-            }
+                // 解析当前数组
+                let currentArray = [];
+                try {
+                    currentArray = JSON.parse(record[field] || '[]');
+                } catch (error) {
+                    logTime(`解析${field}失败，使用空数组: ${error.message}`, true);
+                }
 
-            // 如果值存在则移除，不存在则添加
-            const index = currentArray.indexOf(value);
-            if (index !== -1) {
-                currentArray.splice(index, 1);
-            } else {
-                currentArray.push(value);
-            }
+                // 如果值存在则移除，不存在则添加
+                const index = currentArray.indexOf(value);
+                if (index !== -1) {
+                    currentArray.splice(index, 1);
+                } else {
+                    currentArray.push(value);
+                }
 
-            // 更新记录
-            await this.safeExecute(
-                'run',
-                `UPDATE ${table}
+                // 更新记录
+                await this.safeExecute(
+                    'run',
+                    `UPDATE ${table}
 	            SET ${field} = ?, updatedAt = ?
 	            WHERE ${whereClause}`,
-                [JSON.stringify(currentArray), Date.now(), ...whereValues],
-            );
+                    [JSON.stringify(currentArray), Date.now(), ...whereValues],
+                );
 
-            // 返回更新后的记录
-            return this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
-        } catch (error) {
-            throw error;
-        }
+                // 返回更新后的记录
+                return this.safeExecute('get', `SELECT * FROM ${table} WHERE ${whereClause}`, whereValues);
+            },
+            `更新数组字段-${table}.${field}`,
+            { throwOnError: true, userFriendly: false }
+        );
     }
 }
 

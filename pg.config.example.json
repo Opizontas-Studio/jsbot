@@ -1,0 +1,11 @@
+{
+    "host": "string (PostgreSQL host, e.g., localhost)",
+    "port": "number (PostgreSQL port, e.g., 5432 or 52001)",
+    "database": "string (Database name)",
+    "user": "string (PostgreSQL username)",
+    "password": "string (PostgreSQL password)",
+    "max": "number (Maximum number of clients in pool, default: 20)",
+    "idleTimeoutMillis": "number (Idle timeout in milliseconds, default: 30000)",
+    "connectionTimeoutMillis": "number (Connection timeout in milliseconds, default: 5000)"
+}
+

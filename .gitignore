@@ -8,6 +8,7 @@ yarn-error.log*
 # Runtime data and configurations
 data/
 config.json
+pg.config.json
 .env
 ecosystem.config.cjs
 
@@ -37,4 +38,5 @@ Thumbs.db
 *.swo
 *~
 
-tests/
+# 内置docs
+docs/

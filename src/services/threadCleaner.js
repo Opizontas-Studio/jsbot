@@ -3,6 +3,7 @@ import path from 'path';
 import { EmbedFactory } from '../factories/embedFactory.js';
 import { delay, globalBatchProcessor, globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
+import { pgSyncScheduler } from '../schedulers/pgSyncScheduler.js';
 
 const noop = () => undefined;
 
@@ -237,6 +238,11 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         const members = await thread.members.fetch();
         const memberCount = members.size;
 
+        // 共享成员数据给 PG 同步服务
+        if (pgSyncScheduler.isEnabled()) {
+            await pgSyncScheduler.receiveMemberData(thread.id, members);
+        }
+
         if (memberCount <= threshold) {
             // 更新任务进度显示跳过原因
             if (options.taskId) {
@@ -266,7 +272,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         // 获取历史缓存
         const cache = await loadThreadCache(thread.id);
         let cachedMessageIds = [];
-        let activeUsers = new Map();
+        const activeUsers = new Map();
 
         // 如果存在缓存，读取活跃用户数据
         if (cache) {
@@ -295,8 +301,8 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
         let messagesProcessed = 0;
         let hasMoreMessages = true;
         let reachedCachedMessages = false;
-        let lastMessageIds = [];
-        let estimatedTotalMessages = thread.messageCount || 1000; // 估计总消息数，用于计算进度
+        const lastMessageIds = [];
+        const estimatedTotalMessages = thread.messageCount || 1000; // 估计总消息数，用于计算进度
 
         // 更新进度：开始扫描消息
         if (options.taskId) {

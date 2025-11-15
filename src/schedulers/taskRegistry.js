@@ -9,6 +9,7 @@ import { cleanupCachedThreadsSequentially } from '../services/threadCleaner.js';
 import { delay, globalRequestQueue } from '../utils/concurrency.js';
 import { logTime } from '../utils/logger.js';
 import { punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';
+import { pgSyncScheduler } from './pgSyncScheduler.js';
 
 /**
  * 任务注册器 - 负责注册各种业务定时任务
@@ -31,6 +32,7 @@ export class TaskRegistry {
         this.registerPunishmentConfirmationTasks(client);
         this.registerChannelCarouselTasks(client);
         this.registerAutoDeleteChannelCleanupTasks(client);
+        this.registerPgSyncTasks(client);
     }
 
     /**
@@ -342,5 +344,32 @@ export class TaskRegistry {
         if (totalDeleted > 0) {
             logTime(`[定时任务] 自动删除频道清理完成，共删除 ${totalDeleted} 条消息`);
         }
+    }
+
+    /**
+     * 注册PostgreSQL同步任务
+     * @param {Object} client - Discord客户端
+     */
+    async registerPgSyncTasks(client) {
+        // 初始化调度器
+        await pgSyncScheduler.initialize(client);
+
+        // 创作者身份组同步 - 每小时
+        this.taskScheduler.addTask({
+            taskId: 'pg_user_roles_sync',
+            interval: 60 * 60 * 1000, // 1小时
+            task: () => pgSyncScheduler.syncCreatorRoles(client),
+            runImmediately: true
+        });
+
+        // 帖子成员同步 - 每5分钟
+        this.taskScheduler.addTask({
+            taskId: 'pg_post_members_sync',
+            interval: 5 * 60 * 1000, // 5分钟
+            task: () => pgSyncScheduler.processPostMembersBatch(client),
+            runImmediately: false // 延迟启动，等系统稳定
+        });
+
+        logTime('[定时任务] PostgreSQL同步任务已注册');
     }
 }

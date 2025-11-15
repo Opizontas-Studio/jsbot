@@ -7,6 +7,7 @@ import { EmbedFactory } from '../factories/embedFactory.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
+import { pgSyncScheduler } from '../schedulers/pgSyncScheduler.js';
 
 const execAsync = promisify(exec);
 
@@ -75,6 +76,15 @@ class MonitorService {
         const currentProcessing = globalRequestQueue.currentProcessing;
         const { processed, failed } = globalRequestQueue.stats;
 
+        // 获取 PG 同步统计信息
+        let pgSyncStats = null;
+        if (pgSyncScheduler.isEnabled()) {
+            pgSyncStats = await ErrorHandler.handleSilent(
+                async () => await pgSyncScheduler.getStats(),
+                '获取PG同步统计'
+            );
+        }
+
         const statusData = {
             ping,
             connectionStatus,
@@ -84,7 +94,8 @@ class MonitorService {
                 currentProcessing,
                 processed,
                 failed
-            }
+            },
+            pgSyncStats
         };
 
         return EmbedFactory.createSystemStatusEmbed(statusData);

@@ -131,38 +131,54 @@ export class EmbedFactory {
      * @returns {EmbedBuilder} 构建好的embed
      */
     static createSystemStatusEmbed(statusData) {
-        const { ping, connectionStatus, uptime, queueStats } = statusData;
+        const { ping, connectionStatus, uptime, queueStats, pgSyncStats } = statusData;
+
+        const fields = [
+            {
+                name: '网络延迟',
+                value: ping === -1 ? '无法获取' : `${ping}ms`,
+                inline: true,
+            },
+            {
+                name: 'WebSocket状态',
+                value: connectionStatus,
+                inline: true,
+            },
+            {
+                name: '运行时间',
+                value: uptime,
+                inline: true,
+            },
+            {
+                name: '任务统计',
+                value: [
+                    `📥 等待处理: ${queueStats.queueLength}`,
+                    `⚡ 正在处理: ${queueStats.currentProcessing}`,
+                    `✅ 已完成: ${queueStats.processed}`,
+                    `❌ 失败: ${queueStats.failed}`,
+                ].join('\n'),
+                inline: false,
+            }
+        ];
+
+        // 添加 PG 同步统计（如果启用）
+        if (pgSyncStats) {
+            fields.push({
+                name: '📊 数据同步状态',
+                value: [
+                    `总帖子: ${pgSyncStats.totalThreads}`,
+                    `队列: 高${pgSyncStats.highPriority} 中${pgSyncStats.mediumPriority} 低${pgSyncStats.lowPriority}`,
+                    `今日同步: ${pgSyncStats.todaySynced}次`,
+                    `错误: ${pgSyncStats.errorCount}次`
+                ].join('\n'),
+                inline: false
+            });
+        }
 
         return new EmbedBuilder()
             .setColor(EmbedFactory.Colors.INFO)
             .setTitle('系统运行状态')
-            .setFields(
-                {
-                    name: '网络延迟',
-                    value: ping === -1 ? '无法获取' : `${ping}ms`,
-                    inline: true,
-                },
-                {
-                    name: 'WebSocket状态',
-                    value: connectionStatus,
-                    inline: true,
-                },
-                {
-                    name: '运行时间',
-                    value: uptime,
-                    inline: true,
-                },
-                {
-                    name: '任务统计',
-                    value: [
-                        `📥 等待处理: ${queueStats.queueLength}`,
-                        `⚡ 正在处理: ${queueStats.currentProcessing}`,
-                        `✅ 已完成: ${queueStats.processed}`,
-                        `❌ 失败: ${queueStats.failed}`,
-                    ].join('\n'),
-                    inline: false,
-                },
-            )
+            .setFields(fields)
             .setTimestamp()
             .setFooter({ text: '系统监控' });
     }
@@ -646,17 +662,19 @@ export class EmbedFactory {
                     description += `，附加警告${formatPunishmentDuration(punishment.warningDuration)}`;
                 }
                 break;
-            case 'mute':
+            case 'mute': {
                 const muteDuration = punishment.duration > 0 ? formatPunishmentDuration(punishment.duration) : '永久';
                 description = `<@${target.id}> 已被禁言${muteDuration}`;
                 if (punishment.warningDuration) {
                     description += `，且附加警告${formatPunishmentDuration(punishment.warningDuration)}`;
                 }
                 break;
-            case 'warning':
+            }
+            case 'warning': {
                 const warningDuration = punishment.warningDuration ? formatPunishmentDuration(punishment.warningDuration) : '永久';
                 description = `<@${target.id}> 已被警告${warningDuration}`;
                 break;
+            }
         }
 
         description += `。理由：${punishment.reason || '未提供原因'}`;

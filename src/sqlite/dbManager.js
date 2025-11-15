@@ -167,6 +167,24 @@ class DatabaseManager {
             )
         `);
 
+        // 创建 PostgreSQL 同步状态表
+        await this.db.exec(`
+            CREATE TABLE IF NOT EXISTS pg_sync_state (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                thread_id TEXT UNIQUE NOT NULL,
+                last_sync_at INTEGER,
+                last_success_at INTEGER,
+                member_count INTEGER DEFAULT 0,
+                sync_count INTEGER DEFAULT 0,
+                error_count INTEGER DEFAULT 0,
+                last_error TEXT,
+                priority TEXT DEFAULT 'low' CHECK(priority IN ('high', 'medium', 'low')),
+                is_active INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            )
+        `);
+
         // 创建索引
         await this.db.exec(`
 	        CREATE INDEX IF NOT EXISTS idx_punishments_user ON punishments(userId);
@@ -183,6 +201,8 @@ class DatabaseManager {
 	        CREATE INDEX IF NOT EXISTS idx_votes_thread ON votes(threadId);
 	        CREATE INDEX IF NOT EXISTS idx_votes_status ON votes(status, endTime);
 	        CREATE INDEX IF NOT EXISTS idx_votes_type ON votes(type);
+	        CREATE INDEX IF NOT EXISTS idx_pg_sync_priority ON pg_sync_state(priority, last_sync_at);
+	        CREATE INDEX IF NOT EXISTS idx_pg_sync_thread ON pg_sync_state(thread_id);
 	    `);
     }
 

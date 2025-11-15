@@ -152,8 +152,9 @@ export class ComponentV2Factory {
      * @param {string} config.baseId - 基础ID前缀
      * @param {number} config.currentPage - 当前页码
      * @param {number} config.totalPages - 总页数
+     * @param {number} [config.totalRecords] - 总记录数（可选，用于显示在placeholder中）
      */
-    static addPaginationSelectMenu(container, { baseId, currentPage, totalPages }) {
+    static addPaginationSelectMenu(container, { baseId, currentPage, totalPages, totalRecords }) {
         // 如果只有1页，不添加分页菜单
         if (totalPages <= 1) return;
 
@@ -173,9 +174,16 @@ export class ComponentV2Factory {
             options.push(option);
         }
 
+        // 构建placeholder，包含统计信息
+        let placeholder = `📄 第 ${currentPage}/${totalPages} 页`;
+        if (totalRecords !== undefined) {
+            placeholder += ` · 共 ${totalRecords} 项`;
+        }
+        placeholder += ' - 点击跳转';
+
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId(`${baseId}_select`)
-            .setPlaceholder(`📄 当前: 第 ${currentPage}/${totalPages} 页 - 点击跳转`)
+            .setPlaceholder(placeholder)
             .addOptions(options);
 
         const actionRow = new ActionRowBuilder().addComponents(selectMenu);

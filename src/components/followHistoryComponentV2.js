@@ -31,15 +31,10 @@ export class FollowHistoryComponentV2 {
             showLeft ? ComponentV2Factory.Colors.WARNING : ComponentV2Factory.Colors.DISCORD_BLUE
         );
 
-        // 标题和统计信息（合并到一起）
+        // 标题（使用二级标题）
         const emoji = showLeft ? '📜' : '✅';
         const typeText = showLeft ? '曾经' : '正在';
-        ComponentV2Factory.addHeading(container, `${emoji} ${user.username} 的${typeText}关注`, 1);
-        
-        ComponentV2Factory.addText(
-            container,
-            `共 **${totalRecords}** 个帖子 | 第 **${currentPage}/${totalPages}** 页`
-        );
+        ComponentV2Factory.addHeading(container, `${emoji} ${user.username} 的${typeText}关注`, 2);
 
         // 如果没有记录
         if (records.length === 0) {
@@ -58,7 +53,8 @@ export class FollowHistoryComponentV2 {
             ComponentV2Factory.addPaginationSelectMenu(container, {
                 baseId: `follow_history_page_${userId}_${showLeft ? 'all' : 'active'}`,
                 currentPage,
-                totalPages
+                totalPages,
+                totalRecords
             });
         }
 

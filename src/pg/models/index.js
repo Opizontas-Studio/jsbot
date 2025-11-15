@@ -19,12 +19,18 @@ export function initModels(sequelize) {
         UserRoles: defineUserRoles(sequelize),
     };
 
-    // 定义模型之间的关联关系（如果需要）
-    // 例如：
-    // models.PostsMain.hasMany(models.PostMembers, { foreignKey: 'thread_id' });
-    // models.PostMembers.belongsTo(models.PostsMain, { foreignKey: 'thread_id' });
-    // models.UserData.hasMany(models.PostMembers, { foreignKey: 'user_id' });
-    // models.PostMembers.belongsTo(models.UserData, { foreignKey: 'user_id' });
+    // 定义模型之间的关联关系
+    // PostsMain 和 PostMembers 的关联
+    models.PostsMain.hasMany(models.PostMembers, { 
+        foreignKey: 'thread_id',
+        sourceKey: 'thread_id',
+        as: 'members'
+    });
+    models.PostMembers.belongsTo(models.PostsMain, { 
+        foreignKey: 'thread_id',
+        targetKey: 'thread_id',
+        as: 'post'
+    });
 
     return models;
 }

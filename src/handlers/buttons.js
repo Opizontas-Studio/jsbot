@@ -17,6 +17,7 @@ import { globalCooldownManager } from '../utils/cooldownManager.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 import { checkConfirmationPermission, punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';
+import { followHistoryService } from '../services/user/followHistoryService.js';
 
 /**
  * 查找对应的按钮配置
@@ -161,6 +162,38 @@ export const buttonHandlers = {
 
         const newPage = currentPage < totalPages ? currentPage + 1 : 1;
         await interaction.update(pages[newPage - 1]);
+    },
+
+    // 历史关注分页按钮处理器（使用统一处理器）
+    follow_history_page: async interaction => {
+        // 从customId中提取方向: follow_history_page_{userId}_{type}_prev/next
+        const direction = interaction.customId.endsWith('_prev') ? 'prev' : 'next';
+        
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => followHistoryService.handlePaginationButton(interaction, direction),
+            '历史关注翻页',
+            { ephemeral: true }
+        );
+    },
+
+    // 历史关注筛选按钮处理器
+    follow_history_switch_active: async interaction => {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => followHistoryService.handleFilterSwitch(interaction, false),
+            '切换到正在关注',
+            { ephemeral: true }
+        );
+    },
+
+    follow_history_switch_all: async interaction => {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => followHistoryService.handleFilterSwitch(interaction, true),
+            '切换到全部关注',
+            { ephemeral: true }
+        );
     },
 
     // 议事区支持按钮处理器
@@ -455,7 +488,7 @@ export const buttonHandlers = {
                         await interaction.message.edit({
                             embeds: [originalEmbed],
                             components: []
-                        }).catch(() => {}); // 静默失败
+                        }).catch(() => { /* 静默失败 */ });
                     }
 
                     throw new Error('确认数据已过期或不存在');
@@ -597,6 +630,11 @@ const BUTTON_CONFIG = {
     // 翻页相关
     page_prev: { handler: buttonHandlers.page_prev, needDefer: false },
     page_next: { handler: buttonHandlers.page_next, needDefer: false },
+
+    // 历史关注相关
+    follow_history_page: { handler: buttonHandlers.follow_history_page, needDefer: false },
+    follow_history_switch_active: { handler: buttonHandlers.follow_history_switch_active, needDefer: false, cooldown: 3000 },
+    follow_history_switch_all: { handler: buttonHandlers.follow_history_switch_all, needDefer: false, cooldown: 3000 },
 
     // 投稿相关
     submit_opinion: { handler: buttonHandlers.submit_opinion, needDefer: false, cooldown: 30000 },

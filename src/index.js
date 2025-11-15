@@ -37,6 +37,9 @@ const client = new Client({
             maxSize: 200, // 消息缓存配置
         },
     }),
+    rest: {
+        retries: 3, // 最多重试3次
+    },
     failIfNotExists: false,
 });
 

@@ -66,7 +66,7 @@ export async function handleCommand(interaction) {
                 await interaction.deferReply();
             }
         } catch (error) {
-            logTime(`[命令${interaction.commandName}] deferReply失败: ${error.message}`, true);
+            logTime(`[命令${interaction.commandName}] 用户${interaction.user.tag} 在 ${interaction.channel.name} (id: ${interaction.channel.id})中 deferReply失败: ${error.message}`, true);
             return;
         }
     }

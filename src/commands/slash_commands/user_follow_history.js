@@ -13,7 +13,7 @@ export default {
             option
                 .setName('筛选')
                 .setDescription('选择要查看的关注类型')
-                .setRequired(true)
+                .setRequired(false)
                 .addChoices(
                     { name: '正在关注', value: 'active' },
                     { name: '全部关注', value: 'all' }
@@ -23,7 +23,7 @@ export default {
     async execute(interaction) {
         try {
             const userId = interaction.user.id;
-            const filterType = interaction.options.getString('筛选');
+            const filterType = interaction.options.getString('筛选') || 'active';
             const showAll = filterType === 'all';
 
             // 使用服务层统一逻辑构建消息

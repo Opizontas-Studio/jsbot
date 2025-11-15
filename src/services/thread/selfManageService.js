@@ -450,22 +450,20 @@ export async function togglePinMessage(message, user, thread) {
     const isPinned = message.pinned;
     const action = isPinned ? '取消标注' : '标注';
 
-    // 使用请求队列控制速率
-    await globalRequestQueue.add(async () => {
-        await ErrorHandler.handleService(
-            async () => {
-                if (isPinned) {
-                    await message.unpin();
-                    logTime(`[自助管理] 楼主 ${user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
-                } else {
-                    await message.pin();
-                    logTime(`[自助管理] 楼主 ${user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
-                }
-            },
-            `${action}消息`,
-            { throwOnError: true }
-        );
-    }, 3); // 优先级3
+    // 直接执行,让discord.js处理速率限制
+    await ErrorHandler.handleService(
+        async () => {
+            if (isPinned) {
+                await message.unpin();
+                logTime(`[自助管理] 楼主 ${user.tag} 取消标注了帖子 ${thread.name} 中的一条消息`);
+            } else {
+                await message.pin();
+                logTime(`[自助管理] 楼主 ${user.tag} 标注了帖子 ${thread.name} 中的一条消息`);
+            }
+        },
+        `${action}消息`,
+        { throwOnError: true }
+    );
 
     return { action, isPinned: !isPinned };
 }

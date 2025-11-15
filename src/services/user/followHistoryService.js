@@ -17,7 +17,7 @@ class FollowHistoryService {
      */
     constructor(config = {}) {
         this.config = {
-            pageSize: config.pageSize || 20
+            pageSize: config.pageSize || 10
         };
     }
 
@@ -383,14 +383,14 @@ class FollowHistoryService {
                         const match = component.label.match(/(\d+)\s*\/\s*(\d+)/);
                         if (match) {
                             const currentPage = parseInt(match[1]);
-                            logTime(`[关注历史] 提取到当前页码: ${currentPage}`);
+                            // logTime(`[关注历史] 提取到当前页码: ${currentPage}`);
                             return currentPage;
                         }
                     }
                 }
             }
             
-            logTime(`[关注历史] 未找到页码信息，使用默认值 1`, true);
+            // logTime(`[关注历史] 未找到页码信息，使用默认值 1`, true);
             return 1; // 默认第1页
         } catch (error) {
             logTime(`[关注历史] 提取页码失败: ${error.message}`, true);

@@ -17,7 +17,7 @@ export default [
             'no-multi-spaces': 'error',
             'no-var': 'error',
             'no-undef': 'off',
-            'prefer-const': 'warn',
+            'prefer-const': 'off',
             'no-unused-vars': 'off',
             yoda: 'error',
         },

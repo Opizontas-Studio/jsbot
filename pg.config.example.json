@@ -5,6 +5,7 @@
     "user": "string (PostgreSQL username)",
     "password": "string (PostgreSQL password)",
     "max": "number (Maximum number of clients in pool, default: 20)",
+    "logging": "boolean (Whether to log PostgreSQL queries, default: false)",
     "idleTimeoutMillis": "number (Idle timeout in milliseconds, default: 30000)",
     "connectionTimeoutMillis": "number (Connection timeout in milliseconds, default: 5000)"
 }

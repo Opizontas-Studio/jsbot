@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
 import { followHistoryService } from '../../services/user/followHistoryService.js';
+import { ComponentV2Factory } from '../../factories/componentV2Factory.js';
 
 export default {
     cooldown: 10,
@@ -36,8 +37,10 @@ export default {
             });
 
             if (result.isEmpty) {
+                // 使用Component V2显示空状态消息，保持一致性
                 await interaction.editReply({
-                    content: `✅ ${result.message}`,
+                    components: ComponentV2Factory.buildEmptyStateMessage(`✅ ${result.message}`),
+                    flags: ['IsComponentsV2', 'Ephemeral']
                 });
                 return;
             }

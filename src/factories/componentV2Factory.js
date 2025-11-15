@@ -209,6 +209,18 @@ export class ComponentV2Factory {
     }
 
     /**
+     * 构建空状态消息
+     * @param {string} message - 消息文本
+     * @param {Array<number>} [color] - 容器颜色（默认为SUCCESS绿色）
+     * @returns {Array<ContainerBuilder>} 包含单个容器的数组
+     */
+    static buildEmptyStateMessage(message, color = null) {
+        const container = this.createContainer(color || this.Colors.SUCCESS);
+        this.addText(container, message);
+        return [container];
+    }
+
+    /**
      * 常用颜色配置
      */
     static Colors = {

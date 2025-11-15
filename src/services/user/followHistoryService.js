@@ -3,6 +3,7 @@ import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
 import { Op } from 'sequelize';
 import { FollowHistoryComponentV2 } from '../../components/followHistoryComponentV2.js';
+import { ComponentV2Factory } from '../../factories/componentV2Factory.js';
 
 /**
  * 用户关注历史服务
@@ -350,10 +351,10 @@ class FollowHistoryService {
                 });
 
                 if (result.isEmpty) {
+                    // 使用Component V2显示空状态消息
                     await interaction.update({
-                        content: `✅ ${result.message}`,
-                        components: []
-                        // 不包含flags字段，因为消息已经有IS_COMPONENTS_V2和Ephemeral标志
+                        components: ComponentV2Factory.buildEmptyStateMessage(`✅ ${result.message}`)
+                        // 不包含flags字段和content字段，因为消息已经有IS_COMPONENTS_V2标志
                     });
                     return;
                 }

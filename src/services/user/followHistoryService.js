@@ -24,10 +24,10 @@ class FollowHistoryService {
     /**
      * 获取用户的关注历史记录
      * @param {string} userId - 用户ID
-     * @param {boolean} showAll - 是否显示曾经关注（已离开的）
+     * @param {boolean} showLeft - 是否显示已离开的（曾经关注）
      * @returns {Promise<Array>} 关注记录列表
      */
-    async getUserFollowHistory(userId, showAll = false) {
+    async getUserFollowHistory(userId, showLeft = false) {
         return await ErrorHandler.handleService(
             async () => {
                 if (!pgManager.getConnectionStatus()) {
@@ -39,9 +39,9 @@ class FollowHistoryService {
                 // 构建查询条件
                 const whereClause = {
                     user_id: userId,
-                    // showAll = false: 正在关注（is_leave = false）
-                    // showAll = true: 曾经关注（is_leave = true）
-                    is_leave: showAll ? true : false
+                    // showLeft = false: 正在关注（is_leave = false）
+                    // showLeft = true: 曾经关注（is_leave = true）
+                    is_leave: showLeft ? true : false
                 };
 
                 // 查询用户的关注记录，并联表获取帖子信息
@@ -93,7 +93,7 @@ class FollowHistoryService {
                     };
                 });
 
-                logTime(`[关注历史查询] 用户 ${userId} 查询${showAll ? '曾经' : '正在'}关注，返回 ${formattedRecords.length} 条记录`);
+                logTime(`[关注历史查询] 用户 ${userId} 查询${showLeft ? '曾经' : '正在'}关注，返回 ${formattedRecords.length} 条记录`);
                 
                 return formattedRecords;
             },
@@ -189,22 +189,22 @@ class FollowHistoryService {
      * @param {Object} params - 参数对象
      * @param {string} params.userId - 用户ID
      * @param {Object} params.user - 用户对象
-     * @param {boolean} params.showAll - 是否显示曾经关注（已离开的）
+     * @param {boolean} params.showLeft - 是否显示已离开的（曾经关注）
      * @param {number} params.page - 页码
      * @param {Object} params.client - Discord客户端
      * @param {number} params.pageSize - 每页显示数量（可选，默认使用配置值）
      * @returns {Promise<Object>} 消息数据
      */
-    async buildFollowHistoryMessage({ userId, user, showAll, page = 1, client, pageSize }) {
+    async buildFollowHistoryMessage({ userId, user, showLeft, page = 1, client, pageSize }) {
         return await ErrorHandler.handleService(
             async () => {
                 // 查询数据（已格式化）
-                const formattedRecords = await this.getUserFollowHistory(userId, showAll);
+                const formattedRecords = await this.getUserFollowHistory(userId, showLeft);
 
                 if (!formattedRecords || formattedRecords.length === 0) {
                     return {
                         isEmpty: true,
-                        message: showAll 
+                        message: showLeft 
                             ? '你没有曾经关注过的帖子' 
                             : '你当前没有正在关注的帖子'
                     };
@@ -221,19 +221,19 @@ class FollowHistoryService {
                     currentPage: paginationData.currentPage,
                     totalPages: paginationData.totalPages,
                     totalRecords: paginationData.totalRecords,
-                    showAll: showAll,
+                    showLeft: showLeft,
                     userId: userId
                 });
 
                 // 更新缓存
-                const cacheKey = `${userId}_${showAll ? 'all' : 'active'}`;
+                const cacheKey = `${userId}_${showLeft ? 'all' : 'active'}`;
                 if (!client.followHistoryCache) {
                     client.followHistoryCache = new Map();
                 }
                 client.followHistoryCache.set(cacheKey, {
                     records: formattedRecords,
                     user: user,
-                    showAll: showAll,
+                    showLeft: showLeft,
                     pageSize: effectivePageSize,
                     timestamp: Date.now()
                 });
@@ -271,7 +271,7 @@ class FollowHistoryService {
                 // 从customId中提取信息: follow_history_page_{userId}_{type}_prev/next
                 const parts = interaction.customId.split('_');
                 const userId = parts[3];
-                const showAll = parts[4] === 'all';
+                const showLeft = parts[4] === 'all';
                 
                 // 检查权限
                 if (interaction.user.id !== userId) {
@@ -282,7 +282,7 @@ class FollowHistoryService {
                 const currentPage = this._extractCurrentPage(interaction);
                 
                 // 从缓存获取数据
-                const cacheKey = `${userId}_${showAll ? 'all' : 'active'}`;
+                const cacheKey = `${userId}_${showLeft ? 'all' : 'active'}`;
                 const cachedData = interaction.client.followHistoryCache?.get(cacheKey);
 
                 if (!cachedData) {
@@ -306,12 +306,12 @@ class FollowHistoryService {
                     currentPage: paginationData.currentPage,
                     totalPages: paginationData.totalPages,
                     totalRecords: paginationData.totalRecords,
-                    showAll: cachedData.showAll,
+                    showLeft: cachedData.showLeft,
                     userId: userId
                 });
 
                 // 添加ActionRows到消息
-                // 更新消息时不要包含flags字段，因为IS_COMPONENTS_V2标志一旦设置就无法移除
+                // 更新消息时不包含flags字段，IS_COMPONENTS_V2标志一旦设置就无法移除
                 const updatePayload = {
                     components: [...messageData.components, ...messageData.actionRows]
                 };
@@ -326,9 +326,9 @@ class FollowHistoryService {
     /**
      * 处理筛选切换按钮
      * @param {ButtonInteraction} interaction - 按钮交互对象
-     * @param {boolean} targetShowAll - 目标显示模式
+     * @param {boolean} targetShowLeft - 目标显示模式（是否显示已离开的）
      */
-    async handleFilterSwitch(interaction, targetShowAll) {
+    async handleFilterSwitch(interaction, targetShowLeft) {
         return await ErrorHandler.handleService(
             async () => {
                 // 从customId中提取用户ID: follow_history_switch_{type}_{userId}
@@ -344,7 +344,7 @@ class FollowHistoryService {
                 const result = await this.buildFollowHistoryMessage({
                     userId,
                     user: interaction.user,
-                    showAll: targetShowAll,
+                    showLeft: targetShowLeft,
                     page: 1,
                     client: interaction.client
                 });

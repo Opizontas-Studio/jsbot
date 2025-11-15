@@ -191,7 +191,7 @@ export const buttonHandlers = {
         await ErrorHandler.handleInteraction(
             interaction,
             () => followHistoryService.handleFilterSwitch(interaction, true),
-            '切换到全部关注',
+            '切换到曾经关注',
             { ephemeral: true }
         );
     },

@@ -28,4 +28,13 @@ $RECYCLE.BIN/
 ehthumbs.db
 Thumbs.db
 
+# IDE配置文件
+.vscode/
+.cursor/
+.idea/
+.fleet/
+*.swp
+*.swo
+*~
+
 tests/

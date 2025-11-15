@@ -52,13 +52,22 @@ export class FollowHistoryComponentV2 {
             this._buildRecordsList(container, records, currentPage, showLeft, 20);
         }
 
-        // 添加操作按钮
-        const components = [container];
-        const actionRows = this._buildActionRows(userId, showLeft, currentPage, totalPages);
+        // 添加分页选择菜单（如果有多页）
+        if (totalPages > 1) {
+            ComponentV2Factory.addSeparator(container);
+            ComponentV2Factory.addPaginationSelectMenu(container, {
+                baseId: `follow_history_page_${userId}_${showLeft ? 'all' : 'active'}`,
+                currentPage,
+                totalPages
+            });
+        }
+
+        // 添加筛选按钮行
+        const filterActionRow = this._buildFilterButtonRow(userId, showLeft);
         
         return {
-            components: [...components],
-            actionRows: actionRows, // 返回ActionRow用于添加到消息
+            components: [container],
+            actionRows: [filterActionRow], // 返回ActionRow用于添加到消息
             flags: [MessageFlags.IsComponentsV2, MessageFlags.Ephemeral]
         };
     }
@@ -102,22 +111,10 @@ export class FollowHistoryComponentV2 {
     }
 
     /**
-     * 构建操作按钮行
+     * 构建筛选按钮行
      * @private
      */
-    static _buildActionRows(userId, showLeft, currentPage, totalPages) {
-        const rows = [];
-
-        // 分页按钮行（如果有多页）
-        if (totalPages > 1) {
-            rows.push(ComponentV2Factory.createPaginationRow({
-                baseId: `follow_history_page_${userId}_${showLeft ? 'all' : 'active'}`,
-                currentPage,
-                totalPages
-            }));
-        }
-
-        // 筛选按钮行
+    static _buildFilterButtonRow(userId, showLeft) {
         const filterButtons = [
             ComponentV2Factory.createButton({
                 customId: `follow_history_switch_active_${userId}`,
@@ -132,9 +129,7 @@ export class FollowHistoryComponentV2 {
                 emoji: '📜'
             })
         ];
-        rows.push(ComponentV2Factory.createButtonRow(filterButtons));
-
-        return rows;
+        return ComponentV2Factory.createButtonRow(filterButtons);
     }
 
     /**

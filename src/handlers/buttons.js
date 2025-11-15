@@ -164,19 +164,6 @@ export const buttonHandlers = {
         await interaction.update(pages[newPage - 1]);
     },
 
-    // 历史关注分页按钮处理器（使用统一处理器）
-    follow_history_page: async interaction => {
-        // 从customId中提取方向: follow_history_page_{userId}_{type}_prev/next
-        const direction = interaction.customId.endsWith('_prev') ? 'prev' : 'next';
-        
-        await ErrorHandler.handleInteraction(
-            interaction,
-            () => followHistoryService.handlePaginationButton(interaction, direction),
-            '历史关注翻页',
-            { ephemeral: true }
-        );
-    },
-
     // 历史关注筛选按钮处理器
     follow_history_switch_active: async interaction => {
         await ErrorHandler.handleInteraction(
@@ -632,7 +619,6 @@ const BUTTON_CONFIG = {
     page_next: { handler: buttonHandlers.page_next, needDefer: false },
 
     // 历史关注相关
-    follow_history_page: { handler: buttonHandlers.follow_history_page, needDefer: false },
     follow_history_switch_active: { handler: buttonHandlers.follow_history_switch_active, needDefer: false, cooldown: 3000 },
     follow_history_switch_all: { handler: buttonHandlers.follow_history_switch_all, needDefer: false, cooldown: 3000 },
 

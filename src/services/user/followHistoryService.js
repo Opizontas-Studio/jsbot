@@ -262,14 +262,13 @@ class FollowHistoryService {
     }
 
     /**
-     * 处理分页按钮交互
-     * @param {ButtonInteraction} interaction - 按钮交互对象
-     * @param {string} direction - 方向: 'prev' | 'next'
+     * 处理分页选择菜单交互
+     * @param {StringSelectMenuInteraction} interaction - 选择菜单交互对象
      */
-    async handlePaginationButton(interaction, direction) {
+    async handlePaginationSelectMenu(interaction) {
         return await ErrorHandler.handleService(
             async () => {
-                // 从customId中提取信息: follow_history_page_{userId}_{type}_prev/next
+                // 从customId中提取信息: follow_history_page_{userId}_{type}_select
                 const parts = interaction.customId.split('_');
                 const userId = parts[3];
                 const showLeft = parts[4] === 'all';
@@ -279,8 +278,8 @@ class FollowHistoryService {
                     throw new Error('这不是你的查询结果');
                 }
 
-                // 获取当前页码
-                const currentPage = this._extractCurrentPage(interaction);
+                // 从选择菜单获取目标页码
+                const targetPage = parseInt(interaction.values[0]);
                 
                 // 从缓存获取数据
                 const cacheKey = `${userId}_${showLeft ? 'all' : 'active'}`;
@@ -289,14 +288,11 @@ class FollowHistoryService {
                 if (!cachedData) {
                     throw new Error('页面数据已过期，请重新执行查询命令');
                 }
-
-                // 计算新页码
-                const newPage = direction === 'prev' ? currentPage - 1 : currentPage + 1;
                 
                 // 分页处理
                 const paginationData = FollowHistoryComponentV2.paginate(
                     cachedData.records,
-                    newPage,
+                    targetPage,
                     cachedData.pageSize
                 );
 
@@ -368,36 +364,6 @@ class FollowHistoryService {
         );
     }
 
-    /**
-     * 从交互消息中提取当前页码
-     * @private
-     */
-    _extractCurrentPage(interaction) {
-        try {
-            // 
-            // Component V2需要从components中提取，查找分页信息按钮的label（它的customId包含 _info）
-            for (const actionRow of interaction.message.components) {
-                for (const component of actionRow.components) {
-                    // 寻找禁用的页码信息按钮（customId 以 _info 结尾）
-                    if (component.customId && component.customId.includes('_info') && 
-                        component.label && component.label.includes('/')) {
-                        const match = component.label.match(/(\d+)\s*\/\s*(\d+)/);
-                        if (match) {
-                            const currentPage = parseInt(match[1]);
-                            // logTime(`[关注历史] 提取到当前页码: ${currentPage}`);
-                            return currentPage;
-                        }
-                    }
-                }
-            }
-            
-            // logTime(`[关注历史] 未找到页码信息，使用默认值 1`, true);
-            return 1; // 默认第1页
-        } catch (error) {
-            logTime(`[关注历史] 提取页码失败: ${error.message}`, true);
-            return 1;
-        }
-    }
 }
 
 // 导出单例

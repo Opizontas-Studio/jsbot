@@ -146,38 +146,40 @@ export class ComponentV2Factory {
     }
 
     /**
-     * 创建分页按钮组
+     * 创建分页选择菜单（添加到Container中）
+     * @param {ContainerBuilder} container - 容器
      * @param {Object} config - 分页配置
      * @param {string} config.baseId - 基础ID前缀
      * @param {number} config.currentPage - 当前页码
      * @param {number} config.totalPages - 总页数
-     * @returns {ActionRowBuilder}
      */
-    static createPaginationRow({ baseId, currentPage, totalPages }) {
-        const prevButton = this.createButton({
-            customId: `${baseId}_prev`,
-            label: '上一页',
-            style: 'primary',
-            emoji: '⬅️',
-            disabled: currentPage === 1
-        });
+    static addPaginationSelectMenu(container, { baseId, currentPage, totalPages }) {
+        // 如果只有1页，不添加分页菜单
+        if (totalPages <= 1) return;
 
-        const infoButton = this.createButton({
-            customId: `${baseId}_info`,
-            label: `${currentPage} / ${totalPages}`,
-            style: 'secondary',
-            disabled: true
-        });
+        // 生成页码选项
+        const options = [];
+        for (let i = 1; i <= totalPages; i++) {
+            const option = new StringSelectMenuOptionBuilder()
+                .setLabel(`第 ${i} 页`)
+                .setValue(String(i));
+            
+            // 当前页添加描述和emoji
+            if (i === currentPage) {
+                option.setDescription('当前页')
+                      .setEmoji('📍');
+            }
+            
+            options.push(option);
+        }
 
-        const nextButton = this.createButton({
-            customId: `${baseId}_next`,
-            label: '下一页',
-            style: 'primary',
-            emoji: '➡️',
-            disabled: currentPage === totalPages
-        });
+        const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId(`${baseId}_select`)
+            .setPlaceholder(`📄 当前: 第 ${currentPage}/${totalPages} 页 - 点击跳转`)
+            .addOptions(options);
 
-        return this.createButtonRow([prevButton, infoButton, nextButton]);
+        const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+        container.addActionRowComponents(actionRow);
     }
 
     /**

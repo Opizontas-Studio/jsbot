@@ -1,4 +1,5 @@
 import { handleRemoveReaction } from '../services/thread/selfManageService.js';
+import { followHistoryService } from '../services/user/followHistoryService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 
@@ -36,6 +37,11 @@ export const selectMenuHandlers = {
 
         await handleRemoveReaction(interaction, messageId, userId, selectedValue);
     },
+
+    // 关注历史分页选择菜单处理器
+    follow_history_page: async interaction => {
+        await followHistoryService.handlePaginationSelectMenu(interaction);
+    },
 };
 
 // 选择菜单配置对象
@@ -43,6 +49,10 @@ const SELECT_MENU_CONFIG = {
     remove_reaction: {
         handler: selectMenuHandlers.remove_reaction,
         needDefer: true
+    },
+    follow_history_page: {
+        handler: selectMenuHandlers.follow_history_page,
+        needDefer: false // 使用 interaction.update()，不需要 defer
     },
 };
 

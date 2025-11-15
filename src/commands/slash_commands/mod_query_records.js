@@ -305,7 +305,7 @@ export default {
                 const mainGuildId = mainGuildConfig?.id;
 
                 // 如果筛选了特定用户，直接使用传入的targetUser，否则只缓存API查询唯一值
-                let userCache = new Map();
+                const userCache = new Map();
 
                 // 如果是查询特定用户
                 if (targetUser) {

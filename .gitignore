@@ -28,6 +28,7 @@ $RECYCLE.BIN/
 .TemporaryItems
 ehthumbs.db
 Thumbs.db
+.last_version
 
 # IDE配置文件
 .vscode/

@@ -71,16 +71,35 @@ export default {
  * @param {Channel} channel - 目标频道
  */
 async function createCreatorApplicationMessage(interaction, channel) {
-    // 创建申请按钮
-    const button = new ButtonBuilder().setCustomId('apply_creator_role').setLabel('申请').setStyle(ButtonStyle.Primary);
+    // 创建申请和放弃按钮
+    const applyButton = new ButtonBuilder()
+        .setCustomId('apply_creator_role')
+        .setLabel('申请创作者身份组')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🎨');
 
-    const row = new ActionRowBuilder().addComponents(button);
+    const optOutButton = new ButtonBuilder()
+        .setCustomId('opt_out_creator_role')
+        .setLabel('放弃创作者身份组')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🚫');
+
+    const row = new ActionRowBuilder().addComponents(applyButton, optOutButton);
 
     // 创建嵌入消息
     const embed = new EmbedBuilder()
-        .setTitle('创作者身份组自助申请')
+        .setTitle('🎨 创作者身份组自助办理')
         .setDescription(
-            '请您点击下方按钮输入您的达到5个正面反应的作品帖子链接（形如 https://discord.com/channels/.../... ），bot会自动审核，通过则为您添加创作者身份组。',
+            [
+                '**申请创作者身份组：**',
+                '点击下方"申请"按钮，输入您达到5个正面反应的作品帖子链接（形如 https://discord.com/channels/.../... ），bot会自动审核。',
+                '',
+                '**自动发放：**',
+                '当您的帖子达到5个正面反应时，社区会以一定频率自动为您发放创作者身份组哦。',
+                '',
+                '**放弃身份组：**',
+                '点击下方"放弃"按钮，可以退出创作者身份组，社区将不再为您自动发放，除非您手动申请。',
+            ].join('\n'),
         )
         .setColor(0x0099ff);
 

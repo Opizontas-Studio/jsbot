@@ -1,6 +1,6 @@
 import { carouselServiceManager } from '../services/carousel/carouselManager.js';
 import { opinionMailboxService } from '../services/user/opinionMailboxService.js';
-import { handleCreatorRoleApplication } from '../services/role/roleApplication.js';
+import { handleCreatorRoleApplication } from '../services/role/creatorRoleService.js';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 

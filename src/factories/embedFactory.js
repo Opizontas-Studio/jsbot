@@ -333,14 +333,18 @@ export class EmbedFactory {
      * @param {number} options.maxReactions - 最高反应数
      * @param {string} options.serverName - 作品所在服务器名称
      * @param {boolean} options.approved - 是否通过审核
+     * @param {boolean} options.isAutoGrant - 是否为自动发放
      * @returns {Object} 原始embed对象
      */
     static createCreatorRoleAuditEmbed(options) {
-        const { user, threadLink, maxReactions, serverName, approved } = options;
+        const { user, threadLink, maxReactions, serverName, approved, isAutoGrant = false } = options;
+
+        const titlePrefix = isAutoGrant ? '🤖 [自动发放] ' : '';
+        const footerText = isAutoGrant ? '自动发放系统' : '自动审核系统';
 
         return {
             color: approved ? EmbedFactory.Colors.SUCCESS : EmbedFactory.Colors.ERROR,
-            title: approved ? '✅ 创作者身份组申请通过' : '❌ 创作者身份组申请未通过',
+            title: approved ? `${titlePrefix}✅ 创作者身份组申请通过` : '❌ 创作者身份组申请未通过',
             fields: [
                 {
                     name: '申请者',
@@ -365,8 +369,34 @@ export class EmbedFactory {
             ],
             timestamp: new Date(),
             footer: {
-                text: '自动审核系统',
+                text: footerText,
             },
+        };
+    }
+
+    /**
+     * 创建创作者身份组放弃成功embed
+     * @param {Array<string>} successfulServers - 成功移除身份组的服务器列表
+     * @returns {Object} 原始embed对象
+     */
+    static createCreatorRoleOptOutSuccessEmbed(successfulServers) {
+        return {
+            color: EmbedFactory.Colors.SUCCESS,
+            title: '✅ 已放弃创作者身份组',
+            description: [
+                '您已成功放弃创作者身份组。',
+                '',
+                `已在以下服务器移除创作者身份组：`,
+                successfulServers.join('\n'),
+                '',
+                '💡 **重要提示：**',
+                '• 您的作品帖子将不会再被自动授予创作者身份组',
+                '• 如果您改变主意，可以随时通过申请按钮重新申请',
+            ].join('\n'),
+            timestamp: new Date(),
+            footer: {
+                text: '身份组管理'
+            }
         };
     }
 

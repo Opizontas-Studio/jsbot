@@ -10,6 +10,7 @@ import {
     syncMemberRoles,
     validateVolunteerApplication
 } from '../services/role/roleApplication.js';
+import { handleOptOutCreatorRole } from '../services/role/creatorRoleService.js';
 import { VoteService } from '../services/moderation/voteService.js';
 import { globalRequestQueue } from '../utils/concurrency.js';
 import { globalCooldownManager } from '../utils/cooldownManager.js';
@@ -77,6 +78,11 @@ export const buttonHandlers = {
         const modal = ModalFactory.createCreatorRoleModal();
 
         await interaction.showModal(modal);
+    },
+
+    // 创作者身份组放弃按钮处理器
+    opt_out_creator_role: async interaction => {
+        await handleOptOutCreatorRole(interaction);
     },
 
     // 志愿者身份组申请按钮处理器
@@ -571,6 +577,7 @@ export const buttonHandlers = {
 const BUTTON_CONFIG = {
     // 身份组相关
     apply_creator_role: { handler: buttonHandlers.apply_creator_role, needDefer: false, cooldown: 10000 },
+    opt_out_creator_role: { handler: buttonHandlers.opt_out_creator_role, needDefer: true, cooldown: 60000 },
     apply_volunteer_role: { handler: buttonHandlers.apply_volunteer_role, needDefer: true, cooldown: 60000 },
     exit_volunteer_role: { handler: buttonHandlers.exit_volunteer_role, needDefer: true, cooldown: 60000 },
     sync_roles: { handler: buttonHandlers.sync_roles, needDefer: true, cooldown: 60000 },

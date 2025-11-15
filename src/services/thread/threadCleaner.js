@@ -240,7 +240,7 @@ export const cleanThreadMembers = async (thread, threshold, options = {}, progre
 
         // 共享成员数据给 PG 同步服务
         if (pgSyncScheduler.isEnabled()) {
-            await pgSyncScheduler.receiveMemberData(thread.id, members);
+            await pgSyncScheduler.receiveMemberData(thread.id, members, thread.client);
         }
 
         if (memberCount <= threshold) {

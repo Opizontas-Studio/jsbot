@@ -3,6 +3,7 @@ import { PgSyncStateModel } from '../../sqlite/models/pgSyncStateModel.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
 import { delay } from '../../utils/concurrency.js';
+import { autoGrantCreatorRole } from '../role/creatorRoleService.js';
 
 /**
  * 帖子成员同步服务
@@ -96,7 +97,7 @@ class PostMembersSyncService {
                 }
 
                 const members = await thread.members.fetch();
-                await this._syncThreadMembers(threadId, members);
+                await this._syncThreadMembers(threadId, members, client);
             },
             `Fetch并同步帖子 ${threadId}`,
             { throwOnError: true }
@@ -107,7 +108,7 @@ class PostMembersSyncService {
      * 同步帖子成员数据到数据库
      * @private
      */
-    async _syncThreadMembers(threadId, members) {
+    async _syncThreadMembers(threadId, members, client = null) {
         return await ErrorHandler.handleService(
             async () => {
                 const models = pgManager.getModels();
@@ -191,6 +192,26 @@ class PostMembersSyncService {
                     memberCount: currentMembers.length,
                     success: true
                 });
+
+                // 尝试自动为帖子作者发放创作者身份组
+                if (client) {
+                    await ErrorHandler.handleSilent(
+                        async () => {
+                            const result = await autoGrantCreatorRole(client, threadId, threadOwnerId);
+                            if (result.granted) {
+                                logTime(
+                                    `[自动发放创作者] 成功为用户 ${threadOwnerId} 发放创作者身份组（帖子 ${threadId}）`
+                                );
+                            } else if (result.reason && !result.reason.includes('已有创作者身份组') && !result.reason.includes('反应数不足')) {
+                                // 只记录非常规失败原因
+                                logTime(
+                                    `[自动发放创作者] 帖子 ${threadId} 的作者 ${threadOwnerId} 暂不发放：${result.reason}`
+                                );
+                            }
+                        },
+                        `自动发放创作者身份组检查（帖子 ${threadId}）`
+                    );
+                }
             },
             `同步帖子成员 ${threadId}`,
             { throwOnError: true }
@@ -199,8 +220,11 @@ class PostMembersSyncService {
 
     /**
      * 接收来自 threadCleaner 的成员数据
+     * @param {string} threadId - 帖子ID
+     * @param {Collection} members - 成员集合
+     * @param {Object} client - Discord客户端（可选）
      */
-    async receiveMemberData(threadId, members) {
+    async receiveMemberData(threadId, members, client = null) {
         await ErrorHandler.handleSilent(
             async () => {
                 this.cachedMembersData.set(threadId, {
@@ -209,7 +233,7 @@ class PostMembersSyncService {
                 });
 
                 // 直接使用缓存数据同步
-                await this._syncThreadMembers(threadId, members);
+                await this._syncThreadMembers(threadId, members, client);
                 
                 // 清理过期缓存
                 this._cleanupExpiredCache();

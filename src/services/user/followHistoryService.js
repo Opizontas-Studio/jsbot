@@ -24,7 +24,7 @@ class FollowHistoryService {
     /**
      * 获取用户的关注历史记录
      * @param {string} userId - 用户ID
-     * @param {boolean} showAll - 是否显示全部（包括已离开的）
+     * @param {boolean} showAll - 是否显示曾经关注（已离开的）
      * @returns {Promise<Array>} 关注记录列表
      */
     async getUserFollowHistory(userId, showAll = false) {
@@ -38,13 +38,11 @@ class FollowHistoryService {
                 
                 // 构建查询条件
                 const whereClause = {
-                    user_id: userId
+                    user_id: userId,
+                    // showAll = false: 正在关注（is_leave = false）
+                    // showAll = true: 曾经关注（is_leave = true）
+                    is_leave: showAll ? true : false
                 };
-
-                // 如果不是显示全部，则只显示未离开的
-                if (!showAll) {
-                    whereClause.is_leave = false;
-                }
 
                 // 查询用户的关注记录，并联表获取帖子信息
                 const records = await models.PostMembers.findAll({
@@ -95,7 +93,7 @@ class FollowHistoryService {
                     };
                 });
 
-                logTime(`[关注历史查询] 用户 ${userId} 查询${showAll ? '全部' : '正在'}关注，返回 ${formattedRecords.length} 条记录`);
+                logTime(`[关注历史查询] 用户 ${userId} 查询${showAll ? '曾经' : '正在'}关注，返回 ${formattedRecords.length} 条记录`);
                 
                 return formattedRecords;
             },
@@ -191,7 +189,7 @@ class FollowHistoryService {
      * @param {Object} params - 参数对象
      * @param {string} params.userId - 用户ID
      * @param {Object} params.user - 用户对象
-     * @param {boolean} params.showAll - 是否显示全部
+     * @param {boolean} params.showAll - 是否显示曾经关注（已离开的）
      * @param {number} params.page - 页码
      * @param {Object} params.client - Discord客户端
      * @param {number} params.pageSize - 每页显示数量（可选，默认使用配置值）
@@ -207,7 +205,7 @@ class FollowHistoryService {
                     return {
                         isEmpty: true,
                         message: showAll 
-                            ? '你还没有关注过任何帖子' 
+                            ? '你没有曾经关注过的帖子' 
                             : '你当前没有正在关注的帖子'
                     };
                 }

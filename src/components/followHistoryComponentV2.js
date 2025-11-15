@@ -14,7 +14,7 @@ export class FollowHistoryComponentV2 {
      * @param {number} params.currentPage - 当前页码
      * @param {number} params.totalPages - 总页数
      * @param {number} params.totalRecords - 总记录数
-     * @param {boolean} params.showAll - 是否显示全部（包括已离开）
+     * @param {boolean} params.showAll - 是否显示曾经关注（已离开的）
      * @param {string} params.userId - 用户ID
      * @returns {Object} Discord消息对象
      */
@@ -28,12 +28,12 @@ export class FollowHistoryComponentV2 {
         userId
     }) {
         const container = ComponentV2Factory.createContainer(
-            showAll ? ComponentV2Factory.Colors.PURPLE : ComponentV2Factory.Colors.DISCORD_BLUE
+            showAll ? ComponentV2Factory.Colors.WARNING : ComponentV2Factory.Colors.DISCORD_BLUE
         );
 
         // 标题和统计信息（合并到一起）
-        const emoji = showAll ? '📋' : '✅';
-        const typeText = showAll ? '全部' : '正在';
+        const emoji = showAll ? '📜' : '✅';
+        const typeText = showAll ? '曾经' : '正在';
         ComponentV2Factory.addHeading(container, `${emoji} ${user.username} 的${typeText}关注`, 1);
         
         ComponentV2Factory.addText(
@@ -44,7 +44,7 @@ export class FollowHistoryComponentV2 {
         // 如果没有记录
         if (records.length === 0) {
             const message = showAll 
-                ? '你还没有关注过任何帖子' 
+                ? '你没有曾经关注过的帖子' 
                 : '你当前没有正在关注的帖子';
             ComponentV2Factory.addText(container, `\n${message}\n`);
         } else {
@@ -70,17 +70,16 @@ export class FollowHistoryComponentV2 {
     static _buildRecordsList(container, records, currentPage, showAll, pageSize = 20) {
         records.forEach((record, index) => {
             const num = (currentPage - 1) * pageSize + index + 1;
-            const statusEmoji = record.is_leave ? ComponentV2Factory.Emojis.LEAVE : ComponentV2Factory.Emojis.SUCCESS;
             
             // 格式化时间
             const joinTime = this._formatTime(record.last_join_at);
             
-            // 构建内容（精简版，移除消息数）
-            let content = `**${num}.** ${statusEmoji} **${record.post_title}**\n`;
+            // 构建内容
+            let content = `**${num}.** **${record.post_title}**\n`;
             content += `作者: <@${record.post_author_id}> | 关注: ${joinTime}`;
             
-            // 只在全部关注模式下显示离开时间
-            if (showAll && record.is_leave && record.last_leave_at) {
+            // 只在曾经关注模式下显示离开时间
+            if (showAll && record.last_leave_at) {
                 const leaveTime = this._formatTime(record.last_leave_at);
                 content += ` | 离开: ${leaveTime}`;
             }
@@ -128,9 +127,9 @@ export class FollowHistoryComponentV2 {
             }),
             ComponentV2Factory.createButton({
                 customId: `follow_history_switch_all_${userId}`,
-                label: '全部关注',
+                label: '曾经关注',
                 style: showAll ? 'success' : 'secondary',
-                emoji: '📋'
+                emoji: '📜'
             })
         ];
         rows.push(ComponentV2Factory.createButtonRow(filterButtons));

@@ -277,9 +277,7 @@ class PostMembersSyncService {
                     
                     return { success: true };
                 } catch (error) {
-                    logTime(`[批量同步] 同步帖子 ${threadId} 失败: ${error.message}`, true);
-                    
-                    // 同步失败也要更新状态
+                    // ErrorHandler已经记录了错误，同步失败也要更新状态
                     await PgSyncStateModel.updateThreadState(threadId, {
                         success: false,
                         error: error.message

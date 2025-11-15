@@ -14,6 +14,7 @@ class PgSyncStateModel extends BaseModel {
 
     /**
      * 更新帖子同步状态
+     * 失败时自动降低优先级
      */
     static async updateThreadState(threadId, data) {
         return await ErrorHandler.handleService(
@@ -44,10 +45,18 @@ class PgSyncStateModel extends BaseModel {
                     updates.push('error_count = error_count + 1');
                     updates.push('last_error = ?');
                     params.push(error);
+                    
+                    // 失败时降低优先级：high -> medium -> low -> 暂停
+                    updates.push(`priority = CASE priority
+                        WHEN 'high' THEN 'medium'
+                        WHEN 'medium' THEN 'low'
+                        ELSE 'low'
+                    END`);
                 }
 
                 updates.push(`last_sync_at = ${now}`);
                 
+                // 如果明确指定了优先级，则覆盖自动降级
                 if (priority) {
                     updates.push('priority = ?');
                     params.push(priority);
@@ -72,6 +81,7 @@ class PgSyncStateModel extends BaseModel {
 
     /**
      * 获取需要同步的帖子列表
+     * 优先处理无错误的帖子，有错误的降级到低优先级等待
      */
     static async getThreadsToSync(limit = 45) {
         return await ErrorHandler.handleService(
@@ -94,7 +104,9 @@ class PgSyncStateModel extends BaseModel {
                         WHERE priority = ?
                           AND (last_sync_at IS NULL OR last_sync_at < ?)
                           AND error_count < 3
-                        ORDER BY last_sync_at ASC NULLS FIRST
+                        ORDER BY 
+                            error_count ASC,
+                            last_sync_at ASC NULLS FIRST
                         LIMIT ?
                     `, [query.priority, thirtyMinAgo, query.limit]);
                     
@@ -184,21 +196,43 @@ class PgSyncStateModel extends BaseModel {
     }
 
     /**
-     * 清理过期错误记录
+     * 清理过期错误记录，并重置优先级
+     * 当所有高优先级和中优先级帖子都处理完后，重置低优先级中的错误记录
      */
     static async cleanupErrors() {
         return await ErrorHandler.handleService(
             async () => {
-                const sevenDaysAgo = Math.floor(Date.now() / 1000) - (7 * 86400);
+                const now = Math.floor(Date.now() / 1000);
+                const thirtyMinAgo = now - 1800;
 
+                // 检查是否还有高/中优先级的待处理帖子
+                const pending = await dbManager.safeExecute('get', `
+                    SELECT COUNT(*) as count
+                    FROM pg_sync_state
+                    WHERE priority IN ('high', 'medium')
+                      AND (last_sync_at IS NULL OR last_sync_at < ?)
+                      AND error_count < 3
+                `, [thirtyMinAgo]);
+
+                // 如果还有高/中优先级的待处理帖子，不清理
+                if (pending.count > 0) {
+                    return;
+                }
+
+                // 重置低优先级中有错误的记录，恢复到medium优先级
                 const result = await dbManager.safeExecute('run', `
                     UPDATE pg_sync_state 
-                    SET error_count = 0, last_error = NULL
-                    WHERE error_count >= 3 AND last_sync_at < ?
-                `, [sevenDaysAgo]);
+                    SET error_count = 0, 
+                        last_error = NULL,
+                        priority = CASE
+                            WHEN error_count >= 2 THEN 'medium'
+                            ELSE priority
+                        END
+                    WHERE priority = 'low' AND error_count > 0
+                `);
 
                 if (result.changes > 0) {
-                    logTime(`[PG同步] 清理 ${result.changes} 个过期错误记录`);
+                    logTime(`[PG同步] 完成一轮同步，重置 ${result.changes} 个错误记录`);
                 }
             },
             '清理过期错误记录'

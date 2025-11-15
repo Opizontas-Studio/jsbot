@@ -202,8 +202,12 @@ class PostMembersSyncService {
                                 logTime(
                                     `[自动发放创作者] 成功为用户 ${threadOwnerId} 发放创作者身份组（帖子 ${threadId}）`
                                 );
-                            } else if (result.reason && !result.reason.includes('已有创作者身份组') && !result.reason.includes('反应数不足')) {
-                                // 只记录非常规失败原因
+                            } else if (result.reason && 
+                                       !result.reason.includes('已有创作者身份组') && 
+                                       !result.reason.includes('反应数不足') &&
+                                       !result.reason.includes('限速') &&
+                                       !result.reason.includes('处理过程中出现错误')) {
+                                // 只记录非常规失败原因（排除：已有身份组、反应数不足、限速、临时错误）
                                 logTime(
                                     `[自动发放创作者] 帖子 ${threadId} 的作者 ${threadOwnerId} 暂不发放：${result.reason}`
                                 );

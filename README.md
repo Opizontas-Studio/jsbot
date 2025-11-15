@@ -1,114 +1,214 @@
-# Discord.js Bot Project
+# Gatekeeper in Horizon Bot Project
 
-## 本地使用
+基于Discord.js的Discord bot项目，提供服务器管理、楼主自动化等功能。
 
-将 `config.json` 放在根目录下, 将 `messageIds.json` 放在 `data` 文件夹下，如果不存在，则创建一个 `data` 文件夹。
+## 📋 环境要求
 
- - `config.json` 的格式请参考 `config.example.json`，里面需要填入 bot-token 等内容。不需要的模块将 `enabled` 设置为 `false` 即可。
- - `messageIds.json` 的格式请参考 `messageIds.example.json`。
+- Node.js 18.x 或更高版本
+- pnpm 包管理器
+- PM2 进程管理器（生产环境）
 
-注意：由于 `discord.js` 的限制，在 Windows 下必须开启 TUN 的代理模式，才能正常运行。
+### 本地开发
 
-安装 pnpm:
-
-```bash
-npm -g pnpm
-```
-
-用 pnpm 安装依赖包并运行:
+1. **安装依赖**
 
 ```bash
-pnpm install
-pnpm start
-```
-
-## Linux上配合PM2使用
-
-1. 确保已安装Node.js
-```bash
-# 到项目目录
-
 # 安装pnpm
 npm install -g pnpm
 
-# 安装PM2
-npm install -g pm2
+# 安装项目依赖
+pnpm install
 ```
 
-2. 使用脚本启动机器人
-```bash
-# 添加执行权限
-chmod +x start.sh update.sh monitor.sh
+2. **配置文件**
 
-# 启动BOT
+在根目录创建 `config.json`：
+- 参考 `config.example.json` 填写配置
+- 包含 Discord bot token 和服务器配置
+- 不需要的模块将 `enabled` 设置为 `false`
+
+在 `data` 目录创建 `messageIds.json`：
+- 参考 `messageIds.example.json` 填写
+- 如果 `data` 目录不存在，需要先创建
+
+3. **运行Bot**
+
+```bash
+pnpm start
+```
+
+> ⚠️ **Windows用户注意**：由于 `discord.js` 的限制，在 Windows 下必须开启 TUN 代理模式才能正常运行。
+
+---
+
+## 🐧 Linux生产环境部署
+
+### 1. 环境准备
+
+```bash
+# 安装全局工具
+npm install -g pnpm pm2
+
+# （可选）安装jq用于监控内存使用
+sudo apt install jq
+```
+
+### 2. 部署Bot
+
+```bash
+# 克隆或上传项目到服务器
+cd /path/to/jsbot
+
+# 安装依赖
+pnpm install
+
+# 添加脚本执行权限
+chmod +x start.sh update.sh
+
+# 配置config.json（参考config.example.json）
+# 配置data/messageIds.json（参考messageIds.example.json）
+
+# 启动Bot
 ./start.sh
-
-# 更新BOT
-./update.sh
-
-# 停止
-pm2 stop discord-bot
 ```
 
-3. 管理机器人
+### 3. 管理命令
+
+#### 基本操作
+
 ```bash
-# 后台运行监控脚本
-./monitor.sh &
+# 查看Bot状态
+pm2 status
 
 # 查看日志
-pm2 logs discord-bot --lines 200
+pm2 logs gatekeeper
 
-# 查看状态
-pm2 status
+# 查看最近50行日志
+pm2 logs gatekeeper --lines 50
+
+# 重启Bot
+pm2 restart gatekeeper
+
+# 停止Bot
+pm2 stop gatekeeper
+
+# 删除Bot进程
+pm2 delete gatekeeper
 ```
 
-## 参与贡献
+#### 更新Bot
 
-本项目采用 JavaScript 编写, 项目整体为自建架构, 因而有如下文件结构:
+```bash
+# 拉取最新代码并重载（零停机）
+./update.sh
+```
 
-```txt
-..
-├── index.js  # 总入口, 读取配置文件, 完成命令、事件的加载, 启动 bot 客户端
-│
-├── events  # 监听 discord 事件, 执行对应操作
-│   ├── guildMemberAdd.js     # 有新成员加入服务器时, 检测他是否是以前加入封禁列表但还没实际封禁的成员, 执行封禁操作
-│   ├── interactionCreate.js  # 有人通过按钮、模态框等与 bot 发生交互, 将会分发给 handlers 进行处理
-│   └── ready.js              # bot 客户端准备就绪
-│
-├── commands  # 各身份组可使用的 discord 命令
-│               - 如果命令较为简单则直接编写, 否则在 services 中处理逻辑, 在此处调用对应函数
-│               - 使用 try-catch 进行错误处理, 所有异步操作都应用 try-catch 包装
-│               - 考虑用 globalBatchProcessor 处理批量操作, 用 globalRequestQueue 控制 API 请求频率
-│   ├── adm_*.js   # 管理员 (优先级 5)
-│   ├── mod_*.js   # 版主 (优先级 4)
-│   ├── user_*.js  # 普通用户 (优先级 3)
-│   └── long_*.js  # 长期执行的后台命令 (优先级 2)
-│
-├── handlers  # 处理交互
-│   ├── buttons.js    # 处理按钮交互
-│   ├── modals.js     # 处理模态框交互
-│   └── scheduler.js  # 处理定时任务
-│
-├── services  # 对于较为复杂的命令, 在此编写处理逻辑
-│   ├── courtService.js  # 流程系统服务
-    ├── monitorService.js # 系统监控服务
-│   ├── punishmentService.js  # 处罚系统服务
-│   ├── roleApplication.js  # 身份组管理服务
-│   ├── threadAnalyzer.js  # 活跃子区管理服务
-│   ├── threadCleaner.js  # 子区人数清理服务
-│   └── voteService.js  # 投票系统服务
-│
-├── db  # 存取数据库, 数据文件将存储于 data/database.sqlite 中
-│   ├── dbManager.js  # 对数据库建表、查询等操作的封装, 目前的建表是直接以 SQL 形式硬编码在代码中
-│   └── models        # 对各表存取的封装
-│       ├── processModel.js     # 议事流程记录
-│       ├── punishmentModel.js  # 成员处罚记录
-│       └── voteModel.js        # 红蓝投票记录
-│
-└── utils
-    ├── concurrency.js  # 并发控制工具（队列器+批处理限速器）
-    ├── guildManager.js  # 服务器配置管理
-    ├── helper.js         # 通用函数封装
-    ├── logger.js         # 日志工具封装
-    └── punishmentHelper.js  # 处罚系统工具函数
+#### 监控模式
+
+启动自动监控，定期检查Bot状态和内存使用：
+
+```bash
+# 前台运行（测试用）
+./start.sh --monitor
+
+# 后台运行（推荐）
+nohup ./start.sh --monitor > monitor.log 2>&1 &
+
+# 查看监控日志
+tail -f monitor.log
+```
+
+监控功能：
+- 每5分钟检查Bot是否在线，异常时自动重启
+- 内存使用超过900MB时自动重启
+- 需要安装 `jq` 才能启用内存监控
+
+---
+
+## 📁 项目结构
+
+```
+jsbot/
+├── src/                  # 源代码目录
+│   ├── commands/        # Discord命令
+│   ├── events/          # Discord事件处理
+│   ├── handlers/        # 交互处理器（按钮、模态框、定时任务）
+│   ├── services/        # 业务逻辑服务
+│   ├── db/              # 数据库管理
+│   └── utils/           # 工具函数
+├── data/                # 数据存储目录
+├── logs/                # 日志文件
+├── config.json          # 主配置文件（需自行创建）
+├── start.sh             # 启动脚本
+└── update.sh            # 更新脚本
+```
+
+---
+
+## ⚙️ 配置说明
+
+### config.json
+
+主配置文件，包含：
+- `token`: Discord Bot Token
+- `guilds`: 服务器配置，支持多服务器
+  - 命令权限配置
+  - 功能模块开关
+  - 频道和角色ID配置
+
+详细配置项请参考 `config.example.json`。
+
+### 环境变量
+
+脚本中的关键配置（可在 `start.sh` 中修改）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `APP_NAME` | `gatekeeper` | PM2应用名称 |
+| `MAX_MEMORY` | `1G` | 最大内存限制 |
+| `CRON_RESTART` | `0 0 */7 * *` | 定时重启（每7天） |
+| `MONITOR_INTERVAL` | `300` | 监控检查间隔（秒） |
+| `MEMORY_THRESHOLD` | `900000000` | 内存重启阈值（字节） |
+
+---
+
+## 🔧 故障排除
+
+### Bot无法启动
+
+```bash
+# 检查日志
+pm2 logs gatekeeper --err
+
+# 检查配置文件
+cat config.json
+
+# 验证Node.js版本
+node -v
+
+# 重新安装依赖
+pnpm install
+```
+
+### 内存占用过高
+
+```bash
+# 调整内存限制（编辑start.sh）
+MAX_MEMORY="2G"  # 改为2GB
+
+# 手动重启
+pm2 restart gatekeeper
+```
+
+### 监控脚本不工作
+
+```bash
+# 检查jq是否安装
+jq --version
+
+# 安装jq
+sudo apt install jq
+
+# 查看监控日志
+pm2 logs gatekeeper
 ```

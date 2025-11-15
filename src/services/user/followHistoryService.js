@@ -311,9 +311,9 @@ class FollowHistoryService {
                 });
 
                 // 添加ActionRows到消息
+                // 更新消息时不要包含flags字段，因为IS_COMPONENTS_V2标志一旦设置就无法移除
                 const updatePayload = {
-                    components: [...messageData.components, ...messageData.actionRows],
-                    flags: messageData.flags
+                    components: [...messageData.components, ...messageData.actionRows]
                 };
 
                 await interaction.update(updatePayload);
@@ -352,13 +352,15 @@ class FollowHistoryService {
                 if (result.isEmpty) {
                     await interaction.update({
                         content: `✅ ${result.message}`,
-                        components: [],
-                        flags: ['Ephemeral']
+                        components: []
+                        // 不包含flags字段，因为消息已经有IS_COMPONENTS_V2和Ephemeral标志
                     });
                     return;
                 }
 
-                await interaction.update(result.payload);
+                // 更新消息时移除flags字段，因为IS_COMPONENTS_V2标志一旦设置就无法移除
+                const { flags, ...updatePayload } = result.payload;
+                await interaction.update(updatePayload);
             },
             '处理关注历史筛选切换',
             { throwOnError: true }

@@ -3,6 +3,7 @@ import path from 'path';
 import { Sequelize } from 'sequelize';
 import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
+import { initModels } from './models/index.js';
 
 /**
  * PostgreSQL数据库管理器
@@ -15,6 +16,7 @@ class PgManager {
         this.config = null;
         this.cache = new Map();
         this.cacheTimeout = 5 * 60 * 1000; // 5分钟过期
+        this.models = null; // 数据模型
     }
 
     /**
@@ -87,8 +89,13 @@ class PgManager {
             await this.sequelize.authenticate();
             const [results] = await this.sequelize.query('SELECT NOW()');
             logTime(`[数据库] PostgreSQL连接成功 - 服务器时间: ${results[0].now}`);
+
+            // 初始化模型
+            this.models = initModels(this.sequelize);
+            logTime('[数据库] PostgreSQL数据模型加载成功');
         } catch (error) {
             this.sequelize = null;
+            this.models = null;
             logTime(`[数据库] PostgreSQL连接失败: ${error.message}`, true);
             console.error('PostgreSQL连接错误详情:', error);
             throw error;
@@ -191,6 +198,7 @@ class PgManager {
         try {
             await this.sequelize.close();
             this.sequelize = null;
+            this.models = null;
             this.cache.clear();
             logTime('[数据库] PostgreSQL连接已关闭');
         } catch (error) {
@@ -234,6 +242,21 @@ class PgManager {
             using: pool.using,
             waiting: pool.waiting,
         };
+    }
+
+    /**
+     * 获取数据模型
+     * @returns {Object} 包含所有模型的对象
+     * @property {Model} PostsMain - 帖子主表模型（只读）
+     * @property {Model} UserData - 用户数据模型（读写）
+     * @property {Model} PostMembers - 帖子成员模型（读写）
+     * @property {Model} UserRoles - 用户角色模型（读写）
+     */
+    getModels() {
+        if (!this.models) {
+            throw new Error('[数据库] PostgreSQL数据模型未初始化，请先调用connect()');
+        }
+        return this.models;
     }
 }
 

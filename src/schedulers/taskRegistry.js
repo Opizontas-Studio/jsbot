@@ -1,7 +1,7 @@
 import schedule from 'node-schedule';
 import { dbManager } from '../sqlite/dbManager.js';
 import { BlacklistService } from '../services/blacklistService.js';
-import { carouselServiceManager } from '../services/carouselService.js';
+import { carouselServiceManager } from '../services/carousel/carouselManager.js';
 import { monitorService } from '../services/monitorService.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import { executeThreadManagement } from '../services/threadAnalyzer.js';

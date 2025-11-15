@@ -1,4 +1,4 @@
-import { carouselServiceManager } from '../services/carouselService.js';
+import { carouselServiceManager } from '../services/carousel/carouselManager.js';
 import { opinionMailboxService } from '../services/opinionMailboxService.js';
 import { handleCreatorRoleApplication } from '../services/roleApplication.js';
 import { ErrorHandler } from '../utils/errorHandler.js';

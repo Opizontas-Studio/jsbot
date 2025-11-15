@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { ModalFactory } from '../../factories/modalFactory.js';
-import { carouselServiceManager } from '../../services/carouselService.js';
+import { carouselServiceManager } from '../../services/carousel/carouselManager.js';
 import { checkAndHandlePermission, handleCommandError } from '../../utils/helper.js';
 import { logTime } from '../../utils/logger.js';
 

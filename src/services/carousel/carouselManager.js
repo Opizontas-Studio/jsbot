@@ -1,5 +1,5 @@
-import { ChannelCarousel } from './carousel/ChannelCarousel.js';
-import { QualifiedThreadsCarousel } from './carousel/QualifiedThreadsCarousel.js';
+import { ChannelCarousel } from './ChannelCarousel.js';
+import { QualifiedThreadsCarousel } from './QualifiedThreadsCarousel.js';
 
 /**
  * 轮播服务管理器
@@ -52,3 +52,4 @@ export const startQualifiedThreadsCarousel = async (channel, guildId, qualifiedT
         messageIds
     );
 };
+

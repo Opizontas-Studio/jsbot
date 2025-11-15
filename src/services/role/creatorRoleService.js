@@ -156,6 +156,10 @@ export async function handleOptOutCreatorRole(interaction) {
                 throw new Error('放弃创作者身份组失败，请联系管理员');
             }
 
+            // 从 PostgreSQL 删除记录
+            const creatorRoleId = guildConfig.roleApplication?.creatorRoleId;
+            await removeUserRoleFromPG(interaction.user.id, creatorRoleId);
+
             // 将用户添加到放弃名单
             addToOptOutList(interaction.user.id);
 
@@ -225,6 +229,65 @@ function getMaxReactionsFromMessage(message) {
     });
 
     return maxReactions;
+}
+
+/**
+ * 从 PostgreSQL 删除用户的创作者身份组记录
+ * @param {string} userId - 用户ID
+ * @param {string} creatorRoleId - 创作者身份组ID
+ */
+async function removeUserRoleFromPG(userId, creatorRoleId) {
+    await ErrorHandler.handleSilent(
+        async () => {
+            if (!pgManager.getConnectionStatus() || !creatorRoleId) {
+                return;
+            }
+
+            const models = pgManager.getModels();
+            
+            const deletedCount = await models.UserRoles.destroy({
+                where: {
+                    user_id: userId,
+                    role_id: creatorRoleId
+                }
+            });
+
+            if (deletedCount > 0) {
+                logTime(`[创作者身份组] 已从 PostgreSQL 删除用户 ${userId} 的身份组记录`);
+            }
+        },
+        "从PostgreSQL删除用户身份组记录"
+    );
+}
+
+/**
+ * 立即同步用户的创作者身份组到 PostgreSQL
+ * @param {string} userId - 用户ID
+ * @param {string} creatorRoleId - 创作者身份组ID
+ */
+async function syncUserRoleToPG(userId, creatorRoleId) {
+    await ErrorHandler.handleSilent(
+        async () => {
+            if (!pgManager.getConnectionStatus() || !creatorRoleId) {
+                return;
+            }
+
+            const models = pgManager.getModels();
+            
+            // 使用 findOrCreate 确保数据存在且不重复
+            await models.UserRoles.findOrCreate({
+                where: {
+                    user_id: userId,
+                    role_id: creatorRoleId
+                },
+                defaults: {
+                    user_id: userId,
+                    role_id: creatorRoleId
+                }
+            });
+        },
+        "同步用户身份组到PostgreSQL"
+    );
 }
 
 /**
@@ -363,7 +426,10 @@ export async function autoGrantCreatorRole(client, threadId, authorId) {
                 };
             }
 
-            // 7. 统计创作者总数并发送欢迎消息
+            // 7. 立即同步到 PostgreSQL
+            await syncUserRoleToPG(authorId, creatorRoleId);
+
+            // 8. 统计创作者总数并发送欢迎消息
             const totalCreators = await getCreatorCount(creatorRoleId);
             await sendCreatorWelcomeMessage(
                 client, 
@@ -473,8 +539,11 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
                         `[手动申请] 用户 ${interaction.user.tag} 获得了创作者身份组, 同步至: ${syncedServers.join('、')}`
                     );
 
-                    // 统计创作者总数（基于PostgreSQL）
+                    // 立即同步到 PostgreSQL
                     const creatorRoleId = currentGuildConfig.roleApplication?.creatorRoleId;
+                    await syncUserRoleToPG(interaction.user.id, creatorRoleId);
+
+                    // 统计创作者总数（基于PostgreSQL）
                     const totalCreators = await getCreatorCount(creatorRoleId);
 
                     // 发送审核日志（可容错操作）

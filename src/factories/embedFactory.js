@@ -407,12 +407,8 @@ export class EmbedFactory {
      * @returns {EmbedBuilder} 构建好的embed
      */
     static createCreatorRoleSuccessEmbed(syncedServers, totalCreators = 0) {
-        const syncInfo = syncedServers.length > 1
-            ? `\n\n✨ **已同步至：**${syncedServers.join('、')}`
-            : '';
-
         const creatorNumberInfo = totalCreators > 0
-            ? `\n\n🎊 **您是第 ${totalCreators} 位创作者！**`
+            ? `🎊 **您是第 ${totalCreators} 位创作者！**\n`
             : '';
 
         return new EmbedBuilder()
@@ -420,7 +416,6 @@ export class EmbedFactory {
             .setDescription(
                 [
                     creatorNumberInfo,
-                    '',
                     '### 📢 作品更新的通知',
                     '您现在可以使用 `/发送通知` 命令通知您的作品的关注者自己有更新哦。',
                     '',

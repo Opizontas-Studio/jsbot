@@ -22,7 +22,7 @@ class PostMembersSyncService {
         this.cachedMembersData = new Map(); // 缓存从 threadCleaner 获取的数据
         
         // 同步速率相关参数
-        this.batchSize = options.batchSize ?? 100; // 每批次处理的帖子数量
+        this.batchSize = options.batchSize ?? 50; // 每批次处理的帖子数量
         this.delayBetweenThreads = options.delayBetweenThreads ?? 100; // 每个帖子处理后的延迟(ms)
         this.cacheTimeout = options.cacheTimeout ?? (30 * 60 * 1000); // 缓存过期时间（默认30分钟）
     }
@@ -350,6 +350,10 @@ class PostMembersSyncService {
     }
 }
 
-export const postMembersSyncService = new PostMembersSyncService();
+export const postMembersSyncService = new PostMembersSyncService({
+    batchSize: 100,
+    delayBetweenThreads: 200,
+    cacheTimeout: 30 * 60 * 1000
+});
 export default postMembersSyncService;
 

@@ -345,7 +345,8 @@ export class TaskRegistry {
             taskId: 'pg_user_roles_sync',
             interval: 60 * 60 * 1000, // 1小时
             task: () => pgSyncScheduler.syncCreatorRoles(client),
-            runImmediately: true
+            startAt: new Date(Date.now() + 30 * 1000), // 延迟30秒首次执行，等待成员缓存初始化
+            runImmediately: false
         });
 
         // 帖子成员同步 - 每5分钟

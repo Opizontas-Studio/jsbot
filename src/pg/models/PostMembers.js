@@ -21,7 +21,7 @@ export default function definePostMembers(sequelize) {
         is_thread_owner: {
             type: DataTypes.BOOLEAN,
             allowNull: false,
-            comment: '是否为帖子所有者',
+            comment: '是否为帖子创建者',
         },
         first_join_at: {
             type: DataTypes.DATE,
@@ -47,23 +47,23 @@ export default function definePostMembers(sequelize) {
             type: DataTypes.INTEGER,
             allowNull: true,
             defaultValue: 0,
-            comment: '消息数量',
+            comment: '用户在该帖子中的消息数量',
         },
         last_message_id: {
             type: DataTypes.BIGINT,
             allowNull: true,
-            comment: '最后消息ID',
+            comment: '用户在该帖子中的最后一条消息ID',
         },
         last_message_at: {
             type: DataTypes.DATE,
             allowNull: true,
-            comment: '最后消息时间',
+            comment: '用户在该帖子中的最后一条消息时间',
         },
     }, {
         tableName: 'post_members',
         freezeTableName: true,
         timestamps: false, // 表中没有Sequelize的默认时间戳字段
-        comment: '帖子成员表（读写）',
+        comment: '帖子成员关系表（读写）',
     });
 
     return PostMembers;

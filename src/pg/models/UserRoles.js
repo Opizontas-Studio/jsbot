@@ -16,13 +16,13 @@ export default function defineUserRoles(sequelize) {
             type: DataTypes.BIGINT,
             primaryKey: true,
             allowNull: false,
-            comment: '角色ID（复合主键之一）',
+            comment: '身份组ID（复合主键之一）',
         },
     }, {
         tableName: 'user_roles',
         freezeTableName: true,
         timestamps: false, // 表中没有Sequelize的默认时间戳字段
-        comment: '用户角色表（读写）',
+        comment: '用户身份组映射表（读写）',
     });
 
     return UserRoles;

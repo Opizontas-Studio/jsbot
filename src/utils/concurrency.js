@@ -442,10 +442,10 @@ class RateLimitedBatchProcessor {
                 requests: [],
                 concurrency: 1,
             },
-            // 获取子区成员 - 2次/秒
+            // 获取子区成员 - 1次/秒
             threadMembers: {
                 maxRequests: 1,
-                windowMs: 1050, // 预留50ms延迟
+                windowMs: 550, // 预留50ms延迟
                 requests: [],
                 concurrency: 1,
             },

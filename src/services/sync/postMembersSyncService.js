@@ -2,7 +2,7 @@ import { pgManager } from '../../pg/pgManager.js';
 import { PgSyncStateModel } from '../../sqlite/models/pgSyncStateModel.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
-import { delay } from '../../utils/concurrency.js';
+import { globalBatchProcessor } from '../../utils/concurrency.js';
 import { autoGrantCreatorRole } from '../role/creatorRoleService.js';
 
 /**
@@ -13,7 +13,6 @@ class PostMembersSyncService {
     /**
      * @param {Object} options - 配置选项
      * @param {number} options.batchSize - 每批次处理的帖子数量
-     * @param {number} options.delayBetweenThreads - 每个帖子处理后的延迟毫秒数
      * @param {number} options.cacheTimeout - 缓存过期时间毫秒数
      */
     constructor(options = {}) {
@@ -23,7 +22,6 @@ class PostMembersSyncService {
         
         // 同步速率相关参数
         this.batchSize = options.batchSize ?? 50; // 每批次处理的帖子数量
-        this.delayBetweenThreads = options.delayBetweenThreads ?? 100; // 每个帖子处理后的延迟(ms)
         this.cacheTimeout = options.cacheTimeout ?? (30 * 60 * 1000); // 缓存过期时间（默认30分钟）
     }
 
@@ -55,32 +53,39 @@ class PostMembersSyncService {
                         return { processed: 0, cached: 0 };
                     }
 
-                    let processed = 0;
                     let cached = 0;
 
-                    for (const threadId of threadIds) {
-                        try {
-                            // 检查是否有缓存数据
-                            const cachedData = this.getCachedMembersData(threadId);
-                            if (cachedData) {
-                                await this._syncThreadMembers(threadId, cachedData);
-                                cached++;
-                            } else {
-                                // 需要实际fetch
-                                await this._fetchAndSyncThread(client, threadId);
+                    // 使用 globalBatchProcessor 的 threadMembers 限制器控制速率
+                    const results = await globalBatchProcessor.processBatch(
+                        threadIds,
+                        async (threadId) => {
+                            try {
+                                // 检查是否有缓存数据
+                                const cachedData = this.getCachedMembersData(threadId);
+                                if (cachedData) {
+                                    await this._syncThreadMembers(threadId, cachedData);
+                                    return { success: true, cached: true };
+                                } else {
+                                    // 需要实际fetch
+                                    await this._fetchAndSyncThread(client, threadId);
+                                    return { success: true, cached: false };
+                                }
+                            } catch (error) {
+                                // ErrorHandler已经记录了错误，这里只需要更新状态
+                                await PgSyncStateModel.updateThreadState(threadId, {
+                                    success: false,
+                                    error: error.message
+                                });
+                                return { success: false, cached: false };
                             }
-                            processed++;
-                            
-                            // 控制速率，避免过快
-                            await delay(this.delayBetweenThreads);
-                        } catch (error) {
-                            // ErrorHandler已经记录了错误，这里只需要更新状态
-                            await PgSyncStateModel.updateThreadState(threadId, {
-                                success: false,
-                                error: error.message
-                            });
-                        }
-                    }
+                        },
+                        null,
+                        'threadMembers'
+                    );
+
+                    // 统计结果
+                    const processed = results.filter(r => r && r.success).length;
+                    cached = results.filter(r => r && r.cached).length;
 
                     this.processedCount += processed;
                     logTime(`[帖子成员同步] 完成批次 - 处理: ${processed}, 缓存命中: ${cached}, 总计: ${this.processedCount}`);
@@ -255,39 +260,44 @@ class PostMembersSyncService {
             return { success: 0, failed: 0 };
         }
 
-        let successCount = 0;
-        let failedCount = 0;
+        const cacheEntries = Array.from(this.cachedMembersData.entries());
 
-        for (const [threadId, data] of this.cachedMembersData.entries()) {
-            try {
-                await this._syncThreadMembers(threadId, data.members, data.client);
-                
-                // 同步成功后，更新 sqlite 状态
-                await PgSyncStateModel.updateThreadState(threadId, {
-                    success: true,
-                    error: null
-                });
-                
-                successCount++;
-
-                // 控制速率
-                if (successCount % 10 === 0) {
-                    await delay(100);
+        // 使用 globalBatchProcessor 的 threadMembers 限制器控制速率
+        const results = await globalBatchProcessor.processBatch(
+            cacheEntries,
+            async ([threadId, data]) => {
+                try {
+                    await this._syncThreadMembers(threadId, data.members, data.client);
+                    
+                    // 同步成功后，更新 sqlite 状态
+                    await PgSyncStateModel.updateThreadState(threadId, {
+                        success: true,
+                        error: null
+                    });
+                    
+                    return { success: true };
+                } catch (error) {
+                    logTime(`[批量同步] 同步帖子 ${threadId} 失败: ${error.message}`, true);
+                    
+                    // 同步失败也要更新状态
+                    await PgSyncStateModel.updateThreadState(threadId, {
+                        success: false,
+                        error: error.message
+                    });
+                    
+                    return { success: false };
                 }
-            } catch (error) {
-                failedCount++;
-                logTime(`[批量同步] 同步帖子 ${threadId} 失败: ${error.message}`, true);
-                
-                // 同步失败也要更新状态
-                await PgSyncStateModel.updateThreadState(threadId, {
-                    success: false,
-                    error: error.message
-                });
-            }
-        }
+            },
+            null,
+            'threadMembers'
+        );
 
         // 清空缓存
         this.cachedMembersData.clear();
+
+        // 统计结果
+        const successCount = results.filter(r => r && r.success).length;
+        const failedCount = results.filter(r => r && !r.success).length;
 
         logTime(`[批量同步] 完成 - 成功: ${successCount}, 失败: ${failedCount}`);
         return { success: successCount, failed: failedCount };
@@ -389,7 +399,6 @@ class PostMembersSyncService {
 
 export const postMembersSyncService = new PostMembersSyncService({
     batchSize: 60,
-    delayBetweenThreads: 500,
     cacheTimeout: 30 * 60 * 1000
 });
 export default postMembersSyncService;

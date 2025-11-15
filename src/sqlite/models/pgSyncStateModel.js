@@ -79,10 +79,11 @@ class PgSyncStateModel extends BaseModel {
                 const now = Math.floor(Date.now() / 1000);
                 const thirtyMinAgo = now - 1800; // 30分钟前
 
+                // 按比例分配 limit: high(60%), medium(25%), low(15%)
                 const queries = [
-                    { priority: 'high', limit: 30 },
-                    { priority: 'medium', limit: 10 },
-                    { priority: 'low', limit: 5 }
+                    { priority: 'high', limit: Math.floor(limit * 0.6) },
+                    { priority: 'medium', limit: Math.floor(limit * 0.25) },
+                    { priority: 'low', limit: Math.floor(limit * 0.15) }
                 ];
 
                 const results = [];

@@ -16,6 +16,8 @@ export class FollowHistoryComponentV2 {
      * @param {number} params.totalRecords - 总记录数
      * @param {boolean} params.showLeft - 是否显示已离开的（曾经关注）
      * @param {string} params.userId - 用户ID
+     * @param {number} [params.currentGroup] - 当前分组（可选，用于超过25页的情况）
+     * @param {number} [params.pageSize] - 每页数量（用于正确计算序号）
      * @returns {Object} Discord消息对象
      */
     static buildMessage({
@@ -25,7 +27,9 @@ export class FollowHistoryComponentV2 {
         totalPages,
         totalRecords,
         showLeft,
-        userId
+        userId,
+        currentGroup,
+        pageSize
     }) {
         const container = ComponentV2Factory.createContainer(
             showLeft ? ComponentV2Factory.Colors.WARNING : ComponentV2Factory.Colors.DISCORD_BLUE
@@ -44,17 +48,19 @@ export class FollowHistoryComponentV2 {
             ComponentV2Factory.addText(container, `\n${message}\n`);
         } else {
             // 显示记录列表（不使用分隔符）
-            this._buildRecordsList(container, records, currentPage, showLeft, 20);
+            // 使用实际的pageSize计算序号，如果未提供则从totalPages和totalRecords推算
+            const actualPageSize = pageSize || Math.ceil(totalRecords / totalPages);
+            this._buildRecordsList(container, records, currentPage, showLeft, actualPageSize);
         }
 
         // 添加分页选择菜单（如果有多页）
         if (totalPages > 1) {
-            ComponentV2Factory.addSeparator(container);
             ComponentV2Factory.addPaginationSelectMenu(container, {
                 baseId: `follow_history_page_${userId}_${showLeft ? 'all' : 'active'}`,
                 currentPage,
                 totalPages,
-                totalRecords
+                totalRecords,
+                currentGroup
             });
         }
 

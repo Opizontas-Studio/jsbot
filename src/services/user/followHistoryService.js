@@ -194,9 +194,10 @@ class FollowHistoryService {
      * @param {number} params.page - 页码
      * @param {Object} params.client - Discord客户端
      * @param {number} params.pageSize - 每页显示数量（可选，默认使用配置值）
+     * @param {number} params.currentGroup - 当前分组（可选，用于超过25页的情况）
      * @returns {Promise<Object>} 消息数据
      */
-    async buildFollowHistoryMessage({ userId, user, showLeft, page = 1, client, pageSize }) {
+    async buildFollowHistoryMessage({ userId, user, showLeft, page = 1, client, pageSize, currentGroup }) {
         return await ErrorHandler.handleService(
             async () => {
                 // 查询数据（已格式化）
@@ -223,7 +224,9 @@ class FollowHistoryService {
                     totalPages: paginationData.totalPages,
                     totalRecords: paginationData.totalRecords,
                     showLeft: showLeft,
-                    userId: userId
+                    userId: userId,
+                    currentGroup: currentGroup,
+                    pageSize: effectivePageSize
                 });
 
                 // 更新缓存
@@ -297,6 +300,10 @@ class FollowHistoryService {
                 );
 
                 // 构建新消息
+                // 计算目标页所属的分组
+                const MAX_OPTIONS = 25;
+                const targetGroup = Math.floor((targetPage - 1) / MAX_OPTIONS);
+                
                 const messageData = FollowHistoryComponentV2.buildMessage({
                     records: paginationData.records,
                     user: cachedData.user,
@@ -304,7 +311,9 @@ class FollowHistoryService {
                     totalPages: paginationData.totalPages,
                     totalRecords: paginationData.totalRecords,
                     showLeft: cachedData.showLeft,
-                    userId: userId
+                    userId: userId,
+                    currentGroup: targetGroup,
+                    pageSize: cachedData.pageSize
                 });
 
                 // 添加ActionRows到消息
@@ -360,6 +369,73 @@ class FollowHistoryService {
                 await interaction.update(updatePayload);
             },
             '处理关注历史筛选切换',
+            { throwOnError: true }
+        );
+    }
+
+    /**
+     * 处理分组导航按钮（循环切换下一组）
+     * @param {ButtonInteraction} interaction - 按钮交互对象
+     */
+    async handleGroupNavigation(interaction) {
+        return await ErrorHandler.handleService(
+            async () => {
+                // 从customId中提取信息: follow_history_page_{userId}_{type}_group_{currentGroup}_next
+                const parts = interaction.customId.split('_');
+                const userId = parts[3];
+                const showLeft = parts[4] === 'all';
+                const currentGroup = parseInt(parts[6]);
+                
+                // 检查权限
+                if (interaction.user.id !== userId) {
+                    throw new Error('这不是你的查询结果');
+                }
+
+                // 从缓存获取数据
+                const cacheKey = `${userId}_${showLeft ? 'all' : 'active'}`;
+                const cachedData = interaction.client.followHistoryCache?.get(cacheKey);
+
+                if (!cachedData) {
+                    throw new Error('页面数据已过期，请重新执行查询命令');
+                }
+                
+                // 计算总分组数
+                const MAX_OPTIONS = 25;
+                const totalPages = Math.ceil(cachedData.records.length / cachedData.pageSize);
+                const totalGroups = Math.ceil(totalPages / MAX_OPTIONS);
+                
+                // 计算下一组（循环）
+                const nextGroup = (currentGroup + 1) % totalGroups;
+                const targetPage = nextGroup * MAX_OPTIONS + 1;
+                
+                // 分页处理
+                const paginationData = FollowHistoryComponentV2.paginate(
+                    cachedData.records,
+                    targetPage,
+                    cachedData.pageSize
+                );
+
+                // 构建新消息
+                const messageData = FollowHistoryComponentV2.buildMessage({
+                    records: paginationData.records,
+                    user: cachedData.user,
+                    currentPage: paginationData.currentPage,
+                    totalPages: paginationData.totalPages,
+                    totalRecords: paginationData.totalRecords,
+                    showLeft: cachedData.showLeft,
+                    userId: userId,
+                    currentGroup: nextGroup,
+                    pageSize: cachedData.pageSize
+                });
+
+                // 更新消息
+                const updatePayload = {
+                    components: [...messageData.components, ...messageData.actionRows]
+                };
+
+                await interaction.update(updatePayload);
+            },
+            '处理关注历史分组导航',
             { throwOnError: true }
         );
     }

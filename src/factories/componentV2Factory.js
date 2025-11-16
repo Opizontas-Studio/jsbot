@@ -153,14 +153,26 @@ export class ComponentV2Factory {
      * @param {number} config.currentPage - 当前页码
      * @param {number} config.totalPages - 总页数
      * @param {number} [config.totalRecords] - 总记录数（可选，用于显示在placeholder中）
+     * @param {number} [config.currentGroup] - 当前分组（可选，用于超过25页的情况）
      */
-    static addPaginationSelectMenu(container, { baseId, currentPage, totalPages, totalRecords }) {
+    static addPaginationSelectMenu(container, { baseId, currentPage, totalPages, totalRecords, currentGroup }) {
         // 如果只有1页，不添加分页菜单
         if (totalPages <= 1) return;
 
-        // 生成页码选项
+        const MAX_OPTIONS = 25; // Discord选择菜单最多25个选项
+        
+        // 计算当前分组（如果未提供）
+        // 每组最多显示25页，分组从0开始
+        const group = currentGroup !== undefined ? currentGroup : Math.floor((currentPage - 1) / MAX_OPTIONS);
+        const totalGroups = Math.ceil(totalPages / MAX_OPTIONS);
+        
+        // 计算当前分组的页码范围
+        const groupStartPage = group * MAX_OPTIONS + 1;
+        const groupEndPage = Math.min((group + 1) * MAX_OPTIONS, totalPages);
+
+        // 生成当前分组的页码选项
         const options = [];
-        for (let i = 1; i <= totalPages; i++) {
+        for (let i = groupStartPage; i <= groupEndPage; i++) {
             const option = new StringSelectMenuOptionBuilder()
                 .setLabel(`第 ${i} 页`)
                 .setValue(String(i));
@@ -179,6 +191,9 @@ export class ComponentV2Factory {
         if (totalRecords !== undefined) {
             placeholder += ` · 共 ${totalRecords} 项`;
         }
+        if (totalGroups > 1) {
+            placeholder += ` · 分组 ${group + 1}/${totalGroups}`;
+        }
         placeholder += ' - 点击跳转';
 
         const selectMenu = new StringSelectMenuBuilder()
@@ -187,6 +202,47 @@ export class ComponentV2Factory {
             .addOptions(options);
 
         const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+        container.addActionRowComponents(actionRow);
+        
+        // 如果有多个分组，添加分组导航按钮
+        if (totalGroups > 1) {
+            this.addPaginationGroupButtons(container, baseId, group, totalGroups, groupStartPage, groupEndPage, totalPages);
+        }
+    }
+
+    /**
+     * 添加分组导航按钮
+     * @param {ContainerBuilder} container - 容器
+     * @param {string} baseId - 基础ID前缀
+     * @param {number} currentGroup - 当前分组（从0开始）
+     * @param {number} totalGroups - 总分组数
+     * @param {number} groupStartPage - 当前分组起始页
+     * @param {number} groupEndPage - 当前分组结束页
+     * @param {number} totalPages - 总页数
+     */
+    static addPaginationGroupButtons(container, baseId, currentGroup, totalGroups, groupStartPage, groupEndPage, totalPages) {
+        const buttons = [];
+        
+        // 显示当前分组范围
+        const rangeLabel = `${groupStartPage}-${groupEndPage}页`;
+        buttons.push(this.createButton({
+            customId: `${baseId}_group_info`,
+            label: rangeLabel,
+            style: 'secondary',
+            disabled: true
+        }));
+        
+        // 下一组按钮（循环：最后一组时切换回第一组）
+        // 在customId中包含当前分组，方便计算下一组
+        const nextGroup = (currentGroup + 1) % totalGroups;
+        buttons.push(this.createButton({
+            customId: `${baseId}_group_${currentGroup}_next`,
+            label: `下一组 (${nextGroup + 1}/${totalGroups})`,
+            style: 'primary',
+            emoji: '➡️'
+        }));
+        
+        const actionRow = new ActionRowBuilder().addComponents(...buttons);
         container.addActionRowComponents(actionRow);
     }
 

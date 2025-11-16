@@ -30,13 +30,19 @@ export function findButtonConfig(customId) {
         return BUTTON_CONFIG[customId];
     }
 
-    // 2. 前缀匹配（取前两个部分，如 "support_mute_123" -> "support_mute"）
+    // 2. 特殊匹配：关注历史分组导航按钮
+    // 格式：follow_history_page_{userId}_{type}_group_{currentGroup}_next
+    if (customId.includes('_group_') && customId.endsWith('_next') && customId.startsWith('follow_history_page_')) {
+        return BUTTON_CONFIG['follow_history_page_group'];
+    }
+
+    // 3. 前缀匹配（取前两个部分，如 "support_mute_123" -> "support_mute"）
     const buttonPrefix = customId.split('_').slice(0, 2).join('_');
     if (BUTTON_CONFIG[buttonPrefix]) {
         return BUTTON_CONFIG[buttonPrefix];
     }
 
-    // 3. 动态ID匹配（用于特殊按钮，如投稿审核）
+    // 4. 动态ID匹配（用于特殊按钮，如投稿审核）
     for (const [key, config] of Object.entries(BUTTON_CONFIG)) {
         if (customId !== key && customId.startsWith(key)) {
             return config;
@@ -179,6 +185,16 @@ export const buttonHandlers = {
             interaction,
             () => followHistoryService.handleFilterSwitch(interaction, true),
             '切换到曾经关注',
+            { ephemeral: true }
+        );
+    },
+
+    // 历史关注分组导航按钮处理器
+    follow_history_page_group: async interaction => {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => followHistoryService.handleGroupNavigation(interaction),
+            '关注历史分组导航',
             { ephemeral: true }
         );
     },
@@ -621,6 +637,7 @@ const BUTTON_CONFIG = {
     // 历史关注相关
     follow_history_switch_active: { handler: buttonHandlers.follow_history_switch_active, needDefer: false, cooldown: 3000 },
     follow_history_switch_all: { handler: buttonHandlers.follow_history_switch_all, needDefer: false, cooldown: 3000 },
+    follow_history_page_group: { handler: buttonHandlers.follow_history_page_group, needDefer: false, cooldown: 3000 },
 
     // 投稿相关
     submit_opinion: { handler: buttonHandlers.submit_opinion, needDefer: false, cooldown: 30000 },

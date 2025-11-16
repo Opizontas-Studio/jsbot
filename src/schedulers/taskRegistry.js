@@ -85,15 +85,16 @@ export class TaskRegistry {
         managedGuilds.forEach((guildId, index) => {
             const guildConfig = client.guildManager.guilds.get(guildId);
 
-            // 创建每小时的15分和45分执行的规则
+            // 创建每2小时的15分执行的规则
             const rule = new schedule.RecurrenceRule();
-            rule.minute = [15, 45];
+            rule.hour = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
+            rule.minute = 15;
             rule.second = 0 + ((index * 10) % 60);
 
             this.taskScheduler.addCustomTask({
                 taskId: `thread_management_${guildId}`,
                 rule: rule,
-                description: `服务器 ${guildId} 的子区管理任务，每小时的15分和45分执行`,
+                description: `服务器 ${guildId} 的子区管理任务，每2小时的15分执行`,
                 task: () => this._executeThreadManagement(client, guildConfig, guildId)
             });
         });

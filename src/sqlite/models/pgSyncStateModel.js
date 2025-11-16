@@ -168,17 +168,31 @@ class PgSyncStateModel extends BaseModel {
             async () => {
                 const now = Math.floor(Date.now() / 1000);
                 const todayStart = now - (now % 86400);
+                const twoHoursAgo = now - 7200;  // 2小时前（配合缓存有效期）
 
-                const [total, byPriority, todaySynced, errors] = await Promise.all([
+                const [total, byPriority, todaySynced, errors, pendingByPriority] = await Promise.all([
                     dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state'),
                     dbManager.safeExecute('all', 'SELECT priority, COUNT(*) as count FROM pg_sync_state GROUP BY priority'),
                     dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state WHERE last_sync_at >= ?', [todayStart]),
-                    dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state WHERE error_count > 0')
+                    dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state WHERE error_count > 0'),
+                    // 获取当前轮待同步的数量（2小时内未同步且错误次数<3）
+                    dbManager.safeExecute('all', `
+                        SELECT priority, COUNT(*) as count 
+                        FROM pg_sync_state 
+                        WHERE (last_sync_at IS NULL OR last_sync_at < ?)
+                          AND error_count < 3
+                        GROUP BY priority
+                    `, [twoHoursAgo])
                 ]);
 
                 const priorityCounts = {};
                 byPriority.forEach(row => {
                     priorityCounts[row.priority] = row.count;
+                });
+
+                const pendingCounts = {};
+                pendingByPriority.forEach(row => {
+                    pendingCounts[row.priority] = row.count;
                 });
 
                 return {
@@ -187,7 +201,12 @@ class PgSyncStateModel extends BaseModel {
                     mediumPriority: priorityCounts.medium || 0,
                     lowPriority: priorityCounts.low || 0,
                     todaySynced: todaySynced.count,
-                    errorCount: errors.count
+                    errorCount: errors.count,
+                    // 当前轮待同步数量
+                    pendingHigh: pendingCounts.high || 0,
+                    pendingMedium: pendingCounts.medium || 0,
+                    pendingLow: pendingCounts.low || 0,
+                    pendingTotal: (pendingCounts.high || 0) + (pendingCounts.medium || 0) + (pendingCounts.low || 0)
                 };
             },
             '获取同步统计信息',

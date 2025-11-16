@@ -348,8 +348,9 @@ class PostMembersSyncService {
                     raw: true
                 });
 
-                // 根据活跃时间设置优先级
+                // 根据活跃时间设置优先级（配合2小时扫描周期）
                 const now = Date.now();
+                const oneDayAgo = now - (1 * 24 * 60 * 60 * 1000);
                 const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000);
                 const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
 
@@ -363,12 +364,14 @@ class PostMembersSyncService {
                     const lastActive = new Date(post.last_active_at).getTime();
                     let priority;
                     
-                    if (lastActive >= threeDaysAgo) {
-                        priority = 'high';
+                    if (lastActive >= oneDayAgo) {
+                        priority = 'high';  // 1天内活跃
+                    } else if (lastActive >= threeDaysAgo) {
+                        priority = 'medium';  // 1-3天内活跃
                     } else if (lastActive >= sevenDaysAgo) {
-                        priority = 'medium';
+                        priority = 'low';  // 3-7天内活跃
                     } else {
-                        priority = 'low';
+                        priority = 'low';  // 超过7天，也设为低优先级
                     }
 
                     threadsByPriority[priority].push(post.thread_id);
@@ -397,7 +400,7 @@ class PostMembersSyncService {
 
 export const postMembersSyncService = new PostMembersSyncService({
     batchSize: 60,
-    cacheTimeout: 30 * 60 * 1000
+    cacheTimeout: 2 * 60 * 60 * 1000  // 2小时缓存，配合threadAnalyzer的2小时扫描周期
 });
 export default postMembersSyncService;
 

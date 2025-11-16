@@ -163,12 +163,17 @@ export class EmbedFactory {
 
         // 添加 PG 同步统计（如果启用）
         if (pgSyncStats) {
+            const syncProgress = pgSyncStats.totalThreads > 0 
+                ? Math.round((1 - pgSyncStats.pendingTotal / pgSyncStats.totalThreads) * 100)
+                : 0;
+            
             fields.push({
                 name: '📊 数据同步状态',
                 value: [
-                    `总帖子: ${pgSyncStats.totalThreads}`,
-                    `队列: 高${pgSyncStats.highPriority} 中${pgSyncStats.mediumPriority} 低${pgSyncStats.lowPriority}`,
-                    `今日同步: ${pgSyncStats.todaySynced}次`,
+                    `总帖子: ${pgSyncStats.totalThreads} | 今日同步: ${pgSyncStats.todaySynced}次`,
+                    `当前进度: ${syncProgress}% (待同步: ${pgSyncStats.pendingTotal})`,
+                    `待同步队列: 高${pgSyncStats.pendingHigh} 中${pgSyncStats.pendingMedium} 低${pgSyncStats.pendingLow}`,
+                    `优先级分布: 高${pgSyncStats.highPriority} 中${pgSyncStats.mediumPriority} 低${pgSyncStats.lowPriority}`,
                     `错误: ${pgSyncStats.errorCount}次`
                 ].join('\n'),
                 inline: false

@@ -1,4 +1,4 @@
-import { AttachmentBuilder, SlashCommandBuilder } from 'discord.js';
+import { AttachmentBuilder, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { Op } from 'sequelize';
 import { pgManager } from '../../pg/pgManager.js';
 import { handleCommandError } from '../../utils/helper.js';
@@ -55,6 +55,46 @@ export default {
 
     async execute(interaction, guildConfig) {
         try {
+            // 权限校验：检查频道分类
+            const eventsCategoryId = guildConfig.eventsCategoryId;
+            if (!eventsCategoryId) {
+                await interaction.editReply({
+                    content: '❌ 服务器未配置赛事类别，请联系管理员设置',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            // 获取当前频道或其父频道
+            const channel = interaction.channel;
+            let targetChannel = channel;
+            
+            // 如果是子区（Thread），获取其父频道
+            if (channel.isThread()) {
+                targetChannel = channel.parent;
+            }
+
+            // 检查频道分类
+            if (!targetChannel || targetChannel.parentId !== eventsCategoryId) {
+                await interaction.editReply({
+                    content: '❌ 此命令只能在赛事分类下的频道中使用',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
+            // 权限校验：检查执行人是否有管理频道权限
+            const member = interaction.member;
+            const hasManageChannelPermission = targetChannel.permissionsFor(member).has(PermissionFlagsBits.ManageChannels);
+            
+            if (!hasManageChannelPermission) {
+                await interaction.editReply({
+                    content: '❌ 你没有权限使用此命令。需要在此频道具有"管理频道"权限。',
+                    flags: ['Ephemeral']
+                });
+                return;
+            }
+
             const eventName = interaction.options.getString('比赛名');
             const dataSource = interaction.options.getString('数据来源');
             const excludeDeleted = interaction.options.getBoolean('排除删卡链接') ?? true;

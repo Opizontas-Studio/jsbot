@@ -216,7 +216,7 @@ export default {
                         return;
                     }
 
-                    const [, channelId, messageId] = matches;
+                    const [, guildId, channelId, messageId] = matches;
 
                     // 验证消息是否在当前帖子
                     if (channelId !== interaction.channelId) {

@@ -406,7 +406,145 @@ export const analyzeForumActivity = async (client, guildConfig, guildId, activeT
 };
 
 /**
- * 清理不活跃子区
+ * 简化版：仅根据最后消息时间归档不活跃子区（命令入口专用）
+ * 不包含成员数据获取、PG同步、报告生成等额外功能
+ */
+export const cleanupInactiveThreadsSimple = async (client, guildId, threshold, activeThreads = null) => {
+    const totalTimer = measureTime();
+    logTime(`[简化清理] 开始清理服务器 ${guildId} 的不活跃子区`);
+
+    // 获取活跃子区
+    if (!activeThreads) {
+        const guild = await ErrorHandler.handleService(
+            () => client.guilds.fetch(guildId),
+            '获取服务器',
+            { throwOnError: true, userFriendly: false }
+        );
+
+        activeThreads = await ErrorHandler.handleService(
+            () => guild.channels.fetchActiveThreads(),
+            '获取活跃主题列表',
+            { throwOnError: true, userFriendly: false }
+        );
+    }
+
+    const statistics = {
+        totalThreads: activeThreads.threads.size,
+        archivedThreads: 0,
+        skippedPinnedThreads: 0,
+        processedWithErrors: 0,
+    };
+
+    const failedOperations = [];
+    const currentTime = Date.now();
+    const threadArray = Array.from(activeThreads.threads.values());
+
+    // 快速收集子区的最后消息时间和置顶状态
+    const threadInfos = await globalBatchProcessor.processBatch(
+        threadArray,
+        async thread => {
+            try {
+                // 仅获取最后消息时间，不获取成员数量
+                const lastMessage = await ErrorHandler.handleSilent(
+                    async () => {
+                        const messages = await withTimeout(
+                            thread.messages.fetch({ limit: 1 }),
+                            6000,
+                            `获取子区消息 ${thread.name}`
+                        );
+                        const firstMessage = messages.first();
+
+                        if (!firstMessage) {
+                            const moreMessages = await withTimeout(
+                                thread.messages.fetch({ limit: 3 }),
+                                6000,
+                                `获取更多子区消息 ${thread.name}`
+                            );
+                            return moreMessages.find(msg => msg !== null);
+                        }
+                        return firstMessage;
+                    },
+                    `获取子区 ${thread.name} 消息`,
+                    null
+                );
+
+                const lastActiveTime = lastMessage?.createdTimestamp || thread.createdTimestamp;
+                const inactiveHours = (currentTime - lastActiveTime) / (1000 * 60 * 60);
+
+                return {
+                    thread,
+                    threadId: thread.id,
+                    name: thread.name,
+                    lastActiveTime,
+                    inactiveHours,
+                    isPinned: thread.flags.has(ChannelFlags.Pinned),
+                };
+            } catch (error) {
+                failedOperations.push({
+                    threadId: thread.id,
+                    threadName: thread.name,
+                    operation: '获取消息时间',
+                    error: handleDiscordError(error),
+                });
+                statistics.processedWithErrors++;
+                return null;
+            }
+        },
+        null,
+        'default', // 使用默认限制器
+    );
+
+    const validThreads = threadInfos.filter(info => info !== null);
+
+    // 按不活跃时长降序排序
+    const sortedThreads = validThreads.sort((a, b) => b.inactiveHours - a.inactiveHours);
+
+    // 计算需要归档的数量，考虑置顶帖
+    const pinnedCount = sortedThreads.filter(t => t.isPinned).length;
+    statistics.skippedPinnedThreads = pinnedCount;
+
+    const targetCount = Math.max(threshold - pinnedCount, 0);
+    const nonPinnedThreads = sortedThreads.filter(t => !t.isPinned);
+
+    // 执行归档
+    if (nonPinnedThreads.length > targetCount) {
+        const threadsToArchive = nonPinnedThreads.slice(0, nonPinnedThreads.length - targetCount);
+
+        for (const threadInfo of threadsToArchive) {
+            try {
+                await threadInfo.thread.setArchived(true, '手动清理不活跃主题');
+                statistics.archivedThreads++;
+                // logTime(`[手动清理] 已归档: ${threadInfo.name} (不活跃${threadInfo.inactiveHours.toFixed(1)}小时)`);
+            } catch (error) {
+                failedOperations.push({
+                    threadId: threadInfo.threadId,
+                    threadName: threadInfo.name,
+                    operation: '归档主题',
+                    error: handleDiscordError(error),
+                });
+                statistics.processedWithErrors++;
+            }
+        }
+    }
+
+    if (failedOperations.length > 0) {
+        logTime(`[手动清理] 清理失败记录: ${failedOperations.length}个操作失败`, true);
+        failedOperations.slice(0, 5).forEach(fail => {
+            logTime(`  - ${fail.threadName}: ${fail.operation} (${fail.error})`, true);
+        });
+        if (failedOperations.length > 5) {
+            logTime(`  - 以及其他 ${failedOperations.length - 5} 个错误...`, true);
+        }
+    }
+
+    const executionTime = totalTimer();
+    logTime(`[手动清理] 清理操作完成 - 清理了 ${statistics.archivedThreads} 个子区，用时: ${executionTime}秒`);
+    return { statistics, failedOperations };
+};
+
+/**
+ * 完整版：清理不活跃子区（包含报告生成和数据同步）
+ * 用于定时任务等需要完整功能的场景
  */
 export const cleanupInactiveThreads = async (client, guildConfig, guildId, threshold, activeThreads = null) => {
     const totalTimer = measureTime();

@@ -445,7 +445,7 @@ class RateLimitedBatchProcessor {
             // 获取子区成员 - 1次/秒
             threadMembers: {
                 maxRequests: 5,
-                windowMs: 550, // 预留50ms延迟
+                windowMs: 250, // 预留50ms延迟
                 requests: [],
                 concurrency: 1,
             },

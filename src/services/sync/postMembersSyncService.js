@@ -399,7 +399,7 @@ class PostMembersSyncService {
 }
 
 export const postMembersSyncService = new PostMembersSyncService({
-    batchSize: 60,
+    batchSize: 120,
     cacheTimeout: 2 * 60 * 60 * 1000  // 2小时缓存，配合threadAnalyzer的2小时扫描周期
 });
 export default postMembersSyncService;

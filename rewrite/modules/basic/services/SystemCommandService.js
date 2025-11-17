@@ -93,7 +93,7 @@ export class SystemCommandService {
             force: hasActiveOps
         });
 
-        this.logger.info({
+        this.logger.debug({
             msg: '[System.ReloadModule] 重载成功',
             moduleName,
             scope,

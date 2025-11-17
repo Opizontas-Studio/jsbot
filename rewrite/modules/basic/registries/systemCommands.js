@@ -37,7 +37,7 @@ export default {
                             .setDescription('要重载的模块名称')
                             .setRequired(true)
                             .setAutocomplete(true)
-                        )
+                    )
                     .addStringOption(option =>
                         option.setName('范围')
                             .setDescription('重载范围')
@@ -45,7 +45,7 @@ export default {
                             .addChoices(
                                 { name: '完全重载（服务+配置）', value: 'all' },
                                 { name: '仅重载 Builders', value: 'builders' }
-                                )
+                            )
                     )
             )
             .addSubcommand(subcommand =>

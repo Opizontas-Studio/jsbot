@@ -1,4 +1,4 @@
-import { MonitoringManager } from '../infrastructure/monitoring/MonitoringManager.js';
+import { MonitoringManager } from '../infrastructure/MonitoringManager.js';
 import { createMiddlewareChain } from './bootstrap/middlewares.js';
 import { bootstrapCoreServices } from './bootstrap/services.js';
 import { ClientFactory } from './ClientFactory.js';
@@ -98,7 +98,7 @@ class Application {
      */
     async start() {
         try {
-            this.logger.info('[Application] 正在启动');
+            this.logger.debug('[Application] 正在启动');
 
             // 登录Discord
             await this.client.login(this.config.token);
@@ -125,7 +125,7 @@ class Application {
      */
     async stop() {
         try {
-            this.logger.info('[Application] 正在停止');
+            this.logger.debug('[Application] 正在停止');
 
             // 停止监控
             if (this.monitoringManager) {
@@ -134,7 +134,7 @@ class Application {
 
             // 停止所有定时任务
             if (this.container.has('schedulerManager')) {
-                this.container.get('schedulerManager').stopAll();
+                await this.container.get('schedulerManager').cleanup();
             }
 
             // 清理队列

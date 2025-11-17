@@ -137,6 +137,12 @@ export function validateGlobalConfig(config) {
         isPositiveNumber(config.queue.timeout, 'queue.timeout', errors);
     }
 
+    // 验证 lock 配置
+    if (config.lock) {
+        isPositiveNumber(config.lock.timeout, 'lock.timeout', errors);
+        isPositiveNumber(config.lock.maxPending, 'lock.maxPending', errors);
+    }
+
     return errors;
 }
 

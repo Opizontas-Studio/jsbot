@@ -6,8 +6,9 @@
 import { MiddlewareChain } from '../middleware/MiddlewareChain.js';
 import { cooldownMiddleware } from '../middleware/cooldown.js';
 import { deferMiddleware } from '../middleware/defer.js';
-import { errorHandlerMiddleware } from '../middleware/errorHandler.js';
+import { executionWrapperMiddleware } from '../middleware/executionWrapper.js';
 import { permissionsMiddleware } from '../middleware/permissions.js';
+import { queueMiddleware } from '../middleware/queue.js';
 import { usageMiddleware } from '../middleware/usage.js';
 
 /**
@@ -19,13 +20,18 @@ export function createMiddlewareChain(container) {
     const middlewareChain = new MiddlewareChain();
 
     // 按执行顺序添加中间件
-    // errorHandler → defer → usage → permissions → cooldown → handler
-    middlewareChain.use(errorHandlerMiddleware);
+    // executionWrapper(tracking+error) → defer → usage → permissions → cooldown → queue → handler
+    middlewareChain.use(executionWrapperMiddleware(
+        container.get('activeOperationTracker')
+    ));
     middlewareChain.use(deferMiddleware);
     middlewareChain.use(usageMiddleware);
     middlewareChain.use(permissionsMiddleware);
     middlewareChain.use(cooldownMiddleware(
         container.get('cooldownManager')
+    ));
+    middlewareChain.use(queueMiddleware(
+        container.get('queueManager')
     ));
 
     const logger = container.get('logger');

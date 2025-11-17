@@ -26,6 +26,9 @@ class Context {
         // 容器服务快捷访问
         this.logger = container?.has?.('logger') ? container.get('logger') : null;
         this.registry = container?.has?.('registry') ? container.get('registry') : null;
+        this.apiClient = container?.has?.('apiClient') ? container.get('apiClient') : null;
+        this.queueManager = container?.has?.('queueManager') ? container.get('queueManager') : null;
+        this.lockManager = container?.has?.('lockManager') ? container.get('lockManager') : null;
 
         // 交互特殊字段
         this.selectedValues = null;
@@ -150,6 +153,101 @@ class Context {
                 flags: ephemeral ? ['Ephemeral'] : undefined
             });
         }
+    }
+
+    /**
+     * 使用 ApiClient 发送消息（经过速率限制和监控）
+     * @param {import('discord.js').TextChannel} channel - 目标频道
+     * @param {Object} options - 消息选项
+     * @returns {Promise<import('discord.js').Message>}
+     */
+    async sendMessage(channel, options) {
+        if (this.apiClient) {
+            return await this.apiClient.call('sendMessage', channel, options);
+        }
+        // 降级到直接调用
+        return await channel.send(options);
+    }
+
+    /**
+     * 使用 ApiClient 编辑消息
+     * @param {import('discord.js').Message} message - 消息对象
+     * @param {Object} options - 编辑选项
+     * @returns {Promise<import('discord.js').Message>}
+     */
+    async editMessage(message, options) {
+        if (this.apiClient) {
+            return await this.apiClient.call('editMessage', message, options);
+        }
+        return await message.edit(options);
+    }
+
+    /**
+     * 使用 ApiClient 删除消息
+     * @param {import('discord.js').Message} message - 消息对象
+     * @returns {Promise<void>}
+     */
+    async deleteMessage(message) {
+        if (this.apiClient) {
+            return await this.apiClient.call('deleteMessage', message);
+        }
+        return await message.delete();
+    }
+
+    /**
+     * 使用 ApiClient 添加角色
+     * @param {import('discord.js').GuildMember} member - 成员对象
+     * @param {import('discord.js').Role} role - 角色对象
+     * @param {string} reason - 原因
+     * @returns {Promise<import('discord.js').GuildMember>}
+     */
+    async addRole(member, role, reason) {
+        if (this.apiClient) {
+            return await this.apiClient.call('addRole', member, role, reason);
+        }
+        return await member.roles.add(role, reason);
+    }
+
+    /**
+     * 使用 ApiClient 移除角色
+     * @param {import('discord.js').GuildMember} member - 成员对象
+     * @param {import('discord.js').Role} role - 角色对象
+     * @param {string} reason - 原因
+     * @returns {Promise<import('discord.js').GuildMember>}
+     */
+    async removeRole(member, role, reason) {
+        if (this.apiClient) {
+            return await this.apiClient.call('removeRole', member, role, reason);
+        }
+        return await member.roles.remove(role, reason);
+    }
+
+    /**
+     * 使用 ApiClient 归档线程
+     * @param {import('discord.js').ThreadChannel} thread - 线程对象
+     * @param {boolean} archived - 是否归档
+     * @param {string} reason - 原因
+     * @returns {Promise<import('discord.js').ThreadChannel>}
+     */
+    async setArchived(thread, archived, reason) {
+        if (this.apiClient) {
+            return await this.apiClient.call('setArchived', thread, archived, reason);
+        }
+        return await thread.setArchived(archived, reason);
+    }
+
+    /**
+     * 使用 ApiClient 锁定线程
+     * @param {import('discord.js').ThreadChannel} thread - 线程对象
+     * @param {boolean} locked - 是否锁定
+     * @param {string} reason - 原因
+     * @returns {Promise<import('discord.js').ThreadChannel>}
+     */
+    async setLocked(thread, locked, reason) {
+        if (this.apiClient) {
+            return await this.apiClient.call('setLocked', thread, locked, reason);
+        }
+        return await thread.setLocked(locked, reason);
     }
 }
 

@@ -41,7 +41,7 @@ export class ModuleReloader {
             }
         }
 
-        this.logger.info({
+        this.logger.debug({
             msg: '[ModuleReload] 开始重载模块',
             module: moduleName,
             scope,

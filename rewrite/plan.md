@@ -34,32 +34,38 @@ rewrite/
 │   ├── Context.js                    # 上下文对象（统一包装interaction）
 │   ├── Logger.js                     # 日志器（基于pino）
 │   ├── CommandDeployer.js            # 命令部署器
-│   ├── MiddlewareChain.js            # 中间件链管理
-│   ├── utils.js                      # 核心工具函数
-│   ├── events/                       # 全局事件监听器（统一监听Discord事件）
+│   ├── ModuleReloader.js             # 模块热重载
+│   ├── bootstrap/                    # 启动引导
+│   │   ├── services.js              # 服务注册
+│   │   ├── middlewares.js           # 中间件配置
+│   │   └── lifecycle.js             # 生命周期管理
+│   ├── events/                       # 全局事件监听器
 │   │   ├── EventListenerManager.js  # 事件监听管理器
 │   │   ├── InteractionListener.js   # 交互事件分发
 │   │   ├── MemberListener.js        # 成员事件分发
 │   │   └── MessageListener.js       # 消息事件分发
-│   └── middleware/                   # 中间件（配置驱动）
-│       ├── defer.js                 # 自动defer交互
-│       ├── usage.js                 # 使用场景验证
-│       ├── usageValidators.js       # 使用场景验证器集合
-│       ├── permissions.js           # 权限检查
-│       ├── cooldown.js              # 冷却检查
-│       └── errorHandler.js          # 统一错误处理
+│   ├── middleware/                   # 中间件
+│   │   ├── MiddlewareChain.js       # 中间件链管理
+│   │   ├── defer.js                 # 自动defer交互
+│   │   ├── usage.js                 # 使用场景验证
+│   │   ├── usageValidators.js       # 使用场景验证器集合
+│   │   ├── permissions.js           # 权限检查
+│   │   ├── cooldown.js              # 冷却检查
+│   │   └── errorHandler.js          # 统一错误处理
+│   └── utils/                        # 核心工具
+│       └── version.js               # 版本管理
 │
 ├── infrastructure/                   # 基础设施
-│   ├── database/
-│   │   ├── Manager.js               # 统一数据库接口
+│   ├── database/                    # 数据库层
+│   │   ├── DatabaseManager.js       # 统一数据库接口
 │   │   ├── adapters/
 │   │   │   ├── SqliteAdapter.js
 │   │   │   └── PostgresAdapter.js
-│   │   └── migrations/              # SQL/JS 迁移脚本
-│   ├── api/                         # Discord API统一包装层
-│   │   ├── ApiClient.js            # API调用包装（所有API的统一入口）
-│   │   ├── RateLimiter.js          # 速率限制（主动限速，基于Map）
-│   │   ├── Monitor.js              # API调用监控与统计
+│   │   └── migrations/              # 迁移脚本
+│   ├── api/                         # Discord API包装层
+│   │   ├── ApiClient.js            # API调用包装
+│   │   ├── RateLimiter.js          # 速率限制
+│   │   ├── Monitor.js              # API调用监控
 │   │   └── BatchProcessor.js       # 批量操作处理器
 │   ├── monitoring/                   # 监控系统
 │   │   ├── MonitoringManager.js     # 监控管理器
@@ -68,31 +74,25 @@ rewrite/
 │   ├── QueueManager.js              # 队列管理（基于p-queue）
 │   ├── LockManager.js               # 锁管理（基于async-lock）
 │   ├── SchedulerManager.js          # 调度管理（基于node-schedule）
-│   └── CooldownManager.js            # 冷却管理（基于Map）
+│   └── CooldownManager.js            # 冷却管理
 │
 ├── modules/                          # 业务模块
-│   ├── basic/                       # 基础模块（已实现）
-│   │   ├── registries/              # 配置注册（仅此目录被Registry扫描）
-│   │   │   └── commands.js         # Ping命令配置（使用Component V2）
-│   │   └── builders/                # 消息构建器（工具类，不被扫描）
-│   │       └── pingMessages.js     # Ping消息构建器
-│   └── [其他模块...]               # 待迁移模块
-│       ├── registries/              # 配置注册（仅此目录被Registry扫描）
-│       │   ├── commands.js         # 命令配置数组
-│       │   ├── buttons.js          # 按钮配置数组
-│       │   ├── modals.js           # Modal配置数组
-│       │   ├── selects.js          # 选择菜单配置数组
-│       │   ├── events.js           # 事件配置数组
-│       │   └── tasks.js            # 定时任务配置数组
-│       ├── services/                # 业务服务
+│   └── basic/                       # 基础模块（已实现）
+│       ├── registries/              # 配置注册
+│       │   └── commands.js         # Ping命令配置
 │       ├── builders/                # 消息构建器
-│       ├── models/                  # 数据模型
-│       └── utils/                   # 模块工具函数
+│       │   └── pingMessages.js     # Ping消息构建器
+│       └── services/                # 业务服务
+│           └── PingService.js      # Ping服务
 │
 ├── shared/                           # 共享层
-│   ├── factories/                   # Discord API工具（纯函数）
+│   ├── factories/                   # Discord工厂函数
+│   │   └── ComponentV2Factory.js   # Component V2构建器
 │   ├── utils/                       # 通用工具
-│   └── types.js                     # JSDoc类型定义
+│   │   └── ErrorFormatter.js       # 错误格式化
+│   ├── builders/                    # 共享构建器
+│   ├── registries/                  # 共享注册
+│   └── services/                    # 共享服务
 │
 ├── tests/                            # 测试（待完善）
 │   ├── unit/
@@ -101,9 +101,13 @@ rewrite/
 ├── scripts/                          # 脚本
 │   └── [scripts]
 │
+├── docs/                             # 文档
+│   └── USAGE_MIDDLEWARE.md         # 使用场景中间件文档
+│
 ├── config/                           # 配置
 │   ├── loader.js                    # 加载配置
 │   ├── schema.js                    # 验证配置
+│   ├── SETUP.md                     # 配置说明
 │   ├── config.json                  # Bot全局配置（gitignore）
 │   ├── guilds/                      # 服务器配置（gitignore）
 │   │   └── {guildId}.json          # 各服务器独立配置

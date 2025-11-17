@@ -26,7 +26,7 @@ class CommandDeployer {
                 return { deployed: 0, skipped: 0, failed: 0, total: 0, noConfig: 0 };
             }
 
-            this.logger.info({
+            this.logger.debug({
                 msg: '[CommandDeploy] 准备部署命令',
                 count: commands.length
             });

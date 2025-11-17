@@ -1,4 +1,4 @@
-import { defineService } from '../../core/Container.js';
+import { defineService } from '../core/Container.js';
 
 /**
  * 活跃操作追踪器

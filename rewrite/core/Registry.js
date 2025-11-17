@@ -50,8 +50,7 @@ class Registry {
 
             const duration = Date.now() - startTime;
             this.logger.info({
-                msg: `[Registry] 模块加载完成`,
-                duration: `${duration}ms`,
+                msg: `[Registry] 模块加载完成 (耗时 ${duration}ms)`,
                 stats: {
                     services: this.servicesCount,
                     commands: this.commands.size,

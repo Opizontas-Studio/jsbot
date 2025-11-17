@@ -1,10 +1,12 @@
 import { MonitoringManager } from '../infrastructure/monitoring/MonitoringManager.js';
+import { createMiddlewareChain } from './bootstrap/middlewares.js';
+import { bootstrapCoreServices } from './bootstrap/services.js';
 import { ClientFactory } from './ClientFactory.js';
 import { Container } from './Container.js';
 import { EventListenerManager } from './events/EventListenerManager.js';
 import { Logger } from './Logger.js';
 import { Registry } from './Registry.js';
-import { bootstrapCoreServices, createMiddlewareChain, getVersionInfo } from './utils.js';
+import { getVersionInfo } from './utils/version.js';
 
 /**
  * 应用主入口协调器

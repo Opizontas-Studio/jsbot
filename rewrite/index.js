@@ -6,7 +6,7 @@
 import { config as loadDotenv } from 'dotenv';
 import { loadConfig } from './config/loader.js';
 import { Application } from './core/Application.js';
-import { detectTestMode, getDefaultPaths, setupGracefulShutdown } from './core/utils.js';
+import { detectTestMode, getDefaultPaths, setupGracefulShutdown } from './core/bootstrap/lifecycle.js';
 
 // 检查并处理测试模式
 const isTestMode = process.argv.includes('--test');

@@ -232,23 +232,11 @@ export class SystemCommandService {
 
     /**
      * 处理重载配置命令
-     * 包含完整流程：参数提取、环境检查、确认流程、执行重载
+     * 包含完整流程：确认流程、执行重载
      * @param {Context} ctx - 命令上下文
      */
     async handleReloadConfig(ctx) {
         const guildId = ctx.interaction.guildId;
-
-        if (!guildId) {
-            this.logger.warn({
-                msg: '[System.ReloadConfig] 在非服务器环境中调用',
-                userId: ctx.user.id
-            });
-
-            await ctx.interaction.editReply(
-                createStandardMessage('error', SystemMessageBuilder.MESSAGES.config.error('N/A', '此命令只能在服务器中使用'))
-            );
-            return;
-        }
 
         const { confirmationId, messagePayload } = this.confirmationService.createConfirmationWithMessage({
             userId: ctx.user.id,

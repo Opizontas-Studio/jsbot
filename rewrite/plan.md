@@ -43,6 +43,8 @@ rewrite/
 │   │   └── MessageListener.js       # 消息事件分发
 │   └── middleware/                   # 中间件（配置驱动）
 │       ├── defer.js                 # 自动defer交互
+│       ├── usage.js                 # 使用场景验证
+│       ├── usageValidators.js       # 使用场景验证器集合
 │       ├── permissions.js           # 权限检查
 │       ├── cooldown.js              # 冷却检查
 │       └── errorHandler.js          # 统一错误处理
@@ -346,7 +348,7 @@ class PunishmentService {
 
 ### 4. 中间件机制
 
-**执行顺序：** errorHandler → defer → permissions → cooldown → handler
+**执行顺序：** errorHandler → defer → usage → permissions → cooldown → handler
 
 **内置中间件：**
 
@@ -359,9 +361,16 @@ class PunishmentService {
   - 读取配置的 `defer` 字段：`true | { ephemeral: boolean }`
   - 跳过不支持defer的交互类型（autocomplete等）
 
+- **usage**：使用场景验证
+  - 读取配置的 `usage` 字段：`['inGuild', 'inThread']` 或对象形式
+  - 验证交互环境（服务器/私信/线程/论坛等）和身份（线程主人/消息作者等）
+  - 支持逻辑组合：`all`(AND)、`any`(OR)、`not`(NOT)
+  - 不通过则返回具体错误提示并阻止执行
+  - 详细文档：`docs/USAGE_MIDDLEWARE.md`
+
 - **permissions**：权限检查
   - 读取配置的 `permissions` 字段：`['moderator', 'administrator']`
-  - 从 `ctx.config` 和 `ctx.member.roles` 验证权限
+  - 从 `ctx.config` 和 `ctx.member.roles` 验证角色权限
   - 不通过则返回错误并阻止执行
 
 - **cooldown**：冷却时间检查
@@ -374,8 +383,9 @@ class PunishmentService {
 export default {
     id: 'moderation.punish',
     defer: { ephemeral: true },
+    usage: ['inGuild', 'inThread'],  // 使用场景验证
+    permissions: ['moderator'],      // 角色权限验证
     cooldown: 5000,
-    permissions: ['moderator'],
     async execute(ctx) { /* 纯业务逻辑 */ }
 }
 ```

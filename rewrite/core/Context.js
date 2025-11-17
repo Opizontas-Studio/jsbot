@@ -84,6 +84,29 @@ class Context {
     }
 
     /**
+     * 提示回复（使用ComponentV2）
+     * @param {string} message - 提示消息
+     * @param {boolean} [useText=false] - 是否使用纯文本
+     * @returns {Promise<import('discord.js').Message>}
+     */
+    async info(message, useText = false) {
+        if (useText) {
+            return await this.reply({
+                content: `ℹ️ ${message}`,
+                flags: ['Ephemeral']
+            });
+        }
+
+        return await this.reply(
+            createStandardMessage('info', {
+                title: '提示',
+                message,
+                additionalFlags: ['Ephemeral']
+            })
+        );
+    }
+
+    /**
      * 成功回复（使用ComponentV2）
      * @param {string|Object} messageOrConfig - 成功消息或配置对象
      * @param {boolean} [useText=false] - 是否使用纯文本

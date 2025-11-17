@@ -13,6 +13,7 @@ import { cooldownMiddleware } from './middleware/cooldown.js';
 import { deferMiddleware } from './middleware/defer.js';
 import { errorHandlerMiddleware } from './middleware/errorHandler.js';
 import { permissionsMiddleware } from './middleware/permissions.js';
+import { usageMiddleware } from './middleware/usage.js';
 
 // ==================== 启动相关工具 ====================
 
@@ -129,8 +130,10 @@ export function createMiddlewareChain(container, logger) {
     const middlewareChain = new MiddlewareChain();
 
     // 按执行顺序添加中间件
+    // errorHandler → defer → usage → permissions → cooldown → handler
     middlewareChain.use(errorHandlerMiddleware(logger));
     middlewareChain.use(deferMiddleware(logger));
+    middlewareChain.use(usageMiddleware(logger));
     middlewareChain.use(permissionsMiddleware(logger));
     middlewareChain.use(cooldownMiddleware(
         container.get('cooldownManager'),

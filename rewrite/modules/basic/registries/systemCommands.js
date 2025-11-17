@@ -12,6 +12,7 @@ export default [
         name: '系统',
         description: 'Bot 系统管理指令',
         defer: { ephemeral: true },
+        usage: ['inGuild'],  // 系统命令必须在服务器中使用
         permissions: ['administrator'],
         inject: ['basic.systemCommandService'],
 

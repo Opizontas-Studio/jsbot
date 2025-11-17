@@ -6,7 +6,7 @@ export const serviceConfig = {
     name: 'basic.systemCommandService',
     factory: (container) => new SystemCommandService({
         logger: container.get('logger'),
-        commandSyncService: container.get('basic.commandSyncService'),
+        commandDeployer: container.get('commandDeployer'),
         moduleReloadService: container.get('basic.moduleReloadService'),
         configManager: container.get('configManager'),
         activeOperationTracker: container.get('activeOperationTracker'),
@@ -19,9 +19,9 @@ export const serviceConfig = {
  * 协调各种系统管理操作，处理完整的业务流程
  */
 export class SystemCommandService {
-    constructor({ logger, commandSyncService, moduleReloadService, configManager, activeOperationTracker, confirmationService }) {
+    constructor({ logger, commandDeployer, moduleReloadService, configManager, activeOperationTracker, confirmationService }) {
         this.logger = logger;
-        this.commandSyncService = commandSyncService;
+        this.commandDeployer = commandDeployer;
         this.moduleReloadService = moduleReloadService;
         this.configManager = configManager;
         this.activeOperationTracker = activeOperationTracker;
@@ -38,8 +38,11 @@ export class SystemCommandService {
             createStandardMessage('progress', SystemMessageBuilder.MESSAGES.sync.checking)
         );
 
-        // 调用服务执行同步
-        const result = await this.commandSyncService.syncCommands(ctx);
+        // 调用核心服务执行同步
+        const result = await this.commandDeployer.syncCommandsToGuild(
+            ctx.interaction.guildId,
+            ctx.client.token
+        );
 
         // 显示结果消息
         if (result.unchanged) {

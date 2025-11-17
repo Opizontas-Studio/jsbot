@@ -8,7 +8,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ConfigManager } from '../config/loader.js';
 import { CooldownManager } from '../infrastructure/CooldownManager.js';
-import { MiddlewareChain } from './MiddlewareChain.js';
+import { CommandDeployer } from './CommandDeployer.js';
+import { MiddlewareChain } from './middleware/MiddlewareChain.js';
 import { cooldownMiddleware } from './middleware/cooldown.js';
 import { deferMiddleware } from './middleware/defer.js';
 import { errorHandlerMiddleware } from './middleware/errorHandler.js';
@@ -114,6 +115,9 @@ export function bootstrapCoreServices(container, config, logger) {
 
     // 注册CooldownManager
     container.registerInstance('cooldownManager', new CooldownManager());
+
+    // 注册CommandDeployer（延迟初始化，因为依赖client和registry）
+    container.registerFactory('commandDeployer', (c) => new CommandDeployer(c, c.get('logger')));
 
     logger.debug('[Utils] 核心服务已注册');
 }

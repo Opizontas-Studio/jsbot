@@ -1,6 +1,5 @@
 import { MonitoringManager } from '../infrastructure/monitoring/MonitoringManager.js';
 import { ClientFactory } from './ClientFactory.js';
-import { CommandDeployer } from './CommandDeployer.js';
 import { Container } from './Container.js';
 import { EventListenerManager } from './events/EventListenerManager.js';
 import { Logger } from './Logger.js';
@@ -106,7 +105,7 @@ class Application {
             await this._waitForReady();
 
             // 部署命令到未部署的服务器
-            const deployer = new CommandDeployer(this.container, this.logger);
+            const deployer = this.container.get('commandDeployer');
             await deployer.deployToAllGuilds();
 
             this.logger.info('[Application] 启动成功');

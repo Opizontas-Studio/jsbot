@@ -1,7 +1,8 @@
-import { ConfirmationMessageBuilder } from '../builders/ConfirmationMessageBuilder.js';
+import { ConfirmationMessageBuilder } from '../builders/ConfirmationMessage.js';
+import { createStandardMessage } from '../factories/ComponentV2Factory.js';
 
 /**
- * 共享的确认按钮配置
+ * 确认按钮配置
  * 处理所有使用统一路由的确认按钮
  */
 export default [{
@@ -25,10 +26,12 @@ export default [{
 
         if (!result.success) {
             // 确认失败（过期、无权限等）
-            await ctx.interaction.reply({
-                ...ConfirmationMessageBuilder.createErrorMessage('操作失败', result.error),
-                flags: ['Ephemeral']
-            });
+            await ctx.interaction.reply(
+                createStandardMessage('error', {
+                    ...ConfirmationMessageBuilder.MESSAGES.error('操作失败', result.error),
+                    additionalFlags: ['Ephemeral']
+                })
+            );
         }
         // 成功的情况由回调函数处理交互响应
     }

@@ -1,4 +1,4 @@
-import { ConfirmationMessageBuilder } from '../builders/ConfirmationMessageBuilder.js';
+import { ConfirmationMessageBuilder } from '../builders/ConfirmationMessage.js';
 
 // 服务注册配置
 export const serviceConfig = {
@@ -27,18 +27,20 @@ export class ConfirmationService {
      * 创建一个待确认的操作
      * @param {Object} options
      * @param {string} options.userId - 发起操作的用户ID
-     * @param {Function} options.onConfirm - 确认后的回调函数
+     * @param {Function} options.onConfirm - 确认后的回调函数 (confirmation, context) => Promise<{ logInfo?, logLevel? }>
+     * @param {Function} [options.onError] - 错误处理回调函数 (error, confirmation, context) => Promise<{ logInfo?, logLevel? }>
      * @param {Object} options.context - 操作的上下文信息
      * @param {number} [options.timeout=120000] - 超时时间（毫秒）
      * @returns {string} 确认ID
      */
-    createConfirmation({ userId, onConfirm, context, timeout = 120000 }) {
+    createConfirmation({ userId, onConfirm, onError, context, timeout = 120000 }) {
         const confirmationId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
         this.pendingConfirmations.set(confirmationId, {
             userId,
             expiresAt: Date.now() + timeout,
             onConfirm,
+            onError,
             context
         });
 
@@ -105,19 +107,58 @@ export class ConfirmationService {
         // 删除待确认操作
         this.pendingConfirmations.delete(confirmationId);
 
-        // 执行回调
+        // 执行回调并统一处理错误和日志
         try {
-            await confirmation.onConfirm(interaction, confirmation.context);
+            const result = await confirmation.onConfirm(interaction, confirmation.context);
 
-            this.logger.debug({
-                msg: '[ConfirmationService] 确认操作已执行',
-                confirmationId,
-                userId,
-                context: confirmation.context?.type || 'unknown'
-            });
+            // 记录成功日志
+            if (result?.logInfo) {
+                const logLevel = result.logLevel || 'info';
+                this.logger[logLevel](result.logInfo);
+            } else {
+                this.logger.debug({
+                    msg: '[ConfirmationService] 确认操作已执行',
+                    confirmationId,
+                    userId,
+                    context: confirmation.context?.type || 'unknown'
+                });
+            }
 
             return { success: true };
         } catch (error) {
+            // 如果提供了错误处理回调，调用它
+            if (confirmation.onError) {
+                try {
+                    const result = await confirmation.onError(error, interaction, confirmation.context);
+
+                    // 记录错误日志
+                    if (result?.logInfo) {
+                        const logLevel = result.logLevel || 'error';
+                        this.logger[logLevel](result.logInfo);
+                    } else {
+                        this.logger.error({
+                            msg: '[ConfirmationService] 确认回调执行失败（已处理）',
+                            confirmationId,
+                            userId,
+                            error: error.message
+                        });
+                    }
+
+                    return { success: true }; // 错误已被处理
+                } catch (handlerError) {
+                    // 错误处理器本身出错
+                    this.logger.error({
+                        msg: '[ConfirmationService] 错误处理器执行失败',
+                        confirmationId,
+                        userId,
+                        originalError: error.message,
+                        handlerError: handlerError.message
+                    });
+                    throw handlerError;
+                }
+            }
+
+            // 没有错误处理回调，记录日志并重新抛出
             this.logger.error({
                 msg: '[ConfirmationService] 确认回调执行失败',
                 confirmationId,
@@ -186,7 +227,7 @@ export class ConfirmationService {
         this.pendingConfirmations.clear();
     }
 
-    // ==================== 便捷方法（整合原 ConfirmationHelper 功能） ====================
+    // ==================== 便捷方法 ====================
 
     /**
      * 创建确认操作并返回消息内容
@@ -194,7 +235,8 @@ export class ConfirmationService {
      *
      * @param {Object} options - 配置选项
      * @param {string} options.userId - 用户ID
-     * @param {Function} options.onConfirm - 确认回调 (interaction, context) => Promise<void>
+     * @param {Function} options.onConfirm - 确认回调 (confirmation, context) => Promise<{ logInfo?, logLevel? }>
+     * @param {Function} [options.onError] - 错误处理回调 (error, confirmation, context) => Promise<{ logInfo?, logLevel? }>
      * @param {Object} options.context - 操作上下文
      * @param {string} options.title - 标题
      * @param {string} options.message - 消息内容
@@ -207,6 +249,7 @@ export class ConfirmationService {
     createConfirmationWithMessage({
         userId,
         onConfirm,
+        onError,
         context,
         title,
         message,
@@ -219,6 +262,7 @@ export class ConfirmationService {
         const confirmationId = this.createConfirmation({
             userId,
             onConfirm,
+            onError,
             context,
             timeout
         });

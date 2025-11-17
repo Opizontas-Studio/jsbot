@@ -2,22 +2,17 @@ import { ComponentV2Factory } from '../../../shared/factories/ComponentV2Factory
 
 /**
  * Ping命令消息构建器
- * 使用Component V2构建响应消息
+ * 包含消息文本定义和消息构建逻辑
  */
 export class PingMessageBuilder {
-    /**
-     * 创建测量中消息
-     * @param {Object} [options] - 消息选项
-     * @returns {Object} Discord消息对象
-     */
-    static createMeasuring(options) {
-        const container = ComponentV2Factory.createContainer(
-            ComponentV2Factory.Colors.INFO
-        );
-        ComponentV2Factory.addText(container, '🏓 **测量中...**');
-        return ComponentV2Factory.createMessage(container, options);
-    }
+    // ==================== 消息文本定义 ====================
 
+    static MESSAGES = {
+        measuring: {
+            message: '🏓 **测量中...**',
+            emoji: '' // 已在消息中包含表情
+        }
+    };
     /**
      * 创建Pong响应消息
      * @param {Object} data - 延迟数据

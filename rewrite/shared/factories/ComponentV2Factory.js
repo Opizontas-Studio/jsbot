@@ -335,44 +335,94 @@ export class ComponentV2Factory {
 }
 
 /**
- * 便捷方法：创建错误消息
- * @param {string} title - 标题
- * @param {string} message - 消息内容
- * @returns {Object} Discord消息对象
+ * 统一的标准消息构建器
+ *
+ * @param {string} type - 消息类型: 'error' | 'success' | 'warning' | 'info' | 'progress' | 'timeout'
+ * @param {string|Object} titleOrConfig - 标题文本或完整配置对象
+ * @param {string} [messageText] - 消息内容（仅快捷调用时）
+ *
+ * @example
+ * // 快捷调用
+ * createStandardMessage('error', '操作失败', '请稍后重试')
+ * createStandardMessage('success', '操作成功')
+ *
+ * @example
+ * // 对象配置调用（更多控制）
+ * createStandardMessage('error', {
+ *   title: '操作失败',
+ *   message: ['错误详情', '请联系管理员'],
+ *   emoji: '❌',
+ *   headingLevel: 2,
+ *   addSeparator: true,
+ *   additionalFlags: ['Ephemeral']
+ * })
+ *
+ * @returns {Object} 完整的Discord消息对象（包含 components 和 flags）
  */
-export function createErrorMessage(title, message) {
-    const container = ComponentV2Factory.createContainer(ComponentV2Factory.Colors.ERROR);
-    ComponentV2Factory.addHeading(container, `❌ ${title}`, 2);
-    ComponentV2Factory.addText(container, message);
-    return { components: [container] };
-}
+export function createStandardMessage(type, titleOrConfig, messageText) {
+    // 类型配置映射
+    const typeConfig = {
+        error: { color: ComponentV2Factory.Colors.ERROR, defaultEmoji: '❌' },
+        success: { color: ComponentV2Factory.Colors.SUCCESS, defaultEmoji: '✅' },
+        warning: { color: ComponentV2Factory.Colors.WARNING, defaultEmoji: '⚠️' },
+        info: { color: ComponentV2Factory.Colors.INFO, defaultEmoji: 'ℹ️' },
+        progress: { color: ComponentV2Factory.Colors.INFO, defaultEmoji: '⏳' },
+        timeout: { color: ComponentV2Factory.Colors.WARNING, defaultEmoji: '⏰' }
+    };
 
-/**
- * 便捷方法：创建成功消息
- */
-export function createSuccessMessage(title, message) {
-    const container = ComponentV2Factory.createContainer(ComponentV2Factory.Colors.SUCCESS);
-    ComponentV2Factory.addHeading(container, `✅ ${title}`, 2);
-    ComponentV2Factory.addText(container, message);
-    return { components: [container] };
-}
+    const config = typeConfig[type];
+    if (!config) {
+        throw new Error(`Unknown message type: ${type}. Valid types: ${Object.keys(typeConfig).join(', ')}`);
+    }
 
-/**
- * 便捷方法：创建信息消息
- */
-export function createInfoMessage(title, message) {
-    const container = ComponentV2Factory.createContainer(ComponentV2Factory.Colors.INFO);
-    ComponentV2Factory.addHeading(container, `ℹ️ ${title}`, 2);
-    ComponentV2Factory.addText(container, message);
-    return { components: [container] };
-}
+    // 解析参数：支持两种调用方式
+    let options;
+    if (typeof titleOrConfig === 'string') {
+        // 快捷调用：(type, title, message)
+        options = {
+            title: titleOrConfig,
+            message: messageText || '',
+            emoji: config.defaultEmoji,
+            headingLevel: 2,
+            addSeparator: false,
+            additionalFlags: []
+        };
+    } else {
+        // 对象配置调用：(type, { title, message, ... })
+        options = {
+            emoji: config.defaultEmoji,
+            headingLevel: 2,
+            addSeparator: false,
+            additionalFlags: [],
+            ...titleOrConfig
+        };
+    }
 
-/**
- * 便捷方法：创建警告消息
- */
-export function createWarningMessage(title, message) {
-    const container = ComponentV2Factory.createContainer(ComponentV2Factory.Colors.WARNING);
-    ComponentV2Factory.addHeading(container, `⚠️ ${title}`, 2);
-    ComponentV2Factory.addText(container, message);
-    return { components: [container] };
+    // 构建消息
+    const container = ComponentV2Factory.createContainer(config.color);
+
+    // 添加标题（如果有）
+    if (options.title) {
+        const titleText = options.emoji ? `${options.emoji} ${options.title}` : options.title;
+        ComponentV2Factory.addHeading(container, titleText, options.headingLevel);
+    }
+
+    // 添加分隔符（如果需要）
+    if (options.addSeparator && options.title) {
+        ComponentV2Factory.addSeparator(container);
+    }
+
+    // 添加消息内容
+    if (options.message) {
+        // 支持字符串或字符串数组
+        const messageContent = Array.isArray(options.message)
+            ? options.message.join('\n')
+            : options.message;
+        ComponentV2Factory.addText(container, messageContent);
+    }
+
+    // 使用统一的 createMessage 方法返回完整消息对象
+    return ComponentV2Factory.createMessage(container, {
+        additionalFlags: options.additionalFlags
+    });
 }

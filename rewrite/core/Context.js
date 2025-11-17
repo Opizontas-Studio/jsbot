@@ -1,4 +1,4 @@
-import { ComponentV2Factory } from '../shared/factories/ComponentV2Factory.js';
+import { createStandardMessage } from '../shared/factories/ComponentV2Factory.js';
 
 /**
  * 统一的上下文对象
@@ -74,39 +74,41 @@ class Context {
             });
         }
 
-        // 使用预加载的ComponentV2Factory
-        const container = ComponentV2Factory.createContainer(ComponentV2Factory.Colors.ERROR);
-        ComponentV2Factory.addHeading(container, '❌ 错误', 2);
-        ComponentV2Factory.addText(container, message);
-
-        return await this.reply({
-            components: [container],
-            flags: ['Ephemeral', 'IsComponentsV2']
-        });
+        return await this.reply(
+            createStandardMessage('error', {
+                title: '错误',
+                message,
+                additionalFlags: ['Ephemeral']
+            })
+        );
     }
 
     /**
      * 成功回复（使用ComponentV2）
-     * @param {string} message - 成功消息
+     * @param {string|Object} messageOrConfig - 成功消息或配置对象
      * @param {boolean} [useText=false] - 是否使用纯文本
      * @returns {Promise<import('discord.js').Message>}
      */
-    async success(message, useText = false) {
+    async success(messageOrConfig, useText = false) {
         if (useText) {
+            const message = typeof messageOrConfig === 'string' ? messageOrConfig : messageOrConfig.message;
             return await this.reply({
                 content: `✅ ${message}`
             });
         }
 
-        // 使用预加载的ComponentV2Factory
-        const container = ComponentV2Factory.createContainer(ComponentV2Factory.Colors.SUCCESS);
-        ComponentV2Factory.addHeading(container, '✅ 成功', 2);
-        ComponentV2Factory.addText(container, message);
+        if (typeof messageOrConfig === 'string') {
+            return await this.reply(
+                createStandardMessage('success', {
+                    title: '成功',
+                    message: messageOrConfig
+                })
+            );
+        }
 
-        return await this.reply({
-            components: [container],
-            flags: ['IsComponentsV2']
-        });
+        return await this.reply(
+            createStandardMessage('success', messageOrConfig)
+        );
     }
 
     /**

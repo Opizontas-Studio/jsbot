@@ -12,6 +12,11 @@ pg.config.json
 .env
 ecosystem.config.cjs
 
+# Rewrite配置文件
+rewrite/config/config.json
+rewrite/config/guilds/*.json
+!rewrite/config/guilds/.gitkeep
+
 # 依赖
 node_modules/
 pnpm-lock.yaml
@@ -41,5 +46,4 @@ Thumbs.db
 
 # 测试工具
 docs/
-tests/
 scripts/

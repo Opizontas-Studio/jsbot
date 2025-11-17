@@ -15,36 +15,34 @@ import { VALIDATORS } from './usageValidators.js';
  *      not: ['targetIsBot']            // 必须不满足（NOT）
  *    }
  */
-export function usageMiddleware(logger) {
-    return async (ctx, next, config) => {
-        // 没有配置 usage，直接放行
-        if (!config.usage) {
-            return await next();
-        }
+export async function usageMiddleware(ctx, next, config) {
+    // 没有配置 usage，直接放行
+    if (!config.usage) {
+        return await next();
+    }
 
-        // 验证 usage 配置
-        const validationResult = validateUsage(ctx, config.usage);
+    // 验证 usage 配置
+    const validationResult = validateUsage(ctx, config.usage);
 
-        if (!validationResult.valid) {
-            logger.debug({
-                msg: 'Usage 验证失败',
-                userId: ctx.user.id,
-                commandName: ctx.interaction.commandName || ctx.interaction.customId,
-                reason: validationResult.reason,
-                failedCondition: validationResult.failedCondition
-            });
-
-            await ctx.info(validationResult.reason, false);
-            return;
-        }
-
-        logger.debug({
-            msg: 'Usage 验证通过',
-            userId: ctx.user.id
+    if (!validationResult.valid) {
+        ctx.logger?.debug({
+            msg: 'Usage 验证失败',
+            userId: ctx.user.id,
+            commandName: ctx.interaction.commandName || ctx.interaction.customId,
+            reason: validationResult.reason,
+            failedCondition: validationResult.failedCondition
         });
 
-        await next();
-    };
+        await ctx.info(validationResult.reason, false);
+        return;
+    }
+
+    ctx.logger?.debug({
+        msg: 'Usage 验证通过',
+        userId: ctx.user.id
+    });
+
+    await next();
 }
 
 /**

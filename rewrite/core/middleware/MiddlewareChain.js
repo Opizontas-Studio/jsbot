@@ -1,6 +1,6 @@
 /**
  * 中间件链
- * 按顺序执行中间件：errorHandler → defer → permissions → cooldown → handler
+ * 按顺序执行中间件：errorHandler → defer → usage → permissions → cooldown → handler
  */
 class MiddlewareChain {
     constructor(middlewares = []) {

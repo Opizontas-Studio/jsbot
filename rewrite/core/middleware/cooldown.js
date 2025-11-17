@@ -2,7 +2,7 @@
  * 冷却检查中间件
  * 使用CooldownManager控制执行频率
  */
-export function cooldownMiddleware(cooldownManager, logger) {
+export function cooldownMiddleware(cooldownManager) {
     return async (ctx, next, config) => {
         if (!config.cooldown) {
             return await next();
@@ -12,7 +12,7 @@ export function cooldownMiddleware(cooldownManager, logger) {
         const remainingTime = cooldownManager.check(cooldownKey, config.cooldown);
 
         if (remainingTime > 0) {
-            logger.debug({
+            ctx.logger?.debug({
                 msg: '冷却中',
                 userId: ctx.user.id,
                 configId: config.id,

@@ -2,41 +2,39 @@
  * 权限检查中间件
  * 验证用户是否有执行权限
  */
-export function permissionsMiddleware(logger) {
-    return async (ctx, next, config) => {
-        if (!config.permissions || config.permissions.length === 0) {
-            return await next();
-        }
+export async function permissionsMiddleware(ctx, next, config) {
+    if (!config.permissions || config.permissions.length === 0) {
+        return await next();
+    }
 
-        if (!ctx.guild || !ctx.member) {
-            await ctx.error('此命令只能在服务器中使用', true);
-            return;
-        }
+    if (!ctx.guild || !ctx.member) {
+        await ctx.error('此命令只能在服务器中使用', true);
+        return;
+    }
 
-        const roleMapping = getRoleMapping(ctx.config, config.permissions);
-        const hasPermission = ctx.member.roles.cache.some(role =>
-            roleMapping.includes(role.id)
-        );
+    const roleMapping = getRoleMapping(ctx.config, config.permissions);
+    const hasPermission = ctx.member.roles.cache.some(role =>
+        roleMapping.includes(role.id)
+    );
 
-        if (!hasPermission) {
-            logger.info({
-                msg: '权限检查失败',
-                userId: ctx.user.id,
-                required: config.permissions,
-                userRoles: ctx.member.roles.cache.map(r => r.id)
-            });
-
-            await ctx.error('你没有权限使用此命令', true);
-            return;
-        }
-
-        logger.debug({
-            msg: '权限检查通过',
-            userId: ctx.user.id
+    if (!hasPermission) {
+        ctx.logger?.info({
+            msg: '权限检查失败',
+            userId: ctx.user.id,
+            required: config.permissions,
+            userRoles: ctx.member.roles.cache.map(r => r.id)
         });
 
-        await next();
-    };
+        await ctx.error('你没有权限使用此命令', true);
+        return;
+    }
+
+    ctx.logger?.debug({
+        msg: '权限检查通过',
+        userId: ctx.user.id
+    });
+
+    await next();
 }
 
 /**

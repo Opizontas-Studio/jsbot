@@ -13,24 +13,23 @@ import { usageMiddleware } from '../middleware/usage.js';
 /**
  * 创建默认中间件链
  * @param {Container} container - DI容器
- * @param {Logger} logger - 日志器
  * @returns {MiddlewareChain}
  */
-export function createMiddlewareChain(container, logger) {
+export function createMiddlewareChain(container) {
     const middlewareChain = new MiddlewareChain();
 
     // 按执行顺序添加中间件
     // errorHandler → defer → usage → permissions → cooldown → handler
-    middlewareChain.use(errorHandlerMiddleware(logger));
-    middlewareChain.use(deferMiddleware(logger));
-    middlewareChain.use(usageMiddleware(logger));
-    middlewareChain.use(permissionsMiddleware(logger));
+    middlewareChain.use(errorHandlerMiddleware);
+    middlewareChain.use(deferMiddleware);
+    middlewareChain.use(usageMiddleware);
+    middlewareChain.use(permissionsMiddleware);
     middlewareChain.use(cooldownMiddleware(
-        container.get('cooldownManager'),
-        logger
+        container.get('cooldownManager')
     ));
 
-    logger.debug('[Bootstrap] 中间件链已创建');
+    const logger = container.get('logger');
+    logger?.debug('[Bootstrap] 中间件链已创建');
 
     return middlewareChain;
 }
@@ -38,12 +37,13 @@ export function createMiddlewareChain(container, logger) {
 /**
  * 创建自定义中间件链
  * @param {Array<Function>} middlewares - 中间件函数数组
- * @param {Logger} logger - 日志器
+ * @param {Container} container - DI容器
  * @returns {MiddlewareChain}
  */
-export function createCustomMiddlewareChain(middlewares, logger) {
+export function createCustomMiddlewareChain(middlewares, container) {
     const middlewareChain = new MiddlewareChain(middlewares);
-    logger.debug('[Bootstrap] 自定义中间件链已创建');
+    const logger = container?.get('logger');
+    logger?.debug('[Bootstrap] 自定义中间件链已创建');
     return middlewareChain;
 }
 

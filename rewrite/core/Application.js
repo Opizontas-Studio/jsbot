@@ -61,7 +61,7 @@ class Application {
             this.container.registerInstance('registry', this.registry);
 
             // 5. 创建中间件链
-            this.middlewareChain = createMiddlewareChain(this.container, this.logger);
+            this.middlewareChain = createMiddlewareChain(this.container);
 
             // 6. 注册事件监听器
             EventListenerManager.register(

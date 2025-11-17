@@ -388,7 +388,23 @@ class Registry {
         const { type, id } = config;
 
         switch (type) {
+            case 'commandGroup':
+                if (!config.name || !config.subcommands) {
+                    return { valid: false, error: '命令组缺少name或subcommands' };
+                }
+                if (!config.builder) {
+                    return { valid: false, error: '命令组需要builder' };
+                }
+                // 验证每个子命令
+                for (const subcommand of config.subcommands) {
+                    if (!subcommand.id || !subcommand.name || !subcommand.execute) {
+                        return { valid: false, error: `子命令 ${subcommand.name || '未命名'} 缺少id/name/execute` };
+                    }
+                }
+                break;
+
             case 'command':
+                // 普通命令验证
                 if (!config.name || !config.execute) {
                     return { valid: false, error: '命令缺少name或execute' };
                 }
@@ -431,7 +447,13 @@ class Registry {
     _registerConfig(config, filePath) {
         try {
             switch (config.type) {
+                case 'commandGroup':
+                    // 命令组：展开为多个子命令
+                    this._registerCommandGroup(config, filePath);
+                    break;
+
                 case 'command':
+                    // 普通命令：使用命令名称
                     this.commands.set(config.name, config);
                     this.diagnostics.loaded.push({ type: 'command', id: config.id, name: config.name });
                     break;
@@ -468,6 +490,66 @@ class Registry {
                 file: filePath,
                 id: config.id,
                 reason: `注册失败: ${error.message}`
+            });
+        }
+    }
+
+    /**
+     * 注册命令组（展开为多个子命令）
+     * @private
+     */
+    _registerCommandGroup(groupConfig, filePath) {
+        if (!groupConfig.subcommands || groupConfig.subcommands.length === 0) {
+            this.diagnostics.failed.push({
+                file: filePath,
+                id: groupConfig.id,
+                reason: '命令组缺少 subcommands'
+            });
+            return;
+        }
+
+        // 1. 注册命令组本身（用于部署，保留 builder）
+        this.commands.set(groupConfig.name, {
+            type: 'commandGroup',
+            id: groupConfig.id,
+            name: groupConfig.name,
+            description: groupConfig.description,
+            commandKind: groupConfig.commandKind,
+            builder: groupConfig.builder,
+            isGroupDefinition: true  // 标记这是命令组定义，不是可执行命令
+        });
+
+        this.diagnostics.loaded.push({
+            type: 'commandGroup',
+            id: groupConfig.id,
+            name: groupConfig.name
+        });
+
+        // 2. 注册每个子命令（用于执行）
+        for (const subcommand of groupConfig.subcommands) {
+            // 合并配置：shared + subcommand（subcommand 优先）
+            const fullConfig = {
+                ...groupConfig.shared,              // 共享配置
+                ...subcommand,                      // 子命令自己的配置
+                type: 'command',                    // 类型固定为 command
+                commandKind: groupConfig.commandKind,
+                groupId: groupConfig.id,            // 记录所属组
+                groupName: groupConfig.name,        // 记录父命令名称
+                parentCommand: groupConfig.name,    // 父命令名称
+                subcommandName: subcommand.name,    // 子命令名称
+                id: `${groupConfig.id}.${subcommand.id}`  // 完整 ID
+            };
+
+            // 使用复合键注册
+            const compositeKey = `${groupConfig.name}.${subcommand.name}`;
+            this.commands.set(compositeKey, fullConfig);
+
+            this.diagnostics.loaded.push({
+                type: 'command',
+                id: fullConfig.id,
+                name: compositeKey,
+                isSubcommand: true,
+                groupId: groupConfig.id
             });
         }
     }
@@ -564,10 +646,28 @@ class Registry {
     /**
      * 查找命令配置
      * @param {string} commandName - 命令名称
+     * @param {string} [subcommandName] - 子命令名称（可选）
      * @returns {Object|null}
      */
-    findCommand(commandName) {
-        return this.commands.get(commandName) || null;
+    findCommand(commandName, subcommandName = null) {
+        // 如果提供了子命令名称，尝试查找子命令
+        if (subcommandName) {
+            const compositeKey = `${commandName}.${subcommandName}`;
+            const subcommand = this.commands.get(compositeKey);
+            if (subcommand) {
+                return subcommand;
+            }
+        }
+
+        // 查找普通命令
+        const command = this.commands.get(commandName);
+
+        // 如果是命令组定义，返回 null（命令组本身不可执行）
+        if (command && command.isGroupDefinition) {
+            return null;
+        }
+
+        return command || null;
     }
 
     /**
@@ -630,10 +730,25 @@ class Registry {
 
     /**
      * 获取所有命令配置（用于部署）
+     * 返回：普通命令 + 命令组定义（带 builder）
+     * 排除：子命令（它们是命令组的一部分，不单独部署）
      * @returns {Array<Object>}
      */
     getCommandsForDeploy() {
-        return Array.from(this.commands.values());
+        const allCommands = Array.from(this.commands.values());
+
+        return allCommands.filter(config => {
+            // 命令组定义：有 builder，需要部署
+            if (config.type === 'commandGroup' && config.isGroupDefinition) {
+                return true;
+            }
+            // 普通命令：不属于任何命令组
+            if (config.type === 'command' && !config.groupId) {
+                return true;
+            }
+            // 子命令：属于命令组，不单独部署
+            return false;
+        });
     }
 
     /**

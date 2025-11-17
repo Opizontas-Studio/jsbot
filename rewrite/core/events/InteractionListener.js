@@ -82,12 +82,23 @@ class InteractionListener {
      */
     async handleCommand(interaction) {
         const commandName = interaction.commandName;
-        const config = this.registry.findCommand(commandName);
+
+        // 尝试获取子命令名称
+        let subcommandName = null;
+        try {
+            subcommandName = interaction.options.getSubcommand(false);
+        } catch {
+            // 不是子命令，忽略错误
+        }
+
+        // 查找命令配置（优先查找子命令）
+        const config = this.registry.findCommand(commandName, subcommandName);
 
         if (!config) {
             this.logger.warn({
                 msg: '未找到命令',
                 commandName,
+                subcommandName,
                 userId: interaction.user.id
             });
             return;
@@ -197,7 +208,17 @@ class InteractionListener {
      */
     async handleAutocomplete(interaction) {
         const commandName = interaction.commandName;
-        const config = this.registry.findCommand(commandName);
+
+        // 尝试获取子命令名称
+        let subcommandName = null;
+        try {
+            subcommandName = interaction.options.getSubcommand(false);
+        } catch {
+            // 不是子命令，忽略错误
+        }
+
+        // 查找命令配置（优先查找子命令）
+        const config = this.registry.findCommand(commandName, subcommandName);
 
         if (!config || !config.autocomplete) {
             return;
@@ -213,6 +234,7 @@ class InteractionListener {
             this.logger.warn({
                 msg: '自动补全失败',
                 commandName,
+                subcommandName,
                 error: error.message
             });
             try {

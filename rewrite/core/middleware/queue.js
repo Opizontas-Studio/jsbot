@@ -12,7 +12,7 @@ export function queueMiddleware(queueManager) {
         // 从配置中获取队列选项
         const queueOptions = {
             priority: config.queue.priority || 'normal',
-            timeout: config.queue.timeout,
+            timeout: config.queue.timeout || 900000, // 默认15分钟
             taskName: config.id || ctx.interaction.commandName || '未命名任务',
             taskId: `${config.type}:${config.id}:${ctx.interaction.id}`
         };

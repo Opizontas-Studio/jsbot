@@ -1,31 +1,23 @@
+import { defineService } from '../../../core/Container.js';
 import { ComponentV2Factory, createStandardMessage } from '../../../shared/factories/ComponentV2Factory.js';
 import { SystemMessageBuilder } from '../builders/systemMessages.js';
-
-// 服务注册配置（供 Registry 自动扫描）
-export const serviceConfig = {
-    name: 'basic.systemCommandService',
-    factory: (container) => new SystemCommandService({
-        logger: container.get('logger'),
-        commandDeployer: container.get('commandDeployer'),
-        moduleReloadService: container.get('basic.moduleReloadService'),
-        configManager: container.get('configManager'),
-        activeOperationTracker: container.get('activeOperationTracker'),
-        confirmationService: container.get('confirmationService')
-    })
-};
 
 /**
  * 系统命令服务
  * 协调各种系统管理操作，处理完整的业务流程
  */
 export class SystemCommandService {
-    constructor({ logger, commandDeployer, moduleReloadService, configManager, activeOperationTracker, confirmationService }) {
-        this.logger = logger;
-        this.commandDeployer = commandDeployer;
-        this.moduleReloadService = moduleReloadService;
-        this.configManager = configManager;
-        this.activeOperationTracker = activeOperationTracker;
-        this.confirmationService = confirmationService;
+    static dependencies = [
+        'logger',
+        'commandDeployer',
+        'moduleReloader',
+        'configManager',
+        'activeOperationTracker',
+        'confirmationService'
+    ];
+
+    constructor(deps) {
+        Object.assign(this, deps);
     }
 
     /**
@@ -95,7 +87,7 @@ export class SystemCommandService {
      * @returns {Promise<Object>} 重载结果
      */
     async executeReloadModule({ moduleName, scope, hasActiveOps, modulesPath }) {
-        const result = await this.moduleReloadService.reloadModule(moduleName, {
+        const result = await this.moduleReloader.reloadModule(moduleName, {
             scope,
             modulesPath,
             force: hasActiveOps
@@ -153,7 +145,7 @@ export class SystemCommandService {
      * @returns {Promise<Array<string>>}
      */
     getReloadableModules(modulesPath) {
-        return this.moduleReloadService.getReloadableModules(modulesPath);
+        return this.moduleReloader.getReloadableModules(modulesPath);
     }
 
     /**
@@ -323,4 +315,7 @@ export class SystemCommandService {
         await ctx.interaction.editReply(messagePayload);
     }
 }
+
+// 服务注册配置（供 Registry 自动扫描）
+export const serviceConfig = defineService('basic.systemCommandService', SystemCommandService);
 

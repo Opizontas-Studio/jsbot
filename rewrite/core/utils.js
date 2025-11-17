@@ -9,6 +9,7 @@ import { join } from 'path';
 import { ConfigManager } from '../config/loader.js';
 import { CooldownManager } from '../infrastructure/CooldownManager.js';
 import { CommandDeployer } from './CommandDeployer.js';
+import { ModuleReloader } from './ModuleReloader.js';
 import { MiddlewareChain } from './middleware/MiddlewareChain.js';
 import { cooldownMiddleware } from './middleware/cooldown.js';
 import { deferMiddleware } from './middleware/defer.js';
@@ -117,7 +118,14 @@ export function bootstrapCoreServices(container, config, logger) {
     container.registerInstance('cooldownManager', new CooldownManager());
 
     // 注册CommandDeployer（延迟初始化，因为依赖client和registry）
-    container.registerFactory('commandDeployer', (c) => new CommandDeployer(c, c.get('logger')));
+    container.register('commandDeployer', (c) => new CommandDeployer(c, c.get('logger')));
+
+    // 注册ModuleReloader（核心服务，可重载所有模块）
+    container.register('moduleReloader', (c) => new ModuleReloader({
+        logger: c.get('logger'),
+        registry: c.get('registry'),
+        container: c
+    }));
 
     logger.debug('[Utils] 核心服务已注册');
 }

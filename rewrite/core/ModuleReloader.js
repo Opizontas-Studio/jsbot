@@ -1,18 +1,9 @@
-// 服务注册配置（供 Registry 自动扫描）
-export const serviceConfig = {
-    name: 'basic.moduleReloadService',
-    factory: (container) => new ModuleReloadService({
-        logger: container.get('logger'),
-        registry: container.get('registry'),
-        container
-    })
-};
-
 /**
- * 模块热重载服务
+ * 模块热重载服务（核心服务）
  * 负责清理和重新加载指定模块
+ * 作为核心服务，可以重载所有业务模块（包括basic）
  */
-export class ModuleReloadService {
+export class ModuleReloader {
     constructor({ logger, registry, container }) {
         this.logger = logger;
         this.registry = registry;
@@ -31,14 +22,9 @@ export class ModuleReloadService {
     async reloadModule(moduleName, { scope = 'all', modulesPath, force = false }) {
         const startTime = Date.now();
 
-        // 验证模块名称
-        if (moduleName === 'basic') {
-            throw new Error('basic 模块不允许热重载');
-        }
-
         // 检查活跃操作
-        if (!force && this.container.has('basic.activeOperationTracker')) {
-            const tracker = this.container.get('basic.activeOperationTracker');
+        if (!force && this.container.has('activeOperationTracker')) {
+            const tracker = this.container.get('activeOperationTracker');
             const activeOps = tracker.getActiveOperations(moduleName);
 
             if (activeOps.length > 0) {
@@ -118,7 +104,7 @@ export class ModuleReloadService {
             const { readdirSync } = await import('fs');
             const items = readdirSync(modulesPath, { withFileTypes: true });
             return items
-                .filter(item => item.isDirectory() && item.name !== 'basic')
+                .filter(item => item.isDirectory())
                 .map(item => item.name);
         } catch (error) {
             this.logger.error({
@@ -234,4 +220,3 @@ export class ModuleReloadService {
         return cleared;
     }
 }
-

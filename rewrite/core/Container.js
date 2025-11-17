@@ -131,5 +131,39 @@ class Container {
     }
 }
 
+/**
+ * 定义服务的语法糖
+ * 自动处理依赖注入，减少样板代码
+ *
+ * @param {string} name - 服务名称
+ * @param {class} ServiceClass - 服务类（需要定义静态属性 dependencies）
+ * @returns {Object} serviceConfig 对象
+ *
+ * @example
+ * export class MyService {
+ *     static dependencies = ['logger', 'basic.otherService'];
+ *
+ *     constructor(deps) {
+ *         Object.assign(this, deps);
+ *         // this.logger 和 this.otherService 已自动注入
+ *     }
+ * }
+ *
+ * export const serviceConfig = defineService('myModule.myService', MyService);
+ */
+export function defineService(name, ServiceClass) {
+    const dependencies = ServiceClass.dependencies || [];
+
+    return {
+        name,
+        factory: (container) => {
+            // 利用 Container.resolve() 自动处理依赖
+            // 支持自动提取短名称（如 'basic.otherService' -> 'otherService'）
+            const deps = container.resolve(dependencies);
+            return new ServiceClass(deps);
+        }
+    };
+}
+
 export { Container };
 

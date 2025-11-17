@@ -1,18 +1,14 @@
-// 服务注册配置
-export const serviceConfig = {
-    name: 'activeOperationTracker',
-    factory: (container) => new ActiveOperationTracker({
-        logger: container.get('logger')
-    })
-};
+import { defineService } from '../../core/Container.js';
 
 /**
  * 活跃操作追踪器
  * 用于追踪正在执行的操作，防止重载时出现问题
  */
 export class ActiveOperationTracker {
-    constructor({ logger }) {
-        this.logger = logger;
+    static dependencies = ['logger'];
+
+    constructor(deps) {
+        Object.assign(this, deps);
         // 存储活跃操作: Map<operationId, { moduleName, commandName, userId, startTime }>
         this.activeOperations = new Map();
     }
@@ -124,4 +120,7 @@ export class ActiveOperationTracker {
         }
     }
 }
+
+// 服务注册配置
+export const serviceConfig = defineService('activeOperationTracker', ActiveOperationTracker);
 

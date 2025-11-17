@@ -1,12 +1,5 @@
+import { defineService } from '../../core/Container.js';
 import { ConfirmationMessageBuilder } from '../builders/ConfirmationMessage.js';
-
-// 服务注册配置
-export const serviceConfig = {
-    name: 'confirmationService',
-    factory: (container) => new ConfirmationService({
-        logger: container.get('logger')
-    })
-};
 
 /**
  * 确认操作管理服务
@@ -14,8 +7,10 @@ export const serviceConfig = {
  *
  */
 export class ConfirmationService {
-    constructor({ logger }) {
-        this.logger = logger;
+    static dependencies = ['logger'];
+
+    constructor(deps) {
+        Object.assign(this, deps);
         // 存储待确认的操作：Map<confirmationId, { userId, expiresAt, onConfirm, context }>
         this.pendingConfirmations = new Map();
 
@@ -285,4 +280,7 @@ export class ConfirmationService {
         };
     }
 }
+
+// 服务注册配置
+export const serviceConfig = defineService('confirmationService', ConfirmationService);
 

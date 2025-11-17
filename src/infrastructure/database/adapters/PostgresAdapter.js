@@ -100,7 +100,6 @@ export class PostgresAdapter {
             this.logger?.info(`[PostgreSQL] 连接成功 - 服务器时间: ${results[0].now}`);
         } catch (error) {
             this.sequelize = null;
-            this.logger?.error('[PostgreSQL] 连接失败:', error);
             throw error;
         }
     }

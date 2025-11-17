@@ -73,7 +73,6 @@ export class SqliteAdapter {
             this.logger?.info('[SQLite] 数据库初始化完成');
         } catch (error) {
             this.db = null;
-            this.logger?.error('[SQLite] 连接失败:', error);
             throw error;
         }
     }

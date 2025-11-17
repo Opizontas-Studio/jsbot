@@ -59,10 +59,11 @@ export function bootstrapCoreServices(container, config, logger) {
         return schedulerManager;
     });
     container.register('databaseManager', (c) => {
-        const dbManager = new DatabaseManager(config.database);
+        const dbManager = new DatabaseManager(config.database || {});
         dbManager.setLogger(c.get('logger'));
         return dbManager;
     });
+    container.register('database', (c) => c.get('databaseManager'));
 
     // API包装层服务
     container.register('rateLimiter', (c) => {

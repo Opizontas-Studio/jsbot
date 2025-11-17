@@ -39,7 +39,17 @@ describe.skipIf(!hasTestToken || !hasTestClientId)('Full Startup Integration (St
             gracefulShutdownTimeout: 10000
         },
         modulesPath: join(process.cwd(), 'src/modules'),
-        guildsDir: join(process.cwd(), 'src/config/guilds')
+        guildsDir: join(process.cwd(), 'src/config/guilds'),
+        database: {
+            sqlite: { path: join(process.cwd(), 'data/test-staging.sqlite') },
+            postgres: {
+                host: 'localhost',
+                port: 5432,
+                database: 'gatekeeper',
+                user: 'postgres',
+                password: 'password'
+            }
+        }
     };
 
     afterEach(async () => {
@@ -123,4 +133,3 @@ if (!hasTestToken || !hasTestClientId) {
     }
     console.log('   运行方法: TEST_BOT_TOKEN=your_token TEST_BOT_CLIENT_ID=your_client_id pnpm test:staging\n');
 }
-

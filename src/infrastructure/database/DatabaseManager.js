@@ -1,167 +1,163 @@
+import { PostgresAdapter } from './adapters/PostgresAdapter.js';
+import { SqliteAdapter } from './adapters/SqliteAdapter.js';
+
 /**
- * 数据库管理器
- * 提供统一的数据库接口，支持 SQLite 和 PostgreSQL
+ * 数据库管理器，负责创建和跟踪 SQLite / PostgreSQL 连接状态。
  */
 export class DatabaseManager {
     /**
-     * @param {Object} config - 数据库配置
-     * @param {string} config.type - 数据库类型 ('sqlite' | 'postgres')
-     * @param {Object} config.sqlite - SQLite配置
-     * @param {Object} config.postgres - PostgreSQL配置
+     * @param {Object} config - 数据库配置（来自 config.json）
      */
-    constructor(config) {
+    constructor(config = {}) {
         this.config = config;
-        this.type = config.type;
-        this.adapter = null;
-        this.logger = null; // 将由容器注入
+        this.logger = null;
+        this.adapters = new Map();
+        this.failedTargets = new Set();
     }
 
     /**
-     * 设置日志器（容器注入后调用）
-     * @param {Object} logger - 日志器实例
+     * 注入日志器实例
+     * @param {import('../../core/Logger.js').Logger} logger
      */
     setLogger(logger) {
         this.logger = logger;
     }
 
     /**
-     * 连接数据库
-     * @returns {Promise<void>}
+     * 初始化所有数据库连接
      */
     async connect() {
-        if (this.adapter) {
-            this.logger?.warn('[数据库] 已经连接，跳过重复连接');
+        await this._connectTarget('sqlite', SqliteAdapter);
+        await this._connectTarget('postgres', PostgresAdapter);
+    }
+
+    /**
+     * 连接指定数据库类型
+     * @private
+     */
+    async _connectTarget(type, Adapter) {
+        const cfg = this.config?.[type];
+
+        if (!cfg) {
+            this.failedTargets.add(type);
+            this.logger?.warn(`[数据库] 未提供 ${type} 配置，相关功能将被禁用`);
+            return;
+        }
+
+        if (cfg.enabled === false) {
+            this.failedTargets.add(type);
+            this.logger?.warn(`[数据库] ${type} 已在配置中禁用`);
+            return;
+        }
+
+        if (this.adapters.has(type)) {
             return;
         }
 
         try {
-            // 动态导入对应的适配器
-            if (this.type === 'sqlite') {
-                const { SqliteAdapter } = await import('./adapters/SqliteAdapter.js');
-                this.adapter = new SqliteAdapter(this.config.sqlite, this.logger);
-            } else if (this.type === 'postgres') {
-                const { PostgresAdapter } = await import('./adapters/PostgresAdapter.js');
-                this.adapter = new PostgresAdapter(this.config.postgres, this.logger);
-            } else {
-                throw new Error(`不支持的数据库类型: ${this.type}`);
+            const adapter = new Adapter(cfg, this.logger);
+            await adapter.connect();
+            this.adapters.set(type, adapter);
+            this.failedTargets.delete(type);
+            this.logger?.info(`[数据库] ${type.toUpperCase()} 连接成功`);
+        } catch (error) {
+            this.failedTargets.add(type);
+            this.logger?.error(`[数据库] ${type.toUpperCase()} 连接失败，相关模块应保持关闭状态`, error);
+        }
+    }
+
+    async query(query, params = [], { target } = {}) {
+        const adapter = this._getAdapter(target);
+        return await adapter.query(query, params);
+    }
+
+    /** 获取单条记录 */
+    async get(query, params = [], { target } = {}) {
+        const adapter = this._getAdapter(target);
+        return await adapter.get(query, params);
+    }
+
+    /** 执行写操作 */
+    async run(query, params = [], { target } = {}) {
+        const adapter = this._getAdapter(target);
+        return await adapter.run(query, params);
+    }
+
+    /** 执行事务 */
+    async transaction(callback, { target } = {}) {
+        const adapter = this._getAdapter(target);
+        return await adapter.transaction(callback);
+    }
+
+    /** 触发备份（如适配器支持） */
+    async backup(target = null) {
+        const adapter = this._getAdapter(target);
+
+        if (!adapter.backup) {
+            throw new Error(`[数据库] ${this._normalizeTarget(target)} 不支持备份操作`);
+        }
+
+        return await adapter.backup();
+    }
+
+    /** 检查目标数据库是否已连接 */
+    isConnected(target = null) {
+        const adapter = this.adapters.get(this._normalizeTarget(target));
+        return adapter ? adapter.isConnected() : false;
+    }
+
+    /** 获取底层适配器实例 */
+    getAdapter(target = null) {
+        return this._getAdapter(target);
+    }
+
+    /** 判断目标数据库是否可以被业务使用 */
+    isTargetAvailable(target) {
+        const normalized = this._normalizeTarget(target);
+        return this.adapters.has(normalized) && !this.failedTargets.has(normalized);
+    }
+
+    /** 判断目标数据库是否被禁用/连接失败 */
+    isTargetDisabled(target) {
+        return this.failedTargets.has(this._normalizeTarget(target));
+    }
+
+    async disconnect(target = null) {
+        const targets = target ? [this._normalizeTarget(target)] : Array.from(this.adapters.keys());
+
+        for (const type of targets) {
+            const adapter = this.adapters.get(type);
+            if (!adapter) {
+                continue;
             }
 
-            await this.adapter.connect();
-            this.logger?.info(`[数据库] ${this.type.toUpperCase()} 连接成功`);
-        } catch (error) {
-            this.logger?.error(`[数据库] 连接失败:`, error);
-            throw error;
+            try {
+                await adapter.disconnect();
+                this.adapters.delete(type);
+                this.logger?.info(`[数据库] ${type} 连接已断开`);
+            } catch (error) {
+                this.logger?.error(`[数据库] 断开 ${type} 时出错:`, error);
+                throw error;
+            }
         }
     }
 
-    /**
-     * 执行查询
-     * @param {string} query - SQL查询
-     * @param {Array} [params] - 查询参数
-     * @returns {Promise<Array>} 查询结果
-     */
-    async query(query, params = []) {
-        if (!this.adapter) {
-            throw new Error('[数据库] 数据库未连接');
+    _getAdapter(target = null) {
+        const resolved = this._normalizeTarget(target);
+
+        if (this.failedTargets.has(resolved)) {
+            throw new Error(`[数据库] ${resolved} 当前不可用`);
         }
 
-        return await this.adapter.query(query, params);
+        const adapter = this.adapters.get(resolved);
+        if (!adapter) {
+            throw new Error(`[数据库] ${resolved} 未连接`);
+        }
+
+        return adapter;
     }
 
-    /**
-     * 获取单条记录
-     * @param {string} query - SQL查询
-     * @param {Array} [params] - 查询参数
-     * @returns {Promise<Object|null>} 查询结果
-     */
-    async get(query, params = []) {
-        if (!this.adapter) {
-            throw new Error('[数据库] 数据库未连接');
-        }
-
-        return await this.adapter.get(query, params);
-    }
-
-    /**
-     * 执行写操作（INSERT/UPDATE/DELETE）
-     * @param {string} query - SQL查询
-     * @param {Array} [params] - 查询参数
-     * @returns {Promise<Object>} 执行结果 {changes, lastID}
-     */
-    async run(query, params = []) {
-        if (!this.adapter) {
-            throw new Error('[数据库] 数据库未连接');
-        }
-
-        return await this.adapter.run(query, params);
-    }
-
-    /**
-     * 执行事务
-     * @param {Function} callback - 事务回调函数
-     * @returns {Promise<any>} 事务结果
-     */
-    async transaction(callback) {
-        if (!this.adapter) {
-            throw new Error('[数据库] 数据库未连接');
-        }
-
-        return await this.adapter.transaction(callback);
-    }
-
-
-    /**
-     * 备份数据库
-     * @returns {Promise<string>} 备份文件路径
-     */
-    async backup() {
-        if (!this.adapter) {
-            throw new Error('[数据库] 数据库未连接');
-        }
-
-        if (!this.adapter.backup) {
-            throw new Error(`[数据库] ${this.type} 不支持备份操作`);
-        }
-
-        return await this.adapter.backup();
-    }
-
-    /**
-     * 检查连接状态
-     * @returns {boolean} 是否已连接
-     */
-    isConnected() {
-        return this.adapter !== null && this.adapter.isConnected();
-    }
-
-    /**
-     * 获取底层适配器（用于特殊操作）
-     * @returns {Object} 适配器实例
-     */
-    getAdapter() {
-        if (!this.adapter) {
-            throw new Error('[数据库] 数据库未连接');
-        }
-        return this.adapter;
-    }
-
-    /**
-     * 断开数据库连接
-     * @returns {Promise<void>}
-     */
-    async disconnect() {
-        if (!this.adapter) {
-            return;
-        }
-
-        try {
-            await this.adapter.disconnect();
-            this.adapter = null;
-            this.logger?.info('[数据库] 连接已断开');
-        } catch (error) {
-            this.logger?.error('[数据库] 断开连接时出错:', error);
-            throw error;
-        }
+    _normalizeTarget(target) {
+        return target === 'postgres' ? 'postgres' : 'sqlite';
     }
 }
-

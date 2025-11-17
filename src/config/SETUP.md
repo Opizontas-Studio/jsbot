@@ -44,6 +44,8 @@
 }
 ```
 
+> 提示：框架会同时连接 `sqlite` 与 `postgres`。SQLite 是必需的，如果连接失败将直接退出进程；PostgreSQL 连接失败则会被标记为不可用，相关模块可以根据 `DatabaseManager.isTargetAvailable('postgres')` 等方法自行禁用功能。
+
 ## 服务器配置 (guilds/{guildId}.json)
 
 在 `src/config/guilds/` 目录创建，文件名为服务器ID：

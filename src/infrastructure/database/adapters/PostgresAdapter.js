@@ -64,27 +64,35 @@ export class PostgresAdapter {
             }
 
             // 创建Sequelize实例
-            this.sequelize = new Sequelize({
-                dialect: 'postgres',
-                host: finalConfig.host,
-                port: finalConfig.port,
-                database: finalConfig.database,
-                username: finalConfig.user,
-                password: finalConfig.password,
-                pool: {
-                    max: finalConfig.max || 20,
-                    min: finalConfig.min || 0,
-                    acquire: finalConfig.connectionTimeoutMillis || 30000,
-                    idle: finalConfig.idleTimeoutMillis || 10000
-                },
+            const baseOptions = {
                 logging: finalConfig.logging !== false
                     ? (msg) => this.logger?.debug(`[PostgreSQL] ${msg}`)
                     : false,
                 define: {
                     timestamps: true,
                     underscored: true
+                },
+                pool: {
+                    max: finalConfig.max || 20,
+                    min: finalConfig.min || 0,
+                    acquire: finalConfig.connectionTimeoutMillis || 30000,
+                    idle: finalConfig.idleTimeoutMillis || 10000
                 }
-            });
+            };
+
+            if (finalConfig.connectionUrl) {
+                this.sequelize = new Sequelize(finalConfig.connectionUrl, baseOptions);
+            } else {
+                this.sequelize = new Sequelize({
+                    dialect: 'postgres',
+                    host: finalConfig.host,
+                    port: finalConfig.port,
+                    database: finalConfig.database,
+                    username: finalConfig.user,
+                    password: finalConfig.password,
+                    ...baseOptions
+                });
+            }
 
             // 测试连接
             await this.sequelize.authenticate();
@@ -221,4 +229,3 @@ export class PostgresAdapter {
         }
     }
 }
-

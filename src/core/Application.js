@@ -1,6 +1,7 @@
 import { MonitoringManager } from '../infrastructure/MonitoringManager.js';
 import { createMiddlewareChain } from './bootstrap/middlewares.js';
 import { bootstrapCoreServices } from './bootstrap/services.js';
+import { registerScheduledTasks } from './bootstrap/tasks.js';
 import { ClientFactory } from './ClientFactory.js';
 import { Container } from './Container.js';
 import { EventListenerManager } from './events/EventListenerManager.js';
@@ -49,21 +50,26 @@ class Application {
             // 2. 引导核心服务
             bootstrapCoreServices(this.container, this.config, this.logger);
 
-            // 3. 初始化Discord客户端
+            // 3. 初始化数据库连接（如有需要）
+            if (this.container.has('database')) {
+                await this.container.get('database').connect();
+            }
+
+            // 4. 初始化Discord客户端
             this.client = ClientFactory.create();
             this.container.registerInstance('client', this.client);
 
             // 监听clientReady事件
             this.client.once('clientReady', () => this._onClientReady());
 
-            // 4. 初始化Registry
+            // 5. 初始化Registry
             this.registry = new Registry(this.container, this.logger);
             this.container.registerInstance('registry', this.registry);
 
-            // 5. 创建中间件链
+            // 6. 创建中间件链
             this.middlewareChain = createMiddlewareChain(this.container);
 
-            // 6. 注册事件监听器
+            // 7. 注册事件监听器
             EventListenerManager.register(
                 this.client,
                 this.container,
@@ -72,14 +78,17 @@ class Application {
                 this.logger
             );
 
-            // 7. 加载共享代码和业务模块
+            // 8. 加载共享代码和业务模块
             const modulesPath = this.config.modulesPath ||
                 new URL('../modules', import.meta.url).pathname;
             const sharedPath = this.config.sharedPath ||
                 new URL('../shared', import.meta.url).pathname;
             await this.registry.loadModules(modulesPath, sharedPath);
 
-            // 8. 验证依赖（可选）
+            // 9. 注册调度任务
+            registerScheduledTasks(this.registry, this.container, this.logger);
+
+            // 10. 验证依赖
             this._validateDependencies();
 
             this.logger.info('[Application] 初始化完成');

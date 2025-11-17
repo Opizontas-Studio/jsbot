@@ -1,5 +1,3 @@
-import { defineService } from '../core/Container.js';
-
 /**
  * 活跃操作追踪器
  * 用于追踪正在执行的操作，防止重载时出现问题
@@ -120,7 +118,3 @@ export class ActiveOperationTracker {
         }
     }
 }
-
-// 服务注册配置
-export const serviceConfig = defineService('activeOperationTracker', ActiveOperationTracker);
-

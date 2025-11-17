@@ -2,7 +2,7 @@
  * 依赖注入容器
  * 基于Map的服务容器，支持工厂函数和单例
  */
-class Container {
+export class Container {
     constructor() {
         /** @type {Map<string, any>} */
         this.services = new Map();
@@ -129,6 +129,39 @@ class Container {
         this.factories.clear();
         this.resolving.clear();
     }
+
+    /**
+     * 注销指定服务（实例与工厂）
+     * @param {string} name - 服务名称
+     */
+    unregister(name) {
+        this.services.delete(name);
+        this.factories.delete(name);
+    }
+
+    /**
+     * 注销工厂（保留实例）
+     * @param {string} name - 服务名称
+     */
+    unregisterFactory(name) {
+        this.factories.delete(name);
+    }
+
+    /**
+     * 获取已实例化服务名称
+     * @returns {Array<string>}
+     */
+    getRegisteredServiceNames() {
+        return Array.from(this.services.keys());
+    }
+
+    /**
+     * 获取已注册的工厂名称
+     * @returns {Array<string>}
+     */
+    getRegisteredFactoryNames() {
+        return Array.from(this.factories.keys());
+    }
 }
 
 /**
@@ -164,6 +197,3 @@ export function defineService(name, ServiceClass) {
         }
     };
 }
-
-export { Container };
-

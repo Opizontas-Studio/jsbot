@@ -43,12 +43,16 @@ export class SchedulerManager {
             task,
             runImmediately = false,
             startAt,
-            description = taskId
+            description = taskId,
+            replaceExisting = false
         } = options;
 
         if (this.jobs.has(taskId)) {
-            this.logger?.warn(`[调度管理] 任务 ${taskId} 已存在，跳过注册`);
-            return;
+            if (!replaceExisting) {
+                this.logger?.warn(`[调度管理] 任务 ${taskId} 已存在，跳过注册`);
+                return;
+            }
+            this.cancelTask(taskId);
         }
 
         // 包装任务以添加错误处理和统计
@@ -115,11 +119,14 @@ export class SchedulerManager {
      * @param {string} [options.description] - 任务描述
      */
     addDailyTask(options) {
-        const { taskId, hour, minute, task, description = taskId } = options;
+        const { taskId, hour, minute, task, description = taskId, replaceExisting = false } = options;
 
         if (this.jobs.has(taskId)) {
-            this.logger?.warn(`[调度管理] 任务 ${taskId} 已存在，跳过注册`);
-            return;
+            if (!replaceExisting) {
+                this.logger?.warn(`[调度管理] 任务 ${taskId} 已存在，跳过注册`);
+                return;
+            }
+            this.cancelTask(taskId);
         }
 
         // 创建规则：每天指定时间执行
@@ -140,11 +147,14 @@ export class SchedulerManager {
      * @param {string} [options.description] - 任务描述
      */
     addCustomTask(options) {
-        const { taskId, rule, task, description = taskId } = options;
+        const { taskId, rule, task, description = taskId, replaceExisting = false } = options;
 
         if (this.jobs.has(taskId)) {
-            this.logger?.warn(`[调度管理] 任务 ${taskId} 已存在，跳过注册`);
-            return;
+            if (!replaceExisting) {
+                this.logger?.warn(`[调度管理] 任务 ${taskId} 已存在，跳过注册`);
+                return;
+            }
+            this.cancelTask(taskId);
         }
 
         this._addScheduledTask(taskId, rule, task, description);
@@ -297,4 +307,3 @@ export class SchedulerManager {
         this.logger?.info('[调度管理] 资源清理完成');
     }
 }
-

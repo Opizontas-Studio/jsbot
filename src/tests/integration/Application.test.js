@@ -73,7 +73,18 @@ describe('Application Integration', () => {
                 gracefulShutdownTimeout: 5000
             },
             modulesPath: testModulesDir,
-            guildsDir: testGuildsDir
+            guildsDir: testGuildsDir,
+            database: {
+                sqlite: { path: join(testLogsDir, 'test-db.sqlite') },
+                postgres: {
+                    host: 'localhost',
+                    port: 5432,
+                    database: 'test',
+                    user: 'postgres',
+                    password: 'password',
+                    enabled: false
+                }
+            }
         };
     });
 

@@ -38,11 +38,10 @@ export function loadConfig(options = {}) {
 
     const token = process.env.DISCORD_TOKEN;
     const clientId = process.env.DISCORD_CLIENT_ID;
-    const databaseUrl = process.env.DATABASE_URL;
     const nodeEnv = process.env.NODE_ENV || 'development';
 
     if (validateOnly) {
-        return { token, clientId, databaseUrl, nodeEnv };
+        return { token, clientId, nodeEnv };
     }
 
     // 2. 加载全局配置
@@ -64,12 +63,7 @@ export function loadConfig(options = {}) {
         throw new Error(`配置验证失败:\n  - ${configErrors.join('\n  - ')}`);
     }
 
-    // 3. 处理数据库配置优先级（DATABASE_URL > config.json）
-    if (databaseUrl && globalConfig.database) {
-        globalConfig.database.connectionUrl = databaseUrl;
-    }
-
-    // 4. 构建最终配置对象
+    // 3. 构建最终配置对象
     const config = {
         token,
         nodeEnv,
@@ -80,7 +74,7 @@ export function loadConfig(options = {}) {
         }
     };
 
-    // 5. 加载服务器配置（懒加载，通过 getGuildConfig 获取）
+    // 4. 加载服务器配置（懒加载，通过 getGuildConfig 获取）
     config.guildsDir = guildsDir;
 
     return config;
@@ -226,4 +220,3 @@ export class ConfigManager {
         this.guildConfigs.clear();
     }
 }
-

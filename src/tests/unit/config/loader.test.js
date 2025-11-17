@@ -115,15 +115,15 @@ describe('Config Loader', () => {
                 .toThrow('配置验证失败');
         });
 
-        it('应该优先使用DATABASE_URL环境变量', () => {
-            process.env.DATABASE_URL = 'postgresql://test:test@localhost/testdb';
+        it('应该保持配置文件中的数据库连接信息', () => {
+            process.env.DATABASE_URL = 'postgresql://env:env@localhost/env';
 
             const testConfig = {
                 bot: { logLevel: 'info' },
                 database: {
                     postgres: {
-                        host: 'other_host',
-                        database: 'other_db',
+                        host: 'conf_host',
+                        database: 'conf_db',
                         user: 'user',
                         password: 'pass'
                     }
@@ -134,7 +134,8 @@ describe('Config Loader', () => {
 
             const config = loadConfig({ configPath, guildsDir });
 
-            expect(config.database.connectionUrl).toBe('postgresql://test:test@localhost/testdb');
+            expect(config.database.postgres.host).toBe('conf_host');
+            expect(config.database.connectionUrl).toBeUndefined();
         });
     });
 
@@ -282,4 +283,3 @@ describe('Config Loader', () => {
         });
     });
 });
-

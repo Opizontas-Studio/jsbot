@@ -3,11 +3,14 @@
  * 负责清理和重新加载指定模块
  * 作为核心服务，可以重载所有业务模块（包括basic）
  */
+import { registerScheduledTasks } from './bootstrap/tasks.js';
+
 export class ModuleReloader {
     constructor({ logger, registry, container }) {
         this.logger = logger;
         this.registry = registry;
         this.container = container;
+        this.schedulerManager = null;
     }
 
     /**
@@ -63,6 +66,9 @@ export class ModuleReloader {
                 modulesPath,
                 bustCache: true
             });
+
+            // 4. 重新注册调度任务
+            registerScheduledTasks(this.registry, this.container, this.logger, { moduleName });
 
             const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -128,6 +134,7 @@ export class ModuleReloader {
             events: 0,
             tasks: 0
         };
+        const removedTaskIds = [];
 
         // 清除命令
         for (const [name, config] of this.registry.commands) {
@@ -180,8 +187,11 @@ export class ModuleReloader {
             if (config.id.startsWith(`${moduleName}.`)) {
                 this.registry.tasks.delete(taskId);
                 cleared.tasks++;
+                removedTaskIds.push(taskId);
             }
         }
+
+        this._cancelSchedulerTasks(removedTaskIds);
 
         return cleared;
     }
@@ -195,9 +205,10 @@ export class ModuleReloader {
         let cleared = 0;
 
         // 清除服务实例
-        for (const [serviceName] of this.container.services) {
+        const serviceNames = this.container.getRegisteredServiceNames?.() || [];
+        for (const serviceName of serviceNames) {
             if (serviceName.startsWith(prefix)) {
-                this.container.services.delete(serviceName);
+                this.container.unregister?.(serviceName);
                 cleared++;
                 this.logger.debug({
                     msg: '[ModuleReload] 已清除服务实例',
@@ -206,10 +217,10 @@ export class ModuleReloader {
             }
         }
 
-        // 清除服务工厂
-        for (const [serviceName] of this.container.factories) {
+        const factoryNames = this.container.getRegisteredFactoryNames?.() || [];
+        for (const serviceName of factoryNames) {
             if (serviceName.startsWith(prefix)) {
-                this.container.factories.delete(serviceName);
+                this.container.unregister?.(serviceName);
                 this.logger.debug({
                     msg: '[ModuleReload] 已清除服务工厂',
                     service: serviceName
@@ -218,5 +229,33 @@ export class ModuleReloader {
         }
 
         return cleared;
+    }
+
+    _cancelSchedulerTasks(taskIds) {
+        if (!taskIds.length) {
+            return;
+        }
+
+        const scheduler = this._getSchedulerManager();
+        if (!scheduler) {
+            return;
+        }
+
+        for (const taskId of taskIds) {
+            scheduler.cancelTask(taskId);
+        }
+    }
+
+    _getSchedulerManager() {
+        if (this.schedulerManager) {
+            return this.schedulerManager;
+        }
+
+        if (!this.container?.has?.('schedulerManager')) {
+            return null;
+        }
+
+        this.schedulerManager = this.container.get('schedulerManager');
+        return this.schedulerManager;
     }
 }

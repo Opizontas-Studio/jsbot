@@ -10,8 +10,8 @@ export default defineConfig({
 
         // 测试文件匹配模式
         include: [
-            'rewrite/tests/**/*.test.js',
-            'rewrite/tests/**/*.spec.js'
+            'src/tests/**/*.test.js',
+            'src/tests/**/*.spec.js'
         ],
 
         // 排除
@@ -27,9 +27,9 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
-            include: ['rewrite/**/*.js'],
+            include: ['src/**/*.js'],
             exclude: [
-                'rewrite/tests/**',
+                'src/tests/**',
                 '**/node_modules/**',
                 '**/dist/**'
             ]

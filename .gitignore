@@ -12,10 +12,10 @@ pg.config.json
 .env
 ecosystem.config.cjs
 
-# Rewrite配置文件
-rewrite/config/config.json
-rewrite/config/guilds/*.json
-!rewrite/config/guilds/.gitkeep
+# 配置文件
+src/config/config.json
+src/config/guilds/*.json
+!src/config/guilds/.gitkeep
 
 # 依赖
 node_modules/
@@ -47,3 +47,6 @@ Thumbs.db
 # 测试工具
 docs/
 scripts/
+
+# 归档文件
+archive/

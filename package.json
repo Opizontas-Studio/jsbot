@@ -5,13 +5,12 @@
     "type": "module",
     "scripts": {
         "start": "node src/index.js",
-        "start:rewrite": "node rewrite/index.js",
-        "start:test": "node rewrite/index.js --test",
+        "start:test": "node src/index.js --test",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
-        "test:staging": "vitest run rewrite/tests/staging --no-coverage"
+        "test:staging": "vitest run src/tests/staging --no-coverage"
     },
     "keywords": [],
     "author": "",

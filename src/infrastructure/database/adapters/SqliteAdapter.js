@@ -52,7 +52,7 @@ export class SqliteAdapter {
             this.db = await open({
                 filename: this.config.path,
                 driver: sqlite3.Database,
-                mode: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE
+                mode: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
             });
 
             // 启用WAL模式和外键约束
@@ -166,7 +166,6 @@ export class SqliteAdapter {
         return await this.db.get(query, params);
     }
 
-
     /**
      * 执行写操作
      * @param {string} query - SQL查询
@@ -181,7 +180,7 @@ export class SqliteAdapter {
         const result = await this.db.run(query, params);
         return {
             changes: result.changes,
-            lastID: result.lastID
+            lastID: result.lastID,
         };
     }
 
@@ -220,7 +219,7 @@ export class SqliteAdapter {
         try {
             // 检查是否存在旧表
             const tables = await this.db.all(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='punishments'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='punishments'",
             );
 
             if (tables.length === 0) {
@@ -228,7 +227,7 @@ export class SqliteAdapter {
             }
 
             // 检查是否需要迁移（查看是否有 guildId 字段）
-            const tableInfo = await this.db.all("PRAGMA table_info(punishments)");
+            const tableInfo = await this.db.all('PRAGMA table_info(punishments)');
             const hasGuildId = tableInfo.some(col => col.name === 'guildId');
             const hasExpiresAt = tableInfo.some(col => col.name === 'expiresAt');
             const hasSyncedServers = tableInfo.some(col => col.name === 'syncedServers');
@@ -332,7 +331,7 @@ export class SqliteAdapter {
             return {
                 success: true,
                 migrated: result.changes,
-                message: `成功迁移 ${result.changes} 条记录`
+                message: `成功迁移 ${result.changes} 条记录`,
             };
         } catch (error) {
             this.logger?.error('[SQLite] 数据迁移失败:', error);
@@ -368,7 +367,6 @@ export class SqliteAdapter {
             throw error;
         }
     }
-
 
     /**
      * 检查连接状态

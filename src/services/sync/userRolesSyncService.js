@@ -9,7 +9,6 @@ import { logTime } from '../../utils/logger.js';
 class UserRolesSyncService {
     constructor() {
         // 配置参数
-        this.MEMBER_BATCH_SIZE = 1000; // 每批获取的成员数量
         this.DB_BATCH_SIZE = 5000; // 每批数据库操作的记录数
         this.EXCLUDED_ROLE_IDS = new Set(); // 排除的身份组ID（可配置）
     }
@@ -59,7 +58,6 @@ class UserRolesSyncService {
                 const results = [];
 
                 for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
-                    logTime(`[身份组同步] 开始同步服务器: ${guildId}`);
                     const result = await this._syncGuildAllRoles(client, guildId);
                     results.push(result);
                 }
@@ -70,14 +68,6 @@ class UserRolesSyncService {
                 const totalRoles = results.reduce((sum, r) => sum + r.totalRoles, 0);
 
                 const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                logTime(
-                    `[身份组同步] 全部完成 - ` +
-                    `耗时: ${duration}s, ` +
-                    `成员: ${totalMembers}, ` +
-                    `关系: ${totalRoles}, ` +
-                    `新增: ${totalAdded}, ` +
-                    `移除: ${totalRemoved}`
-                );
 
                 return {
                     success: true,
@@ -102,10 +92,9 @@ class UserRolesSyncService {
                 const guildStartTime = Date.now();
                 const guild = await client.guilds.fetch(guildId);
 
-                // 分批获取所有成员
-                logTime(`[身份组同步] 开始获取服务器 ${guildId} 的成员...`);
-                const allMembers = await this._fetchAllMembersInBatches(guild);
-                logTime(`[身份组同步] 获取到 ${allMembers.size} 个成员`);
+                // 获取所有成员（Discord.js 自动处理分页和限流）
+                const allMembers = await guild.members.fetch({ force: true });
+                logTime(`[身份组同步] 成功获取 ${allMembers.size} 个成员`);
 
                 // 提取所有身份组关系（排除机器人和@everyone角色）
                 const currentRoles = this._extractUserRoles(allMembers, guildId);
@@ -144,50 +133,6 @@ class UserRolesSyncService {
             `同步服务器 ${guildId} 的所有身份组`,
             { throwOnError: true }
         );
-    }
-
-    /**
-     * 分批获取服务器所有成员
-     * @private
-     */
-    async _fetchAllMembersInBatches(guild) {
-        const allMembers = new Map();
-        let lastMemberId = null;
-        let batchCount = 0;
-
-        while (true) {
-            batchCount++;
-            const fetchOptions = {
-                limit: this.MEMBER_BATCH_SIZE,
-                force: true // 强制从 API 获取
-            };
-
-            if (lastMemberId) {
-                fetchOptions.after = lastMemberId;
-            }
-
-            const members = await guild.members.fetch(fetchOptions);
-            
-            if (members.size === 0) break;
-
-            // 添加到总集合
-            members.forEach((member, id) => {
-                allMembers.set(id, member);
-            });
-
-            logTime(`[身份组同步] 批次 ${batchCount}: 获取 ${members.size} 个成员 (总计: ${allMembers.size})`);
-
-            // 如果获取的成员数少于批次大小，说明已经是最后一批
-            if (members.size < this.MEMBER_BATCH_SIZE) break;
-
-            // 获取最后一个成员ID作为下次查询的起点
-            lastMemberId = members.last().id;
-
-            // 添加小延迟避免API限流
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        return allMembers;
     }
 
     /**
@@ -287,7 +232,7 @@ class UserRolesSyncService {
         await pgManager.transaction(async (t) => {
             // 分批插入新记录
             if (toAdd.length > 0) {
-                logTime(`[身份组同步] 开始分批插入 ${toAdd.length} 条记录...`);
+                //logTime(`[身份组同步] 开始分批插入 ${toAdd.length} 条记录...`);
                 for (let i = 0; i < toAdd.length; i += this.DB_BATCH_SIZE) {
                     const batch = toAdd.slice(i, i + this.DB_BATCH_SIZE);
                     
@@ -304,13 +249,13 @@ class UserRolesSyncService {
 
                     await pgManager.sequelize.query(insertQuery, { transaction: t });
                     
-                    logTime(`[身份组同步] 已插入批次 ${Math.floor(i / this.DB_BATCH_SIZE) + 1}/${Math.ceil(toAdd.length / this.DB_BATCH_SIZE)}`);
+                    //logTime(`[身份组同步] 已插入批次 ${Math.floor(i / this.DB_BATCH_SIZE) + 1}/${Math.ceil(toAdd.length / this.DB_BATCH_SIZE)}`);
                 }
             }
 
             // 分批删除记录
             if (toRemove.length > 0) {
-                logTime(`[身份组同步] 开始分批删除 ${toRemove.length} 条记录...`);
+                //logTime(`[身份组同步] 开始分批删除 ${toRemove.length} 条记录...`);
                 for (let i = 0; i < toRemove.length; i += this.DB_BATCH_SIZE) {
                     const batch = toRemove.slice(i, i + this.DB_BATCH_SIZE);
                     
@@ -326,7 +271,7 @@ class UserRolesSyncService {
 
                     await pgManager.sequelize.query(deleteQuery, { transaction: t });
                     
-                    logTime(`[身份组同步] 已删除批次 ${Math.floor(i / this.DB_BATCH_SIZE) + 1}/${Math.ceil(toRemove.length / this.DB_BATCH_SIZE)}`);
+                    //logTime(`[身份组同步] 已删除批次 ${Math.floor(i / this.DB_BATCH_SIZE) + 1}/${Math.ceil(toRemove.length / this.DB_BATCH_SIZE)}`);
                 }
             }
         });

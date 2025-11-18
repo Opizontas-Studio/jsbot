@@ -139,7 +139,34 @@ class PgSyncStateModel extends BaseModel {
                     
                     results.push(...highMaintenance.map(r => r.thread_id));
 
-                    if (results.length > 0) {
+                    // 如果维护队列不足，将剩余容量用于首轮扫描（加速全库遍历）
+                    const remainingCapacity = limit - results.length;
+                    if (remainingCapacity > 0 && neverSynced.length === neverSyncedLimit && neverSynced.length > 0) {
+                        const excludeIds = neverSynced.map(r => r.thread_id);
+                        const additionalNeverSynced = await dbManager.safeExecute('all', `
+                            SELECT thread_id
+                            FROM pg_sync_state
+                            WHERE last_sync_at IS NULL
+                              AND error_count < 3
+                              AND thread_id NOT IN (${excludeIds.map(() => '?').join(',')})
+                            ORDER BY 
+                                CASE priority
+                                    WHEN 'high' THEN 1
+                                    WHEN 'medium' THEN 2
+                                    WHEN 'low' THEN 3
+                                END,
+                                thread_id ASC
+                            LIMIT ?
+                        `, [...excludeIds, remainingCapacity]);
+                        
+                        results.push(...additionalNeverSynced.map(r => r.thread_id));
+                        
+                        if (additionalNeverSynced.length > 0) {
+                            logTime(`[同步策略] 首轮遍历模式 - 待扫描: ${neverSyncedCount.count}个, 本批: ${neverSynced.length + additionalNeverSynced.length}个新帖 + ${highMaintenance.length}个维护 (补充${additionalNeverSynced.length}个)`);
+                        } else {
+                            logTime(`[同步策略] 首轮遍历模式 - 待扫描: ${neverSyncedCount.count}个, 本批: ${neverSynced.length}个新帖 + ${highMaintenance.length}个维护`);
+                        }
+                    } else if (results.length > 0) {
                         logTime(`[同步策略] 首轮遍历模式 - 待扫描: ${neverSyncedCount.count}个, 本批: ${neverSynced.length}个新帖 + ${highMaintenance.length}个维护`);
                     }
                 } else {

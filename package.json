@@ -1,6 +1,6 @@
 {
     "name": "jsbot",
-    "version": "3.2.0",
+    "version": "4.0",
     "main": "src/index.js",
     "type": "module",
     "scripts": {
@@ -16,38 +16,26 @@
     "author": "",
     "license": "ISC",
     "description": "",
-    "pnpm": {
-        "onlyBuiltDependencies": [
-            "sqlite3"
-        ]
-    },
     "dependencies": {
         "@discordjs/rest": "^2.6.0",
         "async-lock": "^1.4.1",
-        "axios": "^1.6.7",
-        "discord-api-types": "^0.38.33",
-        "discord.js": "^14.24.2",
+        "discord-api-types": "^0.38.34",
+        "discord.js": "^14.25.0",
         "dotenv": "^17.2.3",
-        "marked": "^9.1.5",
-        "node-cron": "^3.0.3",
-        "node-html-to-image": "^4.0.0",
-        "node-schedule": "^2.1.0",
-        "p-queue": "^9.0.0",
+        "node-schedule": "^2.1.1",
+        "p-queue": "^9.0.1",
         "pg": "^8.16.3",
         "pino": "^10.1.0",
         "pino-pretty": "^13.1.2",
-        "puppeteer-core": "^21.6.1",
         "sequelize": "^6.37.7",
         "sqlite": "^5.1.1",
-        "sqlite3": "^5.1.7",
-        "winston": "^3.17.0",
-        "winston-daily-rotate-file": "^5.0.0"
+        "sqlite3": "^5.1.7"
     },
     "devDependencies": {
-        "@eslint/js": "^9.19.0",
-        "@vitest/ui": "^4.0.9",
-        "eslint": "^9.19.0",
-        "eslint-config-prettier": "^10.0.1",
-        "vitest": "^4.0.9"
+        "@eslint/js": "^9.39.1",
+        "@vitest/ui": "^4.0.10",
+        "eslint": "^9.39.1",
+        "eslint-config-prettier": "^10.1.8",
+        "vitest": "^4.0.10"
     }
 }

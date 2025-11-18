@@ -81,36 +81,89 @@ class PgSyncStateModel extends BaseModel {
 
     /**
      * 获取需要同步的帖子列表
-     * 优先处理无错误的帖子，有错误的降级到低优先级等待
+     * 智能分阶段策略：
+     * - 首轮遍历阶段：优先处理从未同步的帖子（加速全库扫描）
+     * - 维护阶段：按活跃度比例分配资源
      */
-    static async getThreadsToSync(limit = 45) {
+    static async getThreadsToSync(limit = 120) {
         return await ErrorHandler.handleService(
             async () => {
                 const now = Math.floor(Date.now() / 1000);
-                const thirtyMinAgo = now - 1800; // 30分钟前
+                const twoHoursAgo = now - 7200; // 2小时前（配合缓存有效期）
 
-                // 按比例分配 limit: high(60%), medium(25%), low(15%)
-                const queries = [
-                    { priority: 'high', limit: Math.floor(limit * 0.6) },
-                    { priority: 'medium', limit: Math.floor(limit * 0.25) },
-                    { priority: 'low', limit: Math.floor(limit * 0.15) }
-                ];
+                // 检查是否有从未同步过的帖子
+                const neverSyncedCount = await dbManager.safeExecute('get', `
+                    SELECT COUNT(*) as count 
+                    FROM pg_sync_state 
+                    WHERE last_sync_at IS NULL AND error_count < 3
+                `);
 
+                const hasNeverSynced = neverSyncedCount.count > 0;
                 const results = [];
-                for (const query of queries) {
-                    const rows = await dbManager.safeExecute('all', `
-                        SELECT thread_id, last_sync_at, error_count
+
+                if (hasNeverSynced) {
+                    // 【首轮遍历阶段】优先完成全库扫描
+                    // 分配策略：70% 给从未同步的，30% 给高优先级维护
+                    const neverSyncedLimit = Math.floor(limit * 0.7); // 84个
+                    const highMaintenanceLimit = limit - neverSyncedLimit; // 36个
+
+                    // 获取从未同步的帖子（不限优先级）
+                    const neverSynced = await dbManager.safeExecute('all', `
+                        SELECT thread_id
                         FROM pg_sync_state
-                        WHERE priority = ?
-                          AND (last_sync_at IS NULL OR last_sync_at < ?)
+                        WHERE last_sync_at IS NULL
                           AND error_count < 3
                         ORDER BY 
-                            error_count ASC,
-                            last_sync_at ASC NULLS FIRST
+                            CASE priority
+                                WHEN 'high' THEN 1
+                                WHEN 'medium' THEN 2
+                                WHEN 'low' THEN 3
+                            END,
+                            thread_id ASC
                         LIMIT ?
-                    `, [query.priority, thirtyMinAgo, query.limit]);
+                    `, [neverSyncedLimit]);
                     
-                    results.push(...rows.map(r => r.thread_id));
+                    results.push(...neverSynced.map(r => r.thread_id));
+
+                    // 同时维护高优先级帖子（保持活跃帖子的数据新鲜度）
+                    const highMaintenance = await dbManager.safeExecute('all', `
+                        SELECT thread_id
+                        FROM pg_sync_state
+                        WHERE priority = 'high'
+                          AND last_sync_at IS NOT NULL
+                          AND last_sync_at < ?
+                          AND error_count < 3
+                        ORDER BY last_sync_at ASC
+                        LIMIT ?
+                    `, [twoHoursAgo, highMaintenanceLimit]);
+                    
+                    results.push(...highMaintenance.map(r => r.thread_id));
+
+                    if (results.length > 0) {
+                        logTime(`[同步策略] 首轮遍历模式 - 待扫描: ${neverSyncedCount.count}个, 本批: ${neverSynced.length}个新帖 + ${highMaintenance.length}个维护`);
+                    }
+                } else {
+                    // 【维护阶段】按活跃度分配资源
+                    // 比例：high(50%), medium(30%), low(20%)
+                    const queries = [
+                        { priority: 'high', limit: Math.floor(limit * 0.5) },
+                        { priority: 'medium', limit: Math.floor(limit * 0.3) },
+                        { priority: 'low', limit: Math.floor(limit * 0.2) }
+                    ];
+
+                    for (const query of queries) {
+                        const rows = await dbManager.safeExecute('all', `
+                            SELECT thread_id
+                            FROM pg_sync_state
+                            WHERE priority = ?
+                              AND last_sync_at < ?
+                              AND error_count < 3
+                            ORDER BY last_sync_at ASC
+                            LIMIT ?
+                        `, [query.priority, twoHoursAgo, query.limit]);
+                        
+                        results.push(...rows.map(r => r.thread_id));
+                    }
                 }
 
                 return results;
@@ -170,10 +223,17 @@ class PgSyncStateModel extends BaseModel {
                 const todayStart = now - (now % 86400);
                 const twoHoursAgo = now - 7200;  // 2小时前（配合缓存有效期）
 
-                const [total, byPriority, todaySynced, errors, pendingByPriority] = await Promise.all([
+                const [total, byPriority, todayStats, errors, pendingByPriority, neverSynced] = await Promise.all([
                     dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state'),
                     dbManager.safeExecute('all', 'SELECT priority, COUNT(*) as count FROM pg_sync_state GROUP BY priority'),
-                    dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state WHERE last_sync_at >= ?', [todayStart]),
+                    // 获取今日同步的帖子数和累计同步操作次数
+                    dbManager.safeExecute('get', `
+                        SELECT 
+                            COUNT(*) as thread_count,
+                            COALESCE(SUM(sync_count), 0) as total_operations
+                        FROM pg_sync_state 
+                        WHERE last_sync_at >= ?
+                    `, [todayStart]),
                     dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state WHERE error_count > 0'),
                     // 获取当前轮待同步的数量（2小时内未同步且错误次数<3）
                     dbManager.safeExecute('all', `
@@ -182,7 +242,9 @@ class PgSyncStateModel extends BaseModel {
                         WHERE (last_sync_at IS NULL OR last_sync_at < ?)
                           AND error_count < 3
                         GROUP BY priority
-                    `, [twoHoursAgo])
+                    `, [twoHoursAgo]),
+                    // 获取从未同步过的数量
+                    dbManager.safeExecute('get', 'SELECT COUNT(*) as count FROM pg_sync_state WHERE last_sync_at IS NULL AND error_count < 3')
                 ]);
 
                 const priorityCounts = {};
@@ -195,18 +257,29 @@ class PgSyncStateModel extends BaseModel {
                     pendingCounts[row.priority] = row.count;
                 });
 
+                const neverSyncedCount = neverSynced.count;
+                const syncedCount = total.count - neverSyncedCount;
+                const firstScanProgress = total.count > 0 
+                    ? Math.round((syncedCount / total.count) * 100) 
+                    : 100;
+
                 return {
                     totalThreads: total.count,
                     highPriority: priorityCounts.high || 0,
                     mediumPriority: priorityCounts.medium || 0,
                     lowPriority: priorityCounts.low || 0,
-                    todaySynced: todaySynced.count,
+                    todaySyncedThreads: todayStats.thread_count,  // 今日同步的不同帖子数
+                    todaySyncedOperations: todayStats.total_operations,  // 今日累计同步操作次数
                     errorCount: errors.count,
                     // 当前轮待同步数量
                     pendingHigh: pendingCounts.high || 0,
                     pendingMedium: pendingCounts.medium || 0,
                     pendingLow: pendingCounts.low || 0,
-                    pendingTotal: (pendingCounts.high || 0) + (pendingCounts.medium || 0) + (pendingCounts.low || 0)
+                    pendingTotal: (pendingCounts.high || 0) + (pendingCounts.medium || 0) + (pendingCounts.low || 0),
+                    // 首轮遍历进度
+                    neverSyncedCount,
+                    syncedCount,
+                    firstScanProgress
                 };
             },
             '获取同步统计信息',

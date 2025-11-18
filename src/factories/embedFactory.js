@@ -167,15 +167,36 @@ export class EmbedFactory {
                 ? Math.round((1 - pgSyncStats.pendingTotal / pgSyncStats.totalThreads) * 100)
                 : 0;
             
+            // 根据是否在首轮遍历阶段显示不同信息
+            const isFirstScan = pgSyncStats.neverSyncedCount > 0;
+            
+            const statusLines = [
+                `总帖子: ${pgSyncStats.totalThreads} | 今日帖子: ${pgSyncStats.todaySyncedThreads}个`,
+                `今日操作: ${pgSyncStats.todaySyncedOperations}次`
+            ];
+
+            if (isFirstScan) {
+                // 首轮遍历阶段：突出显示扫描进度
+                statusLines.push(
+                    `🔍 **首轮扫描**: ${pgSyncStats.firstScanProgress}% (已扫: ${pgSyncStats.syncedCount}, 待扫: ${pgSyncStats.neverSyncedCount})`,
+                    `2小时内待同步: ${pgSyncStats.pendingTotal}个`
+                );
+            } else {
+                // 维护阶段：显示当前进度
+                statusLines.push(
+                    `当前进度: ${syncProgress}%`,
+                    `待同步队列: 高${pgSyncStats.pendingHigh} 中${pgSyncStats.pendingMedium} 低${pgSyncStats.pendingLow} (共${pgSyncStats.pendingTotal})`
+                );
+            }
+
+            statusLines.push(
+                `优先级分布: 高${pgSyncStats.highPriority} 中${pgSyncStats.mediumPriority} 低${pgSyncStats.lowPriority}`,
+                `错误: ${pgSyncStats.errorCount}次`
+            );
+            
             fields.push({
                 name: '📊 数据同步状态',
-                value: [
-                    `总帖子: ${pgSyncStats.totalThreads} | 今日同步: ${pgSyncStats.todaySynced}次`,
-                    `当前进度: ${syncProgress}% (待同步: ${pgSyncStats.pendingTotal})`,
-                    `待同步队列: 高${pgSyncStats.pendingHigh} 中${pgSyncStats.pendingMedium} 低${pgSyncStats.pendingLow}`,
-                    `优先级分布: 高${pgSyncStats.highPriority} 中${pgSyncStats.mediumPriority} 低${pgSyncStats.lowPriority}`,
-                    `错误: ${pgSyncStats.errorCount}次`
-                ].join('\n'),
+                value: statusLines.join('\n'),
                 inline: false
             });
         }

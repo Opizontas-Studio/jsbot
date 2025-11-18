@@ -9,7 +9,7 @@ export class ConfirmationMessageBuilder {
     // ==================== 消息文本定义 ====================
 
     static MESSAGES = {
-        timeout: (operationName) => ({
+        timeout: operationName => ({
             title: '确认已超时',
             message: `${operationName}已取消。\n\n如需继续请重新执行命令。`
         }),
@@ -48,10 +48,7 @@ export class ConfirmationMessageBuilder {
 
         // 添加超时提示
         const timeoutMinutes = Math.floor(timeout / 60000);
-        ComponentV2Factory.addText(
-            container,
-            `\n*⏰ 此确认按钮将在 ${timeoutMinutes} 分钟后失效*`
-        );
+        ComponentV2Factory.addText(container, `\n*⏰ 此确认按钮将在 ${timeoutMinutes} 分钟后失效*`);
 
         // 创建确认按钮并直接添加到容器中
         const button = ComponentV2Factory.createButton({
@@ -67,4 +64,3 @@ export class ConfirmationMessageBuilder {
         return ComponentV2Factory.createMessage(container);
     }
 }
-

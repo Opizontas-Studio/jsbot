@@ -5,7 +5,7 @@ import { CommandContext, Context } from '../Context.js';
  * 交互事件监听器
  * 统一处理所有Discord交互事件并分发到对应的处理器
  */
-class InteractionListener {
+export class InteractionListener {
     constructor(container, registry, logger, middlewareChain) {
         this.container = container;
         this.registry = registry;
@@ -18,7 +18,7 @@ class InteractionListener {
      * @param {Client} client - Discord客户端
      */
     register(client) {
-        client.on(Events.InteractionCreate, async (interaction) => {
+        client.on(Events.InteractionCreate, async interaction => {
             try {
                 await this.handle(interaction);
             } catch (error) {
@@ -57,8 +57,12 @@ class InteractionListener {
         }
 
         // 选择菜单交互
-        if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() ||
-            interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
+        if (
+            interaction.isStringSelectMenu() ||
+            interaction.isUserSelectMenu() ||
+            interaction.isRoleSelectMenu() ||
+            interaction.isChannelSelectMenu()
+        ) {
             await this.handleSelectMenu(interaction);
             return;
         }
@@ -239,7 +243,9 @@ class InteractionListener {
             });
             try {
                 await interaction.respond([]);
-            } catch {}
+            } catch {
+                // 忽略自动补全响应错误
+            }
         }
     }
 
@@ -253,6 +259,3 @@ class InteractionListener {
         return configManager.getGuild(guildId) || {};
     }
 }
-
-export { InteractionListener };
-

@@ -65,13 +65,9 @@ export class ApiCallTracker {
      * @returns {Object} 统计信息
      */
     getStats() {
-        const avgDuration = this.totalCalls > 0
-            ? (this.totalDuration / this.totalCalls).toFixed(2)
-            : 0;
+        const avgDuration = this.totalCalls > 0 ? (this.totalDuration / this.totalCalls).toFixed(2) : 0;
 
-        const successRate = this.totalCalls > 0
-            ? ((this.successCalls / this.totalCalls) * 100).toFixed(1)
-            : 100;
+        const successRate = this.totalCalls > 0 ? ((this.successCalls / this.totalCalls) * 100).toFixed(1) : 100;
 
         return {
             summary: {

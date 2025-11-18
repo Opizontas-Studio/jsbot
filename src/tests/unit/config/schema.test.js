@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    validateEnv,
-    validateGlobalConfig,
-    validateGuildConfig
-} from '../../../config/schema.js';
+import { validateEnv, validateGlobalConfig, validateGuildConfig } from '../../../config/schema.js';
 
 describe('Config Schema Validation', () => {
     describe('validateEnv', () => {
@@ -148,7 +144,7 @@ describe('Config Schema Validation', () => {
                 api: {
                     rateLimit: {
                         global: {
-                            maxRequests: -1,  // 无效值
+                            maxRequests: -1, // 无效值
                             window: 1000
                         }
                     }
@@ -164,8 +160,8 @@ describe('Config Schema Validation', () => {
             const config = {
                 bot: { logLevel: 'info' },
                 queue: {
-                    concurrency: 0,  // 无效值
-                    timeout: -1000   // 无效值
+                    concurrency: 0, // 无效值
+                    timeout: -1000 // 无效值
                 }
             };
             const errors = validateGlobalConfig(config);
@@ -215,7 +211,7 @@ describe('Config Schema Validation', () => {
             const config = {
                 guildId: '123456789012345678',
                 roleIds: {
-                    moderators: [123, 456]  // 应该是字符串
+                    moderators: [123, 456] // 应该是字符串
                 }
             };
 
@@ -229,7 +225,7 @@ describe('Config Schema Validation', () => {
             const config = {
                 guildId: '123456789012345678',
                 channelIds: {
-                    log: 'invalid_id'  // 不是有效的snowflake
+                    log: 'invalid_id' // 不是有效的snowflake
                 }
             };
 
@@ -243,10 +239,7 @@ describe('Config Schema Validation', () => {
             const config = {
                 guildId: '123456789012345678',
                 roleIds: {
-                    moderators: [
-                        '987654321098765432',
-                        '876543210987654321'
-                    ]
+                    moderators: ['987654321098765432', '876543210987654321']
                 }
             };
 
@@ -255,4 +248,3 @@ describe('Config Schema Validation', () => {
         });
     });
 });
-

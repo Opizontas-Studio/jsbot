@@ -16,7 +16,7 @@ describe('permissions middleware', () => {
         // Mock Discord.js Collection (extends Map with some method)
         const roleCache = new Map();
         roleCache.set('mod123', { id: 'mod123', name: 'Moderator' });
-        roleCache.some = function(callback) {
+        roleCache.some = function (callback) {
             for (const [key, value] of this) {
                 if (callback(value, key, this)) return true;
             }
@@ -62,10 +62,7 @@ describe('permissions middleware', () => {
 
         await middleware(ctxWithoutGuild, next, mockConfig);
 
-        expect(ctxWithoutGuild.error).toHaveBeenCalledWith(
-            '此命令只能在服务器中使用',
-            true
-        );
+        expect(ctxWithoutGuild.error).toHaveBeenCalledWith('此命令只能在服务器中使用', true);
         expect(next).not.toHaveBeenCalled();
     });
 
@@ -84,8 +81,10 @@ describe('permissions middleware', () => {
     it('应该拒绝无权限的用户', async () => {
         const middleware = permissionsMiddleware(mockLogger);
         const emptyCache = new Map();
-        emptyCache.some = function() { return false; };
-        emptyCache.map = function(callback) {
+        emptyCache.some = function () {
+            return false;
+        };
+        emptyCache.map = function (callback) {
             const result = [];
             for (const [key, value] of this) {
                 result.push(callback(value, key, this));
@@ -102,10 +101,7 @@ describe('permissions middleware', () => {
             required: ['moderator'],
             userRoles: []
         });
-        expect(mockCtx.error).toHaveBeenCalledWith(
-            '你没有权限使用此命令',
-            true
-        );
+        expect(mockCtx.error).toHaveBeenCalledWith('你没有权限使用此命令', true);
         expect(next).not.toHaveBeenCalled();
     });
 
@@ -115,7 +111,7 @@ describe('permissions middleware', () => {
 
         const adminCache = new Map();
         adminCache.set('admin123', { id: 'admin123' });
-        adminCache.some = function(callback) {
+        adminCache.some = function (callback) {
             for (const [key, value] of this) {
                 if (callback(value, key, this)) return true;
             }
@@ -191,4 +187,3 @@ describe('getRoleMapping', () => {
         expect(roleIds).toEqual([]);
     });
 });
-

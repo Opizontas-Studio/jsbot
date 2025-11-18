@@ -6,7 +6,7 @@ import pino from 'pino';
  * 统一日志器（基于pino）
  * 提供结构化日志和高性能输出
  */
-class Logger {
+export class Logger {
     constructor(options = {}) {
         const {
             level = process.env.LOG_LEVEL || 'info',
@@ -28,8 +28,8 @@ class Logger {
             level,
             timestamp: pino.stdTimeFunctions.isoTime,
             formatters: {
-                level: (label) => ({ level: label }),
-                bindings: (bindings) => ({
+                level: label => ({ level: label }),
+                bindings: bindings => ({
                     pid: bindings.pid,
                     hostname: bindings.hostname
                 })
@@ -37,15 +37,17 @@ class Logger {
         };
 
         // 开发环境使用pretty格式
-        const transport = prettyPrint ? {
-            target: 'pino-pretty',
-            options: {
-                colorize: true,
-                translateTime: 'yyyy/mm/dd HH:MM:ss',
-                ignore: 'pid,hostname',
-                singleLine: false
-            }
-        } : undefined;
+        const transport = prettyPrint
+            ? {
+                  target: 'pino-pretty',
+                  options: {
+                      colorize: true,
+                      translateTime: 'yyyy/mm/dd HH:MM:ss',
+                      ignore: 'pid,hostname',
+                      singleLine: false
+                  }
+              }
+            : undefined;
 
         // 创建logger实例
         this.logger = pino(pinoOptions, transport ? pino.transport(transport) : undefined);
@@ -118,13 +120,10 @@ class Logger {
      * 刷新日志缓冲（优雅关闭时调用）
      */
     async flush() {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
             this.logger.flush(() => {
                 this.fileLogger?.flush(resolve) || resolve();
             });
         });
     }
 }
-
-export { Logger };
-

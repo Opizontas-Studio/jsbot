@@ -7,7 +7,7 @@ import { WebSocketMonitor } from './monitoring/WebSocketMonitor.js';
  * 监控管理器
  * 负责初始化和管理所有监控组件
  */
-class MonitoringManager {
+export class MonitoringManager {
     constructor(client, container, logger) {
         this.client = client;
         this.container = container;
@@ -113,6 +113,3 @@ class MonitoringManager {
         this.logger.info('[MonitoringManager] 所有监控统计已重置');
     }
 }
-
-export { MonitoringManager };
-

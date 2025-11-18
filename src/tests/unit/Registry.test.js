@@ -8,11 +8,11 @@ describe('Registry', () => {
 
     beforeEach(() => {
         mockContainer = {
-            get: vi.fn((name) => {
+            get: vi.fn(name => {
                 if (name === 'logger') return mockLogger;
                 return {};
             }),
-            resolve: vi.fn((deps) => {
+            resolve: vi.fn(deps => {
                 const resolved = {};
                 for (const dep of deps) {
                     resolved[dep] = {};
@@ -41,9 +41,7 @@ describe('Registry', () => {
             const nonExistentDir = '/tmp/nonexistent-test-dir-' + Date.now();
 
             // 不应该抛出错误，只是无法加载模块
-            await expect(
-                registry.loadModules(nonExistentDir)
-            ).resolves.not.toThrow();
+            await expect(registry.loadModules(nonExistentDir)).resolves.not.toThrow();
         });
     });
 
@@ -326,4 +324,3 @@ describe('Registry', () => {
         });
     });
 });
-

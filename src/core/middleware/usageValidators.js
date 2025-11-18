@@ -31,9 +31,11 @@ export function validateInDM(ctx) {
  * 验证是否在线程内
  */
 export function validateInThread(ctx) {
-    const isThread = ctx.channel?.isThread?.() ||
-                    [ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread]
-                        .includes(ctx.channel?.type);
+    const isThread =
+        ctx.channel?.isThread?.() ||
+        [ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread].includes(
+            ctx.channel?.type
+        );
 
     return {
         valid: isThread,
@@ -65,8 +67,8 @@ export function validateInPrivateThread(ctx) {
  * 验证是否在论坛帖子中
  */
 export function validateInForumPost(ctx) {
-    const isForumPost = ctx.channel?.type === ChannelType.PublicThread &&
-                       ctx.channel?.parent?.type === ChannelType.GuildForum;
+    const isForumPost =
+        ctx.channel?.type === ChannelType.PublicThread && ctx.channel?.parent?.type === ChannelType.GuildForum;
 
     return {
         valid: isForumPost,
@@ -78,11 +80,7 @@ export function validateInForumPost(ctx) {
  * 验证是否在公共频道（非线程）
  */
 export function validateInPublicChannel(ctx) {
-    const publicChannelTypes = [
-        ChannelType.GuildText,
-        ChannelType.GuildAnnouncement,
-        ChannelType.GuildForum
-    ];
+    const publicChannelTypes = [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum];
 
     return {
         valid: publicChannelTypes.includes(ctx.channel?.type),
@@ -319,4 +317,3 @@ export const VALIDATORS = {
     targetIsBot: validateTargetIsBot,
     canModerateTarget: validateCanModerateTarget
 };
-

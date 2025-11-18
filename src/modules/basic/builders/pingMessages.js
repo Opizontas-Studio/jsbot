@@ -33,18 +33,18 @@ export class PingMessageBuilder {
         ComponentV2Factory.addSeparator(container);
 
         // 延迟信息
-        ComponentV2Factory.addText(container, [
-            `⚡ **API延迟:** ${apiLatency}ms`,
-            `🔄 **往返延迟:** ${roundTripLatency}ms`
-        ].join('\n'));
+        ComponentV2Factory.addText(
+            container,
+            [`⚡ **API延迟:** ${apiLatency}ms`, `🔄 **往返延迟:** ${roundTripLatency}ms`].join('\n')
+        );
 
         ComponentV2Factory.addSeparator(container);
 
         // Bot信息
-        ComponentV2Factory.addText(container, [
-            `🤖 **Bot:** \`${botTag}\``,
-            `📊 **服务器数:** ${guildCount}`
-        ].join('\n'));
+        ComponentV2Factory.addText(
+            container,
+            [`🤖 **Bot:** \`${botTag}\``, `📊 **服务器数:** ${guildCount}`].join('\n')
+        );
 
         return ComponentV2Factory.createMessage(container, options);
     }
@@ -62,4 +62,3 @@ export class PingMessageBuilder {
         return ComponentV2Factory.Colors.ERROR;
     }
 }
-

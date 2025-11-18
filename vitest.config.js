@@ -9,10 +9,7 @@ export default defineConfig({
         globals: true,
 
         // 测试文件匹配模式
-        include: [
-            'src/tests/**/*.test.js',
-            'src/tests/**/*.spec.js'
-        ],
+        include: ['src/tests/**/*.test.js', 'src/tests/**/*.spec.js'],
 
         // 排除
         exclude: [
@@ -28,11 +25,7 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
             include: ['src/**/*.js'],
-            exclude: [
-                'src/tests/**',
-                '**/node_modules/**',
-                '**/dist/**'
-            ]
+            exclude: ['src/tests/**', '**/node_modules/**', '**/dist/**']
         },
 
         // 测试超时
@@ -43,10 +36,6 @@ export default defineConfig({
         threads: true,
 
         // 监听模式排除
-        watchExclude: [
-            '**/node_modules/**',
-            '**/dist/**'
-        ]
+        watchExclude: ['**/node_modules/**', '**/dist/**']
     }
 });
-

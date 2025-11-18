@@ -16,24 +16,24 @@ export class ApiMonitor {
         // 统计信息
         this.stats = {
             // 速率限制统计
-            rateLimitHits: 0,          // 主动等待次数
-            rateLimitExceeded: 0,      // 被429次数
+            rateLimitHits: 0, // 主动等待次数
+            rateLimitExceeded: 0, // 被429次数
 
             // HTTP错误统计
-            errors429: 0,              // 速率限制错误
-            errors401: 0,              // 认证失败
-            errors403: 0,              // 权限不足
-            errors404: 0,              // 资源不存在
-            errors5xx: 0,              // 服务器错误
-            errorsOther: 0,            // 其他错误
+            errors429: 0, // 速率限制错误
+            errors401: 0, // 认证失败
+            errors403: 0, // 权限不足
+            errors404: 0, // 资源不存在
+            errors5xx: 0, // 服务器错误
+            errorsOther: 0, // 其他错误
 
             // 请求统计
-            totalRequests: 0,          // 总请求数
-            successRequests: 0,        // 成功请求数（2xx）
+            totalRequests: 0, // 总请求数
+            successRequests: 0, // 成功请求数（2xx）
 
             // 时间窗口统计（用于计算请求频率）
             requestsInWindow: [],
-            windowSize: 60000          // 1分钟窗口
+            windowSize: 60000 // 1分钟窗口
         };
     }
 
@@ -47,9 +47,7 @@ export class ApiMonitor {
         const cleanupInterval = setInterval(() => {
             const now = Date.now();
             const cutoff = now - this.stats.windowSize;
-            this.stats.requestsInWindow = this.stats.requestsInWindow.filter(
-                timestamp => timestamp > cutoff
-            );
+            this.stats.requestsInWindow = this.stats.requestsInWindow.filter(timestamp => timestamp > cutoff);
         }, 10000);
         this.intervals.push(cleanupInterval);
 
@@ -83,7 +81,7 @@ export class ApiMonitor {
      */
     _registerRestEvents() {
         // 监听速率限制事件（主动等待）
-        const rateLimitedListener = (rateLimitData) => {
+        const rateLimitedListener = rateLimitData => {
             this.stats.rateLimitHits++;
 
             // 只有触发了实际的延迟才记录警告
@@ -227,14 +225,13 @@ export class ApiMonitor {
         // 清理过期数据
         const now = Date.now();
         const cutoff = now - this.stats.windowSize;
-        this.stats.requestsInWindow = this.stats.requestsInWindow.filter(
-            timestamp => timestamp > cutoff
-        );
+        this.stats.requestsInWindow = this.stats.requestsInWindow.filter(timestamp => timestamp > cutoff);
 
         const rps = (this.stats.requestsInWindow.length / (this.stats.windowSize / 1000)).toFixed(2);
-        const successRate = this.stats.totalRequests > 0
-            ? ((this.stats.successRequests / this.stats.totalRequests) * 100).toFixed(1)
-            : 100;
+        const successRate =
+            this.stats.totalRequests > 0
+                ? ((this.stats.successRequests / this.stats.totalRequests) * 100).toFixed(1)
+                : 100;
 
         return {
             summary: {
@@ -254,9 +251,13 @@ export class ApiMonitor {
                 errors404: this.stats.errors404,
                 errors5xx: this.stats.errors5xx,
                 errorsOther: this.stats.errorsOther,
-                total: this.stats.errors401 + this.stats.errors403 +
-                       this.stats.errors404 + this.stats.errors429 +
-                       this.stats.errors5xx + this.stats.errorsOther
+                total:
+                    this.stats.errors401 +
+                    this.stats.errors403 +
+                    this.stats.errors404 +
+                    this.stats.errors429 +
+                    this.stats.errors5xx +
+                    this.stats.errorsOther
             }
         };
     }

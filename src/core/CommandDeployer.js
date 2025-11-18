@@ -4,7 +4,7 @@ import { REST, Routes } from 'discord.js';
  * 命令部署器
  * 负责将命令部署到Discord服务器
  */
-class CommandDeployer {
+export class CommandDeployer {
     constructor(container, logger) {
         this.container = container;
         this.logger = logger;
@@ -121,12 +121,7 @@ class CommandDeployer {
 
             // 创建 REST 实例并获取已部署的命令
             const rest = new REST({ version: '10' }).setToken(clientToken || this.config.token);
-            const deployedCommands = await rest.get(
-                Routes.applicationGuildCommands(
-                    this.config.bot.clientId,
-                    guildId
-                )
-            );
+            const deployedCommands = await rest.get(Routes.applicationGuildCommands(this.config.bot.clientId, guildId));
 
             // 分析差异
             const diff = this._analyzeCommandDiff(localCommandData, deployedCommands);
@@ -174,9 +169,9 @@ class CommandDeployer {
         const commandData = [];
         for (const config of commands) {
             try {
-                const data = config.builder ?
-                    config.builder().toJSON() :
-                    { name: config.name, description: config.description || '命令' };
+                const data = config.builder
+                    ? config.builder().toJSON()
+                    : { name: config.name, description: config.description || '命令' };
                 commandData.push(data);
             } catch (error) {
                 this.logger.error({
@@ -237,13 +232,7 @@ class CommandDeployer {
     async _executeSyncToGuild(rest, guildId, localCommandData, diff) {
         // 执行删除
         for (const cmd of diff.toDelete) {
-            await rest.delete(
-                Routes.applicationGuildCommand(
-                    this.config.bot.clientId,
-                    guildId,
-                    cmd.id
-                )
-            );
+            await rest.delete(Routes.applicationGuildCommand(this.config.bot.clientId, guildId, cmd.id));
             this.logger.info({
                 msg: '[CommandDeploy] 已删除命令',
                 command: cmd.name,
@@ -253,13 +242,9 @@ class CommandDeployer {
 
         // 执行更新和添加（通过 PUT 整体替换）
         if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-            await rest.put(
-                Routes.applicationGuildCommands(
-                    this.config.bot.clientId,
-                    guildId
-                ),
-                { body: localCommandData }
-            );
+            await rest.put(Routes.applicationGuildCommands(this.config.bot.clientId, guildId), {
+                body: localCommandData
+            });
             this.logger.info({
                 msg: '[CommandDeploy] 命令同步完成',
                 updated: diff.toUpdate.length,
@@ -297,10 +282,9 @@ class CommandDeployer {
                 guildName
             });
 
-            const result = await rest.put(
-                Routes.applicationGuildCommands(this.config.bot.clientId, guildId),
-                { body: commandData }
-            );
+            const result = await rest.put(Routes.applicationGuildCommands(this.config.bot.clientId, guildId), {
+                body: commandData
+            });
 
             this.logger.info({
                 msg: '[CommandDeploy] 命令部署成功',
@@ -321,6 +305,3 @@ class CommandDeployer {
         }
     }
 }
-
-export { CommandDeployer };
-

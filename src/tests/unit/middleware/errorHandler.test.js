@@ -59,10 +59,7 @@ describe('errorHandler middleware', () => {
 
         await middleware(mockCtx, next);
 
-        expect(mockCtx.error).toHaveBeenCalledWith(
-            expect.any(String),
-            true
-        );
+        expect(mockCtx.error).toHaveBeenCalledWith(expect.any(String), true);
     });
 
     it('应该处理回复错误的情况', async () => {
@@ -174,4 +171,3 @@ describe('formatErrorMessage', () => {
         expect(message).toBe('内容超出长度限制');
     });
 });
-

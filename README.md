@@ -22,14 +22,15 @@ pnpm install
 ### 2. 配置
 
 1. 创建 `.env` 文件：
+
 ```bash
 DISCORD_TOKEN=your_bot_token_here
 NODE_ENV=development
 ```
 
 2. 配置文件：
-   - 全局配置：`src/config/config.json`（参考 `src/config/SETUP.md`）
-   - 服务器配置：`src/config/guilds/{guildId}.json`
+    - 全局配置：`src/config/config.json`（参考 `src/config/SETUP.md`）
+    - 服务器配置：`src/config/guilds/{guildId}.json`
 
 详细配置说明请查看 `src/config/SETUP.md`。
 
@@ -64,18 +65,23 @@ jsbot/
 ## 📚 架构特性
 
 ### 配置式注册
+
 每个命令、组件、事件都是标准配置对象，核心自动扫描注册。
 
 ### 依赖注入
+
 基于 Container 的服务管理，支持依赖注入和生命周期管理。
 
 ### 中间件机制
+
 defer、权限、冷却、使用场景验证等统一由中间件处理。
 
 ### API 包装层
+
 所有 Discord API 调用经过统一包装，实现主动限速和监控。
 
 ### 模块化设计
+
 业务模块完全独立，通过统一接口与核心交互。
 
 详细架构文档请查看 `src/plan.md`。
@@ -105,6 +111,7 @@ pnpm run test:ui
 3. 核心会自动扫描并注册
 
 示例：
+
 ```javascript
 // src/modules/basic/registries/myCommands.js
 export default [
@@ -133,6 +140,7 @@ export default [
 ## 📝 更新日志
 
 ### v3.2.0 - 2025-11-17
+
 - ✅ 完成架构重写，正式从 rewrite 迁移到 src
 - ✅ 旧代码归档至 archive/src.old
 - ✅ 采用配置驱动的模块化架构
@@ -149,4 +157,3 @@ export default [
 - [Discord.js 文档](https://discord.js.org/)
 - [架构设计文档](src/plan.md)
 - [配置说明](src/config/SETUP.md)
-

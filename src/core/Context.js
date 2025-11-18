@@ -4,7 +4,7 @@ import { createStandardMessage } from '../shared/factories/ComponentV2Factory.js
  * 统一的上下文对象
  * 提供快捷访问和方法
  */
-class Context {
+export class Context {
     /**
      * @param {import('discord.js').Interaction} interaction - Discord交互对象
      * @param {Object} config - 服务器配置
@@ -132,9 +132,7 @@ class Context {
             );
         }
 
-        return await this.reply(
-            createStandardMessage('success', messageOrConfig)
-        );
+        return await this.reply(createStandardMessage('success', messageOrConfig));
     }
 
     /**
@@ -254,7 +252,7 @@ class Context {
 /**
  * 命令上下文
  */
-class CommandContext extends Context {
+export class CommandContext extends Context {
     /**
      * 获取命令选项值
      * @param {string} name - 选项名称
@@ -293,6 +291,3 @@ class CommandContext extends Context {
         }
     }
 }
-
-export { CommandContext, Context };
-

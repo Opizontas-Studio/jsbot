@@ -20,9 +20,7 @@ export default [
          * 构建命令
          */
         builder() {
-            return new SlashCommandBuilder()
-                .setName(this.name)
-                .setDescription(this.description);
+            return new SlashCommandBuilder().setName(this.name).setDescription(this.description);
         },
 
         /**
@@ -44,14 +42,16 @@ export default [
 
             // 更新回复
             await ctx.interaction.editReply(
-                PingMessageBuilder.createPong({
-                    apiLatency,
-                    roundTripLatency,
-                    botTag: ctx.client.user.tag,
-                    guildCount: ctx.client.guilds.cache.size
-                }, { additionalFlags: ['Ephemeral'] })
+                PingMessageBuilder.createPong(
+                    {
+                        apiLatency,
+                        roundTripLatency,
+                        botTag: ctx.client.user.tag,
+                        guildCount: ctx.client.guilds.cache.size
+                    },
+                    { additionalFlags: ['Ephemeral'] }
+                )
             );
         }
     }
 ];
-

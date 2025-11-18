@@ -11,7 +11,7 @@ describe('MemberListener', () => {
 
     beforeEach(() => {
         mockContainer = {
-            get: vi.fn((name) => {
+            get: vi.fn(name => {
                 if (name === 'configManager') {
                     return {
                         getGuildConfig: vi.fn(() => ({ guildId: 'guild123' }))
@@ -44,21 +44,10 @@ describe('MemberListener', () => {
         it('应该注册所有成员事件', () => {
             listener.register(mockClient);
 
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.GuildMemberAdd,
-                expect.any(Function)
-            );
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.GuildMemberRemove,
-                expect.any(Function)
-            );
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.GuildMemberUpdate,
-                expect.any(Function)
-            );
-            expect(mockLogger.info).toHaveBeenCalledWith(
-                '[MemberListener] 已注册'
-            );
+            expect(mockClient.on).toHaveBeenCalledWith(Events.GuildMemberAdd, expect.any(Function));
+            expect(mockClient.on).toHaveBeenCalledWith(Events.GuildMemberRemove, expect.any(Function));
+            expect(mockClient.on).toHaveBeenCalledWith(Events.GuildMemberUpdate, expect.any(Function));
+            expect(mockLogger.info).toHaveBeenCalledWith('[MemberListener] 已注册');
         });
     });
 
@@ -175,10 +164,7 @@ describe('MemberListener', () => {
             });
 
             expect(mockContainer.resolve).toHaveBeenCalledWith(['testService']);
-            expect(handler.handle).toHaveBeenCalledWith(
-                expect.any(Object),
-                mockDeps
-            );
+            expect(handler.handle).toHaveBeenCalledWith(expect.any(Object), mockDeps);
         });
 
         it('应该捕获处理器错误并继续', async () => {
@@ -223,10 +209,7 @@ describe('MemberListener', () => {
                 newMember
             });
 
-            expect(handler.handle).toHaveBeenCalledWith(
-                { oldMember, newMember },
-                {}
-            );
+            expect(handler.handle).toHaveBeenCalledWith({ oldMember, newMember }, {});
         });
 
         it('应该记录debug日志', async () => {
@@ -266,4 +249,3 @@ describe('MemberListener', () => {
         });
     });
 });
-

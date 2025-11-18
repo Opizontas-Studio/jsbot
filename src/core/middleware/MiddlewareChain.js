@@ -1,7 +1,7 @@
 /**
  * 中间件链
  */
-class MiddlewareChain {
+export class MiddlewareChain {
     constructor(middlewares = []) {
         this.middlewares = middlewares;
     }
@@ -23,7 +23,7 @@ class MiddlewareChain {
     async execute(ctx, config, handler) {
         let index = -1;
 
-        const dispatch = async (i) => {
+        const dispatch = async i => {
             if (i <= index) {
                 throw new Error('next() 被多次调用');
             }
@@ -44,6 +44,3 @@ class MiddlewareChain {
         return await dispatch(0);
     }
 }
-
-export { MiddlewareChain };
-

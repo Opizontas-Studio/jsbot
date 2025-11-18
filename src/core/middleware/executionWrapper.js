@@ -45,7 +45,6 @@ export function executionWrapperMiddleware(tracker) {
 
             // 执行后续中间件和处理器
             await next();
-
         } catch (error) {
             // 记录详细错误日志
             ctx.logger?.error({
@@ -80,4 +79,3 @@ export function executionWrapperMiddleware(tracker) {
         }
     };
 }
-

@@ -89,8 +89,7 @@ describe.skipIf(!hasTestToken || !hasTestClientId)('Full Startup Integration (St
         expect(app.registry.commands.size).toBeGreaterThan(0);
         expect(app.registry.commands.has('ping')).toBe(true);
         console.log(`   ✅ 已加载 ${app.registry.commands.size} 个命令`);
-
-    }, 30000);  // 30秒超时
+    }, 30000); // 30秒超时
 
     it('应该正确处理优雅关闭', async () => {
         app = new Application(testConfig);
@@ -102,7 +101,6 @@ describe.skipIf(!hasTestToken || !hasTestClientId)('Full Startup Integration (St
 
         // 优雅关闭
         await expect(app.stop()).resolves.not.toThrow();
-
     }, 30000);
 
     it('应该在启动后能够访问所有服务', async () => {
@@ -118,7 +116,6 @@ describe.skipIf(!hasTestToken || !hasTestClientId)('Full Startup Integration (St
         expect(app.container.has('config')).toBe(true);
         expect(app.container.has('configManager')).toBe(true);
         expect(app.container.has('cooldownManager')).toBe(true);
-
     }, 30000);
 });
 
@@ -126,7 +123,7 @@ describe.skipIf(!hasTestToken || !hasTestClientId)('Full Startup Integration (St
 if (!hasTestToken || !hasTestClientId) {
     console.log('\n💡 Staging测试被跳过');
     if (!hasTestToken) {
-    console.log('   原因: 未设置 TEST_BOT_TOKEN 环境变量');
+        console.log('   原因: 未设置 TEST_BOT_TOKEN 环境变量');
     }
     if (!hasTestClientId) {
         console.log('   原因: 未设置 TEST_BOT_CLIENT_ID 环境变量');

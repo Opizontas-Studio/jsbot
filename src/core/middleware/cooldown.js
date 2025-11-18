@@ -19,10 +19,7 @@ export function cooldownMiddleware(cooldownManager) {
                 remaining: remainingTime
             });
 
-            await ctx.error(
-                `此操作冷却中，请等待 ${Math.ceil(remainingTime / 1000)} 秒后再试`,
-                true
-            );
+            await ctx.error(`此操作冷却中，请等待 ${Math.ceil(remainingTime / 1000)} 秒后再试`, true);
             return;
         }
 
@@ -30,4 +27,3 @@ export function cooldownMiddleware(cooldownManager) {
         await next();
     };
 }
-

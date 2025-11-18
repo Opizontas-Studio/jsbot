@@ -4,7 +4,7 @@ import { Events } from 'discord.js';
  * 成员事件监听器
  * 处理服务器成员相关事件
  */
-class MemberListener {
+export class MemberListener {
     constructor(container, registry, logger) {
         this.container = container;
         this.registry = registry;
@@ -17,12 +17,12 @@ class MemberListener {
      */
     register(client) {
         // 成员加入
-        client.on(Events.GuildMemberAdd, async (member) => {
+        client.on(Events.GuildMemberAdd, async member => {
             await this.dispatchEvent('guildMemberAdd', member);
         });
 
         // 成员离开
-        client.on(Events.GuildMemberRemove, async (member) => {
+        client.on(Events.GuildMemberRemove, async member => {
             await this.dispatchEvent('guildMemberRemove', member);
         });
 
@@ -105,6 +105,3 @@ class MemberListener {
         return configManager.getGuild(guildId) || {};
     }
 }
-
-export { MemberListener };
-

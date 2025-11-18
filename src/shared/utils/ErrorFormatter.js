@@ -29,18 +29,18 @@ export class ErrorFormatter {
         [RESTJSONErrorCodes.InvalidOAuth2State]: 'OAuth2 状态无效',
         [RESTJSONErrorCodes.MissingResourceOwner]: '缺少资源所有者',
         [RESTJSONErrorCodes.InvalidMessageType]: '消息类型无效',
-        [RESTJSONErrorCodes.CannotDeleteMessageInAnotherUsersChannel]: '无法删除其他用户频道中的消息',
+        [RESTJSONErrorCodes.CannotDeleteMessageInAnotherUsersChannel]: '无法删除其他用户频道中的消息'
     };
 
     /**
      * 网络错误代码映射表
      */
     static NETWORK_ERROR_CODES = {
-        'ECONNRESET': '网络连接中断',
-        'ETIMEDOUT': '网络连接超时',
-        'ECONNREFUSED': '连接被拒绝',
-        'ENOTFOUND': '无法解析主机',
-        'ENETUNREACH': '网络不可达',
+        ECONNRESET: '网络连接中断',
+        ETIMEDOUT: '网络连接超时',
+        ECONNREFUSED: '连接被拒绝',
+        ENOTFOUND: '无法解析主机',
+        ENETUNREACH: '网络不可达'
     };
 
     /**
@@ -114,9 +114,7 @@ export class ErrorFormatter {
      */
     static _isTimeoutError(error) {
         const message = error.message?.toLowerCase() || '';
-        return message.includes('timeout') ||
-               message.includes('超时') ||
-               message.includes('timed out');
+        return message.includes('timeout') || message.includes('超时') || message.includes('timed out');
     }
 
     /**
@@ -127,9 +125,7 @@ export class ErrorFormatter {
      */
     static _isPermissionError(error) {
         const message = error.message?.toLowerCase() || '';
-        return message.includes('permission') ||
-               message.includes('权限') ||
-               message.includes('forbidden');
+        return message.includes('permission') || message.includes('权限') || message.includes('forbidden');
     }
 
     /**
@@ -162,4 +158,3 @@ export class ErrorFormatter {
         return logData;
     }
 }
-

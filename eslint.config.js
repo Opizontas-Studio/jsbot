@@ -6,7 +6,7 @@ export default [
     {
         languageOptions: {
             ecmaVersion: 'latest',
-            sourceType: 'module',
+            sourceType: 'module'
         },
         rules: {
             'handle-callback-err': 'off',
@@ -19,8 +19,14 @@ export default [
             'no-undef': 'off',
             'prefer-const': 'off',
             'no-unused-vars': 'off',
-            yoda: 'error',
-        },
+            yoda: 'error'
+        }
     },
-    eslintConfigPrettier,
+    {
+        files: ['**/*.test.js', '**/tests/**/*.js'],
+        rules: {
+            'no-empty-function': 'off'
+        }
+    },
+    eslintConfigPrettier
 ];

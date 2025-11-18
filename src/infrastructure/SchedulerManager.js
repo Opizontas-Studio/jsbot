@@ -76,19 +76,22 @@ export class SchedulerManager {
 
         // 首次执行
         const delay = actualStartAt.getTime() - Date.now();
-        timeoutId = setTimeout(() => {
-            wrappedTask(); // 首次执行
+        timeoutId = setTimeout(
+            () => {
+                wrappedTask(); // 首次执行
 
-            // 设置定期执行
-            intervalId = setInterval(wrappedTask, interval);
+                // 设置定期执行
+                intervalId = setInterval(wrappedTask, interval);
 
-            // 更新任务信息
-            const jobInfo = this.jobs.get(taskId);
-            if (jobInfo) {
-                jobInfo.intervalId = intervalId;
-                jobInfo.timeoutId = null;
-            }
-        }, Math.max(0, delay));
+                // 更新任务信息
+                const jobInfo = this.jobs.get(taskId);
+                if (jobInfo) {
+                    jobInfo.intervalId = intervalId;
+                    jobInfo.timeoutId = null;
+                }
+            },
+            Math.max(0, delay)
+        );
 
         // 存储任务信息
         const jobInfo = {
@@ -106,7 +109,9 @@ export class SchedulerManager {
         this.stats.totalJobs++;
         this.stats.activeJobs++;
 
-        this.logger?.info(`[调度管理] 注册定时任务: ${description} (间隔: ${interval}ms, 首次执行: ${actualStartAt.toLocaleString('zh-CN')})`);
+        this.logger?.info(
+            `[调度管理] 注册定时任务: ${description} (间隔: ${interval}ms, 首次执行: ${actualStartAt.toLocaleString('zh-CN')})`
+        );
     }
 
     /**
@@ -196,7 +201,9 @@ export class SchedulerManager {
         this.stats.activeJobs++;
 
         const nextRun = job.nextInvocation();
-        this.logger?.info(`[调度管理] 注册调度任务: ${description} (下次执行: ${nextRun ? nextRun.toLocaleString('zh-CN') : 'N/A'})`);
+        this.logger?.info(
+            `[调度管理] 注册调度任务: ${description} (下次执行: ${nextRun ? nextRun.toLocaleString('zh-CN') : 'N/A'})`
+        );
     }
 
     /**
@@ -268,9 +275,14 @@ export class SchedulerManager {
     getStats() {
         return {
             ...this.stats,
-            successRate: this.stats.completedExecutions + this.stats.failedExecutions > 0
-                ? ((this.stats.completedExecutions / (this.stats.completedExecutions + this.stats.failedExecutions)) * 100).toFixed(2) + '%'
-                : 'N/A'
+            successRate:
+                this.stats.completedExecutions + this.stats.failedExecutions > 0
+                    ? (
+                          (this.stats.completedExecutions /
+                              (this.stats.completedExecutions + this.stats.failedExecutions)) *
+                          100
+                      ).toFixed(2) + '%'
+                    : 'N/A'
         };
     }
 

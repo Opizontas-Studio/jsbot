@@ -81,25 +81,25 @@ describe('Config Loader', () => {
 
             writeFileSync(configPath, JSON.stringify(testConfig));
 
-            expect(() => loadConfig({ configPath, guildsDir }))
-                .toThrow('环境变量验证失败');
+            expect(() => loadConfig({ configPath, guildsDir })).toThrow('环境变量验证失败');
 
             // 恢复
             process.env.DISCORD_TOKEN = originalToken;
         });
 
         it('应该在配置文件不存在时抛出错误', () => {
-            expect(() => loadConfig({
-                configPath: join(testDir, 'nonexistent.json'),
-                guildsDir
-            })).toThrow('配置文件不存在');
+            expect(() =>
+                loadConfig({
+                    configPath: join(testDir, 'nonexistent.json'),
+                    guildsDir
+                })
+            ).toThrow('配置文件不存在');
         });
 
         it('应该在配置格式错误时抛出错误', () => {
             writeFileSync(configPath, 'invalid json {');
 
-            expect(() => loadConfig({ configPath, guildsDir }))
-                .toThrow('配置文件解析失败');
+            expect(() => loadConfig({ configPath, guildsDir })).toThrow('配置文件解析失败');
         });
 
         it('应该在配置验证失败时抛出错误', () => {
@@ -111,8 +111,7 @@ describe('Config Loader', () => {
 
             writeFileSync(configPath, JSON.stringify(invalidConfig));
 
-            expect(() => loadConfig({ configPath, guildsDir }))
-                .toThrow('配置验证失败');
+            expect(() => loadConfig({ configPath, guildsDir })).toThrow('配置验证失败');
         });
 
         it('应该保持配置文件中的数据库连接信息', () => {
@@ -204,10 +203,7 @@ describe('Config Loader', () => {
                 roleIds: { moderators: ['role1'] }
             };
 
-            writeFileSync(
-                join(guildsDir, `${guildId}.json`),
-                JSON.stringify(guildConfig)
-            );
+            writeFileSync(join(guildsDir, `${guildId}.json`), JSON.stringify(guildConfig));
 
             // 首次加载
             const config1 = configManager.getGuild(guildId);
@@ -250,10 +246,7 @@ describe('Config Loader', () => {
             // 创建多个服务器配置
             const guildIds = ['111', '222', '333'];
             for (const guildId of guildIds) {
-                writeFileSync(
-                    join(guildsDir, `${guildId}.json`),
-                    JSON.stringify({ guildId })
-                );
+                writeFileSync(join(guildsDir, `${guildId}.json`), JSON.stringify({ guildId }));
             }
 
             const count = configManager.preloadAllGuilds();
@@ -268,10 +261,7 @@ describe('Config Loader', () => {
 
         it('应该支持清除缓存', () => {
             const guildId = '123456789012345678';
-            writeFileSync(
-                join(guildsDir, `${guildId}.json`),
-                JSON.stringify({ guildId })
-            );
+            writeFileSync(join(guildsDir, `${guildId}.json`), JSON.stringify({ guildId }));
 
             // 加载并缓存
             configManager.getGuild(guildId);

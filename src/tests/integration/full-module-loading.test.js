@@ -16,7 +16,7 @@ describe('Full Module Loading Integration', () => {
     beforeEach(() => {
         container = new Container();
         logger = new Logger({
-            level: 'silent',  // 测试时静默
+            level: 'silent', // 测试时静默
             prettyPrint: false
         });
 
@@ -52,9 +52,7 @@ describe('Full Module Loading Integration', () => {
             expect(registry.diagnostics.loaded.length).toBeGreaterThan(0);
 
             // 查找ping命令的加载记录
-            const pingRecord = registry.diagnostics.loaded.find(
-                record => record.id === 'example.ping'
-            );
+            const pingRecord = registry.diagnostics.loaded.find(record => record.id === 'example.ping');
             expect(pingRecord).toBeDefined();
             expect(pingRecord.type).toBe('command');
             expect(pingRecord.name).toBe('ping');
@@ -78,9 +76,7 @@ describe('Full Module Loading Integration', () => {
             const modulesPath = join(process.cwd(), 'src/modules');
 
             // 即使有些模块加载失败，也不应该抛出错误
-            await expect(
-                registry.loadModules(modulesPath)
-            ).resolves.not.toThrow();
+            await expect(registry.loadModules(modulesPath)).resolves.not.toThrow();
         });
     });
 
@@ -119,4 +115,3 @@ describe('Full Module Loading Integration', () => {
         });
     });
 });
-

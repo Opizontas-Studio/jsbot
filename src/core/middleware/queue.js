@@ -24,10 +24,6 @@ export function queueMiddleware(queueManager) {
         });
 
         // 将后续执行包装到队列中
-        return await queueManager.add(
-            async () => await next(),
-            queueOptions
-        );
+        return await queueManager.add(async () => await next(), queueOptions);
     };
 }
-

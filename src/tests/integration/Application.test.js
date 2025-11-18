@@ -251,7 +251,7 @@ describe('Application Integration', () => {
             app = new Application(testConfig);
 
             // 添加一个无法解析的服务
-            app.container.register('brokenService', (c) => c.get('nonExistent'));
+            app.container.register('brokenService', c => c.get('nonExistent'));
 
             await app.initialize();
 

@@ -4,7 +4,7 @@ import { Events } from 'discord.js';
  * 消息事件监听器
  * 处理消息相关事件
  */
-class MessageListener {
+export class MessageListener {
     constructor(container, registry, logger) {
         this.container = container;
         this.registry = registry;
@@ -17,12 +17,12 @@ class MessageListener {
      */
     register(client) {
         // 消息创建
-        client.on(Events.MessageCreate, async (message) => {
+        client.on(Events.MessageCreate, async message => {
             await this.dispatchEvent('messageCreate', message);
         });
 
         // 消息删除
-        client.on(Events.MessageDelete, async (message) => {
+        client.on(Events.MessageDelete, async message => {
             await this.dispatchEvent('messageDelete', message);
         });
 
@@ -32,7 +32,7 @@ class MessageListener {
         });
 
         // 消息批量删除
-        client.on(Events.MessageBulkDelete, async (messages) => {
+        client.on(Events.MessageBulkDelete, async messages => {
             await this.dispatchEvent('messageBulkDelete', messages);
         });
 
@@ -109,6 +109,3 @@ class MessageListener {
         return configManager.getGuild(guildId) || {};
     }
 }
-
-export { MessageListener };
-

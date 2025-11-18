@@ -9,7 +9,7 @@
  * @param {Object} config - 配置对象
  */
 export function setupGracefulShutdown(app, config) {
-    const gracefulShutdown = async (signal) => {
+    const gracefulShutdown = async signal => {
         console.log(`\n收到 ${signal} 信号，正在优雅关闭...`);
 
         try {
@@ -35,7 +35,7 @@ export function setupGracefulShutdown(app, config) {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     // 未捕获异常处理
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', error => {
         console.error('❌ 未捕获的异常:', error);
         gracefulShutdown('uncaughtException');
     });
@@ -79,4 +79,3 @@ export function getDefaultPaths() {
         envPath: `${cwd}/.env`
     };
 }
-

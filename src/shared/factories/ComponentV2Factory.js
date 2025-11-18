@@ -9,7 +9,7 @@ import {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
     TextDisplayBuilder,
-    ThumbnailBuilder,
+    ThumbnailBuilder
 } from 'discord.js';
 
 /**
@@ -91,9 +91,7 @@ export class ComponentV2Factory {
      */
     static addHeading(container, text, level = 1) {
         const prefix = '#'.repeat(Math.max(1, Math.min(6, level)));
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(`${prefix} ${text}`)
-        );
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`${prefix} ${text}`));
     }
 
     /**
@@ -102,9 +100,7 @@ export class ComponentV2Factory {
      * @param {string} content - 文本内容（支持Markdown）
      */
     static addText(container, content) {
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(content)
-        );
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
     }
 
     /**
@@ -125,8 +121,7 @@ export class ComponentV2Factory {
      * @param {ButtonBuilder} [accessory.button] - 按钮（type=button时）
      */
     static addSection(container, content, accessory = null) {
-        const section = new SectionBuilder()
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+        const section = new SectionBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
         if (accessory) {
             if (accessory.type === 'button' && accessory.button) {
@@ -146,9 +141,7 @@ export class ComponentV2Factory {
      */
     static addTimestamp(container, timestamp = null) {
         const ts = timestamp || Math.floor(Date.now() / 1000);
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(`*⏰ <t:${ts}:F>*`)
-        );
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`*⏰ <t:${ts}:F>*`));
     }
 
     /**
@@ -228,9 +221,7 @@ export class ComponentV2Factory {
         // 生成页码选项
         const options = [];
         for (let i = groupStartPage; i <= groupEndPage; i++) {
-            const option = new StringSelectMenuOptionBuilder()
-                .setLabel(`第 ${i} 页`)
-                .setValue(String(i));
+            const option = new StringSelectMenuOptionBuilder().setLabel(`第 ${i} 页`).setValue(String(i));
 
             if (i === currentPage) {
                 option.setDescription('当前页').setEmoji('📍');
@@ -259,7 +250,15 @@ export class ComponentV2Factory {
 
         // 如果有多个分组，添加分组导航按钮
         if (totalGroups > 1) {
-            this.addPaginationGroupButtons(container, baseId, group, totalGroups, groupStartPage, groupEndPage, totalPages);
+            this.addPaginationGroupButtons(
+                container,
+                baseId,
+                group,
+                totalGroups,
+                groupStartPage,
+                groupEndPage,
+                totalPages
+            );
         }
     }
 
@@ -267,26 +266,38 @@ export class ComponentV2Factory {
      * 添加分组导航按钮
      * @private
      */
-    static addPaginationGroupButtons(container, baseId, currentGroup, totalGroups, groupStartPage, groupEndPage, totalPages) {
+    static addPaginationGroupButtons(
+        container,
+        baseId,
+        currentGroup,
+        totalGroups,
+        groupStartPage,
+        groupEndPage,
+        totalPages
+    ) {
         const buttons = [];
 
         // 显示当前分组范围
         const rangeLabel = `${groupStartPage}-${groupEndPage}页`;
-        buttons.push(this.createButton({
-            customId: `${baseId}_group_info`,
-            label: rangeLabel,
-            style: 'secondary',
-            disabled: true
-        }));
+        buttons.push(
+            this.createButton({
+                customId: `${baseId}_group_info`,
+                label: rangeLabel,
+                style: 'secondary',
+                disabled: true
+            })
+        );
 
         // 下一组按钮（循环）
         const nextGroup = (currentGroup + 1) % totalGroups;
-        buttons.push(this.createButton({
-            customId: `${baseId}_group_${currentGroup}_next`,
-            label: `下一组 (${nextGroup + 1}/${totalGroups})`,
-            style: 'primary',
-            emoji: '➡️'
-        }));
+        buttons.push(
+            this.createButton({
+                customId: `${baseId}_group_${currentGroup}_next`,
+                label: `下一组 (${nextGroup + 1}/${totalGroups})`,
+                style: 'primary',
+                emoji: '➡️'
+            })
+        );
 
         const actionRow = new ActionRowBuilder().addComponents(...buttons);
         container.addActionRowComponents(actionRow);
@@ -308,15 +319,15 @@ export class ComponentV2Factory {
             .setPlaceholder(placeholder)
             .setMinValues(minValues)
             .setMaxValues(maxValues)
-            .addOptions(options.map(opt => {
-                const option = new StringSelectMenuOptionBuilder()
-                    .setLabel(opt.label)
-                    .setValue(opt.value);
-                if (opt.description) option.setDescription(opt.description);
-                if (opt.emoji) option.setEmoji(opt.emoji);
-                if (opt.default) option.setDefault(true);
-                return option;
-            }));
+            .addOptions(
+                options.map(opt => {
+                    const option = new StringSelectMenuOptionBuilder().setLabel(opt.label).setValue(opt.value);
+                    if (opt.description) option.setDescription(opt.description);
+                    if (opt.emoji) option.setEmoji(opt.emoji);
+                    if (opt.default) option.setDefault(true);
+                    return option;
+                })
+            );
 
         return new ActionRowBuilder().addComponents(selectMenu);
     }
@@ -415,9 +426,7 @@ export function createStandardMessage(type, titleOrConfig, messageText) {
     // 添加消息内容
     if (options.message) {
         // 支持字符串或字符串数组
-        const messageContent = Array.isArray(options.message)
-            ? options.message.join('\n')
-            : options.message;
+        const messageContent = Array.isArray(options.message) ? options.message.join('\n') : options.message;
         ComponentV2Factory.addText(container, messageContent);
     }
 

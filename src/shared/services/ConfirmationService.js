@@ -283,4 +283,3 @@ export class ConfirmationService {
 
 // 服务注册配置
 export const serviceConfig = defineService('confirmationService', ConfirmationService);
-

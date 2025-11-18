@@ -23,7 +23,7 @@ export function getVersionInfo(logger = null) {
         return {
             version,
             commitHash,
-            commitDate,
+            commitDate
         };
     } catch (error) {
         const errorMsg = '[Version] 获取版本信息失败';
@@ -35,4 +35,3 @@ export function getVersionInfo(logger = null) {
         return null;
     }
 }
-

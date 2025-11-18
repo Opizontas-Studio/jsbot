@@ -2,7 +2,7 @@
  * 冷却管理器
  * 用于控制命令和组件的执行频率
  */
-class CooldownManager {
+export class CooldownManager {
     constructor() {
         // 存储冷却记录：key -> timestamp
         this.cooldowns = new Map();
@@ -76,6 +76,3 @@ class CooldownManager {
         return this.cooldowns.size;
     }
 }
-
-export { CooldownManager };
-

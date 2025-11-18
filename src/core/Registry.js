@@ -6,18 +6,18 @@ import { pathToFileURL } from 'url';
  * 注册中心
  * 负责扫描、注册和路由所有模块配置
  */
-class Registry {
+export class Registry {
     constructor(container, logger) {
         this.container = container;
         this.logger = logger;
 
         // 路由表
-        this.commands = new Map();  // commandName => config
-        this.buttons = new Map();  // pattern => { regex, config, extractor }
-        this.selectMenus = new Map();  // pattern => { regex, config, extractor }
-        this.modals = new Map();  // pattern => { regex, config, extractor }
-        this.events = new Map();  // eventName => config[]
-        this.tasks = new Map();  // taskId => config
+        this.commands = new Map(); // commandName => config
+        this.buttons = new Map(); // pattern => { regex, config, extractor }
+        this.selectMenus = new Map(); // pattern => { regex, config, extractor }
+        this.modals = new Map(); // pattern => { regex, config, extractor }
+        this.events = new Map(); // eventName => config[]
+        this.tasks = new Map(); // taskId => config
 
         // 诊断信息
         this.diagnostics = {
@@ -516,7 +516,7 @@ class Registry {
             description: groupConfig.description,
             commandKind: groupConfig.commandKind,
             builder: groupConfig.builder,
-            isGroupDefinition: true  // 标记这是命令组定义，不是可执行命令
+            isGroupDefinition: true // 标记这是命令组定义，不是可执行命令
         });
 
         this.diagnostics.loaded.push({
@@ -529,15 +529,15 @@ class Registry {
         for (const subcommand of groupConfig.subcommands) {
             // 合并配置：shared + subcommand（subcommand 优先）
             const fullConfig = {
-                ...groupConfig.shared,              // 共享配置
-                ...subcommand,                      // 子命令自己的配置
-                type: 'command',                    // 类型固定为 command
+                ...groupConfig.shared, // 共享配置
+                ...subcommand, // 子命令自己的配置
+                type: 'command', // 类型固定为 command
                 commandKind: groupConfig.commandKind,
-                groupId: groupConfig.id,            // 记录所属组
-                groupName: groupConfig.name,        // 记录父命令名称
-                parentCommand: groupConfig.name,    // 父命令名称
-                subcommandName: subcommand.name,    // 子命令名称
-                id: `${groupConfig.id}.${subcommand.id}`  // 完整 ID
+                groupId: groupConfig.id, // 记录所属组
+                groupName: groupConfig.name, // 记录父命令名称
+                parentCommand: groupConfig.name, // 父命令名称
+                subcommandName: subcommand.name, // 子命令名称
+                id: `${groupConfig.id}.${subcommand.id}` // 完整 ID
             };
 
             // 使用复合键注册
@@ -614,7 +614,7 @@ class Registry {
         const regex = new RegExp(`^${regexStr}$`);
 
         // 参数提取器
-        const extractor = (customId) => {
+        const extractor = customId => {
             const match = customId.match(regex);
             if (!match) return null;
 
@@ -759,6 +759,3 @@ class Registry {
         return this.diagnostics;
     }
 }
-
-export { Registry };
-

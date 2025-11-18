@@ -189,7 +189,7 @@ export function defineService(name, ServiceClass) {
 
     return {
         name,
-        factory: (container) => {
+        factory: container => {
             // 利用 Container.resolve() 自动处理依赖
             // 支持自动提取短名称（如 'basic.otherService' -> 'otherService'）
             const deps = container.resolve(dependencies);

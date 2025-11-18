@@ -95,11 +95,7 @@ export class BatchProcessor {
 
                     // 进度回调
                     if (progressCallback) {
-                        await progressCallback(
-                            results.stats.processed,
-                            results.stats.total,
-                            result
-                        );
+                        await progressCallback(results.stats.processed, results.stats.total, result);
                     }
                 }
             } catch (error) {
@@ -114,7 +110,9 @@ export class BatchProcessor {
         results.stats.endTime = Date.now();
         results.stats.duration = results.stats.endTime - results.stats.startTime;
 
-        this.logger?.info(`[批量处理] 完成 - 成功: ${results.stats.succeeded}, 失败: ${results.stats.failed}, 耗时: ${results.stats.duration}ms`);
+        this.logger?.info(
+            `[批量处理] 完成 - 成功: ${results.stats.succeeded}, 失败: ${results.stats.failed}, 耗时: ${results.stats.duration}ms`
+        );
 
         return results;
     }
@@ -124,15 +122,7 @@ export class BatchProcessor {
      * @private
      */
     async _processBatch(options) {
-        const {
-            methodName,
-            batch,
-            extractor,
-            concurrency,
-            retries,
-            retryDelay,
-            continueOnError
-        } = options;
+        const { methodName, batch, extractor, concurrency, retries, retryDelay, continueOnError } = options;
 
         const results = [];
 
@@ -140,7 +130,7 @@ export class BatchProcessor {
         for (let i = 0; i < batch.length; i += concurrency) {
             const group = batch.slice(i, i + concurrency);
 
-            const groupPromises = group.map(async (item) => {
+            const groupPromises = group.map(async item => {
                 return await this._processItem({
                     methodName,
                     item,

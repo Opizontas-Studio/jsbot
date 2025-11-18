@@ -4,7 +4,7 @@ import { ActivityType, Client, GatewayIntentBits, Options } from 'discord.js';
  * Discord客户端工厂
  * 负责创建和配置Discord客户端
  */
-class ClientFactory {
+export class ClientFactory {
     /**
      * 创建Discord客户端
      * @param {Object} options - 配置选项
@@ -21,13 +21,15 @@ class ClientFactory {
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.MessageContent,
                 GatewayIntentBits.GuildMembers,
-                GatewayIntentBits.DirectMessages,
+                GatewayIntentBits.DirectMessages
             ],
-            makeCache: options.cache || Options.cacheWithLimits({
-                MessageManager: {
-                    maxSize: 200,
-                },
-            }),
+            makeCache:
+                options.cache ||
+                Options.cacheWithLimits({
+                    MessageManager: {
+                        maxSize: 200
+                    }
+                }),
             rest: options.rest || {
                 retries: 3,
                 // 配置 discord.js 内置的速率限制器
@@ -35,7 +37,7 @@ class ClientFactory {
                 hashSweepInterval: 14400000, // 4小时清理一次日志
                 handlerSweepInterval: 3600000 // 1小时清理一次日志
             },
-            failIfNotExists: false,
+            failIfNotExists: false
         });
 
         // 注入 ApiClient 引用（如果提供）
@@ -59,7 +61,7 @@ class ClientFactory {
     static setPresence(client, options = {}) {
         const activity = options.activity || {
             name: 'Wait for your eternal presence.',
-            type: ActivityType.Custom,
+            type: ActivityType.Custom
         };
 
         const status = options.status || 'idle';
@@ -70,6 +72,3 @@ class ClientFactory {
         });
     }
 }
-
-export { ClientFactory };
-

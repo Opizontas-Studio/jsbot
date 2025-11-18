@@ -109,9 +109,7 @@ export class ModuleReloader {
         try {
             const { readdirSync } = await import('fs');
             const items = readdirSync(modulesPath, { withFileTypes: true });
-            return items
-                .filter(item => item.isDirectory())
-                .map(item => item.name);
+            return items.filter(item => item.isDirectory()).map(item => item.name);
         } catch (error) {
             this.logger.error({
                 msg: '[ModuleReload] 读取模块列表失败',

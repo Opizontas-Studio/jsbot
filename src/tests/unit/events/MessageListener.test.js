@@ -11,7 +11,7 @@ describe('MessageListener', () => {
 
     beforeEach(() => {
         mockContainer = {
-            get: vi.fn((name) => {
+            get: vi.fn(name => {
                 if (name === 'configManager') {
                     return {
                         getGuildConfig: vi.fn(() => ({ guildId: 'guild123' }))
@@ -44,25 +44,11 @@ describe('MessageListener', () => {
         it('应该注册所有消息事件', () => {
             listener.register(mockClient);
 
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.MessageCreate,
-                expect.any(Function)
-            );
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.MessageDelete,
-                expect.any(Function)
-            );
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.MessageUpdate,
-                expect.any(Function)
-            );
-            expect(mockClient.on).toHaveBeenCalledWith(
-                Events.MessageBulkDelete,
-                expect.any(Function)
-            );
-            expect(mockLogger.info).toHaveBeenCalledWith(
-                '[MessageListener] 已注册'
-            );
+            expect(mockClient.on).toHaveBeenCalledWith(Events.MessageCreate, expect.any(Function));
+            expect(mockClient.on).toHaveBeenCalledWith(Events.MessageDelete, expect.any(Function));
+            expect(mockClient.on).toHaveBeenCalledWith(Events.MessageUpdate, expect.any(Function));
+            expect(mockClient.on).toHaveBeenCalledWith(Events.MessageBulkDelete, expect.any(Function));
+            expect(mockLogger.info).toHaveBeenCalledWith('[MessageListener] 已注册');
         });
     });
 
@@ -156,10 +142,7 @@ describe('MessageListener', () => {
             });
 
             expect(mockContainer.resolve).toHaveBeenCalledWith(['messageService']);
-            expect(handler.handle).toHaveBeenCalledWith(
-                expect.any(Object),
-                mockDeps
-            );
+            expect(handler.handle).toHaveBeenCalledWith(expect.any(Object), mockDeps);
         });
 
         it('应该捕获处理器错误并继续', async () => {
@@ -204,10 +187,7 @@ describe('MessageListener', () => {
                 newMessage
             });
 
-            expect(handler.handle).toHaveBeenCalledWith(
-                { oldMessage, newMessage },
-                {}
-            );
+            expect(handler.handle).toHaveBeenCalledWith({ oldMessage, newMessage }, {});
         });
 
         it('应该记录debug日志', async () => {
@@ -247,4 +227,3 @@ describe('MessageListener', () => {
         });
     });
 });
-

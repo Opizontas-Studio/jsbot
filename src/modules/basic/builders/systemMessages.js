@@ -13,7 +13,7 @@ export class SystemMessageBuilder {
             checking: {
                 title: '正在检查命令同步状态...'
             },
-            error: (error) => ({
+            error: error => ({
                 title: '同步失败',
                 message: `**错误**: ${error}`
             })
@@ -62,7 +62,7 @@ export class SystemMessageBuilder {
                 title: 'Bot 正在重启...',
                 message: '预计 5-10 秒后恢复在线'
             },
-            confirmation: () => (
+            confirmation: () =>
                 '**你确定要重启 Bot 吗？**\n\n' +
                 '⚠️ 这将导致：\n' +
                 '• Bot 短暂离线（约 5-10 秒）\n' +
@@ -73,12 +73,11 @@ export class SystemMessageBuilder {
                 '• 内存泄漏需要清理\n' +
                 '• 严重错误需要重启\n\n' +
                 '*请在确认前通知其他管理员*'
-            )
         },
 
         // 配置重载
         config: {
-            progress: (guildId) => ({
+            progress: guildId => ({
                 title: '正在重载配置...',
                 message: `服务器 ID: \`${guildId}\``
             }),
@@ -86,7 +85,7 @@ export class SystemMessageBuilder {
                 title: '配置重载失败',
                 message: `**服务器 ID**: \`${guildId}\`\n**错误**: ${error}`
             }),
-            confirmation: (guildId) => (
+            confirmation: guildId =>
                 `**你确定要重载当前服务器的配置文件吗？**\n\n` +
                 `**服务器 ID**: \`${guildId}\`\n` +
                 `**配置文件**: \`config/guilds/${guildId}.json\`\n\n` +
@@ -99,7 +98,6 @@ export class SystemMessageBuilder {
                 `• 更新了角色/频道 ID\n` +
                 `• 调整了服务器设置\n\n` +
                 `📝 **注意**: 正在执行中的命令不会受影响（它们持有旧配置的引用）`
-            )
         }
     };
 
@@ -128,12 +126,7 @@ export class SystemMessageBuilder {
     static createSyncUpToDate({ localTotal, deployedTotal }) {
         return createStandardMessage('success', {
             title: '命令已是最新状态',
-            message: [
-                `本地命令数: ${localTotal}`,
-                `已部署命令数: ${deployedTotal}`,
-                '',
-                '无需同步。'
-            ]
+            message: [`本地命令数: ${localTotal}`, `已部署命令数: ${deployedTotal}`, '', '无需同步。']
         });
     }
 
@@ -142,10 +135,7 @@ export class SystemMessageBuilder {
      * 保留此方法因为有复杂的条件拼接逻辑
      */
     static createSyncCompleted({ duration, localTotal, deleted = [], updated = [], added = [] }) {
-        const details = [
-            `**执行时长**: ${duration}秒`,
-            `**本地命令数**: ${localTotal}`
-        ];
+        const details = [`**执行时长**: ${duration}秒`, `**本地命令数**: ${localTotal}`];
 
         if (deleted.length > 0) {
             details.push(`\n**已删除 ${deleted.length} 个命令**:`);

@@ -31,7 +31,7 @@ export class ApiClient {
                 handler: async (channel, options) => {
                     return await channel.send(options);
                 },
-                extractParams: (args) => ({ channelId: args[0]?.id })
+                extractParams: args => ({ channelId: args[0]?.id })
             },
             editMessage: {
                 method: 'PATCH',
@@ -39,7 +39,7 @@ export class ApiClient {
                 handler: async (message, options) => {
                     return await message.edit(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.channelId || args[0]?.channel?.id,
                     messageId: args[0]?.id
                 })
@@ -47,10 +47,10 @@ export class ApiClient {
             deleteMessage: {
                 method: 'DELETE',
                 endpoint: '/channels/:channelId/messages/:messageId',
-                handler: async (message) => {
+                handler: async message => {
                     return await message.delete();
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.channelId || args[0]?.channel?.id,
                     messageId: args[0]?.id
                 })
@@ -61,7 +61,7 @@ export class ApiClient {
                 handler: async (channel, messageId) => {
                     return await channel.messages.fetch(messageId);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id,
                     messageId: args[1]
                 })
@@ -72,7 +72,7 @@ export class ApiClient {
                 handler: async (channel, options = {}) => {
                     return await channel.messages.fetch(options);
                 },
-                extractParams: (args) => ({ channelId: args[0]?.id })
+                extractParams: args => ({ channelId: args[0]?.id })
             },
 
             // 成员操作
@@ -82,7 +82,7 @@ export class ApiClient {
                 handler: async (member, role, reason) => {
                     return await member.roles.add(role, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.guild?.id,
                     userId: args[0]?.id,
                     roleId: args[1]?.id
@@ -94,7 +94,7 @@ export class ApiClient {
                 handler: async (member, role, reason) => {
                     return await member.roles.remove(role, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.guild?.id,
                     userId: args[0]?.id,
                     roleId: args[1]?.id
@@ -106,7 +106,7 @@ export class ApiClient {
                 handler: async (member, reason) => {
                     return await member.kick(reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.guild?.id,
                     userId: args[0]?.id
                 })
@@ -117,7 +117,7 @@ export class ApiClient {
                 handler: async (guild, userId, options) => {
                     return await guild.members.ban(userId, options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.id,
                     userId: args[1]
                 })
@@ -128,7 +128,7 @@ export class ApiClient {
                 handler: async (guild, userId, reason) => {
                     return await guild.members.unban(userId, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.id,
                     userId: args[1]
                 })
@@ -141,7 +141,7 @@ export class ApiClient {
                 handler: async (thread, userId) => {
                     return await thread.members.add(userId);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id,
                     userId: args[1]
                 })
@@ -152,7 +152,7 @@ export class ApiClient {
                 handler: async (thread, userId) => {
                     return await thread.members.remove(userId);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id,
                     userId: args[1]
                 })
@@ -160,10 +160,10 @@ export class ApiClient {
             fetchThreadMembers: {
                 method: 'GET',
                 endpoint: '/channels/:channelId/thread-members',
-                handler: async (thread) => {
+                handler: async thread => {
                     return await thread.members.fetch();
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -175,15 +175,15 @@ export class ApiClient {
                 handler: async (guild, options) => {
                     return await guild.channels.create(options);
                 },
-                extractParams: (args) => ({ guildId: args[0]?.id })
+                extractParams: args => ({ guildId: args[0]?.id })
             },
             deleteChannel: {
                 method: 'DELETE',
                 endpoint: '/channels/:channelId',
-                handler: async (channel) => {
+                handler: async channel => {
                     return await channel.delete();
                 },
-                extractParams: (args) => ({ channelId: args[0]?.id })
+                extractParams: args => ({ channelId: args[0]?.id })
             },
 
             // 反应操作
@@ -193,7 +193,7 @@ export class ApiClient {
                 handler: async (message, emoji) => {
                     return await message.react(emoji);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.channelId || args[0]?.channel?.id,
                     messageId: args[0]?.id
                 })
@@ -204,7 +204,7 @@ export class ApiClient {
                 handler: async (reaction, user) => {
                     return await reaction.users.remove(user);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.message?.channelId,
                     messageId: args[0]?.message?.id
                 })
@@ -218,7 +218,7 @@ export class ApiClient {
                 handler: async (interaction, options) => {
                     return await interaction.reply(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     id: args[0]?.id,
                     token: args[0]?.token
                 })
@@ -230,7 +230,7 @@ export class ApiClient {
                 handler: async (interaction, options) => {
                     return await interaction.editReply(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     applicationId: args[0]?.applicationId,
                     token: args[0]?.token
                 })
@@ -242,7 +242,7 @@ export class ApiClient {
                 handler: async (interaction, options) => {
                     return await interaction.deferReply(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     id: args[0]?.id,
                     token: args[0]?.token
                 })
@@ -253,7 +253,7 @@ export class ApiClient {
                 handler: async (interaction, options) => {
                     return await interaction.followUp(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     applicationId: args[0]?.applicationId,
                     token: args[0]?.token
                 })
@@ -265,7 +265,7 @@ export class ApiClient {
                 handler: async (interaction, options) => {
                     return await interaction.deferUpdate(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     id: args[0]?.id,
                     token: args[0]?.token
                 })
@@ -277,7 +277,7 @@ export class ApiClient {
                 handler: async (interaction, options) => {
                     return await interaction.update(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     id: args[0]?.id,
                     token: args[0]?.token
                 })
@@ -290,7 +290,7 @@ export class ApiClient {
                 handler: async (thread, archived, reason) => {
                     return await thread.setArchived(archived, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -300,7 +300,7 @@ export class ApiClient {
                 handler: async (thread, locked, reason) => {
                     return await thread.setLocked(locked, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -310,7 +310,7 @@ export class ApiClient {
                 handler: async (channel, name, reason) => {
                     return await channel.setName(name, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -320,7 +320,7 @@ export class ApiClient {
                 handler: async (channel, topic, reason) => {
                     return await channel.setTopic(topic, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -330,7 +330,7 @@ export class ApiClient {
                 handler: async (channel, rateLimitPerUser, reason) => {
                     return await channel.setRateLimitPerUser(rateLimitPerUser, reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -340,7 +340,7 @@ export class ApiClient {
                 handler: async (thread, reason) => {
                     return await thread.pin(reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -350,7 +350,7 @@ export class ApiClient {
                 handler: async (thread, reason) => {
                     return await thread.unpin(reason);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -360,7 +360,7 @@ export class ApiClient {
                 handler: async (channel, options) => {
                     return await channel.edit(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             },
@@ -372,7 +372,7 @@ export class ApiClient {
                 handler: async (client, userId) => {
                     return await client.users.fetch(userId);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     userId: args[1]
                 })
             },
@@ -382,7 +382,7 @@ export class ApiClient {
                 handler: async (user, options) => {
                     return await user.send(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.dmChannel?.id || 'dm'
                 })
             },
@@ -394,7 +394,7 @@ export class ApiClient {
                 handler: async (client, guildId, options) => {
                     return await client.guilds.fetch(guildId, options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[1]
                 })
             },
@@ -404,7 +404,7 @@ export class ApiClient {
                 handler: async (guild, userId, options) => {
                     return await guild.members.fetch(userId, options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.id,
                     userId: args[1]
                 })
@@ -415,7 +415,7 @@ export class ApiClient {
                 handler: async (guild, userId) => {
                     return await guild.bans.fetch(userId);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.id,
                     userId: args[1]
                 })
@@ -426,7 +426,7 @@ export class ApiClient {
                 handler: async (guild, options) => {
                     return await guild.bans.fetch(options);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.id
                 })
             },
@@ -438,17 +438,17 @@ export class ApiClient {
                 handler: async (client, channelId) => {
                     return await client.channels.fetch(channelId);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[1]
                 })
             },
             fetchActiveThreads: {
                 method: 'GET',
                 endpoint: '/guilds/:guildId/threads/active',
-                handler: async (guild) => {
+                handler: async guild => {
                     return await guild.channels.fetchActiveThreads();
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     guildId: args[0]?.id
                 })
             },
@@ -460,7 +460,7 @@ export class ApiClient {
                 handler: async (channel, messages, filterOld) => {
                     return await channel.bulkDelete(messages, filterOld);
                 },
-                extractParams: (args) => ({
+                extractParams: args => ({
                     channelId: args[0]?.id
                 })
             }

@@ -58,13 +58,7 @@ describe('MiddlewareChain', () => {
 
             await chain.execute(mockCtx, mockConfig, handler);
 
-            expect(executionOrder).toEqual([
-                'mw1-before',
-                'mw2-before',
-                'handler',
-                'mw2-after',
-                'mw1-after'
-            ]);
+            expect(executionOrder).toEqual(['mw1-before', 'mw2-before', 'handler', 'mw2-after', 'mw1-after']);
         });
 
         it('应该传递ctx和config到中间件', async () => {
@@ -123,9 +117,7 @@ describe('MiddlewareChain', () => {
 
             chain.use(middleware);
 
-            await expect(
-                chain.execute(mockCtx, mockConfig, async () => {})
-            ).rejects.toThrow('Middleware error');
+            await expect(chain.execute(mockCtx, mockConfig, async () => {})).rejects.toThrow('Middleware error');
         });
 
         it('应该抛出错误当next被多次调用', async () => {
@@ -136,9 +128,7 @@ describe('MiddlewareChain', () => {
 
             chain.use(middleware);
 
-            await expect(
-                chain.execute(mockCtx, mockConfig, async () => {})
-            ).rejects.toThrow('next() 被多次调用');
+            await expect(chain.execute(mockCtx, mockConfig, async () => {})).rejects.toThrow('next() 被多次调用');
         });
 
         it('应该支持空中间件链', async () => {
@@ -165,7 +155,7 @@ describe('MiddlewareChain', () => {
         });
 
         it('应该支持异步中间件', async () => {
-            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
             const middleware = async (ctx, next) => {
                 await delay(10);
@@ -198,4 +188,3 @@ describe('MiddlewareChain', () => {
         });
     });
 });
-

@@ -93,9 +93,7 @@ export class RateLimiter {
      * @private
      */
     _cleanExpiredRequests(limiter, now) {
-        limiter.requests = limiter.requests.filter(
-            time => now - time < limiter.window
-        );
+        limiter.requests = limiter.requests.filter(time => now - time < limiter.window);
     }
 
     /**
@@ -103,9 +101,7 @@ export class RateLimiter {
      * @private
      */
     _getActiveRequestCount(limiter, now) {
-        return limiter.requests.filter(
-            time => now - time < limiter.window
-        ).length;
+        return limiter.requests.filter(time => now - time < limiter.window).length;
     }
 
     /**
@@ -224,4 +220,3 @@ export class RateLimiter {
         this.logger?.debug('[速率限制] 已重置所有限制');
     }
 }
-

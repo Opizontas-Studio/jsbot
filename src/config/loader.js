@@ -70,7 +70,7 @@ export function loadConfig(options = {}) {
         ...globalConfig,
         bot: {
             ...globalConfig.bot,
-            clientId  // 从环境变量注入 clientId
+            clientId // 从环境变量注入 clientId
         }
     };
 

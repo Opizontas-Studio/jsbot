@@ -69,7 +69,7 @@ export class QueueManager {
             this.logger?.debug(`[队列管理] 队列空闲`);
         });
 
-        this.queue.on('error', (error) => {
+        this.queue.on('error', error => {
             this.logger?.error('[队列管理] 队列错误:', error);
         });
     }
@@ -152,17 +152,9 @@ export class QueueManager {
 
         const { lockResource, lockId, lockOperation, ...queueOptions } = options;
 
-        return this.add(
-            async () => {
-                return this.lockManager.acquire(
-                    lockResource,
-                    lockId,
-                    task,
-                    { operation: lockOperation }
-                );
-            },
-            queueOptions
-        );
+        return this.add(async () => {
+            return this.lockManager.acquire(lockResource, lockId, task, { operation: lockOperation });
+        }, queueOptions);
     }
 
     /**
@@ -295,17 +287,19 @@ export class QueueManager {
         try {
             const message = await notifyTarget.channel.send({
                 content: `<@${notifyTarget.user.id}>`,
-                embeds: [{
-                    color: 0xffaa00,
-                    title: '⏳ 任务排队等待中',
-                    description: `**${taskName}** 正在等待其他任务完成...`,
-                    fields: [
-                        { name: '任务ID', value: taskId, inline: true },
-                        { name: '等待原因', value: `${resourceText}正在被其他任务占用`, inline: true },
-                        { name: '状态', value: '🔄 自动排队中，无需手动重试', inline: false }
-                    ],
-                    timestamp: new Date().toISOString()
-                }]
+                embeds: [
+                    {
+                        color: 0xffaa00,
+                        title: '⏳ 任务排队等待中',
+                        description: `**${taskName}** 正在等待其他任务完成...`,
+                        fields: [
+                            { name: '任务ID', value: taskId, inline: true },
+                            { name: '等待原因', value: `${resourceText}正在被其他任务占用`, inline: true },
+                            { name: '状态', value: '🔄 自动排队中，无需手动重试', inline: false }
+                        ],
+                        timestamp: new Date().toISOString()
+                    }
+                ]
             });
 
             taskInfo.notificationMessage = message;
@@ -362,9 +356,7 @@ export class QueueManager {
         try {
             const progressField = {
                 name: '进度',
-                value: percentage !== undefined
-                    ? `${progressText} (${percentage.toFixed(1)}%)`
-                    : progressText,
+                value: percentage !== undefined ? `${progressText} (${percentage.toFixed(1)}%)` : progressText,
                 inline: false
             };
 
@@ -435,16 +427,15 @@ export class QueueManager {
      * @returns {Object} 统计信息
      */
     getStats() {
-        const avgWaitTime = this.stats.processed > 0
-            ? Math.round(this.stats.totalWaitTime / this.stats.processed)
-            : 0;
+        const avgWaitTime = this.stats.processed > 0 ? Math.round(this.stats.totalWaitTime / this.stats.processed) : 0;
 
         return {
             ...this.stats,
             avgWaitTime,
-            successRate: this.stats.processed > 0
-                ? ((this.stats.processed - this.stats.failed) / this.stats.processed * 100).toFixed(2) + '%'
-                : 'N/A'
+            successRate:
+                this.stats.processed > 0
+                    ? (((this.stats.processed - this.stats.failed) / this.stats.processed) * 100).toFixed(2) + '%'
+                    : 'N/A'
         };
     }
 
@@ -469,10 +460,7 @@ export class QueueManager {
 
             // 等待执行中的任务完成（最多等待30秒）
             try {
-                await Promise.race([
-                    this.queue.onIdle(),
-                    new Promise((resolve) => setTimeout(resolve, 30000))
-                ]);
+                await Promise.race([this.queue.onIdle(), new Promise(resolve => setTimeout(resolve, 30000))]);
             } catch (error) {
                 this.logger?.warn('[队列管理] 等待任务完成时出错:', error);
             }
@@ -488,4 +476,3 @@ export class QueueManager {
         this.logger?.info('[队列管理] 资源清理完成');
     }
 }
-

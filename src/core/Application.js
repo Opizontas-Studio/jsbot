@@ -13,7 +13,7 @@ import { getVersionInfo } from './utils/version.js';
  * 应用主入口协调器
  * 负责协调各组件的初始化和生命周期，不包含具体业务逻辑
  */
-class Application {
+export class Application {
     constructor(config) {
         this.config = config;
         this.container = new Container();
@@ -79,10 +79,8 @@ class Application {
             );
 
             // 8. 加载共享代码和业务模块
-            const modulesPath = this.config.modulesPath ||
-                new URL('../modules', import.meta.url).pathname;
-            const sharedPath = this.config.sharedPath ||
-                new URL('../shared', import.meta.url).pathname;
+            const modulesPath = this.config.modulesPath || new URL('../modules', import.meta.url).pathname;
+            const sharedPath = this.config.sharedPath || new URL('../shared', import.meta.url).pathname;
             await this.registry.loadModules(modulesPath, sharedPath);
 
             // 9. 注册调度任务
@@ -182,18 +180,14 @@ class Application {
      * @private
      */
     _onClientReady() {
-            this.logger.info({
-                msg: '[Discord] 客户端已就绪',
-                user: this.client.user.tag,
-                guilds: this.client.guilds.cache.size
-            });
+        this.logger.info({
+            msg: '[Discord] 客户端已就绪',
+            user: this.client.user.tag,
+            guilds: this.client.guilds.cache.size
+        });
 
         // 初始化监控
-        this.monitoringManager = new MonitoringManager(
-            this.client,
-            this.container,
-            this.logger
-        );
+        this.monitoringManager = new MonitoringManager(this.client, this.container, this.logger);
         this.monitoringManager.start();
     }
 
@@ -206,7 +200,7 @@ class Application {
             return;
         }
 
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
             this.client.once('clientReady', resolve);
         });
     }
@@ -247,5 +241,3 @@ class Application {
         return this.client;
     }
 }
-
-export { Application };

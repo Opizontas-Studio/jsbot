@@ -48,13 +48,8 @@ describe('cooldown middleware', () => {
 
         await middleware(mockCtx, next, mockConfig);
 
-        expect(mockCooldownManager.check).toHaveBeenCalledWith(
-            'command:test.command:user123',
-            5000
-        );
-        expect(mockCooldownManager.set).toHaveBeenCalledWith(
-            'command:test.command:user123'
-        );
+        expect(mockCooldownManager.check).toHaveBeenCalledWith('command:test.command:user123', 5000);
+        expect(mockCooldownManager.set).toHaveBeenCalledWith('command:test.command:user123');
         expect(next).toHaveBeenCalled();
     });
 
@@ -67,10 +62,7 @@ describe('cooldown middleware', () => {
         expect(mockCooldownManager.check).toHaveBeenCalled();
         expect(mockCooldownManager.set).not.toHaveBeenCalled();
         expect(next).not.toHaveBeenCalled();
-        expect(mockCtx.error).toHaveBeenCalledWith(
-            expect.stringContaining('3 秒'),
-            true
-        );
+        expect(mockCtx.error).toHaveBeenCalledWith(expect.stringContaining('3 秒'), true);
     });
 
     it('应该记录冷却日志', async () => {
@@ -95,14 +87,8 @@ describe('cooldown middleware', () => {
         await middleware(ctx1, next, mockConfig);
         await middleware(ctx2, next, mockConfig);
 
-        expect(mockCooldownManager.check).toHaveBeenCalledWith(
-            'command:test.command:user1',
-            5000
-        );
-        expect(mockCooldownManager.check).toHaveBeenCalledWith(
-            'command:test.command:user2',
-            5000
-        );
+        expect(mockCooldownManager.check).toHaveBeenCalledWith('command:test.command:user1', 5000);
+        expect(mockCooldownManager.check).toHaveBeenCalledWith('command:test.command:user2', 5000);
     });
 
     it('应该正确向上取整秒数', async () => {
@@ -111,10 +97,7 @@ describe('cooldown middleware', () => {
 
         await middleware(mockCtx, next, mockConfig);
 
-        expect(mockCtx.error).toHaveBeenCalledWith(
-            expect.stringContaining('2 秒'),
-            true
-        );
+        expect(mockCtx.error).toHaveBeenCalledWith(expect.stringContaining('2 秒'), true);
     });
 
     it('应该使用正确的冷却key格式', async () => {
@@ -127,10 +110,6 @@ describe('cooldown middleware', () => {
 
         await middleware(mockCtx, next, buttonConfig);
 
-        expect(mockCooldownManager.check).toHaveBeenCalledWith(
-            'button:test.button:user123',
-            3000
-        );
+        expect(mockCooldownManager.check).toHaveBeenCalledWith('button:test.button:user123', 3000);
     });
 });
-

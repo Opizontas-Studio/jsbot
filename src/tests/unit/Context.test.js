@@ -18,7 +18,7 @@ describe('Context', () => {
             reply: vi.fn().mockResolvedValue({}),
             editReply: vi.fn().mockResolvedValue({}),
             deferReply: vi.fn().mockResolvedValue({}),
-            update: vi.fn().mockResolvedValue({}),
+            update: vi.fn().mockResolvedValue({})
         };
 
         mockConfig = {
@@ -29,8 +29,8 @@ describe('Context', () => {
         };
 
         mockContainer = {
-            has: vi.fn((name) => name === 'logger' || name === 'registry'),
-            get: vi.fn((name) => {
+            has: vi.fn(name => name === 'logger' || name === 'registry'),
+            get: vi.fn(name => {
                 if (name === 'logger') return { info: vi.fn(), error: vi.fn() };
                 if (name === 'registry') return {};
                 return null;
@@ -240,7 +240,7 @@ describe('CommandContext', () => {
             replied: false,
             deferred: false,
             options: {
-                get: vi.fn((name) => {
+                get: vi.fn(name => {
                     if (name === 'testOption') return { value: 'testValue' };
                     return null;
                 }),
@@ -324,4 +324,3 @@ describe('CommandContext', () => {
         });
     });
 });
-

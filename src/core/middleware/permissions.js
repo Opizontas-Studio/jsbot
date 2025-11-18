@@ -16,9 +16,8 @@ export async function permissionsMiddleware(ctx, next, config) {
     }
 
     const roleMapping = getRoleMapping(ctx.config, config.permissions);
-    const hasRolePermission = roleMapping.length > 0 && ctx.member.roles.cache.some(role =>
-        roleMapping.includes(role.id)
-    );
+    const hasRolePermission =
+        roleMapping.length > 0 && ctx.member.roles.cache.some(role => roleMapping.includes(role.id));
 
     const hasDiscordPermission = checkDiscordPermission(ctx, config.permissions);
     const hasPermission = hasRolePermission || hasDiscordPermission;
@@ -53,9 +52,12 @@ export function getRoleMapping(config, permissions) {
     const roleIds = [];
 
     for (const perm of permissions) {
-        const permRoleIds = perm === 'administrator' ? config.roleIds?.administrators :
-                           perm === 'moderator' ? config.roleIds?.moderators :
-                           config.roleIds?.[perm];
+        const permRoleIds =
+            perm === 'administrator'
+                ? config.roleIds?.administrators
+                : perm === 'moderator'
+                  ? config.roleIds?.moderators
+                  : config.roleIds?.[perm];
 
         if (permRoleIds) {
             roleIds.push(...(Array.isArray(permRoleIds) ? permRoleIds : [permRoleIds]));
@@ -76,16 +78,18 @@ function checkDiscordPermission(ctx, permissions = []) {
         return false;
     }
 
-    return permissions.some((permission) => {
+    return permissions.some(permission => {
         if (permission === 'administrator') {
             return ctx.guild?.ownerId === ctx.user.id || ctx.member.permissions.has(PermissionFlagsBits.Administrator);
         }
 
         if (permission === 'moderator') {
-            return ctx.member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+            return (
+                ctx.member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
                 ctx.member.permissions.has(PermissionFlagsBits.ManageGuild) ||
                 ctx.member.permissions.has(PermissionFlagsBits.KickMembers) ||
-                ctx.member.permissions.has(PermissionFlagsBits.BanMembers);
+                ctx.member.permissions.has(PermissionFlagsBits.BanMembers)
+            );
         }
 
         const normalizedKey = toPermissionKey(permission);
@@ -96,7 +100,6 @@ function checkDiscordPermission(ctx, permissions = []) {
         return false;
     });
 }
-
 
 /**
  * 将权限标识转换为Discord权限键

@@ -26,15 +26,10 @@ export class SystemCommandService {
      */
     async executeSyncCommands(ctx) {
         // 显示检查中消息
-        await ctx.interaction.editReply(
-            createStandardMessage('progress', SystemMessageBuilder.MESSAGES.sync.checking)
-        );
+        await ctx.interaction.editReply(createStandardMessage('progress', SystemMessageBuilder.MESSAGES.sync.checking));
 
         // 调用核心服务执行同步
-        const result = await this.commandDeployer.syncCommandsToGuild(
-            ctx.interaction.guildId,
-            ctx.client.token
-        );
+        const result = await this.commandDeployer.syncCommandsToGuild(ctx.interaction.guildId, ctx.client.token);
 
         // 显示结果消息
         if (result.unchanged) {
@@ -157,9 +152,7 @@ export class SystemCommandService {
      */
     _createErrorHandler(errorMessageFn, logTemplate) {
         return async (error, confirmation, context) => {
-            await confirmation.editReply(
-                createStandardMessage('error', errorMessageFn(error.message))
-            );
+            await confirmation.editReply(createStandardMessage('error', errorMessageFn(error.message)));
 
             return {
                 logInfo: {
@@ -187,14 +180,15 @@ export class SystemCommandService {
             userId: ctx.user.id,
             onConfirm: async (confirmation, context) => {
                 await confirmation.update(
-                    createStandardMessage('progress', SystemMessageBuilder.MESSAGES.reload.progress(context.moduleName, context.scope))
+                    createStandardMessage(
+                        'progress',
+                        SystemMessageBuilder.MESSAGES.reload.progress(context.moduleName, context.scope)
+                    )
                 );
 
                 const result = await this.executeReloadModule(context);
 
-                await confirmation.editReply(
-                    SystemMessageBuilder.createReloadSuccess(result)
-                );
+                await confirmation.editReply(SystemMessageBuilder.createReloadSuccess(result));
 
                 return {
                     logInfo: {
@@ -206,7 +200,7 @@ export class SystemCommandService {
                 };
             },
             onError: this._createErrorHandler(
-                (errorMsg) => SystemMessageBuilder.MESSAGES.reload.error(context.moduleName, errorMsg),
+                errorMsg => SystemMessageBuilder.MESSAGES.reload.error(context.moduleName, errorMsg),
                 {
                     msg: '[System.ReloadModule] 重载失败',
                     moduleName: context.moduleName,
@@ -256,7 +250,7 @@ export class SystemCommandService {
                 };
             },
             onError: this._createErrorHandler(
-                (errorMsg) => SystemMessageBuilder.MESSAGES.config.error(guildId, errorMsg),
+                errorMsg => SystemMessageBuilder.MESSAGES.config.error(guildId, errorMsg),
                 {
                     msg: '[System.ReloadConfig] 配置重载失败',
                     guildId,
@@ -318,4 +312,3 @@ export class SystemCommandService {
 
 // 服务注册配置（供 Registry 自动扫描）
 export const serviceConfig = defineService('basic.systemCommandService', SystemCommandService);
-

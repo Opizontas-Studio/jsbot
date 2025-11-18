@@ -103,12 +103,7 @@ export function validateGlobalConfig(config) {
     if (!config.bot) {
         errors.push('缺少必需的配置节: bot');
     } else {
-        isInEnum(
-            config.bot.logLevel,
-            ['trace', 'debug', 'info', 'warn', 'error', 'fatal'],
-            'bot.logLevel',
-            errors
-        );
+        isInEnum(config.bot.logLevel, ['trace', 'debug', 'info', 'warn', 'error', 'fatal'], 'bot.logLevel', errors);
         isNumber(config.bot.gracefulShutdownTimeout, 'bot.gracefulShutdownTimeout', errors);
     }
 
@@ -204,19 +199,16 @@ export function validateEnv(env) {
     isNonEmptyString(env.DISCORD_CLIENT_ID, 'DISCORD_CLIENT_ID', errors);
 
     // 验证 DATABASE_URL（可选）
-    if (env.DATABASE_URL &&
+    if (
+        env.DATABASE_URL &&
         !env.DATABASE_URL.startsWith('postgresql://') &&
-        !env.DATABASE_URL.startsWith('postgres://')) {
+        !env.DATABASE_URL.startsWith('postgres://')
+    ) {
         errors.push('DATABASE_URL 必须是有效的PostgreSQL连接字符串');
     }
 
     // 验证 NODE_ENV
-    validators.isInEnum(
-        env.NODE_ENV,
-        ['development', 'production', 'test'],
-        'NODE_ENV',
-        errors
-    );
+    validators.isInEnum(env.NODE_ENV, ['development', 'production', 'test'], 'NODE_ENV', errors);
 
     return errors;
 }

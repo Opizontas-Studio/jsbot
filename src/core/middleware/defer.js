@@ -19,9 +19,7 @@ export async function deferMiddleware(ctx, next, config) {
     }
 
     // 解析defer配置
-    const ephemeral = typeof config.defer === 'object'
-        ? (config.defer.ephemeral !== false)
-        : true;
+    const ephemeral = typeof config.defer === 'object' ? config.defer.ephemeral !== false : true;
 
     try {
         await ctx.defer(ephemeral);
@@ -37,4 +35,3 @@ export async function deferMiddleware(ctx, next, config) {
 
     await next();
 }
-

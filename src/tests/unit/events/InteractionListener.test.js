@@ -11,7 +11,7 @@ describe('InteractionListener', () => {
 
     beforeEach(() => {
         mockContainer = {
-            get: vi.fn((name) => {
+            get: vi.fn(name => {
                 if (name === 'configManager') {
                     return {
                         getGuildConfig: vi.fn(() => ({ guildId: 'guild123' }))
@@ -43,25 +43,15 @@ describe('InteractionListener', () => {
             on: vi.fn()
         };
 
-        listener = new InteractionListener(
-            mockContainer,
-            mockRegistry,
-            mockLogger,
-            mockMiddlewareChain
-        );
+        listener = new InteractionListener(mockContainer, mockRegistry, mockLogger, mockMiddlewareChain);
     });
 
     describe('register', () => {
         it('应该注册InteractionCreate事件', () => {
             listener.register(mockClient);
 
-            expect(mockClient.on).toHaveBeenCalledWith(
-                expect.any(String),
-                expect.any(Function)
-            );
-            expect(mockLogger.info).toHaveBeenCalledWith(
-                '[InteractionListener] 已注册'
-            );
+            expect(mockClient.on).toHaveBeenCalledWith(expect.any(String), expect.any(Function));
+            expect(mockLogger.info).toHaveBeenCalledWith('[InteractionListener] 已注册');
         });
     });
 
@@ -370,11 +360,7 @@ describe('InteractionListener', () => {
             // 验证params被传递到了handler
             const executeFn = mockMiddlewareChain.execute.mock.calls[0][2];
             await executeFn();
-            expect(mockConfig.handle).toHaveBeenCalledWith(
-                expect.any(Object),
-                params,
-                expect.any(Object)
-            );
+            expect(mockConfig.handle).toHaveBeenCalledWith(expect.any(Object), params, expect.any(Object));
         });
     });
 
@@ -409,4 +395,3 @@ describe('InteractionListener', () => {
         });
     });
 });
-

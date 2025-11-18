@@ -30,10 +30,10 @@ export function bootstrapCoreServices(container, config, logger) {
     container.registerInstance('cooldownManager', new CooldownManager());
 
     // 注册基础设施层服务
-    container.register('activeOperationTracker', (c) => {
+    container.register('activeOperationTracker', c => {
         return new ActiveOperationTracker({ logger: c.get('logger') });
     });
-    container.register('lockManager', (c) => {
+    container.register('lockManager', c => {
         const lockManager = new LockManager({
             timeout: config.lock?.timeout,
             maxPending: config.lock?.maxPending
@@ -41,32 +41,29 @@ export function bootstrapCoreServices(container, config, logger) {
         lockManager.setLogger(c.get('logger'));
         return lockManager;
     });
-    container.register('queueManager', (c) => {
+    container.register('queueManager', c => {
         const queueManager = new QueueManager({
             concurrency: config.queue?.concurrency,
             timeout: config.queue?.timeout,
             priorities: config.queue?.priorities
         });
-        queueManager.setDependencies(
-            c.get('logger'),
-            c.get('lockManager')
-        );
+        queueManager.setDependencies(c.get('logger'), c.get('lockManager'));
         return queueManager;
     });
-    container.register('schedulerManager', (c) => {
+    container.register('schedulerManager', c => {
         const schedulerManager = new SchedulerManager();
         schedulerManager.setLogger(c.get('logger'));
         return schedulerManager;
     });
-    container.register('databaseManager', (c) => {
+    container.register('databaseManager', c => {
         const dbManager = new DatabaseManager(config.database || {});
         dbManager.setLogger(c.get('logger'));
         return dbManager;
     });
-    container.register('database', (c) => c.get('databaseManager'));
+    container.register('database', c => c.get('databaseManager'));
 
     // API包装层服务
-    container.register('rateLimiter', (c) => {
+    container.register('rateLimiter', c => {
         const rateLimiter = new RateLimiter({
             global: config.api?.rateLimit?.global,
             routes: config.api?.rateLimit?.routes
@@ -74,14 +71,14 @@ export function bootstrapCoreServices(container, config, logger) {
         rateLimiter.setLogger(c.get('logger'));
         return rateLimiter;
     });
-    container.register('apiClient', (c) => {
+    container.register('apiClient', c => {
         return new ApiClient({
             rateLimiter: c.get('rateLimiter'),
             callTracker: null, // 初始为null，稍后由MonitoringManager注入
             logger: c.get('logger')
         });
     });
-    container.register('batchProcessor', (c) => {
+    container.register('batchProcessor', c => {
         return new BatchProcessor({
             apiClient: c.get('apiClient'),
             queueManager: c.get('queueManager'),
@@ -90,7 +87,10 @@ export function bootstrapCoreServices(container, config, logger) {
     });
 
     // 注册后置核心服务
-    container.register('commandDeployer', (c) => new CommandDeployer(c, c.get('logger'))); // 延迟初始化，因为依赖client和registry
-    container.register('moduleReloader', (c) => new ModuleReloader({ logger: c.get('logger'), registry: c.get('registry'), container: c })); // 可重载所有模块
+    container.register('commandDeployer', c => new CommandDeployer(c, c.get('logger'))); // 延迟初始化，因为依赖client和registry
+    container.register(
+        'moduleReloader',
+        c => new ModuleReloader({ logger: c.get('logger'), registry: c.get('registry'), container: c })
+    ); // 可重载所有模块
     logger.debug('[Bootstrap] 核心服务已注册');
 }

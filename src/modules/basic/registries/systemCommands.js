@@ -24,22 +24,22 @@ export default {
             .setName(this.name)
             .setDescription(this.description)
             .addSubcommand(subcommand =>
-                subcommand
-                    .setName('同步指令')
-                    .setDescription('检查并同步当前服务器的Discord指令')
+                subcommand.setName('同步指令').setDescription('检查并同步当前服务器的Discord指令')
             )
             .addSubcommand(subcommand =>
                 subcommand
                     .setName('重载模块')
                     .setDescription('热重载指定模块（不支持 basic 模块）')
                     .addStringOption(option =>
-                        option.setName('模块')
+                        option
+                            .setName('模块')
                             .setDescription('要重载的模块名称')
                             .setRequired(true)
                             .setAutocomplete(true)
                     )
                     .addStringOption(option =>
-                        option.setName('范围')
+                        option
+                            .setName('范围')
                             .setDescription('重载范围')
                             .setRequired(true)
                             .addChoices(
@@ -48,16 +48,8 @@ export default {
                             )
                     )
             )
-            .addSubcommand(subcommand =>
-                subcommand
-                    .setName('重载配置')
-                    .setDescription('重新加载当前服务器的配置文件')
-            )
-            .addSubcommand(subcommand =>
-                subcommand
-                    .setName('重启')
-                    .setDescription('重启 Bot（需要进程管理器支持）')
-            );
+            .addSubcommand(subcommand => subcommand.setName('重载配置').setDescription('重新加载当前服务器的配置文件'))
+            .addSubcommand(subcommand => subcommand.setName('重启').setDescription('重启 Bot（需要进程管理器支持）'));
     },
 
     subcommands: [
@@ -65,7 +57,7 @@ export default {
         {
             id: 'sync',
             name: '同步指令',
-            cooldown: 10000,  // 10秒冷却
+            cooldown: 10000, // 10秒冷却
 
             async execute(ctx, { systemCommandService }) {
                 await systemCommandService.executeSyncCommands(ctx);
@@ -76,9 +68,9 @@ export default {
         {
             id: 'reloadModule',
             name: '重载模块',
-            cooldown: 5000,  // 5秒冷却
+            cooldown: 5000, // 5秒冷却
 
-        async autocomplete(ctx, { systemCommandService }) {
+            async autocomplete(ctx, { systemCommandService }) {
                 const focusedOption = ctx.interaction.options.getFocused(true);
 
                 if (focusedOption.name === '模块') {
@@ -89,9 +81,7 @@ export default {
                         .filter(name => name.toLowerCase().includes(focusedOption.value.toLowerCase()))
                         .slice(0, 25);
 
-                    await ctx.interaction.respond(
-                        filtered.map(name => ({ name, value: name }))
-                    );
+                    await ctx.interaction.respond(filtered.map(name => ({ name, value: name })));
                 }
             },
 
@@ -105,10 +95,10 @@ export default {
         {
             id: 'reloadConfig',
             name: '重载配置',
-            cooldown: 5000,  // 5秒冷却
+            cooldown: 5000, // 5秒冷却
 
-        async execute(ctx, { systemCommandService }) {
-                    await systemCommandService.handleReloadConfig(ctx);
+            async execute(ctx, { systemCommandService }) {
+                await systemCommandService.handleReloadConfig(ctx);
             }
         },
 
@@ -116,12 +106,11 @@ export default {
         {
             id: 'restart',
             name: '重启',
-            cooldown: 10000,  // 10秒冷却（防止误操作）
+            cooldown: 10000, // 10秒冷却（防止误操作）
 
             async execute(ctx, { systemCommandService }) {
-                    await systemCommandService.handleRestart(ctx);
+                await systemCommandService.handleRestart(ctx);
             }
         }
     ]
 };
-

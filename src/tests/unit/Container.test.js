@@ -71,8 +71,8 @@ describe('Container', () => {
         });
 
         it('应该检测循环依赖', () => {
-            container.register('serviceA', (c) => c.get('serviceB'));
-            container.register('serviceB', (c) => c.get('serviceA'));
+            container.register('serviceA', c => c.get('serviceB'));
+            container.register('serviceB', c => c.get('serviceA'));
 
             expect(() => {
                 container.get('serviceA');
@@ -81,7 +81,7 @@ describe('Container', () => {
 
         it('应该支持依赖注入', () => {
             container.registerInstance('config', { value: 'test' });
-            container.register('serviceA', (c) => ({
+            container.register('serviceA', c => ({
                 config: c.get('config')
             }));
 
@@ -134,14 +134,14 @@ describe('Container', () => {
     describe('validateAll', () => {
         it('应该返回空数组当所有服务可解析', () => {
             container.register('serviceA', () => ({ name: 'A' }));
-            container.register('serviceB', (c) => ({ serviceA: c.get('serviceA') }));
+            container.register('serviceB', c => ({ serviceA: c.get('serviceA') }));
 
             const errors = container.validateAll();
             expect(errors).toEqual([]);
         });
 
         it('应该返回错误列表当服务不可解析', () => {
-            container.register('serviceA', (c) => c.get('nonExistent'));
+            container.register('serviceA', c => c.get('nonExistent'));
             container.register('serviceB', () => ({ name: 'B' }));
 
             const errors = container.validateAll();
@@ -151,8 +151,8 @@ describe('Container', () => {
         });
 
         it('应该检测循环依赖', () => {
-            container.register('serviceA', (c) => c.get('serviceB'));
-            container.register('serviceB', (c) => c.get('serviceA'));
+            container.register('serviceA', c => c.get('serviceB'));
+            container.register('serviceB', c => c.get('serviceA'));
 
             const errors = container.validateAll();
             expect(errors.length).toBeGreaterThan(0);
@@ -175,4 +175,3 @@ describe('Container', () => {
         });
     });
 });
-

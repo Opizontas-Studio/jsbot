@@ -34,12 +34,12 @@ export class WebSocketMonitor {
             resumes: 0,
 
             // 延迟统计
-            pingHistory: [],      // 最近的ping值
-            maxPingHistory: 20,   // 保留最近20个ping值
+            pingHistory: [], // 最近的ping值
+            maxPingHistory: 20, // 保留最近20个ping值
 
             // 断线统计
-            totalDowntime: 0,     // 累计断线时间（毫秒）
-            longestDowntime: 0    // 最长断线时间（毫秒）
+            totalDowntime: 0, // 累计断线时间（毫秒）
+            longestDowntime: 0 // 最长断线时间（毫秒）
         };
     }
 
@@ -103,13 +103,11 @@ export class WebSocketMonitor {
         };
 
         // 监听重连中
-        const shardReconnectingListener = (shardId) => {
+        const shardReconnectingListener = shardId => {
             this.stats.reconnects++;
             this.state.totalReconnects++;
 
-            const downtime = this.state.disconnectedAt
-                ? Date.now() - this.state.disconnectedAt
-                : 0;
+            const downtime = this.state.disconnectedAt ? Date.now() - this.state.disconnectedAt : 0;
 
             this.logger.warn({
                 msg: `[Gateway] Shard ${shardId} 正在重连`,
@@ -124,9 +122,7 @@ export class WebSocketMonitor {
         const shardResumeListener = (shardId, replayedEvents) => {
             this.stats.resumes++;
 
-            const downtime = this.state.disconnectedAt
-                ? Date.now() - this.state.disconnectedAt
-                : 0;
+            const downtime = this.state.disconnectedAt ? Date.now() - this.state.disconnectedAt : 0;
 
             if (downtime > 0) {
                 this.stats.totalDowntime += downtime;
@@ -145,7 +141,7 @@ export class WebSocketMonitor {
         };
 
         // 监听就绪
-        const shardReadyListener = (shardId) => {
+        const shardReadyListener = shardId => {
             this.stats.connects++;
 
             const currentPing = this.client.ws.ping;
@@ -307,14 +303,13 @@ export class WebSocketMonitor {
      * @returns {Object} 统计信息
      */
     getStats() {
-        const uptime = this.state.connectedAt
-            ? Date.now() - this.state.connectedAt
-            : 0;
+        const uptime = this.state.connectedAt ? Date.now() - this.state.connectedAt : 0;
 
         const uptimeSeconds = Math.floor(uptime / 1000);
-        const uptimePercent = uptime + this.stats.totalDowntime > 0
-            ? ((uptime / (uptime + this.stats.totalDowntime)) * 100).toFixed(2)
-            : 100;
+        const uptimePercent =
+            uptime + this.stats.totalDowntime > 0
+                ? ((uptime / (uptime + this.stats.totalDowntime)) * 100).toFixed(2)
+                : 100;
 
         return {
             connection: {
@@ -372,4 +367,3 @@ export class WebSocketMonitor {
         this.logger.debug('[WebSocketMonitor] 统计已重置');
     }
 }
-

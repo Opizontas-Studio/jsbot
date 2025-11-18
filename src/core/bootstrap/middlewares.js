@@ -21,18 +21,12 @@ export function createMiddlewareChain(container) {
 
     // 按执行顺序添加中间件
     // executionWrapper(tracking+error) → defer → usage → permissions → cooldown → queue → handler
-    middlewareChain.use(executionWrapperMiddleware(
-        container.get('activeOperationTracker')
-    ));
+    middlewareChain.use(executionWrapperMiddleware(container.get('activeOperationTracker')));
     middlewareChain.use(deferMiddleware);
     middlewareChain.use(usageMiddleware);
     middlewareChain.use(permissionsMiddleware);
-    middlewareChain.use(cooldownMiddleware(
-        container.get('cooldownManager')
-    ));
-    middlewareChain.use(queueMiddleware(
-        container.get('queueManager')
-    ));
+    middlewareChain.use(cooldownMiddleware(container.get('cooldownManager')));
+    middlewareChain.use(queueMiddleware(container.get('queueManager')));
 
     const logger = container.get('logger');
     logger?.debug('[Bootstrap] 中间件链已创建');
@@ -52,4 +46,3 @@ export function createCustomMiddlewareChain(middlewares, container) {
     logger?.debug('[Bootstrap] 自定义中间件链已创建');
     return middlewareChain;
 }
-

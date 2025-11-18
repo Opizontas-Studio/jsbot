@@ -65,9 +65,7 @@ export class PostgresAdapter {
 
             // 创建Sequelize实例
             const baseOptions = {
-                logging: finalConfig.logging !== false
-                    ? (msg) => this.logger?.debug(`[PostgreSQL] ${msg}`)
-                    : false,
+                logging: finalConfig.logging !== false ? msg => this.logger?.debug(`[PostgreSQL] ${msg}`) : false,
                 define: {
                     timestamps: true,
                     underscored: true
@@ -104,7 +102,6 @@ export class PostgresAdapter {
         }
     }
 
-
     /**
      * 执行原始SQL查询
      * @param {string} query - SQL查询
@@ -133,7 +130,6 @@ export class PostgresAdapter {
         const results = await this.query(query, params);
         return results.length > 0 ? results[0] : null;
     }
-
 
     /**
      * 执行写操作
@@ -167,7 +163,7 @@ export class PostgresAdapter {
             throw new Error('[PostgreSQL] 数据库未连接');
         }
 
-        return await this.sequelize.transaction(async (t) => {
+        return await this.sequelize.transaction(async t => {
             return await callback(t);
         });
     }

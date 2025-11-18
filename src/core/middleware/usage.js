@@ -230,4 +230,3 @@ function getNotReason(condition) {
 
     return notReasons[condition] || `不满足条件: ${condition}`;
 }
-

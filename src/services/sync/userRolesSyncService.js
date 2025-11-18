@@ -4,9 +4,16 @@ import { logTime } from '../../utils/logger.js';
 
 /**
  * 身份组同步服务
- * 每小时同步一次创作者身份组成员到 user_roles 表
+ * 同步所有用户的身份组关系到 user_roles 表
  */
 class UserRolesSyncService {
+    constructor() {
+        // 配置参数
+        this.MEMBER_BATCH_SIZE = 1000; // 每批获取的成员数量
+        this.DB_BATCH_SIZE = 5000; // 每批数据库操作的记录数
+        this.EXCLUDED_ROLE_IDS = new Set(); // 排除的身份组ID（可配置）
+    }
+
     /**
      * 同步创作者身份组
      */
@@ -35,6 +42,294 @@ class UserRolesSyncService {
             },
             '同步创作者身份组'
         );
+    }
+
+    /**
+     * 同步所有用户的所有身份组
+     */
+    async syncAllUserRoles(client) {
+        return await ErrorHandler.handleService(
+            async () => {
+                if (!pgManager.getConnectionStatus()) {
+                    logTime('[身份组同步] PostgreSQL未连接，跳过同步');
+                    return { success: false };
+                }
+
+                const startTime = Date.now();
+                const results = [];
+
+                for (const [guildId, guildConfig] of client.guildManager.guilds.entries()) {
+                    logTime(`[身份组同步] 开始同步服务器: ${guildId}`);
+                    const result = await this._syncGuildAllRoles(client, guildId);
+                    results.push(result);
+                }
+
+                const totalAdded = results.reduce((sum, r) => sum + r.added, 0);
+                const totalRemoved = results.reduce((sum, r) => sum + r.removed, 0);
+                const totalMembers = results.reduce((sum, r) => sum + r.memberCount, 0);
+                const totalRoles = results.reduce((sum, r) => sum + r.totalRoles, 0);
+
+                const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                logTime(
+                    `[身份组同步] 全部完成 - ` +
+                    `耗时: ${duration}s, ` +
+                    `成员: ${totalMembers}, ` +
+                    `关系: ${totalRoles}, ` +
+                    `新增: ${totalAdded}, ` +
+                    `移除: ${totalRemoved}`
+                );
+
+                return {
+                    success: true,
+                    added: totalAdded,
+                    removed: totalRemoved,
+                    totalMembers,
+                    totalRoles,
+                    duration: parseFloat(duration)
+                };
+            },
+            '同步所有用户身份组'
+        );
+    }
+
+    /**
+     * 同步单个服务器的所有身份组
+     * @private
+     */
+    async _syncGuildAllRoles(client, guildId) {
+        return await ErrorHandler.handleService(
+            async () => {
+                const guildStartTime = Date.now();
+                const guild = await client.guilds.fetch(guildId);
+
+                // 分批获取所有成员
+                logTime(`[身份组同步] 开始获取服务器 ${guildId} 的成员...`);
+                const allMembers = await this._fetchAllMembersInBatches(guild);
+                logTime(`[身份组同步] 获取到 ${allMembers.size} 个成员`);
+
+                // 提取所有身份组关系（排除机器人和@everyone角色）
+                const currentRoles = this._extractUserRoles(allMembers, guildId);
+                logTime(`[身份组同步] 提取到 ${currentRoles.length} 条身份组关系`);
+
+                // 获取数据库中该服务器的所有角色记录
+                const dbRoles = await this._fetchDbRolesForGuild(guild);
+                logTime(`[身份组同步] 数据库中有 ${dbRoles.length} 条记录`);
+
+                // 计算差异
+                const { toAdd, toRemove } = this._calculateDiff(currentRoles, dbRoles);
+                logTime(`[身份组同步] 需要新增: ${toAdd.length}, 需要移除: ${toRemove.length}`);
+
+                // 批量更新数据库
+                if (toAdd.length > 0 || toRemove.length > 0) {
+                    await this._batchUpdateDatabase(toAdd, toRemove);
+                }
+
+                const duration = ((Date.now() - guildStartTime) / 1000).toFixed(2);
+                logTime(
+                    `[身份组同步] 服务器 ${guildId} 完成 - ` +
+                    `耗时: ${duration}s, ` +
+                    `新增: ${toAdd.length}, ` +
+                    `移除: ${toRemove.length}`
+                );
+
+                return {
+                    guildId,
+                    memberCount: allMembers.size,
+                    totalRoles: currentRoles.length,
+                    added: toAdd.length,
+                    removed: toRemove.length,
+                    duration: parseFloat(duration)
+                };
+            },
+            `同步服务器 ${guildId} 的所有身份组`,
+            { throwOnError: true }
+        );
+    }
+
+    /**
+     * 分批获取服务器所有成员
+     * @private
+     */
+    async _fetchAllMembersInBatches(guild) {
+        const allMembers = new Map();
+        let lastMemberId = null;
+        let batchCount = 0;
+
+        while (true) {
+            batchCount++;
+            const fetchOptions = {
+                limit: this.MEMBER_BATCH_SIZE,
+                force: true // 强制从 API 获取
+            };
+
+            if (lastMemberId) {
+                fetchOptions.after = lastMemberId;
+            }
+
+            const members = await guild.members.fetch(fetchOptions);
+            
+            if (members.size === 0) break;
+
+            // 添加到总集合
+            members.forEach((member, id) => {
+                allMembers.set(id, member);
+            });
+
+            logTime(`[身份组同步] 批次 ${batchCount}: 获取 ${members.size} 个成员 (总计: ${allMembers.size})`);
+
+            // 如果获取的成员数少于批次大小，说明已经是最后一批
+            if (members.size < this.MEMBER_BATCH_SIZE) break;
+
+            // 获取最后一个成员ID作为下次查询的起点
+            lastMemberId = members.last().id;
+
+            // 添加小延迟避免API限流
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        return allMembers;
+    }
+
+    /**
+     * 从成员集合中提取所有身份组关系
+     * @private
+     */
+    _extractUserRoles(members, guildId) {
+        const roles = [];
+        
+        members.forEach(member => {
+            // 跳过机器人
+            if (member.user.bot) return;
+
+            // 遍历成员的所有身份组
+            member.roles.cache.forEach(role => {
+                // 跳过 @everyone 角色（ID 等于服务器ID）
+                if (role.id === guildId) return;
+                
+                // 跳过被排除的身份组
+                if (this.EXCLUDED_ROLE_IDS.has(role.id)) return;
+
+                roles.push({
+                    user_id: member.user.id,
+                    role_id: role.id
+                });
+            });
+        });
+
+        return roles;
+    }
+
+    /**
+     * 获取数据库中指定服务器的所有身份组记录
+     * @private
+     */
+    async _fetchDbRolesForGuild(guild) {
+        // 先获取该服务器的所有角色ID
+        const guildRoleIds = Array.from(guild.roles.cache.keys());
+        
+        if (guildRoleIds.length === 0) {
+            return [];
+        }
+
+        // 查询数据库中属于这些角色的所有记录
+        const models = pgManager.getModels();
+        
+        // 分批查询以避免SQL参数过多
+        const QUERY_BATCH_SIZE = 1000;
+        const allRecords = [];
+
+        for (let i = 0; i < guildRoleIds.length; i += QUERY_BATCH_SIZE) {
+            const batchRoleIds = guildRoleIds.slice(i, i + QUERY_BATCH_SIZE);
+            
+            const records = await models.UserRoles.findAll({
+                where: {
+                    role_id: batchRoleIds
+                },
+                attributes: ['user_id', 'role_id'],
+                raw: true
+            });
+
+            allRecords.push(...records);
+        }
+
+        return allRecords;
+    }
+
+    /**
+     * 计算需要新增和删除的记录
+     * @private
+     */
+    _calculateDiff(currentRoles, dbRoles) {
+        // 构建当前身份组关系的Set（用于快速查找，O(1)）
+        const currentSet = new Set(
+            currentRoles.map(r => `${r.user_id}:${r.role_id}`)
+        );
+
+        // 构建数据库身份组关系的Set
+        const dbSet = new Set(
+            dbRoles.map(r => `${r.user_id}:${r.role_id}`)
+        );
+
+        // 需要新增的：在当前但不在数据库中
+        const toAdd = currentRoles.filter(r => !dbSet.has(`${r.user_id}:${r.role_id}`));
+
+        // 需要删除的：在数据库但不在当前中
+        const toRemove = dbRoles.filter(r => !currentSet.has(`${r.user_id}:${r.role_id}`));
+
+        return { toAdd, toRemove };
+    }
+
+    /**
+     * 批量更新数据库（使用原生SQL优化）
+     * @private
+     */
+    async _batchUpdateDatabase(toAdd, toRemove) {
+        await pgManager.transaction(async (t) => {
+            // 分批插入新记录
+            if (toAdd.length > 0) {
+                logTime(`[身份组同步] 开始分批插入 ${toAdd.length} 条记录...`);
+                for (let i = 0; i < toAdd.length; i += this.DB_BATCH_SIZE) {
+                    const batch = toAdd.slice(i, i + this.DB_BATCH_SIZE);
+                    
+                    // 使用原生SQL的 INSERT ... ON CONFLICT DO NOTHING
+                    const values = batch
+                        .map(r => `(${r.user_id}, ${r.role_id})`)
+                        .join(',');
+                    
+                    const insertQuery = `
+                        INSERT INTO user_roles (user_id, role_id)
+                        VALUES ${values}
+                        ON CONFLICT (user_id, role_id) DO NOTHING
+                    `;
+
+                    await pgManager.sequelize.query(insertQuery, { transaction: t });
+                    
+                    logTime(`[身份组同步] 已插入批次 ${Math.floor(i / this.DB_BATCH_SIZE) + 1}/${Math.ceil(toAdd.length / this.DB_BATCH_SIZE)}`);
+                }
+            }
+
+            // 分批删除记录
+            if (toRemove.length > 0) {
+                logTime(`[身份组同步] 开始分批删除 ${toRemove.length} 条记录...`);
+                for (let i = 0; i < toRemove.length; i += this.DB_BATCH_SIZE) {
+                    const batch = toRemove.slice(i, i + this.DB_BATCH_SIZE);
+                    
+                    // 使用原生SQL批量删除
+                    const conditions = batch
+                        .map(r => `(user_id = ${r.user_id} AND role_id = ${r.role_id})`)
+                        .join(' OR ');
+                    
+                    const deleteQuery = `
+                        DELETE FROM user_roles
+                        WHERE ${conditions}
+                    `;
+
+                    await pgManager.sequelize.query(deleteQuery, { transaction: t });
+                    
+                    logTime(`[身份组同步] 已删除批次 ${Math.floor(i / this.DB_BATCH_SIZE) + 1}/${Math.ceil(toRemove.length / this.DB_BATCH_SIZE)}`);
+                }
+            }
+        });
     }
 
     /**

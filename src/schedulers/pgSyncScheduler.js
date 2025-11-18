@@ -52,6 +52,13 @@ export class PgSyncScheduler {
     }
 
     /**
+     * 执行所有用户身份组同步
+     */
+    async syncAllUserRoles(client) {
+        return await userRolesSyncService.syncAllUserRoles(client);
+    }
+
+    /**
      * 接收来自 threadCleaner 的成员数据（仅缓存）
      * @param {string} threadId - 帖子ID
      * @param {Collection} members - 成员集合

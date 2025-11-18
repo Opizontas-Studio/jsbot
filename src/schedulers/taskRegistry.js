@@ -366,21 +366,12 @@ export class TaskRegistry {
         // 初始化调度器
         await pgSyncScheduler.initialize(client);
 
-        // 所有用户身份组同步 - 每6小时
+        // 所有用户身份组同步 - 每15分钟
         this.taskScheduler.addTask({
             taskId: 'pg_all_user_roles_sync',
-            interval: 6 * 60 * 60 * 1000, // 6小时
+            interval: 15 * 60 * 1000, // 15分钟
             task: () => pgSyncScheduler.syncAllUserRoles(client),
             startAt: new Date(Date.now() + 30 * 1000), // 延迟30秒首次执行
-            runImmediately: false
-        });
-
-        // 创作者身份组同步 - 每小时
-        this.taskScheduler.addTask({
-            taskId: 'pg_user_roles_sync',
-            interval: 60 * 60 * 1000, // 1小时
-            task: () => pgSyncScheduler.syncCreatorRoles(client),
-            startAt: new Date(Date.now() + 300 * 1000), // 延迟5分钟首次执行
             runImmediately: false
         });
 

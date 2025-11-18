@@ -45,13 +45,6 @@ export class PgSyncScheduler {
     }
 
     /**
-     * 执行创作者身份组同步
-     */
-    async syncCreatorRoles(client) {
-        return await userRolesSyncService.syncCreatorRoles(client);
-    }
-
-    /**
      * 执行所有用户身份组同步
      */
     async syncAllUserRoles(client) {

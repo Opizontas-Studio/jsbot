@@ -1,7 +1,6 @@
 import { pgManager } from '../../pg/pgManager.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
-import { Op } from 'sequelize';
 
 /**
  * 身份组同步服务
@@ -9,8 +8,9 @@ import { Op } from 'sequelize';
  */
 class UserRolesSyncService {
     constructor() {
-        this.DB_BATCH_SIZE = 1000; // 每批数据库操作的记录数
-        this.EXCLUDED_ROLE_IDS = new Set(); // 排除的身份组ID（可配置）
+        this.DB_BATCH_SIZE = 500; // 每批数据库操作的记录数
+        this.DELETE_BATCH_SIZE = 100; // 删除操作使用批次
+        this.EXCLUDED_ROLE_IDS = new Set(); // 排除的身份组ID
     }
 
     /**
@@ -142,7 +142,10 @@ class UserRolesSyncService {
                 attributes: ['user_id', 'role_id'],
                 raw: true
             });
-            allRecords.push(...records);
+            // 使用 concat 而不是 spread operator 避免栈溢出
+            for (const record of records) {
+                allRecords.push(record);
+            }
         }
 
         return allRecords;
@@ -183,22 +186,27 @@ class UserRolesSyncService {
                 }
             }
 
-            // 分批删除记录
+            // 分批删除记录 - 使用更小的批次和逐条删除避免栈溢出
             if (toRemove.length > 0) {
-                for (let i = 0; i < toRemove.length; i += this.DB_BATCH_SIZE) {
-                    const batch = toRemove.slice(i, i + this.DB_BATCH_SIZE);
+                for (let i = 0; i < toRemove.length; i += this.DELETE_BATCH_SIZE) {
+                    const batch = toRemove.slice(i, i + this.DELETE_BATCH_SIZE);
                     
-                    // 使用 destroy 的参数化查询，避免 SQL 拼接
-                    // 构建 OR 条件数组
-                    await models.UserRoles.destroy({
-                        where: {
-                            [Op.or]: batch.map(r => ({
-                                user_id: r.user_id,
-                                role_id: r.role_id
-                            }))
-                        },
-                        transaction: t
-                    });
+                    // 使用原生 SQL 参数化查询，避免 Sequelize 内部栈溢出
+                    // 构建参数化的 DELETE 语句
+                    const placeholders = batch.map((_, idx) => {
+                        const base = idx * 2;
+                        return `(user_id = $${base + 1} AND role_id = $${base + 2})`;
+                    }).join(' OR ');
+                    
+                    const values = batch.flatMap(r => [r.user_id, r.role_id]);
+                    
+                    await pgManager.sequelize.query(
+                        `DELETE FROM user_roles WHERE ${placeholders}`,
+                        {
+                            bind: values,
+                            transaction: t
+                        }
+                    );
                 }
             }
         });

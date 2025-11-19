@@ -148,10 +148,10 @@ export default {
                     return;
                 }
 
-                // 验证文件大小 (30KB = 30 * 1024 = 30720 bytes)
-                if (attachment.size > 30720) {
+                // 验证文件大小 (60KB = 60 * 1024 = 61440 bytes)
+                if (attachment.size > 61440) {
                     await interaction.editReply({
-                        content: '❌ 文件大小不能超过30KB',
+                        content: '❌ 文件大小不能超过60KB',
                         flags: ['Ephemeral'],
                     });
                     return;

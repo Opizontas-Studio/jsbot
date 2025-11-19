@@ -1,6 +1,7 @@
 import { pgManager } from '../../pg/pgManager.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
+import { Op } from 'sequelize';
 
 /**
  * 身份组同步服务
@@ -8,7 +9,7 @@ import { logTime } from '../../utils/logger.js';
  */
 class UserRolesSyncService {
     constructor() {
-        this.DB_BATCH_SIZE = 5000; // 每批数据库操作的记录数
+        this.DB_BATCH_SIZE = 1000; // 每批数据库操作的记录数
         this.EXCLUDED_ROLE_IDS = new Set(); // 排除的身份组ID（可配置）
     }
 
@@ -162,21 +163,23 @@ class UserRolesSyncService {
     }
 
     /**
-     * 批量更新数据库（使用原生SQL优化）
+     * 批量更新数据库（使用参数化查询避免栈溢出）
      * @private
      */
     async _batchUpdateDatabase(toAdd, toRemove) {
+        const models = pgManager.getModels();
+        
         await pgManager.transaction(async (t) => {
             // 分批插入新记录
             if (toAdd.length > 0) {
                 for (let i = 0; i < toAdd.length; i += this.DB_BATCH_SIZE) {
                     const batch = toAdd.slice(i, i + this.DB_BATCH_SIZE);
-                    const values = batch.map(r => `(${r.user_id}, ${r.role_id})`).join(',');
                     
-                    await pgManager.sequelize.query(
-                        `INSERT INTO user_roles (user_id, role_id) VALUES ${values} ON CONFLICT (user_id, role_id) DO NOTHING`,
-                        { transaction: t }
-                    );
+                    // 使用 bulkCreate 的参数化查询，避免 SQL 拼接
+                    await models.UserRoles.bulkCreate(batch, {
+                        transaction: t,
+                        ignoreDuplicates: true // 相当于 ON CONFLICT DO NOTHING
+                    });
                 }
             }
 
@@ -184,12 +187,18 @@ class UserRolesSyncService {
             if (toRemove.length > 0) {
                 for (let i = 0; i < toRemove.length; i += this.DB_BATCH_SIZE) {
                     const batch = toRemove.slice(i, i + this.DB_BATCH_SIZE);
-                    const conditions = batch.map(r => `(user_id = ${r.user_id} AND role_id = ${r.role_id})`).join(' OR ');
                     
-                    await pgManager.sequelize.query(
-                        `DELETE FROM user_roles WHERE ${conditions}`,
-                        { transaction: t }
-                    );
+                    // 使用 destroy 的参数化查询，避免 SQL 拼接
+                    // 构建 OR 条件数组
+                    await models.UserRoles.destroy({
+                        where: {
+                            [Op.or]: batch.map(r => ({
+                                user_id: r.user_id,
+                                role_id: r.role_id
+                            }))
+                        },
+                        transaction: t
+                    });
                 }
             }
         });

@@ -8,10 +8,10 @@ export default {
     ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('合集')
-        .setDescription('查看作者的作品合集')
+        .setDescription('查看杯赛或作者的作品合集（杯赛频道查杯赛，作者帖子查作者）')
         .addUserOption(option =>
             option.setName('作者')
-                .setDescription('选择作者（不填且在帖子内使用则查看当前帖子作者）')
+                .setDescription('选择作者（不填且在帖子内使用则查看当前帖子作者，杯赛频道查杯赛）')
                 .setRequired(false)
         ),
 

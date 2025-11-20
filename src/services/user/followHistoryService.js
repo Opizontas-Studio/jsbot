@@ -17,6 +17,7 @@ class FollowHistoryService {
      * @param {number} config.pageSize - 每页显示的记录数
      */
     constructor(config = {}) {
+        this.CACHE_TIMEOUT = 60 * 60 * 1000; // 1小时
         this.config = {
             pageSize: config.pageSize || 10
         };
@@ -234,20 +235,28 @@ class FollowHistoryService {
                 if (!client.followHistoryCache) {
                     client.followHistoryCache = new Map();
                 }
+
+                // 检查并清除旧的定时器，防止竞态条件导致新缓存被提前删除
+                const existingCache = client.followHistoryCache.get(cacheKey);
+                if (existingCache?.timeoutId) {
+                    clearTimeout(existingCache.timeoutId);
+                }
+
+                // 设置1小时后清除缓存
+                const timeoutId = setTimeout(() => {
+                    if (client.followHistoryCache) {
+                        client.followHistoryCache.delete(cacheKey);
+                    }
+                }, this.CACHE_TIMEOUT);
+
                 client.followHistoryCache.set(cacheKey, {
                     records: formattedRecords,
                     user: user,
                     showLeft: showLeft,
                     pageSize: effectivePageSize,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    timeoutId: timeoutId
                 });
-
-                // 设置15分钟后清除缓存
-                setTimeout(() => {
-                    if (client.followHistoryCache) {
-                        client.followHistoryCache.delete(cacheKey);
-                    }
-                }, 15 * 60 * 1000);
 
                 // 返回消息载荷
                 return {

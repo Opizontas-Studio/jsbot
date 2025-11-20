@@ -7,8 +7,8 @@ import { Op } from 'sequelize';
 
 class CollectionService {
     constructor() {
-        this.cache = new Map(); // key: authorId, value: { records: [], timestamp: number }
-        this.CACHE_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+        this.cache = new Map(); // authorId, value: { records: [], timestamp: number }
+        this.CACHE_TIMEOUT = 60 * 60 * 1000; // 1小时
     }
 
     async buildCollectionMessage({ authorId, authorUser, page = 1, client, currentGroup }) {
@@ -211,6 +211,10 @@ class CollectionService {
         const data = this.cache.get(authorId);
         if (!data) return null;
         if (Date.now() - data.timestamp > this.CACHE_TIMEOUT) {
+            // 清除过期数据和定时器
+            if (data.timeoutId) {
+                clearTimeout(data.timeoutId);
+            }
             this.cache.delete(authorId);
             return null;
         }
@@ -218,9 +222,24 @@ class CollectionService {
     }
 
     _setCache(authorId, records) {
+        // 检查并清除旧的定时器
+        const existingData = this.cache.get(authorId);
+        if (existingData?.timeoutId) {
+            clearTimeout(existingData.timeoutId);
+        }
+
+        // 设置新的定时器，1小时后自动清理
+        const timeoutId = setTimeout(() => {
+            const currentData = this.cache.get(authorId);
+            if (currentData && currentData.timeoutId === timeoutId) {
+                this.cache.delete(authorId);
+            }
+        }, this.CACHE_TIMEOUT);
+
         this.cache.set(authorId, {
             records,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            timeoutId
         });
     }
 }

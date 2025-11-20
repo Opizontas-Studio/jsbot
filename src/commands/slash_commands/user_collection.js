@@ -15,23 +15,61 @@ export default {
                 .setRequired(false)
         ),
 
-    async execute(interaction) {
+    async execute(interaction, guildConfig) {
         try {
             let targetUser = interaction.options.getUser('作者');
+            let searchTerm = null;
 
-            // 如果未指定作者，尝试获取当前子区的作者
+            // 如果未指定作者
             if (!targetUser) {
-                if (interaction.channel?.isThread()) {
-                    targetUser = await interaction.client.users.fetch(interaction.channel.ownerId)
-                        .catch(() => ({ id: interaction.channel.ownerId, username: '未知用户' }));
-                } else {
-                    throw new Error('请指定作者，或在帖子内使用此命令以查看帖子作者的合集。');
+                // 检查是否在 eventsCategoryId 下
+                const eventsCategoryId = guildConfig?.eventsCategoryId;
+                let isEventChannel = false;
+
+                if (eventsCategoryId && interaction.channel) {
+                    const channel = interaction.channel;
+                    if (channel.isThread()) {
+                        if (channel.parent?.parentId === eventsCategoryId) {
+                            isEventChannel = true;
+                        }
+                    } else if (channel.parentId === eventsCategoryId) {
+                        isEventChannel = true;
+                    }
+                }
+
+                if (isEventChannel) {
+                    // 提取搜索词
+                    const channelName = interaction.channel.name;
+                    const separators = ['-', '｜', '|'];
+                    let lastIndex = -1;
+
+                    for (const sep of separators) {
+                        const idx = channelName.lastIndexOf(sep);
+                        if (idx > lastIndex) lastIndex = idx;
+                    }
+
+                    if (lastIndex !== -1) {
+                        searchTerm = channelName.substring(lastIndex + 1).trim();
+                    }
+                }
+
+                // 如果没提取到搜索词，尝试获取当前子区的作者
+                if (!searchTerm) {
+                    if (interaction.channel?.isThread()) {
+                        targetUser = await interaction.client.users.fetch(interaction.channel.ownerId)
+                            .catch(() => ({ id: interaction.channel.ownerId, username: '未知用户' }));
+                    } else {
+                        throw new Error('请指定作者，或在帖子内使用此命令以查看帖子作者的合集。');
+                    }
                 }
             }
 
+            const authorId = searchTerm ? `search:${searchTerm}` : targetUser.id;
+            const authorUserObj = searchTerm ? { username: searchTerm } : targetUser;
+
             const result = await collectionService.buildCollectionMessage({
-                authorId: targetUser.id,
-                authorUser: targetUser,
+                authorId: authorId,
+                authorUser: authorUserObj,
                 page: 1,
                 client: interaction.client
             });

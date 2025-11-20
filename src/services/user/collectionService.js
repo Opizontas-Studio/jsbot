@@ -3,6 +3,7 @@ import { ErrorHandler } from '../../utils/errorHandler.js';
 import { CollectionComponent } from '../../components/collectionComponent.js';
 import { ComponentV2Factory } from '../../factories/componentV2Factory.js';
 import { logTime } from '../../utils/logger.js';
+import { Op } from 'sequelize';
 
 class CollectionService {
     constructor() {
@@ -23,19 +24,34 @@ class CollectionService {
                     }
 
                     const models = pgManager.getModels();
+                    
+                    // 构建查询条件
+                    const whereClause = {
+                        is_deleted: false,
+                        is_valid: true,
+                        is_locked: false
+                    };
+
+                    // 检查是否是搜索模式
+                    const isSearchMode = authorId.toString().startsWith('search:');
+                    if (isSearchMode) {
+                        const searchTerm = authorId.toString().replace('search:', '');
+                        whereClause.title = {
+                            [Op.iLike]: `%${searchTerm}%`
+                        };
+                    } else {
+                        whereClause.author_id = authorId;
+                    }
+
                     const dbRecords = await models.PostsMain.findAll({
-                        where: {
-                            author_id: authorId, 
-                            is_deleted: false,
-                            is_valid: true,
-                            is_locked: false
-                        },
+                        where: whereClause,
                         order: [['created_at', 'DESC']],
                         attributes: ['thread_id', 'title', 'created_at', 'jump_url'],
                         raw: true
                     });
 
-                    logTime(`[CollectionService] 查询结果: 作者: ${authorId} 有 ${dbRecords.length} 条记录`);
+                    const logPrefix = isSearchMode ? `搜索: ${authorId}` : `作者: ${authorId}`;
+                    logTime(`[CollectionService] 查询结果: ${logPrefix} 有 ${dbRecords.length} 条记录`);
 
                     records = dbRecords;
                     this._setCache(authorId, records);
@@ -98,10 +114,15 @@ class CollectionService {
             
             // 获取作者用户对象
             let authorUser;
-            try {
-                authorUser = await interaction.client.users.fetch(authorId);
-            } catch (e) {
-                authorUser = { username: '未知用户' };
+            if (authorId.startsWith('search:')) {
+                const searchTerm = authorId.replace('search:', '');
+                authorUser = { username: searchTerm };
+            } else {
+                try {
+                    authorUser = await interaction.client.users.fetch(authorId);
+                } catch (e) {
+                    authorUser = { username: '未知用户' };
+                }
             }
 
             // 计算分组
@@ -152,10 +173,15 @@ class CollectionService {
 
              // 获取作者用户对象
             let authorUser;
-            try {
-                authorUser = await interaction.client.users.fetch(authorId);
-            } catch (e) {
-                authorUser = { username: '未知用户' };
+            if (authorId.startsWith('search:')) {
+                const searchTerm = authorId.replace('search:', '');
+                authorUser = { username: searchTerm };
+            } else {
+                try {
+                    authorUser = await interaction.client.users.fetch(authorId);
+                } catch (e) {
+                    authorUser = { username: '未知用户' };
+                }
             }
 
             // 显示下一组的第一页

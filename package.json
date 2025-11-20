@@ -5,7 +5,8 @@
     "type": "module",
     "scripts": {
         "start": "node src/index.js",
-        "test": "pnpm exec jest -c=jest.config.js --no-cache --passWithNoTests"
+        "test": "pnpm exec jest -c=jest.config.js --no-cache --passWithNoTests",
+        "db": "./scripts/db_shell.sh"
     },
     "keywords": [],
     "author": "",

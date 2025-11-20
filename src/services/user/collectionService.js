@@ -11,49 +11,71 @@ class CollectionService {
     }
 
     async buildCollectionMessage({ authorId, authorUser, page = 1, client, currentGroup }) {
-        return await ErrorHandler.handleService(async () => {
-            // 从缓存中获取数据
-            let records = this._getFromCache(authorId);
+        return await ErrorHandler.handleService(
+            async () => {
+                // 从缓存中获取数据
+                let records = this._getFromCache(authorId);
 
-            if (!records) {
-                // 查询数据库
-                if (!pgManager.getConnectionStatus()) {
-                    throw new Error('数据库未连接');
+                if (!records) {
+                    // 查询数据库
+                    if (!pgManager.getConnectionStatus()) {
+                        throw new Error('数据库未连接');
+                    }
+
+                    const models = pgManager.getModels();
+                    const dbRecords = await models.PostsMain.findAll({
+                        where: {
+                            author_id: authorId, 
+                            is_deleted: false,
+                            is_valid: true,
+                            is_locked: false
+                        },
+                        order: [['created_at', 'DESC']],
+                        attributes: ['thread_id', 'title', 'created_at', 'jump_url'],
+                        raw: true
+                    });
+
+                    logTime(`[CollectionService] 查询结果: 作者: ${authorId} 有 ${dbRecords.length} 条记录`);
+
+                    records = dbRecords;
+                    this._setCache(authorId, records);
                 }
 
-                const models = pgManager.getModels();
-                const dbRecords = await models.PostsMain.findAll({
-                    where: {
-                        author_id: authorId,
-                        is_deleted: false,
-                        is_valid: true,
-                        is_locked: false
-                    },
-                    order: [['created_at', 'DESC']],
-                    attributes: ['thread_id', 'title', 'created_at', 'jump_url'],
-                    raw: true
+                if (!records || records.length === 0) {
+                    return {
+                        isEmpty: true,
+                        message: '该作者没有发布过符合条件的帖子'
+                    };
+                }
+
+                // 分页处理
+                const pageSize = 10;
+                const paginationData = CollectionComponent.paginate(records, page, pageSize);
+
+                // 构建消息
+                const messageData = CollectionComponent.buildMessage({
+                    records: paginationData.records,
+                    author: authorUser,
+                    currentPage: paginationData.currentPage,
+                    totalPages: paginationData.totalPages,
+                    totalRecords: paginationData.totalRecords,
+                    authorId: authorId,
+                    currentGroup,
+                    pageSize
                 });
 
-                records = dbRecords;
-                this._setCache(authorId, records);
-            }
-
-            // 分页处理
-            const pageSize = 10;
-            const paginationData = CollectionComponent.paginate(records, page, pageSize);
-
-            // 构建消息
-            return CollectionComponent.buildMessage({
-                records: paginationData.records,
-                author: authorUser,
-                currentPage: paginationData.currentPage,
-                totalPages: paginationData.totalPages,
-                totalRecords: paginationData.totalRecords,
-                authorId: authorId,
-                currentGroup,
-                pageSize
-            });
-        });
+                return {
+                    isEmpty: false,
+                    payload: {
+                        components: messageData.components,
+                        flags: messageData.flags
+                    },
+                    recordCount: records.length
+                };
+            },
+            '构建作品合集消息',
+            { throwOnError: true }
+        );
     }
 
     async handlePaginationSelectMenu(interaction) {
@@ -97,8 +119,13 @@ class CollectionService {
                 pageSize
             });
 
-            await interaction.update(messageData);
-        });
+            // 更新消息时不包含flags字段，IS_COMPONENTS_V2标志一旦设置就无法移除
+            await interaction.update({
+                components: messageData.components
+            });
+        },
+        '处理合集分页',
+        { throwOnError: true });
     }
 
     async handleGroupNavigation(interaction) {
@@ -145,8 +172,13 @@ class CollectionService {
                 pageSize
             });
 
-            await interaction.update(messageData);
-         });
+            // 更新消息时不包含flags字段
+            await interaction.update({
+                components: messageData.components
+            });
+         },
+         '处理合集分组导航',
+         { throwOnError: true });
     }
 
     _getFromCache(authorId) {
@@ -168,4 +200,3 @@ class CollectionService {
 }
 
 export const collectionService = new CollectionService();
-

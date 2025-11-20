@@ -1,9 +1,10 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { collectionService } from '../../services/user/collectionService.js';
 import { handleCommandError } from '../../utils/helper.js';
+import { ComponentV2Factory } from '../../factories/componentV2Factory.js';
 
 export default {
-    cooldown: 10,
+    cooldown: 5,
     ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('合集')
@@ -35,11 +36,19 @@ export default {
                 client: interaction.client
             });
 
-            await interaction.editReply(result);
+            if (result.isEmpty) {
+                // 使用Component V2显示空状态消息
+                await interaction.editReply({
+                    components: ComponentV2Factory.buildEmptyStateMessage(`✅ ${result.message}`),
+                    flags: ['IsComponentsV2', 'Ephemeral']
+                });
+                return;
+            }
+
+            await interaction.editReply(result.payload);
 
         } catch (error) {
             await handleCommandError(interaction, error, '查看作品合集');
         }
     }
 };
-

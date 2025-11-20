@@ -69,8 +69,8 @@ export default function definePostsMain(sequelize) {
             allowNull: false,
             comment: '跳转链接',
         },
-        attachment_url: {
-            type: DataTypes.TEXT,
+        attachment_urls: {
+            type: DataTypes.TEXT, // json array string, ["url1", "url2", "url3", "url4"]
             allowNull: true,
             comment: '附件链接',
         },

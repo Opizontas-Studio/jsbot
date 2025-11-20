@@ -49,7 +49,13 @@ export default {
                     }
 
                     if (lastIndex !== -1) {
-                        searchTerm = channelName.substring(lastIndex + 1).trim();
+                        let tempTerm = channelName.substring(lastIndex + 1).trim();
+                        // 如果包含“杯”，则截取到“杯”字为止
+                        const beiIndex = tempTerm.indexOf('杯');
+                        if (beiIndex !== -1) {
+                            tempTerm = tempTerm.substring(0, beiIndex + 1);
+                        }
+                        searchTerm = tempTerm;
                     }
                 }
 

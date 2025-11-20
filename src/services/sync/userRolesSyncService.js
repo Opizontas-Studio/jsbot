@@ -1,6 +1,7 @@
 import { pgManager } from '../../pg/pgManager.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 import { logTime } from '../../utils/logger.js';
+import { Op } from 'sequelize';
 
 /**
  * 身份组同步服务
@@ -9,7 +10,7 @@ import { logTime } from '../../utils/logger.js';
 class UserRolesSyncService {
     constructor() {
         this.DB_BATCH_SIZE = 500; // 每批数据库操作的记录数
-        this.DELETE_BATCH_SIZE = 100; // 删除操作使用批次
+        this.DELETE_BATCH_SIZE = 100; // 批量更新操作使用批次
         this.EXCLUDED_ROLE_IDS = new Set(); // 排除的身份组ID
     }
 
@@ -74,7 +75,7 @@ class UserRolesSyncService {
 
         // 计算差异
         const { toAdd, toRemove } = this._calculateDiff(currentRoles, dbRoles);
-        logTime(`[身份组同步] 需要新增: ${toAdd.length}, 需要移除: ${toRemove.length}`);
+        logTime(`[身份组同步] 需要新增/激活: ${toAdd.length}, 需要移除(软删除): ${toRemove.length}`);
 
         // 批量更新数据库
         if (toAdd.length > 0 || toRemove.length > 0) {
@@ -85,8 +86,8 @@ class UserRolesSyncService {
         logTime(
             `[身份组同步] 服务器 ${guildId} 完成 - ` +
             `耗时: ${duration}s, ` +
-            `新增: ${toAdd.length}, ` +
-            `移除: ${toRemove.length}`
+            `新增/激活: ${toAdd.length}, ` +
+            `移除(软删除): ${toRemove.length}`
         );
 
         return {
@@ -124,7 +125,7 @@ class UserRolesSyncService {
     }
 
     /**
-     * 获取数据库中指定服务器的所有身份组记录
+     * 获取数据库中指定服务器的所有身份组记录（包括非活跃的）
      * @private
      */
     async _fetchDbRolesForGuild(guild) {
@@ -139,7 +140,7 @@ class UserRolesSyncService {
             const batchRoleIds = guildRoleIds.slice(i, i + QUERY_BATCH_SIZE);
             const records = await models.UserRoles.findAll({
                 where: { role_id: batchRoleIds },
-                attributes: ['user_id', 'role_id'],
+                attributes: ['user_id', 'role_id', 'is_active'],
                 raw: true
             });
             // 使用 concat 而不是 spread operator 避免栈溢出
@@ -157,53 +158,88 @@ class UserRolesSyncService {
      */
     _calculateDiff(currentRoles, dbRoles) {
         const currentSet = new Set(currentRoles.map(r => `${r.user_id}:${r.role_id}`));
-        const dbSet = new Set(dbRoles.map(r => `${r.user_id}:${r.role_id}`));
+        const dbMap = new Map(dbRoles.map(r => [`${r.user_id}:${r.role_id}`, r]));
 
-        const toAdd = currentRoles.filter(r => !dbSet.has(`${r.user_id}:${r.role_id}`));
-        const toRemove = dbRoles.filter(r => !currentSet.has(`${r.user_id}:${r.role_id}`));
+        const toAdd = [];
+        const toRemove = [];
+
+        // 找出需要添加或激活的记录
+        for (const role of currentRoles) {
+            const key = `${role.user_id}:${role.role_id}`;
+            const dbRecord = dbMap.get(key);
+
+            if (!dbRecord) {
+                // 数据库中不存在，需要新增
+                toAdd.push(role);
+            } else if (!dbRecord.is_active) {
+                // 数据库中存在但已标记为非活跃，需要重新激活
+                toAdd.push(role);
+            }
+        }
+
+        // 找出需要软删除的记录
+        for (const role of dbRoles) {
+            const key = `${role.user_id}:${role.role_id}`;
+            if (!currentSet.has(key) && role.is_active) {
+                // 当前用户没有该角色，但数据库中是活跃状态，需要软删除
+                toRemove.push({
+                    user_id: role.user_id,
+                    role_id: role.role_id
+                });
+            }
+        }
 
         return { toAdd, toRemove };
     }
 
     /**
-     * 批量更新数据库（使用参数化查询避免栈溢出）
+     * 批量更新数据库
      * @private
      */
     async _batchUpdateDatabase(toAdd, toRemove) {
         const models = pgManager.getModels();
         
         await pgManager.transaction(async (t) => {
-            // 分批插入新记录
+            // 分批插入或更新新记录（Upsert）
             if (toAdd.length > 0) {
                 for (let i = 0; i < toAdd.length; i += this.DB_BATCH_SIZE) {
                     const batch = toAdd.slice(i, i + this.DB_BATCH_SIZE);
                     
-                    // 使用 bulkCreate 的参数化查询，避免 SQL 拼接
-                    await models.UserRoles.bulkCreate(batch, {
-                        transaction: t,
-                        ignoreDuplicates: true // 相当于 ON CONFLICT DO NOTHING
+                    // 构建 upsert 数据：如果存在则更新 is_active=true 和 updated_at
+                    const upsertData = batch.map(r => ({
+                        user_id: r.user_id,
+                        role_id: r.role_id,
+                        is_active: true,
+                        updated_at: new Date()
+                    }));
+
+                    await models.UserRoles.bulkCreate(upsertData, {
+                        updateOnDuplicate: ['is_active', 'updated_at'],
+                        transaction: t
                     });
                 }
             }
 
-            // 分批删除记录 - 使用更小的批次和逐条删除避免栈溢出
+            // 分批软删除记录
             if (toRemove.length > 0) {
                 for (let i = 0; i < toRemove.length; i += this.DELETE_BATCH_SIZE) {
                     const batch = toRemove.slice(i, i + this.DELETE_BATCH_SIZE);
                     
-                    // 使用原生 SQL 参数化查询，避免 Sequelize 内部栈溢出
-                    // 构建参数化的 DELETE 语句
-                    const placeholders = batch.map((_, idx) => {
-                        const base = idx * 2;
-                        return `(user_id = $${base + 1} AND role_id = $${base + 2})`;
-                    }).join(' OR ');
-                    
-                    const values = batch.flatMap(r => [r.user_id, r.role_id]);
-                    
-                    await pgManager.sequelize.query(
-                        `DELETE FROM user_roles WHERE ${placeholders}`,
+                    // 使用 OR 条件批量更新
+                    const whereConditions = batch.map(r => ({
+                        user_id: r.user_id,
+                        role_id: r.role_id
+                    }));
+
+                    await models.UserRoles.update(
+                        { 
+                            is_active: false,
+                            updated_at: new Date()
+                        },
                         {
-                            bind: values,
+                            where: {
+                                [Op.or]: whereConditions
+                            },
                             transaction: t
                         }
                     );
@@ -215,4 +251,3 @@ class UserRolesSyncService {
 
 export const userRolesSyncService = new UserRolesSyncService();
 export default userRolesSyncService;
-

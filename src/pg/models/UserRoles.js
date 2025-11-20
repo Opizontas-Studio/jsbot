@@ -18,10 +18,22 @@ export default function defineUserRoles(sequelize) {
             allowNull: false,
             comment: '身份组ID（复合主键之一）',
         },
+        is_active: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            comment: '是否激活（软删除）',
+        },
+        updated_at: {
+            type: DataTypes.DATE,
+            allowNull: false,
+            defaultValue: DataTypes.NOW,
+            comment: '最后更新时间',
+        },
     }, {
         tableName: 'user_roles',
         freezeTableName: true,
-        timestamps: false, // 表中没有Sequelize的默认时间戳字段
+        timestamps: false, // 不使用Sequelize的自动时间戳(createdAt/updatedAt)，我们手动管理
         comment: '用户身份组映射表（读写）',
     });
 

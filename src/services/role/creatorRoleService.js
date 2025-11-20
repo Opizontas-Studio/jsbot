@@ -201,7 +201,10 @@ async function getCreatorCount(creatorRoleId) {
 
             const models = pgManager.getModels();
             const count = await models.UserRoles.count({
-                where: { role_id: creatorRoleId }
+                where: { 
+                    role_id: creatorRoleId,
+                    is_active: true // 只统计激活状态的记录
+                }
             });
 
             return count;
@@ -232,7 +235,7 @@ function getMaxReactionsFromMessage(message) {
 }
 
 /**
- * 从 PostgreSQL 删除用户的创作者身份组记录
+ * 从 PostgreSQL 软删除用户的创作者身份组记录
  * @param {string} userId - 用户ID
  * @param {string} creatorRoleId - 创作者身份组ID
  */
@@ -245,15 +248,22 @@ async function removeUserRoleFromPG(userId, creatorRoleId) {
 
             const models = pgManager.getModels();
             
-            const deletedCount = await models.UserRoles.destroy({
-                where: {
-                    user_id: userId,
-                    role_id: creatorRoleId
+            // 软删除：将 is_active 设为 false 并更新时间戳
+            const [updatedCount] = await models.UserRoles.update(
+                { 
+                    is_active: false,
+                    updated_at: new Date()
+                },
+                {
+                    where: {
+                        user_id: userId,
+                        role_id: creatorRoleId
+                    }
                 }
-            });
+            );
 
-            if (deletedCount > 0) {
-                logTime(`[创作者身份组] 已从 PostgreSQL 删除用户 ${userId} 的身份组记录`);
+            if (updatedCount > 0) {
+                logTime(`[创作者身份组] 已从 PostgreSQL 软删除用户 ${userId} 的身份组记录`);
             }
         },
         "从PostgreSQL删除用户身份组记录"
@@ -274,16 +284,16 @@ async function syncUserRoleToPG(userId, creatorRoleId) {
 
             const models = pgManager.getModels();
             
-            // 使用 findOrCreate 确保数据存在且不重复
-            await models.UserRoles.findOrCreate({
-                where: {
+            // 使用 Upsert：如果存在则更新为 active，如果不存在则插入
+            await models.UserRoles.bulkCreate([
+                {
                     user_id: userId,
-                    role_id: creatorRoleId
-                },
-                defaults: {
-                    user_id: userId,
-                    role_id: creatorRoleId
+                    role_id: creatorRoleId,
+                    is_active: true,
+                    updated_at: new Date()
                 }
+            ], {
+                updateOnDuplicate: ['is_active', 'updated_at']
             });
         },
         "同步用户身份组到PostgreSQL"
@@ -373,11 +383,12 @@ export async function autoGrantCreatorRole(client, threadId, authorId) {
                 };
             }
 
-            // 检查数据库中是否已有此身份组
+            // 检查数据库中是否已有此身份组且为激活状态
             const existingRole = await models.UserRoles.findOne({
                 where: {
                     user_id: authorId,
-                    role_id: creatorRoleId
+                    role_id: creatorRoleId,
+                    is_active: true // 只检查激活状态
                 },
                 raw: true
             });
@@ -580,4 +591,3 @@ export async function handleCreatorRoleApplication(client, interaction, threadLi
         "处理创作者身份组申请"
     );
 }
-

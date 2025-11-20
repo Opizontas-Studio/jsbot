@@ -8,10 +8,15 @@ export default {
     ephemeral: true,
     data: new SlashCommandBuilder()
         .setName('合集')
-        .setDescription('查看杯赛或作者的作品合集（杯赛频道查杯赛，作者帖子查作者）')
+        .setDescription('查看作品合集，参数可不填。帖子使用直接查看作者，杯赛频道使用直接查杯赛')
         .addUserOption(option =>
             option.setName('作者')
-                .setDescription('选择作者（不填且在帖子内使用则查看当前帖子作者，杯赛频道查杯赛）')
+                .setDescription('选择作者（不填则查当前帖子作者）')
+                .setRequired(false)
+        )
+        .addStringOption(option =>
+            option.setName('杯赛名')
+                .setDescription('指定杯赛名称搜索（不填则查当前频道杯赛）')
                 .setRequired(false)
         ),
 
@@ -22,40 +27,46 @@ export default {
 
             // 如果未指定作者
             if (!targetUser) {
-                // 检查是否在 eventsCategoryId 下
-                const eventsCategoryId = guildConfig?.eventsCategoryId;
-                let isEventChannel = false;
+                const cupName = interaction.options.getString('杯赛名');
+                
+                if (cupName) {
+                    searchTerm = cupName;
+                } else {
+                    // 检查是否在 eventsCategoryId 下
+                    const eventsCategoryId = guildConfig?.eventsCategoryId;
+                    let isEventChannel = false;
 
-                if (eventsCategoryId && interaction.channel) {
-                    const channel = interaction.channel;
-                    if (channel.isThread()) {
-                        if (channel.parent?.parentId === eventsCategoryId) {
+                    if (eventsCategoryId && interaction.channel) {
+                        const channel = interaction.channel;
+                        if (channel.isThread()) {
+                            if (channel.parent?.parentId === eventsCategoryId) {
+                                isEventChannel = true;
+                            }
+                        } else if (channel.parentId === eventsCategoryId) {
                             isEventChannel = true;
                         }
-                    } else if (channel.parentId === eventsCategoryId) {
-                        isEventChannel = true;
-                    }
-                }
-
-                if (isEventChannel) {
-                    // 提取搜索词
-                    const channelName = interaction.channel.name;
-                    const separators = ['-', '｜', '|'];
-                    let lastIndex = -1;
-
-                    for (const sep of separators) {
-                        const idx = channelName.lastIndexOf(sep);
-                        if (idx > lastIndex) lastIndex = idx;
                     }
 
-                    if (lastIndex !== -1) {
-                        let tempTerm = channelName.substring(lastIndex + 1).trim();
-                        // 如果包含“杯”，则截取到“杯”字为止
-                        const beiIndex = tempTerm.indexOf('杯');
-                        if (beiIndex !== -1) {
-                            tempTerm = tempTerm.substring(0, beiIndex + 1);
+                    if (isEventChannel) {
+                        // 提取搜索词
+                        const channelName = interaction.channel.name;
+                        const separators = ['-', '｜', '|'];
+                        let lastIndex = -1;
+
+                        for (const sep of separators) {
+                            const idx = channelName.lastIndexOf(sep);
+                            if (idx > lastIndex) lastIndex = idx;
                         }
-                        searchTerm = tempTerm;
+
+                        if (lastIndex !== -1) {
+                            let tempTerm = channelName.substring(lastIndex + 1).trim();
+                            // 如果包含“杯”，则截取到“杯”字为止
+                            const beiIndex = tempTerm.indexOf('杯');
+                            if (beiIndex !== -1) {
+                                tempTerm = tempTerm.substring(0, beiIndex + 1);
+                            }
+                            searchTerm = tempTerm;
+                        }
                     }
                 }
 

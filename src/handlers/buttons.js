@@ -18,6 +18,7 @@ import { ErrorHandler } from '../utils/errorHandler.js';
 import { logTime } from '../utils/logger.js';
 import { checkConfirmationPermission, punishmentConfirmationStore } from '../utils/punishmentConfirmationHelper.js';
 import { followHistoryService } from '../services/user/followHistoryService.js';
+import { collectionService } from '../services/user/collectionService.js';
 
 /**
  * 查找对应的按钮配置
@@ -30,10 +31,14 @@ export function findButtonConfig(customId) {
         return BUTTON_CONFIG[customId];
     }
 
-    // 2. 特殊匹配：关注历史分组导航按钮
-    // 格式：follow_history_page_{userId}_{type}_group_{currentGroup}_next
+    // 2. 特殊匹配：关注历史分组和合集分组导航按钮
+    // follow_history_page_{userId}_{type}_group_{currentGroup}_next
     if (customId.includes('_group_') && customId.endsWith('_next') && customId.startsWith('follow_history_page_')) {
         return BUTTON_CONFIG['follow_history_page_group'];
+    }
+    // collection_page_{authorId}_group_{currentGroup}_next
+    if (customId.includes('_group_') && customId.endsWith('_next') && customId.startsWith('collection_page_')) {
+        return BUTTON_CONFIG['collection_page_group'];
     }
 
     // 3. 前缀匹配（取前两个部分，如 "support_mute_123" -> "support_mute"）
@@ -195,6 +200,16 @@ export const buttonHandlers = {
             interaction,
             () => followHistoryService.handleGroupNavigation(interaction),
             '关注历史分组导航',
+            { ephemeral: true }
+        );
+    },
+
+    // 合集分组导航按钮处理器
+    collection_page_group: async interaction => {
+        await ErrorHandler.handleInteraction(
+            interaction,
+            () => collectionService.handleGroupNavigation(interaction),
+            '合集分组导航',
             { ephemeral: true }
         );
     },
@@ -638,6 +653,9 @@ const BUTTON_CONFIG = {
     follow_history_switch_active: { handler: buttonHandlers.follow_history_switch_active, needDefer: false, cooldown: 3000 },
     follow_history_switch_all: { handler: buttonHandlers.follow_history_switch_all, needDefer: false, cooldown: 3000 },
     follow_history_page_group: { handler: buttonHandlers.follow_history_page_group, needDefer: false, cooldown: 3000 },
+
+    // 合集相关
+    collection_page_group: { handler: buttonHandlers.collection_page_group, needDefer: false, cooldown: 3000 },
 
     // 投稿相关
     submit_opinion: { handler: buttonHandlers.submit_opinion, needDefer: false, cooldown: 30000 },

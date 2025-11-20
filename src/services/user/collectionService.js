@@ -1,0 +1,171 @@
+import { pgManager } from '../../pg/pgManager.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
+import { CollectionComponent } from '../../components/collectionComponent.js';
+import { ComponentV2Factory } from '../../factories/componentV2Factory.js';
+import { logTime } from '../../utils/logger.js';
+
+class CollectionService {
+    constructor() {
+        this.cache = new Map(); // key: authorId, value: { records: [], timestamp: number }
+        this.CACHE_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+    }
+
+    async buildCollectionMessage({ authorId, authorUser, page = 1, client, currentGroup }) {
+        return await ErrorHandler.handleService(async () => {
+            // 从缓存中获取数据
+            let records = this._getFromCache(authorId);
+
+            if (!records) {
+                // 查询数据库
+                if (!pgManager.getConnectionStatus()) {
+                    throw new Error('数据库未连接');
+                }
+
+                const models = pgManager.getModels();
+                const dbRecords = await models.PostsMain.findAll({
+                    where: {
+                        author_id: authorId,
+                        is_deleted: false,
+                        is_valid: true,
+                        is_locked: false
+                    },
+                    order: [['created_at', 'DESC']],
+                    attributes: ['thread_id', 'title', 'created_at', 'jump_url'],
+                    raw: true
+                });
+
+                records = dbRecords;
+                this._setCache(authorId, records);
+            }
+
+            // 分页处理
+            const pageSize = 10;
+            const paginationData = CollectionComponent.paginate(records, page, pageSize);
+
+            // 构建消息
+            return CollectionComponent.buildMessage({
+                records: paginationData.records,
+                author: authorUser,
+                currentPage: paginationData.currentPage,
+                totalPages: paginationData.totalPages,
+                totalRecords: paginationData.totalRecords,
+                authorId: authorId,
+                currentGroup,
+                pageSize
+            });
+        });
+    }
+
+    async handlePaginationSelectMenu(interaction) {
+        return await ErrorHandler.handleService(async () => {
+            // collection_page_{authorId}_select
+            const parts = interaction.customId.split('_');
+            const authorId = parts[2];
+            
+            const targetPage = parseInt(interaction.values[0]);
+
+            // 从缓存中获取数据
+            const records = this._getFromCache(authorId);
+            if (!records) {
+                 throw new Error('页面数据已过期，请重新执行查询命令');
+            }
+
+             // 分页处理
+            const pageSize = 10;
+            const paginationData = CollectionComponent.paginate(records, targetPage, pageSize);
+            
+            // 获取作者用户对象
+            let authorUser;
+            try {
+                authorUser = await interaction.client.users.fetch(authorId);
+            } catch (e) {
+                authorUser = { username: '未知用户' };
+            }
+
+            // 计算分组
+            const MAX_OPTIONS = 25;
+            const targetGroup = Math.floor((targetPage - 1) / MAX_OPTIONS);
+
+            const messageData = CollectionComponent.buildMessage({
+                records: paginationData.records,
+                author: authorUser,
+                currentPage: paginationData.currentPage,
+                totalPages: paginationData.totalPages,
+                totalRecords: paginationData.totalRecords,
+                authorId: authorId,
+                currentGroup: targetGroup,
+                pageSize
+            });
+
+            await interaction.update(messageData);
+        });
+    }
+
+    async handleGroupNavigation(interaction) {
+         return await ErrorHandler.handleService(async () => {
+            // collection_page_{authorId}_group_{currentGroup}_next
+            const parts = interaction.customId.split('_');
+            const authorId = parts[2];
+            const currentGroup = parseInt(parts[4]);
+
+             // 从缓存中获取数据
+            const records = this._getFromCache(authorId);
+            if (!records) {
+                 throw new Error('页面数据已过期，请重新执行查询命令');
+            }
+
+            const pageSize = 10;
+            const totalPages = Math.ceil(records.length / pageSize);
+            const MAX_OPTIONS = 25;
+            const totalGroups = Math.ceil(totalPages / MAX_OPTIONS);
+            
+            // 计算下一组
+            const nextGroup = (currentGroup + 1) % totalGroups;
+            const startPage = nextGroup * MAX_OPTIONS + 1;
+
+             // 获取作者用户对象
+            let authorUser;
+            try {
+                authorUser = await interaction.client.users.fetch(authorId);
+            } catch (e) {
+                authorUser = { username: '未知用户' };
+            }
+
+            // 显示下一组的第一页
+             const paginationData = CollectionComponent.paginate(records, startPage, pageSize);
+
+             const messageData = CollectionComponent.buildMessage({
+                records: paginationData.records,
+                author: authorUser,
+                currentPage: paginationData.currentPage,
+                totalPages: paginationData.totalPages,
+                totalRecords: paginationData.totalRecords,
+                authorId: authorId,
+                currentGroup: nextGroup,
+                pageSize
+            });
+
+            await interaction.update(messageData);
+         });
+    }
+
+    _getFromCache(authorId) {
+        const data = this.cache.get(authorId);
+        if (!data) return null;
+        if (Date.now() - data.timestamp > this.CACHE_TIMEOUT) {
+            this.cache.delete(authorId);
+            return null;
+        }
+        return data.records;
+    }
+
+    _setCache(authorId, records) {
+        this.cache.set(authorId, {
+            records,
+            timestamp: Date.now()
+        });
+    }
+}
+
+export const collectionService = new CollectionService();
+

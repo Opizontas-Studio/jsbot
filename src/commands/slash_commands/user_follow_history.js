@@ -1,6 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { handleCommandError } from '../../utils/helper.js';
-import { logTime } from '../../utils/logger.js';
 import { followHistoryService } from '../../services/user/followHistoryService.js';
 import { ComponentV2Factory } from '../../factories/componentV2Factory.js';
 

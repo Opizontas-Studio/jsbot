@@ -16,7 +16,7 @@ export default function definePostMembers(sequelize) {
             type: DataTypes.BIGINT,
             primaryKey: true,
             allowNull: false,
-            comment: '线程ID（复合主键之一）',
+            comment: '帖子ID（复合主键之一）',
         },
         is_thread_owner: {
             type: DataTypes.BOOLEAN,

@@ -10,7 +10,7 @@ export default function definePostsMain(sequelize) {
             type: DataTypes.BIGINT,
             primaryKey: true,
             allowNull: false,
-            comment: '线程ID（主键）',
+            comment: '帖子ID（主键）',
         },
         first_message_id: {
             type: DataTypes.BIGINT,

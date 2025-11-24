@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createStandardMessage } from '../../../shared/factories/ComponentV2Factory.js';
+import { ComponentV2Factory } from '../../../shared/factories/ComponentV2Factory.js';
 import { PingMessageBuilder } from '../builders/pingMessages.js';
 
 /**
@@ -32,7 +32,7 @@ export default [
 
             // 发送初始回复以测量往返延迟
             await ctx.reply(
-                createStandardMessage('progress', {
+                ComponentV2Factory.createStandardMessage('progress', {
                     ...PingMessageBuilder.MESSAGES.measuring,
                     additionalFlags: ['Ephemeral']
                 })

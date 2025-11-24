@@ -1,5 +1,5 @@
 import { defineService } from '../../../core/Container.js';
-import { ComponentV2Factory, createStandardMessage } from '../../../shared/factories/ComponentV2Factory.js';
+import { ComponentV2Factory } from '../../../shared/factories/ComponentV2Factory.js';
 import { SystemMessageBuilder } from '../builders/systemMessages.js';
 
 /**
@@ -26,7 +26,9 @@ export class SystemCommandService {
      */
     async executeSyncCommands(ctx) {
         // 显示检查中消息
-        await ctx.interaction.editReply(createStandardMessage('progress', SystemMessageBuilder.MESSAGES.sync.checking));
+        await ctx.interaction.editReply(
+            ComponentV2Factory.createStandardMessage('progress', SystemMessageBuilder.MESSAGES.sync.checking)
+        );
 
         // 调用核心服务执行同步
         const result = await this.commandDeployer.syncCommandsToGuild(ctx.interaction.guildId, ctx.client.token);
@@ -152,7 +154,9 @@ export class SystemCommandService {
      */
     _createErrorHandler(errorMessageFn, logTemplate) {
         return async (error, confirmation, context) => {
-            await confirmation.editReply(createStandardMessage('error', errorMessageFn(error.message)));
+            await confirmation.editReply(
+                ComponentV2Factory.createStandardMessage('error', errorMessageFn(error.message))
+            );
 
             return {
                 logInfo: {
@@ -180,7 +184,7 @@ export class SystemCommandService {
             userId: ctx.user.id,
             onConfirm: async (confirmation, context) => {
                 await confirmation.update(
-                    createStandardMessage(
+                    ComponentV2Factory.createStandardMessage(
                         'progress',
                         SystemMessageBuilder.MESSAGES.reload.progress(context.moduleName, context.scope)
                     )
@@ -231,7 +235,10 @@ export class SystemCommandService {
             userId: ctx.user.id,
             onConfirm: async (confirmation, context) => {
                 await confirmation.update(
-                    createStandardMessage('progress', SystemMessageBuilder.MESSAGES.config.progress(context.guildId))
+                    ComponentV2Factory.createStandardMessage(
+                        'progress',
+                        SystemMessageBuilder.MESSAGES.config.progress(context.guildId)
+                    )
                 );
 
                 const result = this.executeReloadConfig(context.guildId);
@@ -284,7 +291,7 @@ export class SystemCommandService {
             userId: ctx.user.id,
             onConfirm: async (confirmation, context) => {
                 await confirmation.update(
-                    createStandardMessage('progress', SystemMessageBuilder.MESSAGES.restart.progress)
+                    ComponentV2Factory.createStandardMessage('progress', SystemMessageBuilder.MESSAGES.restart.progress)
                 );
 
                 this.executeRestart(1000);

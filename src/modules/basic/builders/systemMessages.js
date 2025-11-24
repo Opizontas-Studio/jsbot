@@ -1,4 +1,4 @@
-import { createStandardMessage } from '../../../shared/factories/ComponentV2Factory.js';
+import { ComponentV2Factory } from '../../../shared/factories/ComponentV2Factory.js';
 
 /**
  * 系统消息构建器
@@ -124,7 +124,7 @@ export class SystemMessageBuilder {
      * 保留此方法因为有语义清晰的参数结构
      */
     static createSyncUpToDate({ localTotal, deployedTotal }) {
-        return createStandardMessage('success', {
+        return ComponentV2Factory.createStandardMessage('success', {
             title: '命令已是最新状态',
             message: [`本地命令数: ${localTotal}`, `已部署命令数: ${deployedTotal}`, '', '无需同步。']
         });
@@ -152,7 +152,7 @@ export class SystemMessageBuilder {
             details.push(updated.map(name => `• ${name}`).join('\n'));
         }
 
-        return createStandardMessage('success', {
+        return ComponentV2Factory.createStandardMessage('success', {
             title: '命令同步完成',
             message: details
         });
@@ -201,7 +201,7 @@ export class SystemMessageBuilder {
             details.push(`**已加载**: ${loadedStats}`);
         }
 
-        return createStandardMessage('success', {
+        return ComponentV2Factory.createStandardMessage('success', {
             title: '模块重载成功',
             message: details
         });
@@ -226,7 +226,7 @@ export class SystemMessageBuilder {
             details.push('', '⚠️ 配置文件不存在，服务器将使用默认配置（如有）。');
         }
 
-        return createStandardMessage('success', {
+        return ComponentV2Factory.createStandardMessage('success', {
             title: '配置重载成功',
             message: details
         });

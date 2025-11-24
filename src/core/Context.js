@@ -1,4 +1,4 @@
-import { createStandardMessage } from '../shared/factories/ComponentV2Factory.js';
+import { ComponentV2Factory } from '../shared/factories/ComponentV2Factory.js';
 
 /**
  * 统一的上下文对象
@@ -78,7 +78,7 @@ export class Context {
         }
 
         return await this.reply(
-            createStandardMessage('error', {
+            ComponentV2Factory.createStandardMessage('error', {
                 title: '错误',
                 message,
                 additionalFlags: ['Ephemeral']
@@ -101,7 +101,7 @@ export class Context {
         }
 
         return await this.reply(
-            createStandardMessage('info', {
+            ComponentV2Factory.createStandardMessage('info', {
                 title: '提示',
                 message,
                 additionalFlags: ['Ephemeral']
@@ -125,14 +125,14 @@ export class Context {
 
         if (typeof messageOrConfig === 'string') {
             return await this.reply(
-                createStandardMessage('success', {
+                ComponentV2Factory.createStandardMessage('success', {
                     title: '成功',
                     message: messageOrConfig
                 })
             );
         }
 
-        return await this.reply(createStandardMessage('success', messageOrConfig));
+        return await this.reply(ComponentV2Factory.createStandardMessage('success', messageOrConfig));
     }
 
     /**

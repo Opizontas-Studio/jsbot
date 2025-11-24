@@ -1,5 +1,5 @@
 import { ConfirmationMessageBuilder } from '../builders/ConfirmationMessage.js';
-import { createStandardMessage } from '../factories/ComponentV2Factory.js';
+import { ComponentV2Factory } from '../factories/ComponentV2Factory.js';
 
 /**
  * 确认按钮配置
@@ -24,7 +24,7 @@ export default [
             if (!result.success) {
                 // 确认失败（过期、无权限等）
                 await ctx.interaction.reply(
-                    createStandardMessage('error', {
+                    ComponentV2Factory.createStandardMessage('error', {
                         ...ConfirmationMessageBuilder.MESSAGES.error('操作失败', result.error),
                         additionalFlags: ['Ephemeral']
                     })

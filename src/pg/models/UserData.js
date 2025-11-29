@@ -12,10 +12,25 @@ export default function defineUserData(sequelize) {
             allowNull: false,
             comment: '用户ID（主键）',
         },
-        user_name: {
+        user_username: {
             type: DataTypes.TEXT,
             allowNull: false,
             comment: '用户名',
+        },
+        user_nickname: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            comment: '用户昵称',
+        },
+        user_global_name: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            comment: '用户全局名称',
+        },
+        user_avatar_url: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            comment: '用户头像URL',
         },
         user_thread_count: {
             type: DataTypes.INTEGER,

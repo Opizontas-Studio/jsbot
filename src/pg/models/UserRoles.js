@@ -35,6 +35,16 @@ export default function defineUserRoles(sequelize) {
         freezeTableName: true,
         timestamps: false, // 不使用Sequelize的自动时间戳(createdAt/updatedAt)，我们手动管理
         comment: '用户身份组映射表（读写）',
+        indexes: [
+            {
+                name: 'idx_user_roles_role_id',
+                fields: ['role_id']
+            },
+            {
+                name: 'idx_user_roles_is_active',
+                fields: ['is_active']
+            }
+        ]
     });
 
     return UserRoles;

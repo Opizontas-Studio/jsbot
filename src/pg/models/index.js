@@ -2,6 +2,7 @@ import definePostsMain from './PostsMain.js';
 import defineUserData from './UserData.js';
 import definePostMembers from './PostMembers.js';
 import defineUserRoles from './UserRoles.js';
+import defineRoles from './Roles.js';
 
 /**
  * 初始化所有数据模型
@@ -17,6 +18,7 @@ export function initModels(sequelize) {
         UserData: defineUserData(sequelize),
         PostMembers: definePostMembers(sequelize),
         UserRoles: defineUserRoles(sequelize),
+        Roles: defineRoles(sequelize),
     };
 
     // 定义模型之间的关联关系
@@ -30,6 +32,18 @@ export function initModels(sequelize) {
         foreignKey: 'thread_id',
         targetKey: 'thread_id',
         as: 'post'
+    });
+
+    // UserRoles 和 Roles 的关联
+    models.Roles.hasMany(models.UserRoles, {
+        foreignKey: 'role_id',
+        sourceKey: 'role_id',
+        as: 'user_roles'
+    });
+    models.UserRoles.belongsTo(models.Roles, {
+        foreignKey: 'role_id',
+        targetKey: 'role_id',
+        as: 'role'
     });
 
     return models;

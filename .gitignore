@@ -43,6 +43,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+CLAUDE.md
 
 # 测试工具
 docs/

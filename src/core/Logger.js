@@ -110,10 +110,11 @@ export class Logger {
      * @returns {Logger}
      */
     child(bindings) {
-        const childLogger = new Logger({ level: this.logger.level });
-        childLogger.logger = this.logger.child(bindings);
-        childLogger.fileLogger = this.fileLogger?.child(bindings);
-        return childLogger;
+        // 创建一个轻量级的子日志器，共享父实例的配置
+        const childInstance = Object.create(Logger.prototype);
+        childInstance.logger = this.logger.child(bindings);
+        childInstance.fileLogger = this.fileLogger?.child(bindings);
+        return childInstance;
     }
 
     /**

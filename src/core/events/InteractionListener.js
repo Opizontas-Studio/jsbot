@@ -243,8 +243,14 @@ export class InteractionListener {
             });
             try {
                 await interaction.respond([]);
-            } catch {
-                // 忽略自动补全响应错误
+            } catch (respondError) {
+                // 自动补全响应错误通常是因为超时，记录为 debug 级别
+                this.logger.debug({
+                    msg: '自动补全响应失败',
+                    commandName,
+                    subcommandName,
+                    error: respondError.message
+                });
             }
         }
     }

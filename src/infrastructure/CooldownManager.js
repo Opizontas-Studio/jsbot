@@ -3,9 +3,28 @@
  * 用于控制命令和组件的执行频率
  */
 export class CooldownManager {
-    constructor() {
+    /**
+     * @param {Object} options - 配置选项
+     * @param {number} [options.cleanupInterval=300000] - 自动清理间隔（毫秒，默认5分钟）
+     * @param {number} [options.maxAge=3600000] - 过期记录最大保留时间（毫秒，默认1小时）
+     */
+    constructor(options = {}) {
         // 存储冷却记录：key -> timestamp
         this.cooldowns = new Map();
+
+        // 清理配置
+        this.maxAge = options.maxAge ?? 3600000;
+        this.cleanupInterval = options.cleanupInterval ?? 300000;
+
+        // 启动自动清理定时器
+        this._cleanupTimer = setInterval(() => {
+            this.cleanupExpired(this.maxAge);
+        }, this.cleanupInterval);
+
+        // 防止定时器阻止进程退出
+        if (this._cleanupTimer.unref) {
+            this._cleanupTimer.unref();
+        }
     }
 
     /**
@@ -74,5 +93,28 @@ export class CooldownManager {
      */
     get size() {
         return this.cooldowns.size;
+    }
+
+    /**
+     * 获取统计信息
+     * @returns {Object}
+     */
+    getStats() {
+        return {
+            size: this.cooldowns.size,
+            maxAge: this.maxAge,
+            cleanupInterval: this.cleanupInterval
+        };
+    }
+
+    /**
+     * 销毁管理器，清理定时器（优雅关闭时调用）
+     */
+    destroy() {
+        if (this._cleanupTimer) {
+            clearInterval(this._cleanupTimer);
+            this._cleanupTimer = null;
+        }
+        this.cooldowns.clear();
     }
 }

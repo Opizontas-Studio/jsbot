@@ -151,6 +151,16 @@ export class Application {
                 queueManager.clear();
             }
 
+            // 清理冷却管理器
+            if (this.container.has('cooldownManager')) {
+                this.container.get('cooldownManager').destroy();
+            }
+
+            // 清理确认服务
+            if (this.container.has('confirmationService')) {
+                this.container.get('confirmationService').destroy();
+            }
+
             // 关闭数据库连接
             if (this.container.has('database')) {
                 await this.container.get('database').disconnect();

@@ -131,23 +131,6 @@ export class Container {
     }
 
     /**
-     * 注销指定服务（实例与工厂）
-     * @param {string} name - 服务名称
-     */
-    unregister(name) {
-        this.services.delete(name);
-        this.factories.delete(name);
-    }
-
-    /**
-     * 注销工厂（保留实例）
-     * @param {string} name - 服务名称
-     */
-    unregisterFactory(name) {
-        this.factories.delete(name);
-    }
-
-    /**
      * 获取已实例化服务名称
      * @returns {Array<string>}
      */

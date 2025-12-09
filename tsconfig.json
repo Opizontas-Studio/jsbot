@@ -19,8 +19,11 @@
         "strictPropertyInitialization": false,
         "noImplicitOverride": true,
         "noUncheckedIndexedAccess": true,
-        "exactOptionalPropertyTypes": false
+        "exactOptionalPropertyTypes": false,
+        "useDefineForClassFields": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true
     },
     "include": ["src/**/*.ts"],
-    "exclude": ["node_modules", "dist", "**/*.test.ts"]
+    "exclude": ["node_modules", "dist", "src-old", "**/*.test.ts"]
 }

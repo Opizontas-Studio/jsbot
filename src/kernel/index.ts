@@ -15,7 +15,7 @@ export {
     UserContextMenuContext,
     type AnyContext
 } from './Context.js';
-export { LOGGER_TOKEN, ModuleLoader, type LoadResult, type Logger, type ModuleInfo } from './ModuleLoader.js';
+export { LOGGER_TOKEN, ModuleLoader, type ILogger, type LoadResult, type ModuleInfo } from './ModuleLoader.js';
 export { Pattern, type CompiledPattern, type ParamInfo, type ParamType } from './Pattern.js';
 export { Pipeline, type Middleware, type MiddlewareEntry, type Next } from './Pipeline.js';
 export { Registry, type RegistryStats } from './Registry.js';

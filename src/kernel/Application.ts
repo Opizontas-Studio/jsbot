@@ -8,7 +8,7 @@ import 'reflect-metadata';
 import { container, DependencyContainer } from 'tsyringe';
 import type { AppConfig } from '../types/config.js';
 import type { Context } from './Context.js';
-import { LOGGER_TOKEN, ModuleLoader, type Logger } from './ModuleLoader.js';
+import { LOGGER_TOKEN, ModuleLoader, type ILogger } from './ModuleLoader.js';
 import { Pipeline, type Middleware } from './Pipeline.js';
 import { Registry } from './Registry.js';
 
@@ -52,7 +52,7 @@ export class Application {
     private registry: Registry | null = null;
     private moduleLoader: ModuleLoader | null = null;
     private pipeline: Pipeline | null = null;
-    private logger: Logger | null = null;
+    private logger: ILogger | null = null;
     private shutdownHooks: ShutdownHook[] = [];
     private isShuttingDown = false;
 
@@ -77,7 +77,7 @@ export class Application {
         if (!this.container.isRegistered(TOKENS.Logger)) {
             this.container.registerInstance(TOKENS.Logger, createConsoleLogger());
         }
-        this.logger = this.container.resolve<Logger>(TOKENS.Logger);
+        this.logger = this.container.resolve<ILogger>(TOKENS.Logger);
         this.logger.info('Initializing...');
 
         this.client = new Client({ intents: this.intents, partials: this.partials });
@@ -227,7 +227,7 @@ export class Application {
     }
 }
 
-function createConsoleLogger(): Logger {
+function createConsoleLogger(): ILogger {
     return {
         info: (msg, data) => console.log(`[INFO] ${msg}`, data ?? ''),
         error: (msg, data) => console.error(`[ERROR] ${msg}`, data ?? ''),

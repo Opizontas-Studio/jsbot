@@ -148,7 +148,6 @@ export class MessageContextMenuContext extends Context<MessageContextMenuCommand
 }
 
 // 类型导出
-
 export type AnyContext =
     | Context
     | CommandContext

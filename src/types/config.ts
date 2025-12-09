@@ -4,18 +4,18 @@
  */
 
 import type {
-    AutocompleteContext,
-    ButtonContext,
-    CommandContext,
-    ModalContext,
-    SelectMenuContext
-} from '@/kernel/Context.js';
-import type {
     ClientEvents,
     ContextMenuCommandBuilder,
     SlashCommandBuilder,
     SlashCommandSubcommandsOnlyBuilder
 } from 'discord.js';
+import type {
+    AutocompleteContext,
+    ButtonContext,
+    CommandContext,
+    ModalContext,
+    SelectMenuContext
+} from '../kernel/Context.js';
 
 // 基础类型
 export type ConfigType = 'command' | 'commandGroup' | 'button' | 'selectMenu' | 'modal' | 'event' | 'task';
@@ -32,15 +32,13 @@ export interface UsageConstraintObject {
 
 // 基础配置
 export interface BaseConfig {
-    // 配置唯一标识符，格式：moduleName.configName
-    id: string;
+    id: string; // 配置唯一标识符，格式：moduleName.configName
     type: ConfigType;
     defer?: DeferOption;
     usage?: UsageConstraint;
     permissions?: string[];
     cooldown?: number;
-    // 所属模块名称（由 ModuleLoader 自动填充）
-    _module?: string;
+    _module?: string; // 所属模块名称（由 ModuleLoader 自动填充）
 }
 
 // 命令配置

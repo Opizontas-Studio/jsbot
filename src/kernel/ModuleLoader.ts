@@ -24,9 +24,9 @@ export interface LoadResult {
     errors: string[];
 }
 
-export const LOGGER_TOKEN = Symbol('Logger');
+export const LOGGER_TOKEN = Symbol('ILogger');
 
-export interface Logger {
+export interface ILogger {
     info(msg: string, data?: object): void;
     error(msg: string, data?: object): void;
     debug(msg: string, data?: object): void;
@@ -41,7 +41,7 @@ export class ModuleLoader {
     private loadedModules = new Map<string, ModuleInfo>();
     private cacheVersion = new Map<string, number>();
 
-    constructor(@inject(Registry) private registry: Registry, @inject(LOGGER_TOKEN) private logger: Logger) {}
+    constructor(@inject(Registry) private registry: Registry, @inject(LOGGER_TOKEN) private logger: ILogger) {}
 
     async loadAll(modulesPath: string): Promise<LoadResult[]> {
         const results: LoadResult[] = [];

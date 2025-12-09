@@ -3,13 +3,11 @@
  * @module kernel/Pipeline
  */
 
-import type { Context } from '@/kernel/Context.js';
+import type { Context } from '../kernel/Context.js';
 import type { InteractionConfig } from '../types/config.js';
 
 export type Next = () => Promise<void>;
-
 export type Middleware<T extends Context = Context> = (ctx: T, next: Next, config: InteractionConfig) => Promise<void>;
-
 export interface MiddlewareEntry<T extends Context = Context> {
     name: string;
     fn: Middleware<T>;
@@ -18,16 +16,16 @@ export interface MiddlewareEntry<T extends Context = Context> {
 export class Pipeline<T extends Context = Context> {
     private middlewares: MiddlewareEntry<T>[] = [];
 
+    names(): string[] {
+        return this.middlewares.map(m => m.name);
+    }
+
     use(middleware: Middleware<T>, name?: string): this {
         this.middlewares.push({
             name: name ?? middleware.name ?? `mw_${this.middlewares.length}`,
             fn: middleware
         });
         return this;
-    }
-
-    names(): string[] {
-        return this.middlewares.map(m => m.name);
     }
 
     async execute(ctx: T, config: InteractionConfig, handler: () => Promise<void>): Promise<void> {
